@@ -47,9 +47,24 @@ app.include_router(ws_router)
 def health():
     return {"success": True, "data": {"status": "ok", "service": "KB Chat API"}, "message": None}
 
-@app.get("/")
-def root():
-    return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share.", "version": "1.0.0"}, "message": None}
+@app.get("/api")
+def api_root():
+    return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share.", "version": "2.0.0"}, "message": None}
+
+# Serve frontend static files if built (for single-container deploy on Render)
+# Frontend dist is copied to ../frontend/dist in Docker (from /app/frontend/dist relative to /app/backend)
+import pathlib
+frontend_dist = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "dist"
+# Also check alternative path when running locally: KB-CHAT/frontend/dist
+if not frontend_dist.exists():
+    # try local dev path
+    frontend_dist = pathlib.Path(__file__).resolve().parents[3] / "frontend" / "dist"
+if frontend_dist.exists():
+    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+else:
+    @app.get("/")
+    def root():
+        return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share.", "version": "2.0.0", "frontend": "not built"}, "message": None}
 
 # Mount uploads as static if needed (already handled via file endpoint)
 # Add rate limiting placeholder - simple middleware

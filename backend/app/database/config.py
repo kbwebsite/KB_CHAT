@@ -18,6 +18,11 @@ class Settings(BaseSettings):
         env_file = ".env"
         extra = "allow"
 
+    def model_post_init(self, __context):
+        # Render gives postgres:// but psycopg2 needs postgresql://
+        if self.DATABASE_URL.startswith("postgres://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
+
     @property
     def cors_origins_list(self) -> List[str]:
         return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
