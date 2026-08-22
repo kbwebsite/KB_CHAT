@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: kbchat
+      POSTGRES_USER: kbchat
+      POSTGRES_PASSWORD: kbchatpass
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql://kbchat:kbchatpass@postgres:5432/kbchat
+      JWT_SECRET: change-this-in-production-32chars-random!
+      CORS_ORIGINS: http://localhost:5173
+      UPLOAD_DIR: ./uploads
+    ports:
+      - "8000:8000"
+    depends_on:
+      - postgres
+    volumes:
+      - ./uploads:/app/backend/uploads
+
+  frontend:
+    image: node:20-alpine
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+    depends_on:
+      - backend
+
+volumes:
+  pgdata:
