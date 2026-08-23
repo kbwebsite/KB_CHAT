@@ -56,7 +56,7 @@ export default function ChatPage() {
   const [savedIds, setSavedIds]=useState<Set<number>>(new Set())
   const [lightbox, setLightbox]=useState<{images:{url:string,name:string}[], idx:number}|null>(null)
   const [forwardMsg, setForwardMsg]=useState<Message|null>(null)
-  const [callModal, setCallModal]=useState<{open:boolean, type:'voice'|'video', peerName:string, peerAvatar?:string|null, incoming?:boolean, callId?:number}|null>(null)
+  const [callModal, setCallModal]=useState<{open:boolean, type:'voice'|'video', peerName:string, peerAvatar?:string|null, incoming?:boolean, callId?:number, peerId?:number}|null>(null)
   const [isMuted, setIsMuted]=useState(false)
   const [wallpaper] = useState(settings.chat_wallpaper)
   const searchRef=useRef<HTMLInputElement>(null)
@@ -73,7 +73,7 @@ export default function ChatPage() {
     savedApi.list().then(r=>{ if(r.success) setSavedIds(new Set(r.data.map((x:any)=> x.message_id)))})
     // call incoming listener
     const off1 = wsService.on('call.incoming', (p)=>{
-      setCallModal({open:true, type: p.call_type || 'voice', peerName: p.caller_display || p.caller_username || 'Unknown', peerAvatar: null, incoming:true, callId: p.id})
+      setCallModal({open:true, type: p.call_type || 'voice', peerName: p.caller_display || p.caller_username || 'Unknown', peerAvatar: null, incoming:true, callId: p.id, peerId: p.caller_id})
     })
     const off2 = wsService.on('call.ended', ()=> setCallModal(null))
     const off3 = wsService.on('call.accepted', ()=> setCallModal(m=> m ? {...m, incoming:false} : null))
@@ -229,7 +229,7 @@ export default function ChatPage() {
     // start call via API
     callsApi.start({ callee_id: other.user_id, conversation_id: currentConv.id, call_type: type })
       .then(r=>{
-        if(r.success) setCallModal({open:true, type, peerName: other.display_name, peerAvatar: other.avatar_url, incoming:false, callId: r.data.id})
+        if(r.success) setCallModal({open:true, type, peerName: other.display_name, peerAvatar: other.avatar_url, incoming:false, callId: r.data.id, peerId: other.user_id})
       })
       .catch(e=> alert(e.response?.data?.detail || 'Call failed'))
   }
@@ -502,7 +502,7 @@ export default function ChatPage() {
 
       {/* Overlays */}
       {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.idx} onClose={()=> setLightbox(null)} />}
-      {callModal?.open && <CallModal open={callModal.open} type={callModal.type} peerName={callModal.peerName} peerAvatar={callModal.peerAvatar} isIncoming={callModal.incoming} onAccept={handleCallAccept} onReject={handleCallRejectOrEnd} onEnd={handleCallRejectOrEnd} />}
+      {callModal?.open && <CallModal open={callModal.open} type={callModal.type} peerName={callModal.peerName} peerAvatar={callModal.peerAvatar} isIncoming={callModal.incoming} callId={callModal.callId} peerId={callModal.peerId} onAccept={handleCallAccept} onReject={handleCallRejectOrEnd} onEnd={handleCallRejectOrEnd} />}
       {forwardMsg && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">

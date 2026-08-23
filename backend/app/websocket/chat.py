@@ -82,6 +82,29 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
                                 db.commit()
                             member_ids = [m.user_id for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()]
                             await manager.broadcast_to_conversation(conv_id, {"type": "message.read", "payload": {"conversation_id": conv_id, "message_id": message_id, "user_id": user.id}}, member_ids=member_ids)
+                elif mtype in ("call.offer", "call.answer", "call.ice_candidate"):
+                    # WebRTC signaling relay
+                    to_user = payload.get("to_user_id") or payload.get("to") or payload.get("callee_id") or payload.get("caller_id")
+                    # Try to infer from callId if not provided
+                    if not to_user and payload.get("callId"):
+                        try:
+                            from app.models.call import CallHistory
+                            call = db.query(CallHistory).filter_by(id=int(payload.get("callId"))).first()
+                            if call:
+                                to_user = call.callee_id if user.id == call.caller_id else call.caller_id
+                        except:
+                            pass
+                    if to_user:
+                        try:
+                            await manager.send_to_user(int(to_user), {"type": mtype, "payload": {**payload, "from_user_id": user.id}})
+                        except:
+                            pass
+                    else:
+                        # Fallback broadcast to conversation if provided
+                        conv_id = payload.get("conversation_id")
+                        if conv_id:
+                            member_ids = [m.user_id for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()]
+                            await manager.broadcast_to_conversation(conv_id, {"type": mtype, "payload": {**payload, "from_user_id": user.id}}, member_ids=member_ids, exclude_user=user.id)
                 else:
                     # unknown type, ignore or echo error
                     await websocket.send_text(json.dumps({"type": "error", "payload": {"message": f"Unknown type {mtype}"}}))
