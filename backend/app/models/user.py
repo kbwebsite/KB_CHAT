@@ -12,6 +12,8 @@ class User(Base):
     hashed_password = Column(String(255), nullable=False)
     avatar_url = Column(String(500), nullable=True)
     about = Column(Text, nullable=True, default="Hey there! I'm using KB Chat.")
+    status_message = Column(String(100), nullable=True)
+    status_expires_at = Column(DateTime(timezone=True), nullable=True)
     is_online = Column(Boolean, default=False)
     last_seen = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)

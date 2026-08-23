@@ -1,16 +1,17 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag } from 'lucide-react'
+import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin } from 'lucide-react'
 import { useState } from 'react'
+import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
   onImageClick?:(url:string, name:string, all:{url:string,name:string}[], idx:number)=>void,
-  savedIds?:Set<number>
+  savedIds?:Set<number>, onPin?:(m:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
@@ -60,6 +61,10 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             )
           })}
           <p className="whitespace-pre-wrap selectable">{content}</p>
+          {!msg.is_deleted && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
+          {(msg as any).is_pinned && (
+            <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>
+          )}
           {msg.reactions.length>0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {Object.entries(msg.reactions.reduce((acc:any, r)=>{
@@ -96,6 +101,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <button onClick={()=>{ safeCopy(content||''); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
               <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
+              {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>
               <div className="border-t my-1"/>
               <div className="px-3 py-1 flex gap-1">

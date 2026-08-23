@@ -139,4 +139,37 @@ export const statusApi = {
   del: (id:number) => api.delete(`/api/status/${id}`).then(r=>r.data),
   view: (id:number) => api.post(`/api/status/${id}/view`).then(r=>r.data),
   viewers: (id:number) => api.get(`/api/status/${id}/viewers`).then(r=>r.data),
+  highlights: {
+    list: () => api.get('/api/status/highlights').then(r=>r.data),
+    create: (title:string) => api.post('/api/status/highlights', {title}).then(r=>r.data),
+    addItem: (hid:number, sid:number) => api.post(`/api/status/highlights/${hid}/items`, {status_id:sid}).then(r=>r.data),
+    removeItem: (hid:number, sid:number) => api.delete(`/api/status/highlights/${hid}/items/${sid}`).then(r=>r.data),
+    delete: (hid:number) => api.delete(`/api/status/highlights/${hid}`).then(r=>r.data),
+  },
+}
+
+export const pollApi = {
+  list: (cid:number) => api.get(`/api/conversations/${cid}/polls`).then(r=>r.data),
+  create: (cid:number, data:any) => api.post(`/api/conversations/${cid}/polls`, data).then(r=>r.data),
+  vote: (pid:number, optionIds:number[]) => api.post(`/api/polls/${pid}/vote`, {option_ids:optionIds}).then(r=>r.data),
+  delete: (pid:number) => api.delete(`/api/polls/${pid}`).then(r=>r.data),
+}
+
+export const msgPinApi = {
+  pin: (mid:number) => api.post(`/api/messages/${mid}/pin`).then(r=>r.data),
+  unpin: (mid:number) => api.post(`/api/messages/${mid}/unpin`).then(r=>r.data),
+  list: (cid:number) => api.get(`/api/conversations/${cid}/pinned`).then(r=>r.data),
+}
+
+export const linkPreviewApi = {
+  fetch: (url:string) => api.post('/api/link-preview', {url}).then(r=>r.data),
+}
+
+export const profileStatusApi = {
+  set: (status_message:string, expires_in?:string) => api.post('/api/users/me/status', {status_message, expires_in}).then(r=>r.data),
+}
+
+export const favoriteApi = {
+  toggle: (userId:number) => api.post(`/api/contacts/${userId}/favorite`).then(r=>r.data),
+  list: () => api.get('/api/contacts/favorites').then(r=>r.data),
 }

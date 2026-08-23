@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, useCallback } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore, initChatWS } from '../store/chat'
 import { useSettingsStore } from '../store/settings'
@@ -19,6 +19,11 @@ import { CallModal } from '../components/CallModal'
 import { ServerStatus } from '../components/ServerStatus'
 import { StatusPanel } from '../components/StatusPanel'
 import { StatusViewer } from '../components/StatusViewer'
+import { CommandPalette, buildCommands } from '../components/CommandPalette'
+import { PollPanel } from '../components/PollPanel'
+import { LinkPreview, hasUrl, extractUrls } from '../components/LinkPreview'
+import { DragDropZone } from '../components/DragDropZone'
+import { msgPinApi, pollApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { Message } from '../types'
@@ -27,7 +32,7 @@ import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
 type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
-type RightTab = 'chat' | 'files' | 'media' | 'links' | 'voice'
+type RightTab = 'chat' | 'files' | 'media' | 'links' | 'voice' | 'polls' | 'pinned'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
@@ -64,6 +69,11 @@ export default function ChatPage() {
   const [forwardMsg, setForwardMsg]=useState<Message|null>(null)
   const [callModal, setCallModal]=useState<{open:boolean, type:'voice'|'video', peerName:string, peerAvatar?:string|null, incoming?:boolean, callId?:number, peerId?:number}|null>(null)
   const [isMuted, setIsMuted]=useState(false)
+  const [showCommandPalette, setShowCommandPalette]=useState(false)
+  const [drafts, setDrafts]=useState<Record<number, string>>({})
+  const [showPolls, setShowPolls]=useState(false)
+  const [showPinned, setShowPinned]=useState(false)
+  const [pinnedMessages, setPinnedMessages]=useState<any[]>([])
   const [wallpaper] = useState(settings.chat_wallpaper)
   const [isAtBottom, setIsAtBottom]=useState(true)
   const [showNewIndicator, setShowNewIndicator]=useState(false)
@@ -92,12 +102,21 @@ export default function ChatPage() {
   // keyboard shortcuts
   useEffect(()=>{
     const onKey=(e:KeyboardEvent)=>{
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); searchRef.current?.focus(); setShowMessageSearch(true); }
-      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); }
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); setShowCommandPalette(true); }
+      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false); }
     }
     window.addEventListener('keydown', onKey)
     return ()=> window.removeEventListener('keydown', onKey)
   }, [])
+
+  // draft management
+  const loadDrafts = useCallback(() => {
+    try { const raw = localStorage.getItem('kb_drafts'); if (raw) setDrafts(JSON.parse(raw)) } catch {}
+  }, [])
+  const saveDraft = useCallback((convId: number, text: string) => {
+    setDrafts(prev => { const next = { ...prev, [convId]: text }; localStorage.setItem('kb_drafts', JSON.stringify(next)); return next })
+  }, [])
+  useEffect(() => { loadDrafts() }, [loadDrafts])
 
   const currentConv = conversations.find(c=> c.id===currentConversationId) || null
   const currentMsgs = currentConversationId ? (messages[currentConversationId]||[]) : []
@@ -197,14 +216,17 @@ export default function ChatPage() {
   }
 
   const handleSelect=async (id:number)=>{
+    // save draft for current conversation before switching
+    if (currentConversationId && drafts[currentConversationId]) {
+      saveDraft(currentConversationId, drafts[currentConversationId])
+    }
     setCurrent(id)
     fetchMessages(id)
     setShowGroupInfo(false)
     setActiveRightTab('chat')
-    // check muted
-    const mem = conversations.find(c=> c.id===id)?.members.find(m=> m.user_id===user?.id)
-    // mute stored in backend member.is_muted not exposed in conv directly, we can fetch via API? For now local
     setIsMuted(false)
+    // load pinned messages
+    try { const res = await msgPinApi.list(id); if (res.success) setPinnedMessages(res.data) } catch {}
   }
 
   const handleStartChat=async (targetUser:any)=>{
@@ -505,7 +527,7 @@ export default function ChatPage() {
         {/* Chat area */}
         <section className={`${mobileView==='list' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col min-w-0 bg-muted/20 ${settings.chat_wallpaper==='dots' ? 'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]' : settings.chat_wallpaper==='gradient' ? 'bg-gradient-to-br from-violet-500/5 to-indigo-500/5' : ''}`}>
           {currentConv ? (
-            <>
+            <DragDropZone onFilesUploaded={(ids)=> { if(ids.length>0) handleSend('', ids) }}>
               <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} />
               {typingNames && <div className="px-4 py-1 text-xs text-muted-foreground bg-card border-b">{typingNames} is typing...</div>}
               {selectedIds.size>0 && (
@@ -545,6 +567,13 @@ export default function ChatPage() {
                         isSelected={selectedIds.has(msg.id)}
                         onImageClick={(url,name,all,idx)=> setLightbox({images:all, idx})}
                         savedIds={savedIds}
+                        onPin={async (m)=>{
+                          try {
+                            if ((m as any).is_pinned) { await msgPinApi.unpin(m.id) } else { await msgPinApi.pin(m.id) }
+                            if (currentConversationId) { const res = await msgPinApi.list(currentConversationId); if (res.success) setPinnedMessages(res.data) }
+                            fetchMessages(currentConversationId!)
+                          } catch {}
+                        }}
                       />
                     })}
                   </div>
@@ -591,7 +620,7 @@ export default function ChatPage() {
                   }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm">Save</button>
                 </div>
               )}
-            </>
+            </DragDropZone>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
               <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xl mb-4">
@@ -605,7 +634,7 @@ export default function ChatPage() {
         </section>
 
         {/* Right panel */}
-        {(showProfile || showGroupInfo || showSettings || showNotifications || showSaved || showContacts || showCalls) && (
+        {(showProfile || showGroupInfo || showSettings || showNotifications || showSaved || showContacts || showCalls || showPolls || showPinned) && (
           <aside className="absolute inset-y-0 right-0 w-full sm:w-[380px] bg-card border-l shadow-2xl z-20 flex flex-col lg:relative lg:inset-auto">
             {showProfile && <ProfilePanel onClose={()=> setShowProfile(false)} />}
             {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={()=> setShowGroupInfo(false)} onUpdated={()=> fetchConversations()} />}
@@ -614,6 +643,23 @@ export default function ChatPage() {
             {showSaved && !showProfile && !showSettings && !showNotifications && !showGroupInfo && <SavedMessagesPanel onClose={()=> setShowSaved(false)} onJump={(cid,mid)=>{ setCurrent(cid); fetchMessages(cid); setShowSaved(false); setMobileView('chat')}} />}
             {showContacts && !showProfile && !showSettings && !showNotifications && !showSaved && !showGroupInfo && <ContactsPanel onClose={()=> setShowContacts(false)} onChat={handleStartChat} />}
             {showCalls && !showProfile && !showSettings && !showNotifications && !showSaved && !showContacts && !showGroupInfo && <CallsPanel onClose={()=> setShowCalls(false)} />}
+            {showPolls && currentConv && <PollPanel conversationId={currentConv.id} onClose={()=> setShowPolls(false)} />}
+            {showPinned && (
+              <div className="flex flex-col h-full bg-card">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <h3 className="font-semibold text-sm">Pinned Messages</h3>
+                  <button onClick={()=> setShowPinned(false)} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-4 h-4"/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto p-3 space-y-2">
+                  {pinnedMessages.length===0 ? <p className="text-sm text-muted-foreground text-center py-8">No pinned messages</p> : pinnedMessages.map(msg => (
+                    <div key={msg.id} className="p-3 rounded-xl bg-muted/50 border text-sm cursor-pointer hover:bg-muted" onClick={()=>{ setShowPinned(false) }}>
+                      <p className="text-xs text-muted-foreground">{msg.sender_display_name} • {new Date(msg.pinned_at || msg.created_at).toLocaleString()}</p>
+                      <p className="mt-1 line-clamp-3">{msg.content}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </aside>
         )}
       </div>
@@ -622,6 +668,14 @@ export default function ChatPage() {
       {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.idx} onClose={()=> setLightbox(null)} />}
       {callModal?.open && <CallModal open={callModal.open} type={callModal.type} peerName={callModal.peerName} peerAvatar={callModal.peerAvatar} isIncoming={callModal.incoming} callId={callModal.callId} peerId={callModal.peerId} onAccept={handleCallAccept} onReject={handleCallRejectOrEnd} onEnd={handleCallRejectOrEnd} />}
       {statusViewer && <StatusViewer statuses={statusViewer.statuses} startIndex={statusViewer.idx} onClose={()=> setStatusViewer(null)} />}
+      <CommandPalette open={showCommandPalette} onClose={()=> setShowCommandPalette(false)} commands={buildCommands({
+        onNewChat: ()=> setShowUserSearch(true), onNewGroup: ()=> setShowNewGroup(true),
+        onNewStatus: ()=> { setShowStatus(true); setSidebarTab('status') },
+        onSettings: ()=> setShowSettings(true), onSaved: ()=> setShowSaved(true),
+        onCalls: ()=> setShowCalls(true), onNotifications: ()=> setShowNotifications(true),
+        onToggleTheme: ()=> settings.update({theme: settings.theme==='dark'?'light':'dark'}),
+        onLogout: ()=> { logout(); nav('/login') },
+      })} />
       {forwardMsg && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">
@@ -681,8 +735,11 @@ export default function ChatPage() {
       )}
 
       <div className="hidden sm:flex bg-card border-t px-3 py-1 items-center justify-between text-xs text-muted-foreground">
-        <span>Press <kbd className="px-1 py-0.5 bg-muted border rounded">Ctrl+K</kbd> to search • <kbd className="px-1 py-0.5 bg-muted border rounded">Enter</kbd> to send • <kbd className="px-1 py-0.5 bg-muted border rounded">Esc</kbd> to close</span>
-        <span className="hidden sm:inline">KB Chat v2 • Encrypted transport • No tracking</span>
+        <span>Press <kbd className="px-1 py-0.5 bg-muted border rounded">Ctrl+K</kbd> for commands • <kbd className="px-1 py-0.5 bg-muted border rounded">Enter</kbd> to send • Drag files to upload</span>
+        <div className="flex gap-1">
+          <button onClick={()=> setShowPolls(!showPolls)} className="px-2 py-0.5 rounded hover:bg-muted" title="Polls">Polls</button>
+          <button onClick={()=> { setShowPinned(!showPinned); if(currentConversationId) msgPinApi.list(currentConversationId).then(r=>{ if(r.success) setPinnedMessages(r.data) }) }} className="px-2 py-0.5 rounded hover:bg-muted" title="Pinned">Pinned{pinnedMessages.length>0 && ` (${pinnedMessages.length})`}</button>
+        </div>
       </div>
 
       <div className="bg-amber-500 text-white text-xs text-center py-1.5 hidden" id="offline-banner">You're offline — will retry</div>

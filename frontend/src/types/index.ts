@@ -44,6 +44,8 @@ export interface Conversation {
   is_muted?: boolean;
   is_pinned?: boolean;
   is_archived?: boolean;
+  is_favorite?: boolean;
+  muted_until?: string | null;
 }
 
 export interface Attachment {
@@ -76,6 +78,8 @@ export interface Message {
   reply_to_content?: string | null;
   is_deleted: boolean;
   is_edited: boolean;
+  is_pinned?: boolean;
+  pinned_at?: string | null;
   created_at?: string | null;
   updated_at?: string | null;
   attachments: Attachment[];

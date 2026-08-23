@@ -171,10 +171,69 @@ def mute_conversation(conv_id: int, payload: dict = None, db: Session = Depends(
     mem = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
     if not mem:
         raise HTTPException(status_code=403, detail="Not a member")
-    muted = (payload or {}).get("muted", True) if payload else True
+    data = payload or {}
+    muted = data.get("muted", True)
     mem.is_muted = bool(muted)
+    mem.muted_until = None
+    if muted and data.get("duration"):
+        from datetime import datetime, timedelta, timezone
+        durations = {"1h": 1, "8h": 8, "24h": 24, "7d": 168}
+        hours = durations.get(data["duration"], 0)
+        if hours > 0:
+            mem.muted_until = datetime.now(timezone.utc) + timedelta(hours=hours)
     db.commit()
-    return success_response({"is_muted": mem.is_muted}, "Mute updated")
+    return success_response({"is_muted": mem.is_muted, "muted_until": mem.muted_until.isoformat() if mem.muted_until else None}, "Mute updated")
+
+# Profile status
+@router.post("/users/me/status")
+def set_profile_status(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    status_msg = payload.get("status_message", "").strip()
+    if len(status_msg) > 100:
+        raise HTTPException(status_code=400, detail="Status too long")
+    current_user.status_message = status_msg or None
+    current_user.status_expires_at = None
+    if payload.get("expires_in"):
+        from datetime import datetime, timedelta, timezone
+        expires_map = {"1h": 1, "today": 24, "7d": 168}
+        hours = expires_map.get(payload["expires_in"], 0)
+        if hours > 0:
+            current_user.status_expires_at = datetime.now(timezone.utc) + timedelta(hours=hours)
+    db.commit()
+    return success_response({"status_message": current_user.status_message, "status_expires_at": current_user.status_expires_at.isoformat() if current_user.status_expires_at else None}, "Status updated")
+
+# Favorites
+@router.post("/contacts/{user_id}/favorite")
+def toggle_favorite(user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.conversation import ConversationMember, Conversation
+    # Find 1-1 conversation between current user and target
+    my_convs = [m.conversation_id for m in db.query(ConversationMember).filter_by(user_id=current_user.id).all()]
+    target_convs = [m.conversation_id for m in db.query(ConversationMember).filter_by(user_id=user_id).all()]
+    shared = set(my_convs) & set(target_convs)
+    conv = None
+    for cid in shared:
+        c = db.query(Conversation).filter_by(id=cid, is_group=False).first()
+        if c:
+            conv = c
+            break
+    if not conv:
+        raise HTTPException(status_code=404, detail="No conversation found")
+    mem = db.query(ConversationMember).filter_by(conversation_id=conv.id, user_id=current_user.id).first()
+    mem.is_favorite = not mem.is_favorite
+    db.commit()
+    return success_response({"is_favorite": mem.is_favorite}, "Updated")
+
+@router.get("/contacts/favorites")
+def get_favorites(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    member_convs = [m.conversation_id for m in db.query(ConversationMember).filter_by(user_id=current_user.id, is_favorite=True).all()]
+    if not member_convs:
+        return success_response([])
+    other_members = db.query(ConversationMember).filter(ConversationMember.conversation_id.in_(member_convs), ConversationMember.user_id != current_user.id).all()
+    user_ids = list(set(m.user_id for m in other_members))
+    users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
+    return success_response([{
+        "id": u.id, "username": u.username, "display_name": u.display_name,
+        "avatar_url": u.avatar_url, "is_online": u.is_online,
+    } for u in users])
 
 # Get contacts (all users that have had conversation with current user or all users)
 @router.get("/contacts")

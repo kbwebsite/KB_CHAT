@@ -46,6 +46,8 @@ def _message_to_dict(db: Session, msg: Message):
         "reply_to_content": reply_content,
         "is_deleted": msg.is_deleted,
         "is_edited": msg.is_edited,
+        "is_pinned": msg.is_pinned,
+        "pinned_at": msg.pinned_at.isoformat() if msg.pinned_at else None,
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
         "updated_at": msg.updated_at.isoformat() if msg.updated_at else None,
         "attachments": [
@@ -245,3 +247,43 @@ def search_messages(q: str = Query(..., min_length=1), conversation_id: Optional
     msgs = query.order_by(desc(Message.created_at)).limit(50).all()
     result = [_message_to_dict(db, m) for m in msgs]
     return success_response(result)
+
+@router.post("/messages/{message_id}/pin")
+async def pin_message(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    msg = db.query(Message).filter_by(id=message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not _is_member(db, msg.conversation_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    from datetime import datetime, timezone
+    msg.is_pinned = True
+    msg.pinned_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(msg)
+    msg_dict = _message_to_dict(db, msg)
+    member_ids = _member_ids(db, msg.conversation_id)
+    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.pinned", "payload": msg_dict}, member_ids=member_ids)
+    return success_response(msg_dict, "Message pinned")
+
+@router.post("/messages/{message_id}/unpin")
+async def unpin_message(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    msg = db.query(Message).filter_by(id=message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not _is_member(db, msg.conversation_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    msg.is_pinned = False
+    msg.pinned_at = None
+    db.commit()
+    db.refresh(msg)
+    msg_dict = _message_to_dict(db, msg)
+    member_ids = _member_ids(db, msg.conversation_id)
+    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.unpinned", "payload": msg_dict}, member_ids=member_ids)
+    return success_response(msg_dict, "Message unpinned")
+
+@router.get("/conversations/{conv_id}/pinned")
+def list_pinned_messages(conv_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not _is_member(db, conv_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    msgs = db.query(Message).filter_by(conversation_id=conv_id, is_pinned=True).order_by(desc(Message.pinned_at)).limit(50).all()
+    return success_response([_message_to_dict(db, m) for m in msgs])

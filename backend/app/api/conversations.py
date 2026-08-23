@@ -96,8 +96,10 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         "last_message": last_msg_dict,
         "unread_count": unread,
         "is_muted": my_membership.is_muted if my_membership else False,
+        "muted_until": my_membership.muted_until.isoformat() if my_membership and my_membership.muted_until else None,
         "is_pinned": my_membership.is_pinned if my_membership and hasattr(my_membership, 'is_pinned') else False,
         "is_archived": my_membership.is_archived if my_membership and hasattr(my_membership, 'is_archived') else False,
+        "is_favorite": my_membership.is_favorite if my_membership and hasattr(my_membership, 'is_favorite') else False,
     }
 
 @router.get("")
