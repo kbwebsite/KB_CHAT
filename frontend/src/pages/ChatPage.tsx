@@ -267,13 +267,13 @@ export default function ChatPage() {
           <span className="text-xs px-2 py-1 rounded-full bg-muted hidden sm:inline">Connect. Chat. Share.</span>
           <ServerStatus />
         </div>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-0.5 sm:gap-1">
           <button onClick={()=> { setShowNotifications(true); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="p-2 rounded-full hover:bg-muted relative" title="Notifications">
             <Bell className="w-4 h-4"/>
             {totalUnread>0 && <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">{totalUnread}</span>}
           </button>
           <button onClick={()=> setShowMessageSearch(!showMessageSearch)} className="p-2 rounded-full hover:bg-muted" title="Search (Ctrl+K)"><Search className="w-4 h-4"/></button>
-          <button onClick={()=> { setShowSaved(true); setShowNotifications(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="p-2 rounded-full hover:bg-muted" title="Saved"><Bookmark className="w-4 h-4"/></button>
+          <button onClick={()=> { setShowSaved(true); setShowNotifications(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="hidden sm:flex p-2 rounded-full hover:bg-muted" title="Saved"><Bookmark className="w-4 h-4"/></button>
           <button onClick={()=> { setShowProfile(true); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowSettings(false)}} className="p-1 rounded-full hover:bg-muted">
             <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
               {user?.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" alt=""/> : (user?.display_name?.[0] || 'U')}
@@ -547,7 +547,7 @@ export default function ChatPage() {
 
       {/* Bottom action bar for group right panel extra actions */}
       {currentConv && showGroupInfo && (
-        <div className="fixed bottom-4 right-4 sm:right-[400px] flex gap-2">
+        <div className="hidden sm:flex fixed bottom-4 right-4 sm:right-[400px] gap-2">
           <button onClick={handleExport.bind(null,'json')} className="p-2 rounded-full bg-card border shadow-lg" title="Export JSON"><Download className="w-4 h-4"/></button>
           <button onClick={handleExport.bind(null,'txt')} className="p-2 rounded-full bg-card border shadow-lg" title="Export TXT"><FileText className="w-4 h-4"/></button>
           <button onClick={handleClear} className="p-2 rounded-full bg-destructive text-destructive-foreground shadow-lg" title="Clear chat"><Trash2 className="w-4 h-4"/></button>
@@ -561,7 +561,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="bg-card border-t px-3 py-1 flex items-center justify-between text-xs text-muted-foreground">
+      <div className="hidden sm:flex bg-card border-t px-3 py-1 items-center justify-between text-xs text-muted-foreground">
         <span>Press <kbd className="px-1 py-0.5 bg-muted border rounded">Ctrl+K</kbd> to search • <kbd className="px-1 py-0.5 bg-muted border rounded">Enter</kbd> to send • <kbd className="px-1 py-0.5 bg-muted border rounded">Esc</kbd> to close</span>
         <span className="hidden sm:inline">KB Chat v2 • Encrypted transport • No tracking</span>
       </div>

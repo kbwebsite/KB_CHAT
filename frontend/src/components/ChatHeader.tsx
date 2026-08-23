@@ -45,9 +45,9 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
         </div>
       </div>
       {onTabChange && (
-        <div className="flex gap-1 px-2 pb-2 overflow-x-auto">
+        <div className="flex gap-1 px-2 pb-2 overflow-x-auto scrollbar-none scroll-smooth snap-x">
           {tabs.map(t=> (
-            <button key={t.id} onClick={()=> onTabChange(t.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 whitespace-nowrap ${activeTab===t.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}>
+            <button key={t.id} onClick={()=> onTabChange(t.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 whitespace-nowrap snap-start shrink-0 ${activeTab===t.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}>
               {t.icon && <t.icon className="w-3 h-3"/>}{t.label}
             </button>
           ))}

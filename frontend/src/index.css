@@ -47,6 +47,9 @@ body { @apply bg-background text-foreground font-sans antialiased; }
 ::-webkit-scrollbar-thumb { @apply bg-muted-foreground/30 rounded-full; }
 ::-webkit-scrollbar-track { @apply bg-transparent; }
 
-/* message bubble tails? use rounded */
+/* hide scrollbar for tabs on mobile */
+.scrollbar-none::-webkit-scrollbar { display: none; }
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+
 .shimmer { background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--border)) 37%, hsl(var(--muted)) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
 @keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
