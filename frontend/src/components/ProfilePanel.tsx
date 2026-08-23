@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { uploadApi, usersApi } from '../services/api'
-import { X, Camera } from 'lucide-react'
+import { X, Camera, QrCode } from 'lucide-react'
 import { initials } from '../utils/format'
+import QRProfile from './QRProfile'
 
 export function ProfilePanel({ onClose }: { onClose:()=>void }) {
   const { user, setUser } = useAuthStore()
@@ -10,6 +11,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
   const [about, setAbout]=useState(user?.about || '')
   const [saving, setSaving]=useState(false)
   const [msg, setMsg]=useState<string | null>(null)
+  const [showQR, setShowQR]=useState(false)
 
   const handleSave=async ()=>{
     setSaving(true)
@@ -60,7 +62,15 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
             </label>
           </div>
           <p className="text-sm text-muted-foreground">@{user.username}</p>
+          <button onClick={()=> setShowQR(!showQR)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-accent transition">
+            <QrCode className="w-3.5 h-3.5" /> {showQR ? 'Hide' : 'Show'} QR Code
+          </button>
         </div>
+        {showQR && (
+          <div className="border-t pt-4">
+            <QRProfile username={user.username} displayName={user.display_name} />
+          </div>
+        )}
         <div className="space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground">Display Name</label>

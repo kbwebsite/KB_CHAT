@@ -1,10 +1,11 @@
 import { useState, useRef } from 'react'
-import { Send, Smile, Paperclip, X, Mic } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Mic, Image } from 'lucide-react'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
 import { uploadApi } from '../services/api'
 import { useSettingsStore } from '../store/settings'
+import StickerPicker from './StickerPicker'
 
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
   onSend:(content:string, attachmentIds?:number[], type?:string)=>void,
@@ -16,6 +17,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 }) {
   const [text, setText]=useState('')
   const [showEmoji, setShowEmoji]=useState(false)
+  const [showStickers, setShowStickers]=useState(false)
   const [uploading, setUploading]=useState(false)
   const [progress, setProgress]=useState(0)
   const [uploadError, setUploadError]=useState<string|null>(null)
@@ -55,6 +57,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 
   const handleEmoji=(e:EmojiClickData)=>{
     setText(prev=> prev + e.emoji)
+  }
+
+  const handleSticker=(url:string)=>{
+    onSend(url, undefined, 'text')
+    setShowStickers(false)
   }
 
   const handleFile=async (e:React.ChangeEvent<HTMLInputElement>)=>{
@@ -108,7 +115,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key==='Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key==='Escape') { onCancelReply(); setShowEmoji(false) }
+    if (e.key==='Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false) }
   }
 
   return (
@@ -143,6 +150,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <button onClick={()=> setShowEmoji(!showEmoji)} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition" title="Emoji">
             <Smile className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
           </button>
+          <button onClick={()=> { setShowStickers(!showStickers); setShowEmoji(false) }} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition" title="Stickers">
+            <Image className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+          </button>
           <div className="hidden sm:block"><VoiceRecorder onSend={handleVoiceSend} /></div>
           <div className="sm:hidden flex items-center"><VoiceRecorder onSend={handleVoiceSend} /></div>
         </div>
@@ -169,6 +179,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {showEmoji && (
         <div className="mt-3">
           <EmojiPicker onEmojiClick={handleEmoji} height={320} />
+        </div>
+      )}
+      {showStickers && (
+        <div className="mt-3 flex justify-center">
+          <StickerPicker onSelect={handleSticker} />
         </div>
       )}
     </div>
