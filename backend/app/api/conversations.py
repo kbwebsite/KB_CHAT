@@ -95,12 +95,26 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         "members": member_out,
         "last_message": last_msg_dict,
         "unread_count": unread,
+        "is_muted": my_membership.is_muted if my_membership else False,
+        "is_pinned": my_membership.is_pinned if my_membership and hasattr(my_membership, 'is_pinned') else False,
+        "is_archived": my_membership.is_archived if my_membership and hasattr(my_membership, 'is_archived') else False,
     }
 
 @router.get("")
-def list_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user), search: Optional[str] = Query(None)):
+def list_conversations(db: Session = Depends(get_db), current_user: User = Depends(get_current_user), search: Optional[str] = Query(None), include_archived: bool = Query(False), filter: Optional[str] = Query(None)):
     # get conversation ids where user is member
     member_rows = db.query(ConversationMember).filter_by(user_id=current_user.id).all()
+    # filter out archived if not included
+    if not include_archived:
+        member_rows = [r for r in member_rows if not getattr(r, 'is_archived', False)]
+    # filter by pin/mute if requested
+    if filter == "pinned":
+        member_rows = [r for r in member_rows if getattr(r, 'is_pinned', False)]
+    elif filter == "muted":
+        member_rows = [r for r in member_rows if r.is_muted]
+    elif filter == "unread":
+        # will filter after dict
+        pass
     conv_ids = [r.conversation_id for r in member_rows]
     if not conv_ids:
         return success_response([])
@@ -112,12 +126,13 @@ def list_conversations(db: Session = Depends(get_db), current_user: User = Depen
         if search:
             s = search.lower()
             if s not in (d["title"] or "").lower() and s not in (d["description"] or "").lower():
-                # also check last message
                 if not d["last_message"] or s not in (d["last_message"]["content"] or "").lower():
                     continue
+        if filter == "unread" and d["unread_count"] == 0:
+            continue
         result.append(d)
-    # sort by last message time or updated_at
-    result.sort(key=lambda x: x["last_message"]["created_at"] if x["last_message"] else x["updated_at"] or "", reverse=True)
+    # sort: pinned first, then by last message time
+    result.sort(key=lambda x: (x.get("is_pinned", False), x["last_message"]["created_at"] if x["last_message"] else x["updated_at"] or ""), reverse=True)
     return success_response(result)
 
 @router.post("")
@@ -318,9 +333,30 @@ def mark_unread(conv_id: int, db: Session = Depends(get_db), current_user: User 
         raise HTTPException(status_code=403, detail="Not a member")
     membership = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
     if membership:
-        # set to 0 or null to indicate unread? Use 0 to show all unread
         membership.last_read_message_id = None
-        # we want to show unread as all messages from others
-        # Instead set to second last? Simpler: set to None
         db.commit()
     return success_response(None, "Marked as unread")
+
+@router.post("/{conv_id}/pin")
+def pin_conversation(conv_id: int, payload: dict = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not _is_member(db, conv_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    mem = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
+    pinned = (payload or {}).get("pinned")
+    if pinned is None:
+        pinned = not getattr(mem, 'is_pinned', False)
+    mem.is_pinned = bool(pinned)
+    db.commit()
+    return success_response({"is_pinned": mem.is_pinned}, "Pin updated")
+
+@router.post("/{conv_id}/archive")
+def archive_conversation(conv_id: int, payload: dict = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    if not _is_member(db, conv_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    mem = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
+    archived = (payload or {}).get("archived")
+    if archived is None:
+        archived = not getattr(mem, 'is_archived', False)
+    mem.is_archived = bool(archived)
+    db.commit()
+    return success_response({"is_archived": mem.is_archived}, "Archive updated")

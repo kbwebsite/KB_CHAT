@@ -29,6 +29,8 @@ class ConversationMember(Base):
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
     last_read_message_id = Column(Integer, nullable=True)
     is_muted = Column(Boolean, default=False)
+    is_pinned = Column(Boolean, default=False)
+    is_archived = Column(Boolean, default=False)
 
     conversation = relationship("Conversation", back_populates="members")
     user = relationship("User")

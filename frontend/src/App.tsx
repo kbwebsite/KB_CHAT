@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import ChatPage from './pages/ChatPage'
 import { LoadingState } from './components/LoadingState'
+import { ToastContainer } from './components/Toast'
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, token, initialized } = useAuthStore()
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
+      <ToastContainer />
     </BrowserRouter>
   )
 }

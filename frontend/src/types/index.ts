@@ -41,6 +41,9 @@ export interface Conversation {
   members: ConversationMember[];
   last_message?: LastMessage | null;
   unread_count: number;
+  is_muted?: boolean;
+  is_pinned?: boolean;
+  is_archived?: boolean;
 }
 
 export interface Attachment {

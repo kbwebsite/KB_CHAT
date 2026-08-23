@@ -17,21 +17,23 @@ import { CallsPanel } from '../components/CallsPanel'
 import { Lightbox } from '../components/Lightbox'
 import { CallModal } from '../components/CallModal'
 import { ServerStatus } from '../components/ServerStatus'
+import { StatusPanel } from '../components/StatusPanel'
+import { StatusViewer } from '../components/StatusViewer'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { Message } from '../types'
 import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
-type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
+type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
 type RightTab = 'chat' | 'files' | 'media' | 'links' | 'voice'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
   const {
-    conversations, currentConversationId, messages, hasMore, loadingMessages,
+    conversations, currentConversationId, messages, hasMore, loadingMessages, loadingConvs,
     fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react
-  } = useChatStore()
+  } = useChatStore() as any
   const settings = useSettingsStore()
   const [search, setSearch]=useState('')
   const [sidebarTab, setSidebarTab]=useState<SidebarTab>('chats')
@@ -43,6 +45,8 @@ export default function ChatPage() {
   const [showSaved, setShowSaved]=useState(false)
   const [showContacts, setShowContacts]=useState(false)
   const [showCalls, setShowCalls]=useState(false)
+  const [showStatus, setShowStatus]=useState(false)
+  const [statusViewer, setStatusViewer]=useState<{statuses:any[], idx:number}|null>(null)
   const [showNewGroup, setShowNewGroup]=useState(false)
   const [groupTitle, setGroupTitle]=useState('')
   const [groupMembers, setGroupMembers]=useState<any[]>([])
@@ -59,6 +63,9 @@ export default function ChatPage() {
   const [callModal, setCallModal]=useState<{open:boolean, type:'voice'|'video', peerName:string, peerAvatar?:string|null, incoming?:boolean, callId?:number, peerId?:number}|null>(null)
   const [isMuted, setIsMuted]=useState(false)
   const [wallpaper] = useState(settings.chat_wallpaper)
+  const [isAtBottom, setIsAtBottom]=useState(true)
+  const [showNewIndicator, setShowNewIndicator]=useState(false)
+  const [isLoadingMore, setIsLoadingMore]=useState(false)
   const searchRef=useRef<HTMLInputElement>(null)
   const listRef=useRef<HTMLDivElement>(null)
   const nav=useNavigate()
@@ -84,7 +91,7 @@ export default function ChatPage() {
   useEffect(()=>{
     const onKey=(e:KeyboardEvent)=>{
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); searchRef.current?.focus(); setShowMessageSearch(true); }
-      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); }
+      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); }
     }
     window.addEventListener('keydown', onKey)
     return ()=> window.removeEventListener('keydown', onKey)
@@ -96,18 +103,82 @@ export default function ChatPage() {
   const [mobileView, setMobileView]=useState<'list'|'chat'>(typeof window !== 'undefined' && window.innerWidth < 1024 && currentConversationId ? 'chat' : 'list')
   useEffect(()=>{ if (currentConversationId && window.innerWidth < 1024) setMobileView('chat') }, [currentConversationId])
 
+  // scrolling: handle new messages, preserve position on loading older
+  const scrollToBottom = (smooth=true)=>{
+    const el=listRef.current
+    if (!el) return
+    el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
+    setShowNewIndicator(false)
+    setIsAtBottom(true)
+  }
+
+  const handleMessageScroll = async ()=>{
+    const el=listRef.current
+    if (!el) return
+    const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
+    setIsAtBottom(atBottom)
+    if (atBottom) setShowNewIndicator(false)
+    // infinite scroll: near top
+    if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMore && !loadingMessages) {
+      const firstId = currentMsgs[0]?.id
+      if (!firstId) return
+      setIsLoadingMore(true)
+      const prevHeight = el.scrollHeight
+      const prevTop = el.scrollTop
+      await fetchMessages(currentConversationId!, firstId)
+      // preserve position
+      requestAnimationFrame(()=>{
+        if (listRef.current) {
+          const newHeight = listRef.current.scrollHeight
+          listRef.current.scrollTop = newHeight - prevHeight + prevTop
+        }
+        setIsLoadingMore(false)
+      })
+    }
+  }
+
+  // auto-scroll when new messages arrive only if user was at bottom
+  const prevMsgLenRef=useRef(0)
+  useEffect(()=>{
+    const len=currentMsgs.length
+    if (len > prevMsgLenRef.current) {
+      if (isAtBottom) {
+        // smooth scroll after render
+        setTimeout(()=> scrollToBottom(true), 50)
+      } else {
+        setShowNewIndicator(true)
+      }
+    }
+    prevMsgLenRef.current=len
+  }, [currentMsgs.length])
+
+  // when switching conversation, reset and scroll to bottom
+  useEffect(()=>{
+    setIsAtBottom(true)
+    setShowNewIndicator(false)
+    setTimeout(()=> scrollToBottom(false), 100)
+  }, [currentConversationId])
+
   // filtered conversations by tab and search
   const filteredByTab = (()=> {
     let base = conversations
     if (sidebarTab==='groups') base = base.filter(c=> c.is_group)
     if (sidebarTab==='chats') base = base // all
-    // contacts/saved/calls are panels, not filtering list; for those tabs we show relevant panel instead
     if (search) {
       const s=search.toLowerCase()
       base = base.filter(c=> (c.title||'').toLowerCase().includes(s) || c.last_message?.content?.toLowerCase().includes(s))
     }
     return base
   })()
+
+  const typingMap = useChatStore(s=> s.typingUsers)
+
+  const handlePin=async (id:number)=>{
+    try { await convApi.pin(id); fetchConversations() } catch {}
+  }
+  const handleArchive=async (id:number)=>{
+    try { await convApi.archive(id); fetchConversations() } catch {}
+  }
 
   const handleSelect=async (id:number)=>{
     setCurrent(id)
@@ -168,6 +239,29 @@ export default function ChatPage() {
   }
 
   const handleCopy=(t:string)=>{ navigator.clipboard.writeText(t); }
+  const handleReact=async (id:number, emoji:string)=>{
+    const msg=currentMsgs.find(m=> m.id===id)
+    if (!msg || !user) return
+    const myReacts = msg.reactions.filter(r=> r.user_id===user.id)
+    const hasSame = myReacts.some(r=> r.emoji===emoji)
+    try {
+      if (hasSame) {
+        // remove existing
+        const { msgApi } = await import('../services/api')
+        await msgApi.removeReaction(id, emoji)
+      } else {
+        // replace: remove all my previous reactions first (single reaction per user)
+        const { msgApi } = await import('../services/api')
+        for (const r of myReacts) {
+          try { await msgApi.removeReaction(id, r.emoji) } catch {}
+        }
+        await msgApi.react(id, emoji)
+      }
+    } catch (e:any) {
+      // fallback to store's react (for count)
+      try { await react(id, emoji) } catch {}
+    }
+  }
   const handleForward=async (msg:Message)=>{
     setForwardMsg(msg)
   }
@@ -310,17 +404,19 @@ export default function ChatPage() {
           <div className="w-16 border-r bg-muted/20 hidden sm:flex flex-col items-center py-4 gap-3">
             {[
               {id:'chats', icon: MessageSquare, label:'Chats', count: conversations.length},
+              {id:'status', icon: Contact, label:'Status'},
               {id:'groups', icon: Users, label:'Groups', count: conversations.filter(c=>c.is_group).length},
               {id:'calls', icon: Phone, label:'Calls'},
               {id:'contacts', icon: Contact, label:'Contacts'},
               {id:'saved', icon: Bookmark, label:'Saved'},
             ].map(item=> (
               <button key={item.id} onClick={()=>{
-                if (item.id==='chats' || item.id==='groups') { setSidebarTab(item.id as any); setShowContacts(false); setShowSaved(false); setShowCalls(false) }
-                else if (item.id==='contacts') { setShowContacts(true); setShowSaved(false); setShowCalls(false) }
-                else if (item.id==='saved') { setShowSaved(true); setShowContacts(false); setShowCalls(false) }
-                else if (item.id==='calls') { setShowCalls(true); setShowContacts(false); setShowSaved(false) }
-              }} className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 ${((sidebarTab===item.id && !showContacts && !showSaved && !showCalls) || (item.id==='contacts' && showContacts) || (item.id==='saved' && showSaved) || (item.id==='calls' && showCalls)) ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`} title={item.label}>
+                if (item.id==='status') { setShowStatus(true); setShowContacts(false); setShowSaved(false); setShowCalls(false) }
+                else if (item.id==='chats' || item.id==='groups') { setSidebarTab(item.id as any); setShowContacts(false); setShowSaved(false); setShowCalls(false); setShowStatus(false) }
+                else if (item.id==='contacts') { setShowContacts(true); setShowSaved(false); setShowCalls(false); setShowStatus(false) }
+                else if (item.id==='saved') { setShowSaved(true); setShowContacts(false); setShowCalls(false); setShowStatus(false) }
+                else if (item.id==='calls') { setShowCalls(true); setShowContacts(false); setShowSaved(false); setShowStatus(false) }
+              }} className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 ${(item.id==='status' && showStatus) || ((sidebarTab===item.id && !showContacts && !showSaved && !showCalls && !showStatus) || (item.id==='contacts' && showContacts) || (item.id==='saved' && showSaved) || (item.id==='calls' && showCalls)) ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`} title={item.label}>
                 <item.icon className="w-5 h-5"/>
                 {item.count !== undefined && item.count>0 && <span className="text-[9px]">{item.count}</span>}
               </button>
@@ -329,25 +425,29 @@ export default function ChatPage() {
 
           {/* Mobile top tabs for sidebar */}
           <div className="flex-1 flex flex-col min-w-0">
-            <div className="sm:hidden flex gap-1 p-2 border-b overflow-x-auto">
+            <div className="sm:hidden flex gap-1 p-2 border-b overflow-x-auto scrollbar-none">
               {[
                 {id:'chats', label:'Chats'},
+                {id:'status', label:'Status'},
                 {id:'groups', label:'Groups'},
                 {id:'calls', label:'Calls'},
                 {id:'contacts', label:'Contacts'},
                 {id:'saved', label:'Saved'},
               ].map(t=> (
                 <button key={t.id} onClick={()=>{
-                  if (t.id==='contacts') { setShowContacts(true); setShowSaved(false); setShowCalls(false) }
-                  else if (t.id==='saved') { setShowSaved(true); setShowContacts(false); setShowCalls(false) }
-                  else if (t.id==='calls') { setShowCalls(true); setShowContacts(false); setShowSaved(false) }
-                  else { setSidebarTab(t.id as any); setShowContacts(false); setShowSaved(false); setShowCalls(false) }
-                }} className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap ${ (sidebarTab===t.id && !showContacts && !showSaved && !showCalls) || (t.id==='contacts' && showContacts) || (t.id==='saved' && showSaved) || (t.id==='calls' && showCalls) ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>{t.label}</button>
+                  if (t.id==='status') { setShowStatus(true); setShowContacts(false); setShowSaved(false); setShowCalls(false) }
+                  else if (t.id==='contacts') { setShowContacts(true); setShowSaved(false); setShowCalls(false); setShowStatus(false) }
+                  else if (t.id==='saved') { setShowSaved(true); setShowContacts(false); setShowCalls(false); setShowStatus(false) }
+                  else if (t.id==='calls') { setShowCalls(true); setShowContacts(false); setShowSaved(false); setShowStatus(false) }
+                  else { setSidebarTab(t.id as any); setShowContacts(false); setShowSaved(false); setShowCalls(false); setShowStatus(false) }
+                }} className={`px-3 py-1.5 rounded-full text-xs font-medium whitespace-nowrap shrink-0 ${ (t.id==='status' && showStatus) || (sidebarTab===t.id && !showContacts && !showSaved && !showCalls && !showStatus) || (t.id==='contacts' && showContacts) || (t.id==='saved' && showSaved) || (t.id==='calls' && showCalls) ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>{t.label}</button>
               ))}
             </div>
 
             {/* Sidebar content switcher */}
-            {showContacts ? (
+            {showStatus ? (
+              <StatusPanel onClose={()=> { setShowStatus(false); setSidebarTab('chats')}} onViewer={(s, all)=> setStatusViewer({statuses: all, idx: all.findIndex(x=> x.id===s.id)})} />
+            ) : showContacts ? (
               <ContactsPanel onClose={()=> { setShowContacts(false); setSidebarTab('chats')}} onChat={handleStartChat} />
             ) : showSaved ? (
               <SavedMessagesPanel onClose={()=> { setShowSaved(false); setSidebarTab('chats')}} onJump={(cid, mid)=>{ setCurrent(cid); fetchMessages(cid); setShowSaved(false); setMobileView('chat')}} />
@@ -380,7 +480,7 @@ export default function ChatPage() {
                   </div>
                 )}
                 <div className="flex-1 min-h-0">
-                  <ConversationList conversations={filteredByTab} activeId={currentConversationId} onSelect={(id)=> { handleSelect(id); setMobileView('chat')}} search={search} onSearch={setSearch} />
+                  <ConversationList conversations={filteredByTab} activeId={currentConversationId} onSelect={(id)=> { handleSelect(id); setMobileView('chat')}} search={search} onSearch={setSearch} typingMap={typingMap} currentUserId={user?.id} onPin={handlePin} onArchive={handleArchive} onMute={handleMute} loading={loadingConvs} />
                 </div>
               </>
             )}
@@ -409,7 +509,13 @@ export default function ChatPage() {
                 </div>
               )}
               {/* Message list with tabs */}
-              <div className="flex-1 overflow-y-auto flex flex-col" ref={listRef}>
+              <div className="flex-1 overflow-y-auto flex flex-col relative" ref={listRef} onScroll={handleMessageScroll}>
+                {isLoadingMore && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
+                {showNewIndicator && (
+                  <button onClick={()=> scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:bg-primary/90 animate-bounce">
+                    ↓ {currentMsgs.length - (prevMsgLenRef.current - (showNewIndicator ? 0 : 0))} new messages
+                  </button>
+                )}
                 {activeRightTab==='chat' ? (
                   <>
                     <div className="flex-1" />
@@ -422,7 +528,7 @@ export default function ChatPage() {
                           onReply={(m)=> setReplyTo({id:m.id, content: m.content||'', sender: m.sender_display_name||'Unknown'})}
                           onEdit={(m)=> { setEditTarget(m); setEditText(m.content||'')}}
                           onDelete={async (m)=>{ if(confirm('Delete?')) await deleteMessage(m.id)}}
-                          onReact={(id,emoji)=> react(id, emoji)}
+                          onReact={handleReact}
                           onCopy={handleCopy}
                           onForward={handleForward}
                           onSave={handleSave}
@@ -503,6 +609,7 @@ export default function ChatPage() {
       {/* Overlays */}
       {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.idx} onClose={()=> setLightbox(null)} />}
       {callModal?.open && <CallModal open={callModal.open} type={callModal.type} peerName={callModal.peerName} peerAvatar={callModal.peerAvatar} isIncoming={callModal.incoming} callId={callModal.callId} peerId={callModal.peerId} onAccept={handleCallAccept} onReject={handleCallRejectOrEnd} onEnd={handleCallRejectOrEnd} />}
+      {statusViewer && <StatusViewer statuses={statusViewer.statuses} startIndex={statusViewer.idx} onClose={()=> setStatusViewer(null)} />}
       {forwardMsg && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
           <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col">

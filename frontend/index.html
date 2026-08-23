@@ -6,6 +6,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>KB Chat — Connect. Chat. Share.</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@600;700&display=swap" rel="stylesheet">
+    <script>
+      (function() {
+        try {
+          const theme = localStorage.getItem('kb_theme') || localStorage.getItem('kb-setting-theme') || 'system';
+          const rawAccent = localStorage.getItem('kb_accent') || localStorage.getItem('kb-setting-accent_color');
+          let accent = rawAccent;
+          try { accent = JSON.parse(rawAccent) || rawAccent; } catch(e) {}
+          const systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          const resolved = theme === 'system' ? (systemDark ? 'dark' : 'light') : theme;
+          if (resolved === 'dark') document.documentElement.classList.add('dark');
+          const hues = { violet:'221 83% 53%', blue:'217 91% 60%', emerald:'142 76% 36%', rose:'346 77% 49%', amber:'38 92% 50%', indigo:'263 70% 50%', cyan:'187 94% 43%', pink:'330 81% 60%' };
+          const hsl = hues[accent] || hues.violet;
+          document.documentElement.style.setProperty('--primary', hsl);
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

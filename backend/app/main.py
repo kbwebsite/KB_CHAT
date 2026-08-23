@@ -29,6 +29,7 @@ from app.api.saved import router as saved_router
 from app.api.calls import router as calls_router
 from app.api.settings import router as settings_router
 from app.api.extended import router as extended_router
+from app.api.status import router as status_router
 from app.websocket.chat import router as ws_router
 
 app.include_router(auth_router)
@@ -41,6 +42,7 @@ app.include_router(saved_router)
 app.include_router(calls_router)
 app.include_router(settings_router)
 app.include_router(extended_router)
+app.include_router(status_router)
 app.include_router(ws_router)
 
 @app.get("/api/health")

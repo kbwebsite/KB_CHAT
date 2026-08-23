@@ -43,7 +43,14 @@ export const usersApi = {
 }
 
 export const convApi = {
-  list: (search?:string) => api.get(`/api/conversations${search?`?search=${encodeURIComponent(search)}`:''}`).then(r=>r.data),
+  list: (search?:string, opts?:{include_archived?:boolean, filter?:string}) => {
+    const q=new URLSearchParams()
+    if (search) q.set('search', search)
+    if (opts?.include_archived) q.set('include_archived','true')
+    if (opts?.filter) q.set('filter', opts.filter)
+    const s=q.toString()
+    return api.get(`/api/conversations${s?`?${s}`:''}`).then(r=>r.data)
+  },
   create: (data:any) => api.post('/api/conversations', data).then(r=>r.data),
   get: (id:number) => api.get(`/api/conversations/${id}`).then(r=>r.data),
   delete: (id:number) => api.delete(`/api/conversations/${id}`).then(r=>r.data),
@@ -52,6 +59,8 @@ export const convApi = {
   updateGroup: (id:number, data:any) => api.patch(`/api/conversations/groups/${id}`, data).then(r=>r.data),
   addMembers: (id:number, data:any) => api.post(`/api/conversations/groups/${id}/members`, data).then(r=>r.data),
   removeMember: (cid:number, uid:number) => api.delete(`/api/conversations/groups/${cid}/members/${uid}`).then(r=>r.data),
+  pin: (id:number, pinned?:boolean) => api.post(`/api/conversations/${id}/pin`, {pinned}).then(r=>r.data),
+  archive: (id:number, archived?:boolean) => api.post(`/api/conversations/${id}/archive`, {archived}).then(r=>r.data),
 }
 
 export const msgApi = {
@@ -120,4 +129,14 @@ export const extendedApi = {
   contacts: () => api.get('/api/contacts').then(r=>r.data),
   markNotificationsRead: () => api.post('/api/notifications/mark-read').then(r=>r.data),
   changePassword: (current:string, next:string) => api.patch('/api/users/me/password', { current_password: current, new_password: next }).then(r=>r.data),
+}
+
+export const statusApi = {
+  feed: () => api.get('/api/status/feed').then(r=>r.data),
+  my: () => api.get('/api/status/my').then(r=>r.data),
+  create: (data:FormData) => api.post('/api/status', data, { headers: {'Content-Type':'multipart/form-data'}}).then(r=>r.data),
+  createMedia: (data:FormData) => api.post('/api/status/with-media', data, { headers: {'Content-Type':'multipart/form-data'}}).then(r=>r.data),
+  del: (id:number) => api.delete(`/api/status/${id}`).then(r=>r.data),
+  view: (id:number) => api.post(`/api/status/${id}/view`).then(r=>r.data),
+  viewers: (id:number) => api.get(`/api/status/${id}/viewers`).then(r=>r.data),
 }

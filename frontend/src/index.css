@@ -4,39 +4,83 @@
 
 @layer base {
   :root {
+    /* Core */
     --background: 0 0% 100%;
     --foreground: 222 47% 11%;
+    /* Surfaces */
     --card: 0 0% 100%;
     --card-foreground: 222 47% 11%;
-    --primary: 221 83% 53%;
+    --surface: 0 0% 100%;
+    --surface-elevated: 0 0% 98%;
+    --surface-hover: 210 40% 96%;
+    --surface-glass: 0 0% 100% / 0.8;
+    /* Brand */
+    --primary: 262 83% 58%;
     --primary-foreground: 210 40% 98%;
     --secondary: 210 40% 96%;
     --secondary-foreground: 222 22% 5%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 222 22% 5%;
+    /* Text */
+    --text-primary: 222 47% 11%;
+    --text-secondary: 215 16% 47%;
     --muted: 210 40% 96%;
     --muted-foreground: 215 16% 47%;
-    --accent: 210 40% 96%;
-    --accent-foreground: 222 22% 5%;
+    /* Semantic */
+    --success: 142 76% 36%;
+    --warning: 38 92% 50%;
+    --error: 0 84% 60%;
     --border: 214 32% 91%;
     --input: 214 32% 91%;
-    --ring: 221 83% 53%;
+    --ring: 262 83% 58%;
+    --overlay: 222 47% 11% / 0.5;
+    /* Effects */
+    --shadow-sm: 0 1px 2px 0 hsl(222 47% 11% / 0.05);
+    --shadow-md: 0 4px 12px -2px hsl(222 47% 11% / 0.08);
+    --shadow-lg: 0 12px 24px -4px hsl(222 47% 11% / 0.12);
+    --blur: 12px;
+    /* Messages */
+    --message-sent: 262 83% 58%;
+    --message-sent-foreground: 210 40% 98%;
+    --message-received: 0 0% 100%;
+    --message-received-foreground: 222 47% 11%;
     --radius: 0.75rem;
+    --radius-lg: 1rem;
+    --radius-xl: 1.5rem;
   }
   .dark {
-    --background: 222 47% 6%;
+    --background: 224 40% 6%;
     --foreground: 210 40% 98%;
-    --card: 222 47% 8%;
+    --card: 224 30% 9%;
     --card-foreground: 210 40% 98%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 222 47% 6%;
-    --secondary: 217 32% 17%;
+    --surface: 224 30% 9%;
+    --surface-elevated: 224 28% 12%;
+    --surface-hover: 224 28% 14%;
+    --surface-glass: 224 30% 9% / 0.8;
+    --primary: 263 70% 65%;
+    --primary-foreground: 224 40% 6%;
+    --secondary: 224 28% 14%;
     --secondary-foreground: 210 40% 98%;
-    --muted: 217 32% 17%;
+    --accent: 199 89% 60%;
+    --accent-foreground: 224 40% 6%;
+    --text-primary: 210 40% 98%;
+    --text-secondary: 215 20% 65%;
+    --muted: 224 28% 14%;
     --muted-foreground: 215 20% 65%;
-    --accent: 217 32% 17%;
-    --accent-foreground: 210 40% 98%;
-    --border: 217 32% 17%;
-    --input: 217 32% 17%;
-    --ring: 224 76% 48%;
+    --success: 142 70% 45%;
+    --warning: 38 92% 50%;
+    --error: 0 72% 51%;
+    --border: 224 28% 14%;
+    --input: 224 28% 14%;
+    --ring: 263 70% 65%;
+    --overlay: 224 40% 6% / 0.7;
+    --shadow-sm: 0 1px 2px 0 hsl(224 40% 6% / 0.3);
+    --shadow-md: 0 4px 16px -2px hsl(224 40% 6% / 0.4);
+    --shadow-lg: 0 16px 32px -8px hsl(224 40% 6% / 0.5);
+    --message-sent: 263 70% 60%;
+    --message-sent-foreground: 210 40% 98%;
+    --message-received: 224 28% 12%;
+    --message-received-foreground: 210 40% 98%;
   }
 }
 
