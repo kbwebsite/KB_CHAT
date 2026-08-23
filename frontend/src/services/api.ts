@@ -173,3 +173,54 @@ export const favoriteApi = {
   toggle: (userId:number) => api.post(`/api/contacts/${userId}/favorite`).then(r=>r.data),
   list: () => api.get('/api/contacts/favorites').then(r=>r.data),
 }
+
+export const eventApi = {
+  list: (cid:number) => api.get(`/api/conversations/${cid}/events`).then(r=>r.data),
+  create: (cid:number, data:any) => api.post(`/api/conversations/${cid}/events`, data).then(r=>r.data),
+  respond: (eid:number, response:string) => api.post(`/api/events/${eid}/respond`, {response}).then(r=>r.data),
+  delete: (eid:number) => api.delete(`/api/events/${eid}`).then(r=>r.data),
+}
+
+export const scheduledApi = {
+  list: (cid:number) => api.get(`/api/conversations/${cid}/scheduled`).then(r=>r.data),
+  create: (cid:number, data:any) => api.post(`/api/conversations/${cid}/scheduled`, data).then(r=>r.data),
+  update: (id:number, data:any) => api.patch(`/api/scheduled/${id}`, data).then(r=>r.data),
+  cancel: (id:number) => api.delete(`/api/scheduled/${id}`).then(r=>r.data),
+}
+
+export const notifSettingsApi = {
+  get: () => api.get('/api/notification-settings').then(r=>r.data),
+  update: (data:any) => api.post('/api/notification-settings', data).then(r=>r.data),
+  delete: (id:number) => api.delete(`/api/notification-settings/${id}`).then(r=>r.data),
+}
+
+export const sessionsApi = {
+  list: () => api.get('/api/sessions').then(r=>r.data),
+  markCurrent: (data:any) => api.post('/api/sessions/current', data).then(r=>r.data),
+  logoutOthers: () => api.post('/api/sessions/logout-others').then(r=>r.data),
+  remove: (id:number) => api.delete(`/api/sessions/${id}`).then(r=>r.data),
+}
+
+export const stickerApi = {
+  packs: () => api.get('/api/sticker-packs').then(r=>r.data),
+  recent: () => api.get('/api/stickers/recent').then(r=>r.data),
+  use: (id:number) => api.post(`/api/stickers/${id}/use`).then(r=>r.data),
+  toggleFavorite: (id:number) => api.post(`/api/stickers/${id}/favorite`).then(r=>r.data),
+}
+
+export const insightsApi = {
+  chat: (cid:number) => api.get(`/api/conversations/${cid}/insights`).then(r=>r.data),
+}
+
+export const storageApi = {
+  dashboard: () => api.get('/api/storage').then(r=>r.data),
+}
+
+export const privacyApi = {
+  get: () => api.get('/api/privacy').then(r=>r.data),
+  update: (data:any) => api.patch('/api/privacy', data).then(r=>r.data),
+}
+
+export const recentlyContactedApi = {
+  list: () => api.get('/api/recently-contacted').then(r=>r.data),
+}

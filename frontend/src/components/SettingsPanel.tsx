@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import { useSettingsStore } from '../store/settings'
 import { useAuthStore } from '../store/auth'
-import { extendedApi, settingsApi } from '../services/api'
-import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Bell, Shield, Lock, MessageSquare } from 'lucide-react'
+import { extendedApi, settingsApi, sessionsApi, storageApi } from '../services/api'
+import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Bell, Shield, Lock, MessageSquare, HardDrive } from 'lucide-react'
+import PrivacyCenter from './PrivacyCenter'
 
 export function SettingsPanel({ onClose }: { onClose:()=>void }) {
   const settings = useSettingsStore()
@@ -11,8 +12,11 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
   const [newPwd, setNewPwd]=useState('')
   const [pwdMsg, setPwdMsg]=useState<string|null>(null)
   const [sessions, setSessions]=useState<any[]>([])
+  const [storage, setStorage]=useState<any>(null)
+  const [showPrivacy, setShowPrivacy]=useState(false)
 
-  useEffect(()=>{ settingsApi.sessions().then(r=>{ if(r.success) setSessions(r.data)}) }, [])
+  useEffect(()=>{ sessionsApi.list().then(r=>{ if(r.success) setSessions(r.data)}).catch(()=>{}) }, [])
+  useEffect(()=>{ storageApi.dashboard().then(r=>{ if(r.success) setStorage(r.data)}).catch(()=>{}) }, [])
 
   const handleChangePwd=async ()=>{
     setPwdMsg(null)
@@ -112,29 +116,20 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
 
         {/* Privacy */}
         <section>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Privacy</h3>
-          <div className="space-y-2">
-            <label className="flex items-center justify-between p-3 rounded-xl bg-muted">
-              <div><p className="text-sm font-medium">Read receipts</p><p className="text-xs text-muted-foreground">Show blue ticks when read</p></div>
-              <input type="checkbox" checked={settings.read_receipts} onChange={e=> settings.update({read_receipts: e.target.checked})} className="w-4 h-4"/>
-            </label>
-            <div className="p-3 rounded-xl bg-muted">
-              <p className="text-sm font-medium">Last seen visibility</p>
-              <select value={settings.last_seen_visible} onChange={e=> settings.update({last_seen_visible: e.target.value})} className="mt-1 w-full px-2 py-1.5 rounded-lg bg-background border text-sm">
-                <option value="everyone">Everyone</option>
-                <option value="contacts">Contacts</option>
-                <option value="nobody">Nobody</option>
-              </select>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Shield className="w-3 h-3"/> Privacy Center</h3>
+          {showPrivacy ? (
+            <div className="rounded-xl bg-muted overflow-hidden">
+              <div className="p-2 flex justify-end">
+                <button onClick={()=>setShowPrivacy(false)} className="text-xs px-2 py-1 rounded bg-background border">Close</button>
+              </div>
+              <PrivacyCenter />
             </div>
-            <div className="p-3 rounded-xl bg-muted">
-              <p className="text-sm font-medium">Online status</p>
-              <select value={settings.online_status_visible} onChange={e=> settings.update({online_status_visible: e.target.value})} className="mt-1 w-full px-2 py-1.5 rounded-lg bg-background border text-sm">
-                <option value="everyone">Everyone</option>
-                <option value="contacts">Contacts</option>
-                <option value="nobody">Nobody</option>
-              </select>
-            </div>
-          </div>
+          ) : (
+            <button onClick={()=>setShowPrivacy(true)} className="w-full p-3 rounded-xl bg-muted hover:bg-accent text-left">
+              <p className="text-sm font-medium">Open Privacy Center</p>
+              <p className="text-xs text-muted-foreground">Manage who can see your info</p>
+            </button>
+          )}
         </section>
 
         {/* Security */}
@@ -150,15 +145,35 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
             </div>
             <div className="p-3 rounded-xl bg-muted">
               <p className="text-sm font-medium mb-2">Active sessions</p>
-              {sessions.map(s=> (
-                <div key={s.id} className="flex justify-between items-center py-1">
-                  <span className="text-xs">{s.device}</span>
-                  <span className="text-xs text-muted-foreground">{s.is_current ? 'Current' : s.last_active}</span>
+              {sessions.length===0 && <p className="text-xs text-muted-foreground">No sessions found</p>}
+              {sessions.map((s:any)=> (
+                <div key={s.id} className="flex justify-between items-center py-1.5 border-b border-[var(--border)] last:border-0">
+                  <div>
+                    <span className="text-xs font-medium">{s.device_info || 'Unknown device'}</span>
+                    <span className="text-xs text-muted-foreground ml-2">{s.browser_info || ''}</span>
+                  </div>
+                  <span className="text-xs text-muted-foreground">{s.is_current ? '✓ Current' : new Date(s.last_active).toLocaleDateString()}</span>
                 </div>
               ))}
-              <button onClick={async ()=>{ alert('Other sessions logged out (V1 single session)') }} className="mt-2 w-full py-1.5 rounded-lg bg-background border text-xs">Logout other sessions</button>
+              {sessions.length > 1 && (
+                <button onClick={async ()=>{ await sessionsApi.logoutOthers(); setSessions(sessions.filter((s:any)=>s.is_current)) }} className="mt-2 w-full py-1.5 rounded-lg bg-background border text-xs">Logout other sessions</button>
+              )}
             </div>
           </div>
+        </section>
+
+        {/* Chat */}
+        <section>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><HardDrive className="w-3 h-3"/> Storage</h3>
+          {storage && (
+            <div className="p-3 rounded-xl bg-muted space-y-2">
+              <div className="flex justify-between text-xs"><span>Images</span><span>{(storage.images/1024/1024).toFixed(1)} MB</span></div>
+              <div className="flex justify-between text-xs"><span>Videos</span><span>{(storage.videos/1024/1024).toFixed(1)} MB</span></div>
+              <div className="flex justify-between text-xs"><span>Audio</span><span>{(storage.audio/1024/1024).toFixed(1)} MB</span></div>
+              <div className="flex justify-between text-xs"><span>Files</span><span>{(storage.files/1024/1024).toFixed(1)} MB</span></div>
+              <div className="border-t pt-2 flex justify-between text-xs font-medium"><span>Total</span><span>{(storage.total/1024/1024).toFixed(1)} MB</span></div>
+            </div>
+          )}
         </section>
 
         {/* Chat */}

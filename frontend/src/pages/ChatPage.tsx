@@ -23,6 +23,9 @@ import { CommandPalette, buildCommands } from '../components/CommandPalette'
 import { PollPanel } from '../components/PollPanel'
 import { LinkPreview, hasUrl, extractUrls } from '../components/LinkPreview'
 import { DragDropZone } from '../components/DragDropZone'
+import EventPanel from '../components/EventPanel'
+import ScheduleMessage from '../components/ScheduleMessage'
+import ChatInsights from '../components/ChatInsights'
 import { msgPinApi, pollApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
@@ -32,7 +35,7 @@ import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
 type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
-type RightTab = 'chat' | 'files' | 'media' | 'links' | 'voice' | 'polls' | 'pinned'
+type RightTab = 'chat' | 'files' | 'media' | 'links' | 'voice' | 'polls' | 'pinned' | 'events' | 'schedule' | 'insights'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
@@ -73,6 +76,9 @@ export default function ChatPage() {
   const [drafts, setDrafts]=useState<Record<number, string>>({})
   const [showPolls, setShowPolls]=useState(false)
   const [showPinned, setShowPinned]=useState(false)
+  const [showEvents, setShowEvents]=useState(false)
+  const [showSchedule, setShowSchedule]=useState(false)
+  const [showInsights, setShowInsights]=useState(false)
   const [pinnedMessages, setPinnedMessages]=useState<any[]>([])
   const [wallpaper] = useState(settings.chat_wallpaper)
   const [isAtBottom, setIsAtBottom]=useState(true)
@@ -103,7 +109,7 @@ export default function ChatPage() {
   useEffect(()=>{
     const onKey=(e:KeyboardEvent)=>{
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); setShowCommandPalette(true); }
-      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false); }
+      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false); }
     }
     window.addEventListener('keydown', onKey)
     return ()=> window.removeEventListener('keydown', onKey)
@@ -634,7 +640,7 @@ export default function ChatPage() {
         </section>
 
         {/* Right panel */}
-        {(showProfile || showGroupInfo || showSettings || showNotifications || showSaved || showContacts || showCalls || showPolls || showPinned) && (
+        {(showProfile || showGroupInfo || showSettings || showNotifications || showSaved || showContacts || showCalls || showPolls || showPinned || showEvents || showSchedule || showInsights) && (
           <aside className="absolute inset-y-0 right-0 w-full sm:w-[380px] bg-card border-l shadow-2xl z-20 flex flex-col lg:relative lg:inset-auto">
             {showProfile && <ProfilePanel onClose={()=> setShowProfile(false)} />}
             {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={()=> setShowGroupInfo(false)} onUpdated={()=> fetchConversations()} />}
@@ -657,6 +663,39 @@ export default function ChatPage() {
                       <p className="mt-1 line-clamp-3">{msg.content}</p>
                     </div>
                   ))}
+                </div>
+              </div>
+            )}
+            {showEvents && currentConv && (
+              <div className="flex flex-col h-full bg-card">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <h3 className="font-semibold text-sm">Events</h3>
+                  <button onClick={()=> setShowEvents(false)} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-4 h-4"/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <EventPanel convId={currentConv.id} userId={user?.id || 0} />
+                </div>
+              </div>
+            )}
+            {showSchedule && currentConv && (
+              <div className="flex flex-col h-full bg-card">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <h3 className="font-semibold text-sm">Scheduled</h3>
+                  <button onClick={()=> setShowSchedule(false)} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-4 h-4"/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <ScheduleMessage convId={currentConv.id} />
+                </div>
+              </div>
+            )}
+            {showInsights && currentConv && (
+              <div className="flex flex-col h-full bg-card">
+                <div className="flex items-center justify-between p-3 border-b">
+                  <h3 className="font-semibold text-sm">Insights</h3>
+                  <button onClick={()=> setShowInsights(false)} className="p-1.5 rounded-lg hover:bg-muted"><X className="w-4 h-4"/></button>
+                </div>
+                <div className="flex-1 overflow-y-auto">
+                  <ChatInsights convId={currentConv.id} />
                 </div>
               </div>
             )}
@@ -739,6 +778,9 @@ export default function ChatPage() {
         <div className="flex gap-1">
           <button onClick={()=> setShowPolls(!showPolls)} className="px-2 py-0.5 rounded hover:bg-muted" title="Polls">Polls</button>
           <button onClick={()=> { setShowPinned(!showPinned); if(currentConversationId) msgPinApi.list(currentConversationId).then(r=>{ if(r.success) setPinnedMessages(r.data) }) }} className="px-2 py-0.5 rounded hover:bg-muted" title="Pinned">Pinned{pinnedMessages.length>0 && ` (${pinnedMessages.length})`}</button>
+          <button onClick={()=> setShowEvents(!showEvents)} className="px-2 py-0.5 rounded hover:bg-muted" title="Events">Events</button>
+          <button onClick={()=> setShowSchedule(!showSchedule)} className="px-2 py-0.5 rounded hover:bg-muted" title="Schedule">Schedule</button>
+          <button onClick={()=> setShowInsights(!showInsights)} className="px-2 py-0.5 rounded hover:bg-muted" title="Insights">Insights</button>
         </div>
       </div>
 

@@ -33,6 +33,12 @@ from app.api.status import router as status_router
 from app.api.polls import router as polls_router
 from app.api.highlights import router as highlights_router
 from app.api.linkpreview import router as linkpreview_router
+from app.api.events import router as events_router
+from app.api.scheduled import router as scheduled_router
+from app.api.notification_settings import router as notif_settings_router
+from app.api.sessions import router as sessions_router
+from app.api.insights import router as insights_router
+from app.api.stickers import router as stickers_router
 from app.websocket.chat import router as ws_router
 
 app.include_router(auth_router)
@@ -49,6 +55,12 @@ app.include_router(status_router)
 app.include_router(polls_router)
 app.include_router(highlights_router)
 app.include_router(linkpreview_router)
+app.include_router(events_router)
+app.include_router(scheduled_router)
+app.include_router(notif_settings_router)
+app.include_router(sessions_router)
+app.include_router(insights_router)
+app.include_router(stickers_router)
 app.include_router(ws_router)
 
 @app.get("/api/health")
@@ -125,3 +137,18 @@ async def rate_limit_middleware(request: Request, call_next):
 async def log_requests(request: Request, call_next):
     response = await call_next(request)
     return response
+
+# Background task: check scheduled messages every 30 seconds
+import asyncio
+
+@app.on_event("startup")
+async def start_scheduled_checker():
+    async def _check():
+        while True:
+            try:
+                from app.api.scheduled import check_scheduled_messages
+                await check_scheduled_messages()
+            except Exception:
+                pass
+            await asyncio.sleep(30)
+    asyncio.create_task(_check())

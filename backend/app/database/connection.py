@@ -34,6 +34,11 @@ def create_tables():
     import app.models.status  # noqa
     import app.models.poll  # noqa
     import app.models.highlight  # noqa
+    import app.models.event  # noqa
+    import app.models.scheduled  # noqa
+    import app.models.notification_setting  # noqa
+    import app.models.session  # noqa
+    import app.models.sticker  # noqa
     Base.metadata.create_all(bind=engine)
     # Auto-migrate: add new columns if missing (for existing DBs without migration)
     try:
@@ -75,6 +80,19 @@ def create_tables():
                             conn.commit()
                     else:
                         conn.execute(text(f"ALTER TABLE users ADD COLUMN IF NOT EXISTS {col} {coltype}"))
+                        conn.commit()
+                except Exception:
+                    pass
+            # user_settings: new privacy fields
+            for col, coltype in [("profile_visibility", "VARCHAR(20) DEFAULT 'everyone'"), ("status_visibility", "VARCHAR(20) DEFAULT 'contacts'"), ("who_can_contact", "VARCHAR(20) DEFAULT 'everyone'"), ("notification_previews", "BOOLEAN DEFAULT 1")]:
+                try:
+                    if engine.dialect.name == "sqlite":
+                        result = conn.execute(text("SELECT name FROM pragma_table_info('user_settings') WHERE name=:col"), {"col": col})
+                        if result.fetchone() is None:
+                            conn.execute(text(f"ALTER TABLE user_settings ADD COLUMN {col} {coltype}"))
+                            conn.commit()
+                    else:
+                        conn.execute(text(f"ALTER TABLE user_settings ADD COLUMN IF NOT EXISTS {col} {coltype}"))
                         conn.commit()
                 except Exception:
                     pass

@@ -268,3 +268,72 @@ def mark_notifications_read(db: Session = Depends(get_db), current_user: User = 
             mem.last_read_message_id = last_msg.id
     db.commit()
     return success_response(None, "All marked read")
+
+# Recently contacted
+@router.get("/recently-contacted")
+def recently_contacted(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    member_convs = db.query(ConversationMember).filter_by(user_id=current_user.id).all()
+    conv_ids = [m.conversation_id for m in member_convs]
+    if not conv_ids:
+        return success_response([])
+    convs = db.query(Conversation).filter(Conversation.id.in_(conv_ids)).order_by(desc(Conversation.updated_at)).limit(10).all()
+    result = []
+    for c in convs:
+        other_members = db.query(ConversationMember).filter(ConversationMember.conversation_id == c.id, ConversationMember.user_id != current_user.id).all()
+        if other_members:
+            u = db.query(User).filter_by(id=other_members[0].user_id).first()
+            if u:
+                result.append({"id": u.id, "username": u.username, "display_name": u.display_name, "avatar_url": u.avatar_url, "is_online": u.is_online})
+    return success_response(result)
+
+# Privacy center
+@router.get("/privacy")
+def get_privacy_settings(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.settings import UserSettings
+    settings = db.query(UserSettings).filter_by(user_id=current_user.id).first()
+    if not settings:
+        settings = UserSettings(user_id=current_user.id)
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+    return success_response({
+        "last_seen_visible": getattr(settings, "last_seen_visible", "everyone"),
+        "online_status_visible": getattr(settings, "online_status_visible", "everyone"),
+        "read_receipts": getattr(settings, "read_receipts", True),
+        "profile_visibility": getattr(settings, "profile_visibility", "everyone"),
+        "status_visibility": getattr(settings, "status_visibility", "contacts"),
+        "who_can_contact": getattr(settings, "who_can_contact", "everyone"),
+        "notification_previews": getattr(settings, "notification_previews", True),
+    })
+
+@router.patch("/privacy")
+def update_privacy_settings(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    from app.models.settings import UserSettings
+    settings = db.query(UserSettings).filter_by(user_id=current_user.id).first()
+    if not settings:
+        settings = UserSettings(user_id=current_user.id)
+        db.add(settings)
+    for key in ["last_seen_visible", "online_status_visible", "read_receipts", "profile_visibility", "status_visibility", "who_can_contact", "notification_previews"]:
+        if key in payload:
+            setattr(settings, key, payload[key])
+    db.commit()
+    return success_response(None, "Privacy updated")
+
+# Storage dashboard
+@router.get("/storage")
+def storage_dashboard(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    member_convs = [m.conversation_id for m in db.query(ConversationMember).filter_by(user_id=current_user.id).all()]
+    if not member_convs:
+        return success_response({"images": 0, "videos": 0, "files": 0, "audio": 0, "total": 0})
+    from sqlalchemy import func
+    msg_ids = [m.id for m in db.query(Message).filter(Message.conversation_id.in_(member_convs), Message.sender_id == current_user.id).all()]
+    if not msg_ids:
+        return success_response({"images": 0, "videos": 0, "files": 0, "audio": 0, "total": 0})
+    cats = {}
+    for mime, cat in [("image/%", "images"), ("video/%", "videos"), ("audio/%", "audio")]:
+        result = db.query(func.sum(Attachment.file_size)).filter(Attachment.message_id.in_(msg_ids), Attachment.mime_type.like(mime)).scalar()
+        cats[cat] = result or 0
+    result = db.query(func.sum(Attachment.file_size)).filter(Attachment.message_id.in_(msg_ids), ~Attachment.mime_type.like("image/%"), ~Attachment.mime_type.like("video/%"), ~Attachment.mime_type.like("audio/%")).scalar()
+    cats["files"] = result or 0
+    cats["total"] = sum(cats.values())
+    return success_response(cats)

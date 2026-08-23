@@ -18,6 +18,10 @@ class UserSettings(Base):
     online_status_visible = Column(String(20), default="everyone")  # everyone, contacts, nobody
     read_receipts = Column(Boolean, default=True)
     last_seen_visible = Column(String(20), default="everyone")
+    profile_visibility = Column(String(20), default="everyone")
+    status_visibility = Column(String(20), default="contacts")
+    who_can_contact = Column(String(20), default="everyone")
+    notification_previews = Column(Boolean, default=True)
     # Chat
     enter_to_send = Column(Boolean, default=True)
     media_auto_download = Column(Boolean, default=True)
