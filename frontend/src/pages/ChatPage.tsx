@@ -20,6 +20,7 @@ import { ServerStatus } from '../components/ServerStatus'
 import { StatusPanel } from '../components/StatusPanel'
 import { StatusViewer } from '../components/StatusViewer'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
+import { useToastStore } from '../store/toast'
 import { Message } from '../types'
 import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -30,6 +31,7 @@ type RightTab = 'chat' | 'files' | 'media' | 'links' | 'voice'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
+  const toast = useToastStore(s=> s.push)
   const {
     conversations, currentConversationId, messages, hasMore, loadingMessages, loadingConvs,
     fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react
@@ -65,7 +67,7 @@ export default function ChatPage() {
   const [wallpaper] = useState(settings.chat_wallpaper)
   const [isAtBottom, setIsAtBottom]=useState(true)
   const [showNewIndicator, setShowNewIndicator]=useState(false)
-  const [isLoadingMore, setIsLoadingMore]=useState(false)
+  const isLoadingMoreRef = useRef(false)
   const searchRef=useRef<HTMLInputElement>(null)
   const listRef=useRef<HTMLDivElement>(null)
   const nav=useNavigate()
@@ -112,30 +114,44 @@ export default function ChatPage() {
     setIsAtBottom(true)
   }
 
-  const handleMessageScroll = async ()=>{
+  const scrollSnapshotRef = useRef<{prevHeight:number, prevTop:number, convId:number} | null>(null)
+
+  const handleMessageScroll = ()=>{
     const el=listRef.current
     if (!el) return
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
     setIsAtBottom(atBottom)
     if (atBottom) setShowNewIndicator(false)
     // infinite scroll: near top
-    if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMore && !loadingMessages) {
+    if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMoreRef.current && !loadingMessages) {
       const firstId = currentMsgs[0]?.id
       if (!firstId) return
-      setIsLoadingMore(true)
-      const prevHeight = el.scrollHeight
-      const prevTop = el.scrollTop
-      await fetchMessages(currentConversationId!, firstId)
-      // preserve position
-      requestAnimationFrame(()=>{
-        if (listRef.current) {
-          const newHeight = listRef.current.scrollHeight
-          listRef.current.scrollTop = newHeight - prevHeight + prevTop
-        }
-        setIsLoadingMore(false)
-      })
+      isLoadingMoreRef.current = true
+      scrollSnapshotRef.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop, convId: currentConversationId! }
+      fetchMessages(currentConversationId!, firstId)
     }
   }
+
+  // restore scroll position after older messages load
+  const prevLoadingRef = useRef(loadingMessages)
+  useEffect(()=>{
+    if (prevLoadingRef.current && !loadingMessages && scrollSnapshotRef.current) {
+      const { prevHeight, prevTop, convId } = scrollSnapshotRef.current
+      if (convId === currentConversationId) {
+        scrollSnapshotRef.current = null
+        requestAnimationFrame(()=>{
+          if (listRef.current) {
+            const newHeight = listRef.current.scrollHeight
+            listRef.current.scrollTop = prevTop + (newHeight - prevHeight)
+          }
+        })
+      } else {
+        scrollSnapshotRef.current = null
+      }
+      isLoadingMoreRef.current = false
+    }
+    prevLoadingRef.current = loadingMessages
+  }, [loadingMessages, currentConversationId])
 
   // auto-scroll when new messages arrive only if user was at bottom
   const prevMsgLenRef=useRef(0)
@@ -203,12 +219,12 @@ export default function ChatPage() {
         setSidebarTab('chats')
         if (window.innerWidth < 1024) setMobileView('chat')
       }
-    } catch (e:any) { alert(e.response?.data?.detail || 'Failed to start chat') }
+    } catch (e:any) { toast(e.response?.data?.detail || 'Failed to start chat', 'error') }
   }
 
   const handleCreateGroup=async ()=>{
-    if (!groupTitle.trim()) return alert('Group name required')
-    if (groupMembers.length===0) return alert('Add at least one member')
+    if (!groupTitle.trim()) return toast('Group name required', 'error')
+    if (groupMembers.length===0) return toast('Add at least one member', 'error')
     try {
       const res=await convApi.create({ is_group:true, title: groupTitle, member_ids: groupMembers.map(m=>m.id) })
       if (res.success) {
@@ -219,7 +235,7 @@ export default function ChatPage() {
         setGroupTitle('')
         setGroupMembers([])
       }
-    } catch (e:any) { alert(e.response?.data?.detail || 'Failed') }
+    } catch (e:any) { toast(e.response?.data?.detail || 'Failed', 'error') }
   }
 
   const handleSend=async (content:string, attachmentIds?:number[], type?:string)=>{
@@ -233,8 +249,7 @@ export default function ChatPage() {
     try {
       await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type)
     } catch (e:any) {
-      // retry logic: show error and allow retry via UI (we can add failed state)
-      alert('Failed to send: ' + (e.response?.data?.message || e.message))
+      toast('Failed to send: ' + (e.response?.data?.message || e.message), 'error')
     }
   }
 
@@ -269,15 +284,15 @@ export default function ChatPage() {
     if (!forwardMsg) return
     try {
       const res=await extendedApi.forward(forwardMsg.id, targetIds)
-      if (res.success) { alert(`Forwarded to ${res.data.forwarded_to.length} chats`); setForwardMsg(null); fetchConversations() }
-    } catch (e:any) { alert(e.response?.data?.detail || 'Forward failed') }
+      if (res.success) { toast(`Forwarded to ${res.data.forwarded_to.length} chats`, 'success'); setForwardMsg(null); fetchConversations() }
+    } catch (e:any) { toast(e.response?.data?.detail || 'Forward failed', 'error') }
   }
   const handleSave=async (msg:Message)=>{
     const isSaved = savedIds.has(msg.id)
     try {
       if (isSaved) { await savedApi.unsave(msg.id); setSavedIds(s=> { const n=new Set(s); n.delete(msg.id); return n }) }
       else { await savedApi.save(msg.id); setSavedIds(s=> new Set(s).add(msg.id)) }
-    } catch (e:any) { alert(e.response?.data?.message || 'Save failed') }
+    } catch (e:any) { toast(e.response?.data?.message || 'Save failed', 'error') }
   }
   const handleSelectToggle=(msg:Message)=>{
     setSelectedIds(s=> { const n=new Set(s); if(n.has(msg.id)) n.delete(msg.id); else n.add(msg.id); return n })
@@ -299,7 +314,7 @@ export default function ChatPage() {
   const handleClear=async ()=>{
     if (!currentConv) return
     if (!confirm('Clear all messages in this conversation? This cannot be undone.')) return
-    try { await extendedApi.clear(currentConv.id); fetchMessages(currentConv.id); fetchConversations() } catch (e:any) { alert(e.response?.data?.message || 'Clear failed') }
+    try { await extendedApi.clear(currentConv.id); fetchMessages(currentConv.id); fetchConversations() } catch (e:any) { toast(e.response?.data?.message || 'Clear failed', 'error') }
   }
   const handleExport=async (fmt:'json'|'txt')=>{
     if (!currentConv) return
@@ -314,18 +329,18 @@ export default function ChatPage() {
         const url=URL.createObjectURL(blob)
         const a=document.createElement('a'); a.href=url; a.download=`kbchat_${currentConv.id}.json`; a.click(); URL.revokeObjectURL(url)
       }
-    } catch (e:any) { alert('Export failed') }
+    } catch (e:any) { toast('Export failed', 'error') }
   }
   const handleCall=(type:'voice'|'video')=>{
     if (!currentConv) return
     const other = currentConv.members.find(m=> m.user_id!==user?.id)
-    if (!other) return alert('No peer to call')
+    if (!other) return toast('No peer to call', 'error')
     // start call via API
     callsApi.start({ callee_id: other.user_id, conversation_id: currentConv.id, call_type: type })
       .then(r=>{
         if(r.success) setCallModal({open:true, type, peerName: other.display_name, peerAvatar: other.avatar_url, incoming:false, callId: r.data.id, peerId: other.user_id})
       })
-      .catch(e=> alert(e.response?.data?.detail || 'Call failed'))
+      .catch(e=> toast(e.response?.data?.detail || 'Call failed', 'error'))
   }
   const handleCallAccept=async ()=>{
     if (callModal?.callId) { await callsApi.accept(callModal.callId); setCallModal(m=> m ? {...m, incoming:false} : null) }
@@ -390,8 +405,8 @@ export default function ChatPage() {
               setCurrent(first.conversation_id)
               fetchMessages(first.conversation_id)
               if (window.innerWidth < 1024) setMobileView('chat')
-              alert(`Found ${msgs.length} messages. Jumped to conversation.`)
-            } else alert('No results')
+              toast(`Found ${msgs.length} messages. Jumped to conversation.`, 'info')
+            } else toast('No results', 'info')
           }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm">Search</button>
           <button onClick={()=> setShowMessageSearch(false)} className="px-3 py-2 rounded-xl bg-muted text-sm"><X className="w-4 h-4"/></button>
         </div>
@@ -508,39 +523,31 @@ export default function ChatPage() {
                   <button onClick={()=> {setEditTarget(null); setEditText('')}} className="px-3 py-1 rounded-full bg-background border text-xs">Cancel</button>
                 </div>
               )}
-              {/* Message list with tabs */}
-              <div className="flex-1 overflow-y-auto flex flex-col relative" ref={listRef} onScroll={handleMessageScroll}>
-                {isLoadingMore && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
-                {showNewIndicator && (
-                  <button onClick={()=> scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:bg-primary/90 animate-bounce">
-                    ↓ {currentMsgs.length - (prevMsgLenRef.current - (showNewIndicator ? 0 : 0))} new messages
-                  </button>
-                )}
+              {/* Message list */}
+              <div className="flex-1 overflow-y-auto relative" ref={listRef} onScroll={handleMessageScroll}>
+                {loadingMessages && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
+                {hasMore[currentConversationId!] && activeRightTab==='chat' && <div className="text-center py-2"><button onClick={()=> fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-accent">Load older</button></div>}
                 {activeRightTab==='chat' ? (
-                  <>
-                    <div className="flex-1" />
-                    <div className="py-2 space-y-0.5">
-                      {displayedMsgs.map((msg, idx)=>{
-                        const prev = displayedMsgs[idx-1]
-                        const isOwn = msg.sender_id === user?.id
-                        const showAvatar = !!currentConv.is_group && (!prev || prev.sender_id !== msg.sender_id)
-                        return <MessageBubble key={msg.id} msg={msg} isOwn={!!isOwn} isGroup={!!currentConv.is_group} showAvatar={showAvatar}
-                          onReply={(m)=> setReplyTo({id:m.id, content: m.content||'', sender: m.sender_display_name||'Unknown'})}
-                          onEdit={(m)=> { setEditTarget(m); setEditText(m.content||'')}}
-                          onDelete={async (m)=>{ if(confirm('Delete?')) await deleteMessage(m.id)}}
-                          onReact={handleReact}
-                          onCopy={handleCopy}
-                          onForward={handleForward}
-                          onSave={handleSave}
-                          onSelect={handleSelectToggle}
-                          isSelected={selectedIds.has(msg.id)}
-                          onImageClick={(url,name,all,idx)=> setLightbox({images:all, idx})}
-                          savedIds={savedIds}
-                        />
-                      })}
-                    </div>
-                    {hasMore[currentConversationId!] && <div className="text-center py-2"><button onClick={()=> fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-accent">Load older</button></div>}
-                  </>
+                  <div className="py-2 space-y-0.5">
+                    {displayedMsgs.map((msg, idx)=>{
+                      const prev = displayedMsgs[idx-1]
+                      const isOwn = msg.sender_id === user?.id
+                      const showAvatar = !!currentConv.is_group && (!prev || prev.sender_id !== msg.sender_id)
+                      return <MessageBubble key={msg.id} msg={msg} isOwn={!!isOwn} isGroup={!!currentConv.is_group} showAvatar={showAvatar}
+                        onReply={(m)=> setReplyTo({id:m.id, content: m.content||'', sender: m.sender_display_name||'Unknown'})}
+                        onEdit={(m)=> { setEditTarget(m); setEditText(m.content||'')}}
+                        onDelete={async (m)=>{ if(confirm('Delete?')) await deleteMessage(m.id)}}
+                        onReact={handleReact}
+                        onCopy={handleCopy}
+                        onForward={handleForward}
+                        onSave={handleSave}
+                        onSelect={handleSelectToggle}
+                        isSelected={selectedIds.has(msg.id)}
+                        onImageClick={(url,name,all,idx)=> setLightbox({images:all, idx})}
+                        savedIds={savedIds}
+                      />
+                    })}
+                  </div>
                 ) : (
                   <div className="p-4">
                     <h3 className="font-medium mb-3">{activeRightTab.toUpperCase()}</h3>
@@ -562,6 +569,11 @@ export default function ChatPage() {
                       </div>
                     )}
                   </div>
+                )}
+                {showNewIndicator && (
+                  <button onClick={()=> scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:bg-primary/90 animate-bounce mx-auto block w-fit">
+                    ↓ New messages
+                  </button>
                 )}
               </div>
               <MessageComposer
@@ -637,7 +649,7 @@ export default function ChatPage() {
                   const el=document.getElementById(`fwd-${c.id}`) as HTMLInputElement
                   if (el?.checked) ids.push(c.id)
                 })
-                if (ids.length===0) return alert('Select at least one chat')
+                if (ids.length===0) return toast('Select at least one chat', 'error')
                 doForward(ids)
               }} className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground font-medium">Forward</button>
             </div>
