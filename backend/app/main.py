@@ -51,16 +51,37 @@ def health():
 def api_root():
     return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share.", "version": "2.0.0"}, "message": None}
 
-# Serve frontend static files if built (for single-container deploy on Render)
+# Serve frontend static files with SPA catch-all fallback
 # Frontend dist is copied to ../frontend/dist in Docker (from /app/frontend/dist relative to /app/backend)
 import pathlib
+from fastapi.responses import FileResponse
+
 frontend_dist = pathlib.Path(__file__).resolve().parents[2] / "frontend" / "dist"
-# Also check alternative path when running locally: KB-CHAT/frontend/dist
 if not frontend_dist.exists():
-    # try local dev path
     frontend_dist = pathlib.Path(__file__).resolve().parents[3] / "frontend" / "dist"
+
 if frontend_dist.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_dist), html=True), name="frontend")
+    assets_dir = frontend_dist / "assets"
+    if assets_dir.exists():
+        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_spa(full_path: str):
+        # Don't intercept api, ws, docs, redoc, openapi.json
+        if full_path.startswith("api") or full_path.startswith("ws") or full_path in ("docs", "redoc", "openapi.json"):
+            from fastapi import HTTPException
+            raise HTTPException(status_code=404, detail="Not Found")
+
+        # If requesting an existing root-level file (e.g., favicon.svg, vite.svg, robots.txt)
+        target_file = (frontend_dist / full_path).resolve()
+        if full_path and target_file.is_file() and str(target_file).startswith(str(frontend_dist.resolve())):
+            return FileResponse(str(target_file))
+
+        # Fallback to index.html for all React Router SPA paths (/chat, /login, /signup, etc.)
+        index_file = frontend_dist / "index.html"
+        if index_file.is_file():
+            return FileResponse(str(index_file))
+        return {"detail": "Frontend not found"}
 else:
     @app.get("/")
     def root():
