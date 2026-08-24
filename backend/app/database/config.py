@@ -2,9 +2,14 @@ import os
 from pydantic_settings import BaseSettings
 from typing import List
 
+# Compute absolute path for SQLite database relative to this file's location
+# This ensures the database path is stable regardless of working directory
+_BACKEND_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+_DEFAULT_DB_PATH = os.path.join(_BACKEND_ROOT, "kbchat.db")
+
 
 class Settings(BaseSettings):
-    DATABASE_URL: str = "sqlite:///./kbchat.db"
+    DATABASE_URL: str = f"sqlite:///{_DEFAULT_DB_PATH}"
     JWT_SECRET: str = "dev-secret-change-in-production-please-use-strong-random"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
@@ -24,8 +29,14 @@ class Settings(BaseSettings):
         extra = "allow"
 
     def model_post_init(self, __context):
-        # Force SQLite for reliability. The env DATABASE_URL is ignored.
-        self.DATABASE_URL = "sqlite:///./kbchat.db"
+        # Use env DATABASE_URL if set (e.g., PostgreSQL), otherwise keep SQLite
+        if not self.DATABASE_URL or self.DATABASE_URL == f"sqlite:///{_DEFAULT_DB_PATH}":
+            self.DATABASE_URL = f"sqlite:///{_DEFAULT_DB_PATH}"
+        # Ensure the directory for the database file exists
+        db_path = self.DATABASE_URL.replace("sqlite:///", "")
+        db_dir = os.path.dirname(db_path)
+        if db_dir:
+            os.makedirs(db_dir, exist_ok=True)
 
     @property
     def cors_origins_list(self) -> List[str]:

@@ -14,7 +14,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY backend/ ./backend/
 COPY --from=frontend-build /app/dist ./frontend/dist
-COPY uploads/ ./uploads/
+
+# Create uploads directory (do NOT COPY from host - it overwrites persistent data)
+# Uploads should be stored on a persistent volume mount at /app/backend/uploads
+RUN mkdir -p /app/backend/uploads
 
 WORKDIR /app/backend
 

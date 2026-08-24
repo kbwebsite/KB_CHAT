@@ -101,17 +101,22 @@ async def forward_message(message_id: int, payload: dict, db: Session = Depends(
             await manager.broadcast_to_conversation(cid, {"type": "message.new", "payload": payload_ws}, member_ids=member_ids)
     return success_response({"forwarded_to": created}, f"Forwarded to {len(created)} conversations")
 
-# Clear chat
+# Clear chat - only soft-delete messages sent by the requesting user, not other members' messages
 @router.post("/conversations/{conv_id}/clear")
-def clear_chat(conv_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def clear_chat(conv_id: int, scope: str = Query("mine", pattern="^(mine|all)$"), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     if not db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first():
         raise HTTPException(status_code=403, detail="Not a member")
-    # delete all messages in conversation for this user? For V1, delete all messages where conversation_id matches
-    # But to support per-user clear, we just delete all messages (since we don't have per-user hide)
-    # Add confirmation: require payload? We just clear
-    count = db.query(Message).filter_by(conversation_id=conv_id).delete()
+    if scope == "mine":
+        # Only soft-delete messages sent by the current user
+        count = db.query(Message).filter_by(conversation_id=conv_id, sender_id=current_user.id).update({"is_deleted": True})
+    else:
+        # "all" requires owner role for group chats
+        membership = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
+        conv = db.query(Conversation).filter_by(id=conv_id).first()
+        if conv and conv.is_group and membership and membership.role != "owner":
+            raise HTTPException(status_code=403, detail="Only group owner can clear all messages")
+        count = db.query(Message).filter_by(conversation_id=conv_id).update({"is_deleted": True})
     db.commit()
-    # also delete attachments? cascade
     return success_response({"deleted_count": count}, "Chat cleared")
 
 # Export chat

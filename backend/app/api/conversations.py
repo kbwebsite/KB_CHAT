@@ -7,6 +7,7 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message
+from app.models.poll import Poll
 from app.schemas.conversation import ConversationCreate, GroupUpdate
 from app.schemas.common import success_response
 from app.websocket.manager import manager
@@ -213,31 +214,33 @@ def get_conversation(conv_id: int, db: Session = Depends(get_db), current_user: 
     return success_response(conversation_to_dict(db, conv, current_user.id))
 
 @router.delete("/{conv_id}")
-def delete_conversation(conv_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_conversation(conv_id: int, confirm: bool = Query(False), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     conv = db.query(Conversation).filter_by(id=conv_id).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Conversation not found")
     if not _is_member(db, conv_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
-    # For groups, only owner can delete? For now allow any member to leave (delete membership)
-    # If group owner deletes, delete entire group. Otherwise just remove member.
     if conv.is_group:
         my_membership = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
         if my_membership and my_membership.role == "owner":
+            if not confirm:
+                raise HTTPException(status_code=400, detail="Group deletion requires ?confirm=true. This will remove the group for all members.")
+            # Soft-delete: remove all memberships, messages stay but conversation is hidden
+            db.query(ConversationMember).filter_by(conversation_id=conv_id).delete()
+            db.query(Message).filter_by(conversation_id=conv_id).update({"is_deleted": True})
+            db.query(Poll).filter_by(conversation_id=conv_id).update({"is_deleted": True})
             db.delete(conv)
             db.commit()
             return success_response(None, "Group deleted")
         else:
             db.delete(my_membership)
             db.commit()
-            # if no members left, delete conv
             remaining = db.query(ConversationMember).filter_by(conversation_id=conv_id).count()
             if remaining == 0:
                 db.delete(conv)
                 db.commit()
             return success_response(None, "Left conversation")
     else:
-        # 1-1 delete for me? We'll delete membership, but keep conversation for other user until both left
         my_membership = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=current_user.id).first()
         if my_membership:
             db.delete(my_membership)
