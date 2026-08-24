@@ -24,19 +24,7 @@ def get_db():
         db.close()
 
 def create_tables():
-    # import all models to ensure they are registered
-    import app.models.user  # noqa
-    import app.models.conversation  # noqa
-    import app.models.message  # noqa
-    import app.models.settings  # noqa
-    import app.models.saved  # noqa
-    import app.models.call  # noqa
-    import app.models.status  # noqa
-    import app.models.poll  # noqa
-    import app.models.highlight  # noqa
-    import app.models.event  # noqa
-    import app.models.scheduled  # noqa
-    import app.models.notification_setting  # noqa
-    import app.models.session  # noqa
-    import app.models.sticker  # noqa
+    # Drop all tables first to ensure clean schema (important after model changes)
+    Base.metadata.drop_all(bind=engine)
+    # Then create all tables with the current model definitions
     Base.metadata.create_all(bind=engine)
