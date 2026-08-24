@@ -3,11 +3,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from app.database.config import settings
-from app.database.connection import create_tables
 
 # Ensure upload dir exists
 os.makedirs(settings.upload_dir_abs, exist_ok=True)
-create_tables()
 
 app = FastAPI(title="KB Chat API", version="1.0.0", description="KB Chat - Connect. Chat. Share.")
 
@@ -18,6 +16,24 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+from app.database.connection import create_tables
+
+# Import all models to register them with Base.metadata before create_all()
+from app.models.user import User
+from app.models.conversation import Conversation, ConversationMember
+from app.models.message import Message, MessageReaction, Attachment
+from app.models.settings import UserSettings
+from app.models.saved import SavedMessage
+from app.models.call import CallHistory
+from app.models.status import Status, StatusViewer
+from app.models.poll import Poll, PollOption, PollVote
+from app.models.highlight import StatusHighlight, StatusHighlightItem
+from app.models.event import GroupEvent, EventResponse
+from app.models.scheduled import ScheduledMessage
+from app.models.notification_setting import NotificationSetting
+from app.models.session import UserSession
+from app.models.sticker import StickerPack, Sticker, UserSticker
 
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
@@ -40,6 +56,8 @@ from app.api.sessions import router as sessions_router
 from app.api.insights import router as insights_router
 from app.api.stickers import router as stickers_router
 from app.websocket.chat import router as ws_router
+
+create_tables()
 
 app.include_router(auth_router)
 app.include_router(users_router)
