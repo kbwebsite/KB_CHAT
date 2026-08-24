@@ -25,6 +25,12 @@ def get_db():
 
 def create_tables():
     # Drop all tables first to ensure clean schema (important after model changes)
-    Base.metadata.drop_all(bind=engine)
+    try:
+        Base.metadata.drop_all(bind=engine)
+    except Exception:
+        pass
     # Then create all tables with the current model definitions
-    Base.metadata.create_all(bind=engine)
+    try:
+        Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Database table creation error: {e}")
