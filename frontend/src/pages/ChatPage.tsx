@@ -26,7 +26,7 @@ import { DragDropZone } from '../components/DragDropZone'
 import EventPanel from '../components/EventPanel'
 import ScheduleMessage from '../components/ScheduleMessage'
 import ChatInsights from '../components/ChatInsights'
-import { msgPinApi, pollApi } from '../services/api'
+import { msgPinApi, pollApi, aiApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { Message } from '../types'
@@ -79,6 +79,7 @@ export default function ChatPage() {
   const [showEvents, setShowEvents]=useState(false)
   const [showSchedule, setShowSchedule]=useState(false)
   const [showInsights, setShowInsights]=useState(false)
+  const [aiResult, setAiResult]=useState<{text:string; action:string}|null>(null)
   const [pinnedMessages, setPinnedMessages]=useState<any[]>([])
   const [wallpaper] = useState(settings.chat_wallpaper)
   const [isAtBottom, setIsAtBottom]=useState(true)
@@ -321,6 +322,18 @@ export default function ChatPage() {
       if (isSaved) { await savedApi.unsave(msg.id); setSavedIds(s=> { const n=new Set(s); n.delete(msg.id); return n }) }
       else { await savedApi.save(msg.id); setSavedIds(s=> new Set(s).add(msg.id)) }
     } catch (e:any) { toast(e.response?.data?.message || 'Save failed', 'error') }
+  }
+  const handleAIAction=async (msg:Message, action:string)=>{
+    setAiResult(null)
+    try {
+      const text = msg.content || ''
+      let res
+      if (action==='summarize') res = await aiApi.summarize(text)
+      else if (action==='translate') res = await aiApi.translate(text)
+      else res = await aiApi.action(text, 'text', action)
+      const resultText = res.data?.reply || res.data?.summary || res.data?.translation || res.data?.result || 'No result'
+      setAiResult({ text: resultText, action })
+    } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
   }
   const handleSelectToggle=(msg:Message)=>{
     setSelectedIds(s=> { const n=new Set(s); if(n.has(msg.id)) n.delete(msg.id); else n.add(msg.id); return n })
@@ -582,6 +595,7 @@ export default function ChatPage() {
                             fetchMessages(currentConversationId!)
                           } catch {}
                         }}
+                        onAIAction={handleAIAction}
                       />
                     })}
                   </div>
@@ -613,6 +627,16 @@ export default function ChatPage() {
                   </button>
                 )}
               </div>
+              {aiResult && (
+                <div className="mx-2 mb-2 p-3 rounded-xl bg-violet-500/5 border border-violet-500/20 flex items-start gap-3">
+                  <div className="shrink-0 w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center"><Bot className="w-4 h-4 text-violet-500"/></div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] text-violet-500 font-medium mb-1 uppercase tracking-wide">KB AI · {aiResult.action}</p>
+                    <p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>
+                  </div>
+                  <button onClick={()=> setAiResult(null)} className="shrink-0 p-1 hover:bg-muted rounded"><X className="w-3.5 h-3.5"/></button>
+                </div>
+              )}
               <MessageComposer
                 onSend={handleSend}
                 onTyping={()=>{}}
