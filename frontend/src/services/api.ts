@@ -234,4 +234,10 @@ export const aiApi = {
     api.post('/api/ai/summarize', { message: text }).then(r=>r.data),
   translate: (text: string) =>
     api.post('/api/ai/translate', { message: text }).then(r=>r.data),
+  analyzeFile: (file: File, question?: string) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    if (question) fd.append('question', question)
+    return api.post('/api/ai/analyze', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r=>r.data)
+  },
 }

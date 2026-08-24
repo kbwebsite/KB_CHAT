@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, Send, Sparkles, Code, FileText, Languages, Trash2, Copy, Check } from 'lucide-react'
+import { Bot, Send, Sparkles, Code, FileText, Languages, Trash2, Copy, Check, Upload } from 'lucide-react'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
@@ -14,8 +14,10 @@ export default function KBAIPage() {
   const [codeLang, setCodeLang] = useState('javascript')
   const [actionResult, setActionResult] = useState('')
   const [copied, setCopied] = useState(false)
+  const [fileLoading, setFileLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const fileRef = useRef<HTMLInputElement>(null)
   const user = useAuthStore(s=> s.user)
 
   useEffect(()=>{ scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight) }, [messages])
@@ -49,6 +51,20 @@ export default function KBAIPage() {
     navigator.clipboard.writeText(actionResult)
     setCopied(true)
     setTimeout(()=> setCopied(false), 2000)
+  }
+
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setFileLoading(true)
+    const msg: Message = { role: 'user', content: `📄 Uploaded: ${file.name} (${(file.size/1024).toFixed(1)}KB)`, timestamp: new Date() }
+    setMessages(prev=> [...prev, msg])
+    try {
+      const res = await aiApi.analyzeFile(file, 'Analyze this file and explain what it does. Point out any issues or improvements.')
+      setMessages(prev=> [...prev, { role: 'assistant', content: res.data.analysis, timestamp: new Date() }])
+    } catch { setMessages(prev=> [...prev, { role: 'assistant', content: 'Failed to analyze file.', timestamp: new Date() }]) }
+    setFileLoading(false)
+    if (fileRef.current) fileRef.current.value = ''
   }
 
   const quickActions = [
@@ -88,6 +104,12 @@ export default function KBAIPage() {
                     className="px-3 py-1.5 rounded-full bg-secondary text-xs hover:bg-secondary/80 transition-colors">{q}</button>
                 ))}
               </div>
+              <button onClick={()=> fileRef.current?.click()}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-secondary text-sm hover:bg-secondary/80 transition-colors">
+                <Upload className="w-4 h-4"/> Upload file for analysis
+              </button>
+              <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload}
+                accept=".txt,.md,.py,.js,.ts,.jsx,.tsx,.css,.html,.json,.csv,.xml,.yaml,.yml,.toml,.ini,.sql,.sh,.rb,.go,.rs,.java,.c,.cpp,.h,.hpp,.cs,.swift,.kt,.pdf,.png,.jpg,.jpeg,.gif,.webp,.svg" />
             </div>
           )}
           {messages.map((m,i)=> (
