@@ -27,18 +27,18 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const allImages = imgAtts.map(a=> ({ url: a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`, name: a.original_filename }))
 
   return (
-    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 ${isSelected ? 'bg-primary/5' : ''}`}>
-      <div className="flex items-center mr-1">
+    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 overflow-hidden ${isSelected ? 'bg-primary/5' : ''}`}>
+      <div className="flex items-center mr-1 shrink-0">
         {onSelect && <input type="checkbox" checked={!!isSelected} onChange={()=> safeSelect(msg)} className={`w-4 h-4 rounded border ${isSelected ? 'block' : 'hidden group-hover:block'}`} />}
       </div>
-      <div className={`max-w-[78%] sm:max-w-[60%] relative ${isOwn?'items-end':'items-start'} flex flex-col`}>
+      <div className={`max-w-[85%] sm:max-w-[78%] md:max-w-[68%] lg:max-w-[62%] xl:max-w-[60%] relative min-w-0 ${isOwn?'items-end':'items-start'} flex flex-col`}>
         {isGroup && !isOwn && showAvatar && <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1 ml-1">{msg.sender_display_name}</span>}
         {msg.reply_to_content && (
           <div className={`text-xs px-3 py-1.5 rounded-t-xl border-l-2 -mb-1 mx-1 ${isOwn?'bg-primary/10 border-primary text-muted-foreground':'bg-muted border-muted-foreground'}`}>
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`relative px-3.5 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed break-words
+        <div className={`relative px-3.5 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden
           ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed' : isOwn ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border rounded-bl-md'}`}>
           {imgAtts.length>0 && !msg.is_deleted && (
             <div className={`grid gap-1 mb-2 -mx-1 ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
@@ -60,7 +60,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               </a>
             )
           })}
-          <p className="whitespace-pre-wrap selectable">{content}</p>
+          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
           {!msg.is_deleted && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
           {(msg as any).is_pinned && (
             <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>

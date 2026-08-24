@@ -440,9 +440,9 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="flex-1 flex min-h-0">
+      <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* Left sidebar with navigation icons + list */}
-        <div className={`${mobileView==='chat' ? 'hidden lg:flex' : 'flex'} w-full lg:w-[380px] shrink-0 border-r bg-card flex`}>
+        <div className={`${mobileView==='chat' ? 'hidden lg:flex' : 'flex'} w-full lg:w-[380px] shrink-0 border-r bg-card flex-col overflow-hidden min-h-0`}>
           {/* Icon nav */}
           <div className="w-16 border-r bg-muted/20 hidden sm:flex flex-col items-center py-4 gap-3">
             {[
@@ -467,7 +467,7 @@ export default function ChatPage() {
           </div>
 
           {/* Mobile top tabs for sidebar */}
-          <div className="flex-1 flex flex-col min-w-0">
+          <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
             <div className="sm:hidden flex gap-1 p-2 border-b overflow-x-auto scrollbar-none">
               {[
                 {id:'chats', label:'Chats'},
@@ -531,7 +531,7 @@ export default function ChatPage() {
         </div>
 
         {/* Chat area */}
-        <section className={`${mobileView==='list' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col min-w-0 bg-muted/20 ${settings.chat_wallpaper==='dots' ? 'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]' : settings.chat_wallpaper==='gradient' ? 'bg-gradient-to-br from-violet-500/5 to-indigo-500/5' : ''}`}>
+        <section className={`${mobileView==='list' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-muted/20 ${settings.chat_wallpaper==='dots' ? 'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]' : settings.chat_wallpaper==='gradient' ? 'bg-gradient-to-br from-violet-500/5 to-indigo-500/5' : ''}`}>
           {currentConv ? (
             <DragDropZone onFilesUploaded={(ids)=> { if(ids.length>0) handleSend('', ids) }}>
               <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} />
@@ -552,7 +552,7 @@ export default function ChatPage() {
                 </div>
               )}
               {/* Message list */}
-              <div className="flex-1 overflow-y-auto relative" ref={listRef} onScroll={handleMessageScroll}>
+              <div className="flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
                 {loadingMessages && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
                 {hasMore[currentConversationId!] && activeRightTab==='chat' && <div className="text-center py-2"><button onClick={()=> fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-accent">Load older</button></div>}
                 {activeRightTab==='chat' ? (
@@ -641,7 +641,7 @@ export default function ChatPage() {
 
         {/* Right panel */}
         {(showProfile || showGroupInfo || showSettings || showNotifications || showSaved || showContacts || showCalls || showPolls || showPinned || showEvents || showSchedule || showInsights) && (
-          <aside className="absolute inset-y-0 right-0 w-full sm:w-[380px] bg-card border-l shadow-2xl z-20 flex flex-col lg:relative lg:inset-auto">
+          <aside className="absolute inset-y-0 right-0 w-full sm:w-[380px] bg-card border-l shadow-2xl z-30 flex flex-col overflow-hidden min-h-0 lg:relative lg:inset-auto lg:w-[360px] xl:w-[380px] shrink-0">
             {showProfile && <ProfilePanel onClose={()=> setShowProfile(false)} />}
             {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={()=> setShowGroupInfo(false)} onUpdated={()=> fetchConversations()} />}
             {showSettings && <SettingsPanel onClose={()=> setShowSettings(false)} />}

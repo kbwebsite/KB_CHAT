@@ -56,7 +56,7 @@ export function DragDropZone({ children, onFilesUploaded }: { children: React.Re
   }
 
   return (
-    <div className="relative flex-1 min-h-0" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
+    <div className="relative flex-1 min-h-0 flex flex-col overflow-hidden" onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop}>
       {children}
       {isDragging && (
         <div className="absolute inset-0 z-50 bg-primary/10 backdrop-blur-sm border-2 border-dashed border-primary rounded-2xl flex flex-col items-center justify-center gap-3">

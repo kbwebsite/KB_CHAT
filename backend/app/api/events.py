@@ -40,11 +40,14 @@ async def create_event(conv_id: int, payload: dict, db: Session = Depends(get_db
     title = payload.get("title", "").strip()
     if not title:
         raise HTTPException(status_code=400, detail="Title required")
+    raw_date = payload.get("event_date") or payload.get("starts_at") or payload.get("date") or payload.get("datetime")
     event_date = None
-    if payload.get("event_date"):
+    if raw_date:
         try:
-            event_date = datetime.fromisoformat(payload["event_date"].replace("Z", "+00:00"))
+            event_date = datetime.fromisoformat(str(raw_date).replace("Z", "+00:00"))
         except: pass
+    if not event_date:
+        event_date = datetime.now(timezone.utc)
     ev = GroupEvent(conversation_id=conv_id, creator_id=current_user.id, title=title,
                     description=payload.get("description"), event_date=event_date, location=payload.get("location"))
     db.add(ev)

@@ -2,6 +2,27 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* Layout */
+  --sidebar-width: 280px;
+  --info-width: 320px;
+  /* Radius */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  /* Transition */
+  --transition-fast: 150ms;
+  --transition-normal: 250ms;
+  /* Z-index hierarchy */
+  --z-base: 0;
+  --z-sticky: 10;
+  --z-dropdown: 20;
+  --z-modal: 30;
+  --z-overlay: 40;
+  --z-toast: 50;
+}
+
+/* Core */
 @layer base {
   :root {
     /* Core */
@@ -84,9 +105,18 @@
   }
 }
 
-* { @apply border-border; }
-body { @apply bg-background text-foreground font-sans antialiased; }
+/* HTML elements */
+html { background: hsl(var(--background)); color: hsl(var(--foreground)); overflow-x: hidden; }
+html, body, #root { height: 100%; }
+body { @apply bg-background text-foreground font-sans antialiased; min-height: 100dvh; min-height: -webkit-fill-available; overflow-x: hidden; }
+#root { display: flex; flex-direction: column; min-height: 100dvh; }
 
+/* Ensure flex containers with min-h-0 properly constrain children */
+.min-h-0 { min-height: 0; }
+
+* { @apply border-border; }
+
+/* Scrollbars */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-thumb { @apply bg-muted-foreground/30 rounded-full; }
 ::-webkit-scrollbar-track { @apply bg-transparent; }
@@ -95,5 +125,6 @@ body { @apply bg-background text-foreground font-sans antialiased; }
 .scrollbar-none::-webkit-scrollbar { display: none; }
 .scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
 
+/* Shimmer */
 .shimmer { background: linear-gradient(90deg, hsl(var(--muted)) 25%, hsl(var(--border)) 37%, hsl(var(--muted)) 63%); background-size: 400% 100%; animation: shimmer 1.4s ease infinite; }
 @keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }

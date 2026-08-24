@@ -52,14 +52,14 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
 
 export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading }: { conversations:Conversation[], activeId:number|null, onSelect:(id:number)=>void, search:string, onSearch:(v:string)=>void, typingMap?: Record<number, Set<number>>, currentUserId?:number, onPin?:(id:number)=>void, onArchive?:(id:number)=>void, onMute?:(id:number)=>void, loading?:boolean }) {
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3">
+    <div className="flex flex-col h-full min-h-0 overflow-hidden">
+      <div className="p-3 shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
           <input value={search} onChange={e=>onSearch(e.target.value)} placeholder="Search conversations..." className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-muted border border-transparent focus:border-primary focus:bg-background outline-none text-sm transition" />
         </div>
       </div>
-      <div className="flex-1 overflow-y-auto px-2 pb-2 space-y-1 scrollbar-thin">
+      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 space-y-1 scrollbar-thin min-h-0">
         {loading ? (
           <div className="p-3 space-y-3">
             {Array.from({length:5}).map((_,i)=><div key={i} className="flex gap-3 animate-pulse"><div className="w-11 h-11 rounded-full bg-muted"/><div className="flex-1 space-y-2"><div className="h-3 w-24 bg-muted rounded"/><div className="h-3 w-full bg-muted rounded"/></div></div>)}

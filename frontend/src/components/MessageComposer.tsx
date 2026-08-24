@@ -119,7 +119,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   return (
-    <div className="border-t bg-card p-2 sm:p-3 pb-[max(8px,env(safe-area-inset-bottom))]">
+    <div className="border-t bg-card p-2 sm:p-3 pb-[max(8px,env(safe-area-inset-bottom))] shrink-0">
       {replyTo && (
         <div className="flex items-center justify-between bg-muted rounded-xl px-3 py-2 mb-2 text-xs">
           <div className="min-w-0">
