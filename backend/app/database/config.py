@@ -2,6 +2,7 @@ import os
 from pydantic_settings import BaseSettings
 from typing import List
 
+
 class Settings(BaseSettings):
     # Always use SQLite by default to avoid PostgreSQL schema compatibility issues
     # on Render. Override DATABASE_URL env var only if you specifically need PostgreSQL.
@@ -23,6 +24,7 @@ class Settings(BaseSettings):
     def model_post_init(self, __context):
         # Default to SQLite for maximum reliability.
         # Set DATABASE_URL=postgresql://... in Render env only if you explicitly need PostgreSQL.
+        pass
 
     @property
     def cors_origins_list(self) -> List[str]:
