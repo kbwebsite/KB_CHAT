@@ -1,6 +1,5 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, declarative_base
-from app.database.config import settings
 
 connect_args = {}
 if settings.DATABASE_URL.startswith("sqlite"):
@@ -27,10 +26,12 @@ def create_tables():
     # Drop all tables first to ensure clean schema (important after model changes)
     try:
         Base.metadata.drop_all(bind=engine)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"Note: drop_all skipped or issue: {e}")
+    
     # Then create all tables with the current model definitions
     try:
         Base.metadata.create_all(bind=engine)
     except Exception as e:
-        print(f"Database table creation error: {e}")
+        print(f"❌ Critical: Database table creation failed: {e}")
+        raise
