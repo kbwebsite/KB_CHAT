@@ -116,3 +116,40 @@ async def ai_transcribe_audio(
     messages = [{"role": "user", "content": f"Transcribe this audio file: {file.filename} ({len(content_bytes)} bytes). Return only the transcription text."}]
     reply = await provider.chat(messages)
     return success_response({"transcription": reply})
+
+
+@router.post("/smart-search")
+async def ai_smart_search(
+    body: AIChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from sqlalchemy import or_
+    from app.models.conversation import Conversation, ConversationMember
+    from app.models.message import Message as MsgModel
+
+    conv_ids = [cm.conversation_id for cm in db.query(ConversationMember).filter_by(user_id=current_user.id).all()]
+    msgs = db.query(MsgModel).filter(
+        MsgModel.conversation_id.in_(conv_ids),
+        MsgModel.is_deleted == False,
+        MsgModel.content.ilike(f"%{body.message}%")
+    ).order_by(MsgModel.created_at.desc()).limit(20).all()
+
+    results = []
+    for m in msgs:
+        conv = db.query(Conversation).filter_by(id=m.conversation_id).first()
+        results.append({
+            "id": m.id,
+            "content": m.content,
+            "sender": m.sender_display_name or "Unknown",
+            "conversation": conv.title if conv else "Direct",
+            "created_at": m.created_at.isoformat() if m.created_at else None,
+            "conversation_id": m.conversation_id,
+        })
+
+    provider = get_ai_provider()
+    context = "\n".join([f"[{r['conversation']}] {r['sender']}: {r['content']}" for r in results[:10]])
+    prompt = f"User searched for: '{body.message}'. Found {len(results)} messages. Summarize what was found and suggest relevant results:\n{context}"
+    summary = await provider.chat([{"role": "user", "content": prompt}])
+
+    return success_response({"results": results, "summary": summary, "count": len(results)})

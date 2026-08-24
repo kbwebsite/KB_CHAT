@@ -245,4 +245,6 @@ export const aiApi = {
     fd.append('file', file)
     return api.post('/api/ai/transcribe', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r=>r.data)
   },
+  smartSearch: (query: string) =>
+    api.post('/api/ai/smart-search', { message: query }).then(r=>r.data),
 }
