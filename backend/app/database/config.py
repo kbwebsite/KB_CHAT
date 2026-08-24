@@ -3,6 +3,8 @@ from pydantic_settings import BaseSettings
 from typing import List
 
 class Settings(BaseSettings):
+    # Always use SQLite by default to avoid PostgreSQL schema compatibility issues
+    # on Render. Override DATABASE_URL env var only if you specifically need PostgreSQL.
     DATABASE_URL: str = "sqlite:///./kbchat.db"
     JWT_SECRET: str = "dev-secret-change-in-production-please-use-strong-random"
     JWT_ALGORITHM: str = "HS256"
@@ -19,14 +21,8 @@ class Settings(BaseSettings):
         extra = "allow"
 
     def model_post_init(self, __context):
-        # Convert postgres:// to postgresql:// for Render compatibility
-        if self.DATABASE_URL.startswith("postgres://"):
-            self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
-        # If running on Render with a PostgreSQL DATABASE_URL env var, use it
-        # Otherwise use SQLite for local development
-        env_db = os.environ.get("DATABASE_URL")
-        if env_db and env_db.startswith("postgresql://"):
-            self.DATABASE_URL = env_db
+        # Default to SQLite for maximum reliability.
+        # Set DATABASE_URL=postgresql://... in Render env only if you explicitly need PostgreSQL.
 
     @property
     def cors_origins_list(self) -> List[str]:
