@@ -19,9 +19,14 @@ class Settings(BaseSettings):
         extra = "allow"
 
     def model_post_init(self, __context):
-        # Render gives postgres:// but psycopg2 needs postgresql://
+        # Convert postgres:// to postgresql:// for Render compatibility
         if self.DATABASE_URL.startswith("postgres://"):
             self.DATABASE_URL = self.DATABASE_URL.replace("postgres://", "postgresql://", 1)
+        # If running on Render with a PostgreSQL DATABASE_URL env var, use it
+        # Otherwise use SQLite for local development
+        env_db = os.environ.get("DATABASE_URL")
+        if env_db and env_db.startswith("postgresql://"):
+            self.DATABASE_URL = env_db
 
     @property
     def cors_origins_list(self) -> List[str]:
