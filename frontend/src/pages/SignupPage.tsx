@@ -1,14 +1,19 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
+import { authApi } from '../services/api'
 import { Eye, EyeOff } from 'lucide-react'
+
+declare global { interface Window { google?: any } }
 
 export default function SignupPage() {
   const [form, setForm]=useState({ display_name:'', username:'', email:'', password:'', confirm_password:'' })
   const [error, setError]=useState<string|null>(null)
   const [show, setShow]=useState(false)
+  const [googleLoading, setGoogleLoading]=useState(false)
   const { signup, loading } = useAuthStore()
   const nav=useNavigate()
+  const googleBtnRef=useRef<HTMLDivElement>(null)
 
   const handle=async (e:React.FormEvent)=>{
     e.preventDefault()
@@ -25,6 +30,47 @@ export default function SignupPage() {
       else setError(detail || err.response?.data?.message || err.message || 'Signup failed')
     }
   }
+
+  const handleGoogleLogin=async (credential:string)=>{
+    setGoogleLoading(true)
+    setError(null)
+    try {
+      const res = await authApi.google(credential)
+      if (res.success) {
+        localStorage.setItem('kb_token', res.data.access_token)
+        localStorage.setItem('kb_user', JSON.stringify(res.data.user))
+        nav('/chat')
+      } else {
+        setError(res.message || 'Google login failed')
+      }
+    } catch (err:any) {
+      setError(err.response?.data?.detail || 'Google login failed')
+    }
+    setGoogleLoading(false)
+  }
+
+  useEffect(()=>{
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
+    if (!clientId) return
+    const script = document.createElement('script')
+    script.src = 'https://accounts.google.com/gsi/client'
+    script.async = true
+    script.onload = ()=>{
+      if (window.google?.accounts?.id) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: (response:any)=> handleGoogleLogin(response.credential),
+        })
+        if (googleBtnRef.current) {
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'outline', size: 'large', width: '100%', text: 'continue_with',
+          })
+        }
+      }
+    }
+    document.head.appendChild(script)
+    return ()=> { document.head.removeChild(script) }
+  }, [])
 
   return (
     <div className="min-h-screen flex">
@@ -65,8 +111,26 @@ export default function SignupPage() {
           <button disabled={loading} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20 mt-2">
             {loading ? 'Creating...' : 'Create Account'}
           </button>
-          <p className="text-sm text-center text-muted-foreground">Already have an account? <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link></p>
         </form>
+
+        <div className="mt-4">
+          <div className="relative">
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"/></div>
+            <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
+          </div>
+          <div className="mt-4">
+            {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+              <div ref={googleBtnRef} className="w-full flex justify-center"/>
+            ) : (
+              <button disabled className="w-full py-3 rounded-xl border border-border bg-card text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+                Google Sign-In (not configured)
+              </button>
+            )}
+            {googleLoading && <p className="text-xs text-center text-muted-foreground mt-2">Signing in with Google...</p>}
+          </div>
+        </div>
+
+        <p className="text-sm text-center text-muted-foreground mt-4">Already have an account? <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link></p>
       </div>
       <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 relative overflow-hidden items-center justify-center p-12">
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.15),transparent_50%)]" />

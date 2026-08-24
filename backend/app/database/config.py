@@ -23,6 +23,7 @@ class Settings(BaseSettings):
     AI_MODEL: str = "gpt-4o-mini"
     AI_BASE_URL: str = "https://api.openai.com/v1"
     AI_PROVIDER: str = "mock"
+    GOOGLE_CLIENT_ID: str = ""
 
     class Config:
         env_file = ".env"
