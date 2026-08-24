@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.database.config import settings
 
@@ -24,15 +24,8 @@ def get_db():
         db.close()
 
 def create_tables():
-    # Drop all tables first to ensure clean schema (important after model changes)
-    try:
-        Base.metadata.drop_all(bind=engine)
-    except Exception as e:
-        print(f"Note: drop_all skipped or issue: {e}")
-    
-    # Then create all tables with the current model definitions
     try:
         Base.metadata.create_all(bind=engine)
     except Exception as e:
-        print(f"❌ Critical: Database table creation failed: {e}")
+        print(f"Database table creation failed: {e}")
         raise
