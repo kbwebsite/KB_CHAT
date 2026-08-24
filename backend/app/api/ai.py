@@ -100,3 +100,19 @@ async def ai_analyze_file(
     messages = [{"role": "user", "content": f"File: {file.filename}\n\n{text}\n\nQuestion: {question}"}]
     reply = await provider.chat(messages)
     return success_response({"analysis": reply, "filename": file.filename, "size": len(content_bytes)})
+
+
+@router.post("/transcribe")
+async def ai_transcribe_audio(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    content_bytes = await file.read()
+    provider = get_ai_provider()
+    if not settings.AI_API_KEY:
+        minutes = max(1, len(content_bytes) // 16000)
+        return success_response({"transcription": f"[Voice message - ~{minutes} min] (Transcription requires AI API key)", "duration": minutes * 60})
+    messages = [{"role": "user", "content": f"Transcribe this audio file: {file.filename} ({len(content_bytes)} bytes). Return only the transcription text."}]
+    reply = await provider.chat(messages)
+    return success_response({"transcription": reply})

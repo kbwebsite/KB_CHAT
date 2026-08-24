@@ -1,8 +1,9 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText } from 'lucide-react'
+import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic } from 'lucide-react'
 import { useState } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
+import { aiApi } from '../services/api'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -24,6 +25,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const safeSave = onSave || (()=>{})
   const safeSelect = onSelect || (()=>{})
   const safeImageClick = onImageClick || ((url:string, name:string)=> window.open(url, '_blank'))
+  const isVoice = msg.message_type === 'voice'
+  const [transcription, setTranscription] = useState<string|null>(null)
+  const [transcribing, setTranscribing] = useState(false)
 
   const allImages = imgAtts.map(a=> ({ url: a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`, name: a.original_filename }))
 
@@ -62,6 +66,30 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             )
           })}
           <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
+          {isVoice && !transcription && (
+            <button onClick={async ()=>{
+              setTranscribing(true)
+              try {
+                const att = msg.attachments[0]
+                if (att) {
+                  const url = att.file_path.startsWith('/api') ? att.file_path : `/api/uploads/file/${att.filename}`
+                  const blob = await fetch(url).then(r=> r.blob())
+                  const file = new File([blob], att.filename, { type: att.mime_type })
+                  const res = await aiApi.transcribe(file)
+                  setTranscription(res.data?.transcription || 'No transcription available')
+                }
+              } catch { setTranscription('Transcription failed') }
+              setTranscribing(false)
+            }} disabled={transcribing}
+              className="mt-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 text-xs hover:bg-violet-500/20 disabled:opacity-50 transition-colors">
+              <Mic className="w-3 h-3"/> {transcribing ? 'Transcribing...' : 'Transcribe'}
+            </button>
+          )}
+          {transcription && (
+            <div className="mt-2 p-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-700 dark:text-violet-300">
+              <span className="font-medium">Transcription:</span> {transcription}
+            </div>
+          )}
           {!msg.is_deleted && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
           {(msg as any).is_pinned && (
             <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>

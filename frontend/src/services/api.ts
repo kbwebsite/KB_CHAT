@@ -240,4 +240,9 @@ export const aiApi = {
     if (question) fd.append('question', question)
     return api.post('/api/ai/analyze', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r=>r.data)
   },
+  transcribe: (file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    return api.post('/api/ai/transcribe', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r=>r.data)
+  },
 }
