@@ -69,6 +69,8 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
         ).first()
         if not user or not verify_password(payload.password, user.hashed_password):
             raise HTTPException(status_code=401, detail="Invalid credentials")
+        if user.auth_provider == "google":
+            raise HTTPException(status_code=400, detail="This account uses Google Sign-In. Please use Google to login.")
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account disabled")
         token = create_access_token({"sub": str(user.id), "username": user.username})
@@ -180,9 +182,10 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
                 username=username,
                 email=google_email.lower(),
                 display_name=google_name or username,
-                hashed_password=hash_password("google-oauth-no-password"),  # no password for OAuth users
+                hashed_password=hash_password("google-oauth-no-password"),
                 avatar_url=google_picture,
                 about="Signed in with Google",
+                auth_provider="google",
             )
             db.add(user)
             db.commit()
