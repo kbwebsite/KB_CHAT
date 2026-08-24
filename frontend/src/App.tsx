@@ -1,12 +1,14 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, useState } from 'react'
+import { useEffect, lazy, Suspense } from 'react'
 import { useAuthStore } from './store/auth'
-import LandingPage from './pages/LandingPage'
-import LoginPage from './pages/LoginPage'
-import SignupPage from './pages/SignupPage'
-import ChatPage from './pages/ChatPage'
+import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 import { ToastContainer } from './components/Toast'
+
+const LandingPage = lazy(() => import('./pages/LandingPage'))
+const LoginPage = lazy(() => import('./pages/LoginPage'))
+const SignupPage = lazy(() => import('./pages/SignupPage'))
+const ChatPage = lazy(() => import('./pages/ChatPage'))
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, token, initialized } = useAuthStore()
@@ -27,15 +29,19 @@ export default function App() {
   useEffect(()=>{ init() }, [])
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<LandingPage />} />
-        <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
-        <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
-        <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
-        <Route path="*" element={<Navigate to="/" replace />} />
-      </Routes>
-      <ToastContainer />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Suspense fallback={<div className="h-screen flex items-center justify-center"><LoadingState text="Loading..." /></div>}>
+          <Routes>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
+            <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
+            <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
+        <ToastContainer />
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }

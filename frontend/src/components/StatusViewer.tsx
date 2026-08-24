@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef } from 'react'
 import { X, Eye, Reply, ChevronLeft, ChevronRight, Pause, Play } from 'lucide-react'
-import { statusApi } from '../services/api'
+import { statusApi, convApi, msgApi } from '../services/api'
 
 export function StatusViewer({ statuses, startIndex, onClose }: { statuses:any[], startIndex:number, onClose:()=>void }) {
   const [idx, setIdx]=useState(startIndex)
@@ -89,7 +89,7 @@ export function StatusViewer({ statuses, startIndex, onClose }: { statuses:any[]
       </div>
 
       <div className="p-4 flex gap-2">
-        <input placeholder="Reply..." className="flex-1 px-4 py-2.5 rounded-full bg-white/10 text-white placeholder:text-white/50 outline-none border border-white/10" onKeyDown={e=>{ if(e.key==='Enter'){ const t=(e.target as HTMLInputElement).value; if(t.trim()){ /* reply would be message */ alert('Reply: '+t); (e.target as HTMLInputElement).value='' }}}} />
+        <input placeholder="Reply..." className="flex-1 px-4 py-2.5 rounded-full bg-white/10 text-white placeholder:text-white/50 outline-none border border-white/10" onKeyDown={e=>{ if(e.key==='Enter'){ const t=(e.target as HTMLInputElement).value; if(t.trim()){ convApi.create({ type:'direct', participant_ids:[cur.user_id] }).then(c=>{ msgApi.send(c.id, { content:t.trim() }); (e.target as HTMLInputElement).value='' }).catch(()=>{}) }}}} />
         <button className="p-3 rounded-full bg-white text-black"><Reply className="w-4 h-4"/></button>
       </div>
     </div>
