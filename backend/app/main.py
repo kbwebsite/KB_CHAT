@@ -7,7 +7,7 @@ from app.database.config import settings
 # Ensure upload dir exists
 os.makedirs(settings.upload_dir_abs, exist_ok=True)
 
-app = FastAPI(title="KB Chat API", version="1.0.0", description="KB Chat - Connect. Chat. Share.")
+app = FastAPI(title="KB Chat API", version="3.0.0", description="KB Chat - Connect. Chat. Share. AI-Powered.")
 
 app.add_middleware(
     CORSMiddleware,
@@ -89,7 +89,7 @@ def health():
 
 @app.get("/api")
 def api_root():
-    return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share.", "version": "2.0.0"}, "message": None}
+    return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share. AI-Powered.", "version": "3.0.0"}, "message": None}
 
 # Serve frontend static files with SPA catch-all fallback
 # Frontend dist is copied to ../frontend/dist in Docker (from /app/frontend/dist relative to /app/backend)
