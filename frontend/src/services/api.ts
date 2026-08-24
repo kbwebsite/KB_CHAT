@@ -224,3 +224,14 @@ export const privacyApi = {
 export const recentlyContactedApi = {
   list: () => api.get('/api/recently-contacted').then(r=>r.data),
 }
+
+export const aiApi = {
+  chat: (message: string, history?: {role:string;content:string}[]) =>
+    api.post('/api/ai/chat', { message, history }).then(r=>r.data),
+  action: (code: string, language: string, action: string, instruction?: string) =>
+    api.post('/api/ai/action', { code, language, action, instruction }).then(r=>r.data),
+  summarize: (text: string) =>
+    api.post('/api/ai/summarize', { message: text }).then(r=>r.data),
+  translate: (text: string) =>
+    api.post('/api/ai/translate', { message: text }).then(r=>r.data),
+}

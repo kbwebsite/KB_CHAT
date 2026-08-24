@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     HOST: str = "127.0.0.1"
     PORT: int = 8000
+    AI_API_KEY: str = ""
+    AI_MODEL: str = "gpt-4o-mini"
+    AI_BASE_URL: str = "https://api.openai.com/v1"
+    AI_PROVIDER: str = "mock"
 
     class Config:
         env_file = ".env"

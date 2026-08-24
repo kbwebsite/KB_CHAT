@@ -9,6 +9,7 @@ const LandingPage = lazy(() => import('./pages/LandingPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
+const KBAIPage = lazy(() => import('./pages/KBAIPage'))
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, token, initialized } = useAuthStore()
@@ -37,6 +38,7 @@ export default function App() {
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
             <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
+            <Route path="/ai" element={<Protected><KBAIPage /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

@@ -30,7 +30,7 @@ import { msgPinApi, pollApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { Message } from '../types'
-import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X } from 'lucide-react'
+import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X, Bot } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -452,6 +452,7 @@ export default function ChatPage() {
               {id:'calls', icon: Phone, label:'Calls'},
               {id:'contacts', icon: Contact, label:'Contacts'},
               {id:'saved', icon: Bookmark, label:'Saved'},
+              {id:'ai', icon: Bot, label:'KB AI'},
             ].map(item=> (
               <button key={item.id} onClick={()=>{
                 if (item.id==='status') { setShowStatus(true); setShowContacts(false); setShowSaved(false); setShowCalls(false) }
@@ -459,6 +460,7 @@ export default function ChatPage() {
                 else if (item.id==='contacts') { setShowContacts(true); setShowSaved(false); setShowCalls(false); setShowStatus(false) }
                 else if (item.id==='saved') { setShowSaved(true); setShowContacts(false); setShowCalls(false); setShowStatus(false) }
                 else if (item.id==='calls') { setShowCalls(true); setShowContacts(false); setShowSaved(false); setShowStatus(false) }
+                else if (item.id==='ai') { nav('/ai') }
               }} className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 ${(item.id==='status' && showStatus) || ((sidebarTab===item.id && !showContacts && !showSaved && !showCalls && !showStatus) || (item.id==='contacts' && showContacts) || (item.id==='saved' && showSaved) || (item.id==='calls' && showCalls)) ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`} title={item.label}>
                 <item.icon className="w-5 h-5"/>
                 {item.count !== undefined && item.count>0 && <span className="text-[9px]">{item.count}</span>}
