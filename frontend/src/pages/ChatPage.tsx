@@ -628,7 +628,7 @@ export default function ChatPage() {
                 )}
               </div>
               {aiResult && (
-                <div className="mx-2 mb-2 p-3 rounded-xl bg-violet-500/5 border border-violet-500/20 flex items-start gap-3">
+                <div className="mx-2 mb-2 p-3 rounded-xl bg-violet-500/5 border border-violet-500/20 flex items-start gap-3 slide-up">
                   <div className="shrink-0 w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center"><Bot className="w-4 h-4 text-violet-500"/></div>
                   <div className="flex-1 min-w-0">
                     <p className="text-[11px] text-violet-500 font-medium mb-1 uppercase tracking-wide">KB AI · {aiResult.action}</p>

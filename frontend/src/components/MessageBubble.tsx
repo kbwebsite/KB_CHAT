@@ -32,7 +32,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const allImages = imgAtts.map(a=> ({ url: a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`, name: a.original_filename }))
 
   return (
-    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 overflow-hidden ${isSelected ? 'bg-primary/5' : ''}`}>
+    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`}>
       <div className="flex items-center mr-1 shrink-0">
         {onSelect && <input type="checkbox" checked={!!isSelected} onChange={()=> safeSelect(msg)} className={`w-4 h-4 rounded border ${isSelected ? 'block' : 'hidden group-hover:block'}`} />}
       </div>
