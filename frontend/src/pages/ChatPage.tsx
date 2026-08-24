@@ -30,7 +30,7 @@ import { msgPinApi, pollApi, aiApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { Message } from '../types'
-import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X, Bot } from 'lucide-react'
+import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X, Bot, FileText } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -102,7 +102,7 @@ export default function ChatPage() {
       setCallModal({open:true, type: p.call_type || 'voice', peerName: p.caller_display || p.caller_username || 'Unknown', peerAvatar: null, incoming:true, callId: p.id, peerId: p.caller_id})
     })
     const off2 = wsService.on('call.ended', ()=> setCallModal(null))
-    const off3 = wsService.on('call.accepted', ()=> setCallModal(m=> m ? {...m, incoming:false} : null))
+    const off3 = wsService.on('call.accepted', ()=> {})
     return ()=>{ off1(); off2(); off3() }
   }, [])
 
@@ -814,7 +814,3 @@ export default function ChatPage() {
     </div>
   )
 }
-
-// helper to get FileText icon if not imported
-
-function FileText(props:any){ return <svg {...props} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg> }

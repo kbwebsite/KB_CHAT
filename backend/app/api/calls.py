@@ -110,6 +110,8 @@ async def accept_call(call_id: int, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=404, detail="Call not found")
     if call.callee_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only callee can accept")
+    if call.status != "ongoing":
+        raise HTTPException(status_code=400, detail=f"Call cannot be accepted (status: {call.status})")
     call.status = "ongoing"
     db.commit()
     from app.websocket.manager import manager

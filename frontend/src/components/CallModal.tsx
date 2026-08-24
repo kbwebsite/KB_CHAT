@@ -24,23 +24,29 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   const [statusText, setStatusText]=useState(isIncoming ? `Incoming ${type} call...` : 'Calling...')
   const localRef=useRef<HTMLVideoElement>(null)
   const remoteRef=useRef<HTMLVideoElement>(null)
+  const remoteAudioRef=useRef<HTMLAudioElement>(null)
   const pcRef=useRef<RTCPeerConnection|null>(null)
   const streamRef=useRef<MediaStream|null>(null)
   const pendingOfferRef=useRef<any>(null)
+  const setupDoneRef=useRef(false)
+  // CRITICAL: Use ref to track caller/callee role - NEVER re-run setup when isIncoming prop changes
+  const isCallerRef=useRef(!isIncoming)
 
   const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }]
 
-  // timer
+  // timer - only runs after accepted (connected or not incoming)
   useEffect(()=>{
-    if (!open || isIncoming) return
+    if (!open || connected || isIncoming) return
     const t=setInterval(()=> setElapsed(e=>e+1), 1000)
     return ()=> clearInterval(t)
-  }, [open, isIncoming])
+  }, [open, connected, isIncoming])
 
-  // setup media + peer connection
+  // setup media + peer connection - ONLY runs once when open becomes true
   useEffect(()=>{
-    if (!open) return
+    if (!open || setupDoneRef.current) return
+    setupDoneRef.current = true
     let cancelled=false
+
     const setup = async ()=>{
       try {
         const wantVideo = type==='video'
@@ -50,65 +56,60 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         if (localRef.current) localRef.current.srcObject = stream
         setPermissionError(null)
 
-        // create peer connection
         const pc = new RTCPeerConnection({ iceServers })
         pcRef.current = pc
 
-        // add local tracks
         stream.getTracks().forEach(track=> pc.addTrack(track, stream))
 
         pc.ontrack = (e)=>{
           if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]
+          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = e.streams[0]
           setConnected(true)
-          setStatusText(type==='video' ? 'Connected' : 'Connected')
+          setStatusText('Connected')
         }
 
         pc.onicecandidate = (e)=>{
           if (e.candidate && peerId && callId) {
-            wsService.send({ type: 'call.ice_candidate', payload: { callId, candidate: e.candidate, to_user_id: peerId }})
+            wsService.send({ type: 'call.ice_candidate', payload: { callId, candidate: e.candidate.toJSON(), to_user_id: peerId }})
           }
         }
 
         pc.onconnectionstatechange = ()=>{
-          if (pc.connectionState==='connected') setConnected(true)
-          if (pc.connectionState==='failed' || pc.connectionState==='disconnected') setStatusText('Connection failed')
+          const state = pc.connectionState
+          if (state==='connected') setConnected(true)
+          if (state==='failed' || state==='disconnected') {
+            setStatusText('Connection lost')
+            setConnected(false)
+          }
+          if (state==='closed') onEnd()
         }
 
-        // If caller and not incoming, wait for accepted then create offer
-        // If incoming and we already have pending offer, handle it after we get media
-        if (isIncoming && pendingOfferRef.current) {
+        // Handle pending offer (callee received offer before media was ready)
+        if (isCallerRef.current===false && pendingOfferRef.current) {
           const offer = pendingOfferRef.current
           await pc.setRemoteDescription(new RTCSessionDescription(offer))
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
           if (peerId && callId) {
-            wsService.send({ type: 'call.answer', payload: { callId, sdp: answer, to_user_id: peerId }})
+            wsService.send({ type: 'call.answer', payload: { callId, sdp: answer.toJSON(), to_user_id: peerId }})
           }
           pendingOfferRef.current = null
           setStatusText('Connected')
-        } else if (!isIncoming) {
-          // caller: will create offer after peer accepts, but also if peer already accepted quickly, we create now
-          // we wait for accepted signal; if already accepted (status), create offer
-          // For now, don't create offer immediately - wait for 'call.accepted' event
+        } else if (isCallerRef.current) {
           setStatusText('Ringing...')
         }
 
       } catch (err:any) {
-        setPermissionError(err.message || 'Mic/Camera permission denied')
+        setPermissionError(err.message?.includes('Permission') ? 'Camera/Microphone permission is required for calls.' : err.message || 'Could not access camera/microphone')
       }
     }
     setup()
 
-    // WS listeners for this call
+    // WS listeners
     const onOffer = async (payload:any)=>{
-      if (payload.callId !== callId && payload.callId !== undefined && callId !== undefined) {
-        // allow if callId matches or if payload has no callId but we have one
-        // strict check: if callId provided and mismatches, ignore
-        if (payload.callId && callId && payload.callId !== callId) return
-      }
+      if (payload.callId && callId && payload.callId !== callId) return
       const sdp = payload.sdp || payload
       if (!pcRef.current) {
-        // store pending until media ready
         pendingOfferRef.current = sdp
         return
       }
@@ -117,7 +118,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         const answer = await pcRef.current.createAnswer()
         await pcRef.current.setLocalDescription(answer)
         if (peerId && callId) {
-          wsService.send({ type: 'call.answer', payload: { callId, sdp: answer, to_user_id: peerId }})
+          wsService.send({ type: 'call.answer', payload: { callId, sdp: answer.toJSON(), to_user_id: peerId }})
         }
         setStatusText('Connected')
       } catch (e){ console.error('offer handle', e) }
@@ -139,24 +140,21 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       if (payload.callId && callId && payload.callId !== callId) return
       const candidate = payload.candidate
       try {
-        if (candidate && pcRef.current) {
+        if (candidate && pcRef.current && pcRef.current.signalingState !== 'closed') {
           await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate))
         }
       } catch {}
     }
 
     const onAccepted = async ()=>{
-      // caller side: peer accepted, now create offer
-      if (!isIncoming && pcRef.current && peerId && callId) {
+      // Caller side: peer accepted, create offer now
+      if (isCallerRef.current && pcRef.current && peerId && callId) {
         try {
           const offer = await pcRef.current.createOffer()
           await pcRef.current.setLocalDescription(offer)
-          wsService.send({ type: 'call.offer', payload: { callId, sdp: offer, to_user_id: peerId }})
+          wsService.send({ type: 'call.offer', payload: { callId, sdp: offer.toJSON(), to_user_id: peerId }})
           setStatusText('Connecting...')
         } catch (e){ console.error('create offer', e)}
-      } else if (isIncoming) {
-        // callee accepted already handled via parent, but ensure status
-        setStatusText('Connecting...')
       }
     }
 
@@ -167,6 +165,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
 
     return ()=>{
       cancelled=true
+      setupDoneRef.current = false
       wsService.off('call.offer', onOffer)
       wsService.off('call.answer', onAnswer)
       wsService.off('call.ice_candidate', onIce)
@@ -179,7 +178,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       setConnected(false)
       setElapsed(0)
     }
-  }, [open, type, isIncoming, callId, peerId])
+  }, [open, type, callId, peerId]) // NOT isIncoming - uses isCallerRef instead
 
   // toggle mic/cam
   useEffect(()=>{
@@ -189,19 +188,16 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
     }
   }, [micOn, camOn])
 
-  // when isIncoming becomes false (accepted), status
-  useEffect(()=>{
-    if (open && !isIncoming) setStatusText('Ringing...')
-  }, [isIncoming, open])
-
   if (!open) return null
   const format = (s:number)=> `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
 
   return (
     <div className="fixed inset-0 z-50 bg-gradient-to-br from-gray-900 via-slate-900 to-black flex flex-col items-center justify-center text-white p-4">
+      {/* Hidden audio element for voice-only calls */}
+      <audio ref={remoteAudioRef} autoPlay playsInline className="hidden" />
+
       {/* remote video full screen */}
       <video ref={remoteRef} autoPlay playsInline className={`absolute inset-0 w-full h-full object-cover ${type==='video' && connected ? 'block' : 'hidden'}`} />
-      {/* overlay gradient */}
       <div className="absolute inset-0 bg-black/40 pointer-events-none"/>
 
       {/* local preview */}
@@ -214,7 +210,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
               {peerAvatar ? <img src={peerAvatar} alt="" className="w-full h-full object-cover"/> : peerName[0]?.toUpperCase()}
             </div>
             <h2 className="text-2xl font-semibold">{peerName}</h2>
-            <p className="text-sm text-white/70">{statusText} {connected ? '' : !isIncoming ? `• ${format(elapsed)}` : ''}</p>
+            <p className="text-sm text-white/70">{statusText} {connected ? '' : !isCallerRef.current ? '' : `• ${format(elapsed)}`}</p>
           </>
         )}
         {connected && type==='voice' && (
@@ -230,19 +226,19 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       </div>
 
       <div className="relative z-10 mt-10 flex items-center gap-4">
-        <button onClick={()=> setMicOn(!micOn)} className={`w-14 h-14 rounded-full flex items-center justify-center ${micOn ? 'bg-white/10' : 'bg-red-500'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
-        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`w-14 h-14 rounded-full flex items-center justify-center ${camOn ? 'bg-white/10' : 'bg-red-500'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
-        {isIncoming ? (
+        <button onClick={()=> setMicOn(!micOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
+        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
+        {isCallerRef.current===false ? (
           <>
-            <button onClick={onReject} className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-lg"><PhoneOff className="w-7 h-7"/></button>
-            <button onClick={onAccept} className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg"><Phone className="w-7 h-7"/></button>
+            <button onClick={onReject} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors"><PhoneOff className="w-7 h-7"/></button>
+            <button onClick={onAccept} className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors"><Phone className="w-7 h-7"/></button>
           </>
         ) : (
-          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 flex items-center justify-center shadow-lg"><PhoneOff className="w-7 h-7"/></button>
+          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors"><PhoneOff className="w-7 h-7"/></button>
         )}
       </div>
 
-      <p className="relative z-10 absolute bottom-6 text-xs text-white/40 text-center px-4">WebRTC peer-to-peer • Signaling via WebSocket • STUN stun.l.google.com</p>
+      <p className="relative z-10 absolute bottom-6 text-xs text-white/40 text-center px-4">WebRTC peer-to-peer • STUN stun.l.google.com</p>
     </div>
   )
 }
