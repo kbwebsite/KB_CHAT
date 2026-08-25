@@ -10,7 +10,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shadow-lg">KB</div>
-            <span className="font-bold text-lg tracking-tight" style={{fontFamily:'Plus Jakarta Sans, Inter, sans-serif'}}>KB Chat</span>
+            <span className="font-bold text-lg tracking-tight" style={{fontFamily:'Plus Jakarta Sans, Inter, sans-serif'}}>Kryzen</span>
             <span className="hidden sm:inline text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">V1</span>
           </div>
           <div className="flex items-center gap-2">
@@ -32,7 +32,7 @@ export default function LandingPage() {
             <div>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-violet-500/10 border border-violet-500/20 text-violet-700 dark:text-violet-300 text-xs font-semibold">✨ Fast • Secure • Modern</div>
               <h1 className="mt-4 text-4xl sm:text-5xl font-extrabold leading-[0.95] tracking-tight" style={{fontFamily:'Plus Jakarta Sans, Inter, sans-serif'}}>
-                <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">KB Chat</span><br/>
+                <span className="bg-gradient-to-r from-violet-600 to-indigo-600 bg-clip-text text-transparent">Kryzen</span><br/>
                 Connect. Chat. Share.
               </h1>
               <p className="mt-4 text-lg text-muted-foreground leading-relaxed">A fast, modern messaging platform built for simple and meaningful communication. Real-time, private, and beautifully crafted.</p>
@@ -50,7 +50,7 @@ export default function LandingPage() {
               <div className="relative bg-card border rounded-[1.75rem] shadow-2xl overflow-hidden">
                 <div className="h-12 flex items-center gap-2 px-4 border-b bg-muted/50">
                   <span className="w-3 h-3 rounded-full bg-red-400"/><span className="w-3 h-3 rounded-full bg-yellow-400"/><span className="w-3 h-3 rounded-full bg-green-400"/>
-                  <span className="ml-3 text-xs font-medium text-muted-foreground">KB Chat — Preview</span>
+                  <span className="ml-3 text-xs font-medium text-muted-foreground">Kryzen — Preview</span>
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex gap-2">
@@ -98,7 +98,7 @@ export default function LandingPage() {
       </main>
 
       <footer className="border-t py-8 text-center text-xs text-muted-foreground">
-        <p>© 2026 KB Chat • Connect. Chat. Share. • Built with FastAPI + React • Not affiliated with WhatsApp.</p>
+        <p>© 2026 Kryzen • Connect. Chat. Share. • Built with FastAPI + React • Not affiliated with WhatsApp.</p>
       </footer>
     </div>
   )

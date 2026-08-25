@@ -75,7 +75,7 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto">
         <Link to="/" className="flex items-center gap-2 mb-8">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">KB</div>
-          <span className="font-bold">KB Chat</span>
+          <span className="font-bold">Kryzen</span>
         </Link>
         <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
         <p className="text-muted-foreground mt-1">Sign in to continue to KB Chat.</p>
@@ -122,7 +122,7 @@ export default function LoginPage() {
         <div className="relative max-w-md text-white">
           <MessageCircle className="w-12 h-12 mb-4 opacity-90" />
           <h2 className="text-3xl font-bold leading-tight">Every message,<br/>instantly delivered.</h2>
-          <p className="mt-3 text-white/80">Join thousands who connect daily on KB Chat. Secure, fast, and beautifully simple.</p>
+          <p className="mt-3 text-white/80">Join thousands who connect daily on Kryzen. Secure, fast, and beautifully simple.</p>
           <div className="mt-8 p-4 rounded-2xl bg-white/10 backdrop-blur border border-white/15">
             <p className="text-sm text-white/90">"KB Chat feels like the messaging app we always wanted — clean, fast, no clutter."</p>
             <p className="text-xs text-white/60 mt-2">— Early user</p>

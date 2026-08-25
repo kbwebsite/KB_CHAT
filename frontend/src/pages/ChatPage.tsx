@@ -86,10 +86,24 @@ export default function ChatPage() {
   const [wallpaper] = useState(settings.chat_wallpaper)
   const [isAtBottom, setIsAtBottom]=useState(true)
   const [showNewIndicator, setShowNewIndicator]=useState(false)
+  const [showRefresh, setShowRefresh]=useState(false)
   const isLoadingMoreRef = useRef(false)
   const searchRef=useRef<HTMLInputElement>(null)
   const listRef=useRef<HTMLDivElement>(null)
   const nav=useNavigate()
+
+  const handleRefresh = async ()=> {
+    if (showRefresh) return
+    setShowRefresh(true)
+    try {
+      await fetchConversations()
+      if (currentConversationId) await fetchMessages(currentConversationId)
+    } catch (e) {
+      toast("Refresh failed", "error")
+    } finally {
+      setShowRefresh(false)
+    }
+  }
 
   useEffect(()=>{
     initChatWS()
@@ -130,7 +144,7 @@ export default function ChatPage() {
   const currentConv = conversations.find(c=> c.id===currentConversationId) || null
   const currentMsgs = currentConversationId ? (messages[currentConversationId]||[]) : []
   const typingSet = useChatStore((s)=> currentConversationId ? s.typingUsers[currentConversationId] : undefined)
-  const [mobileView, setMobileView]=useState<'list'|'chat'>(typeof window !== 'undefined' && window.innerWidth < 1024 && currentConversationId ? 'chat' : 'list')
+  const [mobileView, setMobileView]=useState<'list'|'chat'>(typeof window !== 'undefined' && window.innerWidth >= 1024 && currentConversationId ? 'chat' : 'list')
   useEffect(()=>{ if (currentConversationId && window.innerWidth < 1024) setMobileView('chat') }, [currentConversationId])
   const [mobileNavTab, setMobileNavTab]=useState<'chats'|'status'|'calls'|'contacts'|'ai'>('chats')
   const [mobileActionSheet, setMobileActionSheet]=useState<{open:boolean; msg?:Message}>({open:false})
@@ -183,8 +197,9 @@ export default function ChatPage() {
     prevLoadingRef.current = loadingMessages
   }, [loadingMessages, currentConversationId])
 
-  // auto-scroll when new messages arrive only if user was at bottom
+// auto-scroll when new messages arrive only if user was at bottom
   const prevMsgLenRef=useRef(0)
+  const recentScrollTopRef = useRef(0)
   useEffect(()=>{
     const len=currentMsgs.length
     if (len > prevMsgLenRef.current) {
@@ -192,11 +207,21 @@ export default function ChatPage() {
         // smooth scroll after render
         setTimeout(()=> scrollToBottom(true), 50)
       } else {
+        // user is reading older messages — preserve position, show indicator
         setShowNewIndicator(true)
       }
     }
     prevMsgLenRef.current=len
   }, [currentMsgs.length])
+
+  // track manual scroll position — only when not at bottom
+  useEffect(()=>{
+    const el=listRef.current
+    if (!el) return
+    const updatePos = ()=> { recentScrollTopRef.current = el.scrollTop }
+    el.addEventListener('scroll', updatePos, {passive: true})
+    return ()=> el.removeEventListener('scroll', updatePos)
+  }, []);
 
   // when switching conversation, reset and scroll to bottom
   useEffect(()=>{
@@ -425,7 +450,7 @@ export default function ChatPage() {
       <header className="h-14 border-b bg-card flex items-center justify-between px-3 sm:px-4 shrink-0">
         <div className="flex items-center gap-2">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">KB</div>
-          <span className="font-bold hidden sm:inline">KB Chat</span>
+          <span className="font-bold hidden sm:inline">Kryzen</span>
           <span className="text-xs px-2 py-1 rounded-full bg-muted hidden sm:inline">Connect. Chat. Share.</span>
           <ServerStatus />
         </div>
@@ -465,7 +490,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="flex-1 flex min-h-0 overflow-hidden keyboard-aware">
+      <div className="flex-1 flex min-h-0 overflow-hidden keyboard-aware" style={{position: 'relative'}}>
         {/* Left sidebar with navigation icons + list */}
         <div className={`${mobileView==='chat' ? 'hidden lg:flex' : 'flex'} w-full lg:w-[380px] shrink-0 border-r bg-card flex-col overflow-hidden min-h-0`}>
           {/* Icon nav */}
@@ -561,7 +586,7 @@ export default function ChatPage() {
         <section className={`${mobileView==='list' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-muted/20 ${settings.chat_wallpaper==='dots' ? 'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]' : settings.chat_wallpaper==='gradient' ? 'bg-gradient-to-br from-violet-500/5 to-indigo-500/5' : ''}`}>
           {currentConv ? (
             <DragDropZone onFilesUploaded={(ids)=> { if(ids.length>0) handleSend('', ids) }}>
-              <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} />
+              <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} handleRefresh={handleRefresh} />
               {typingNames && <div className="px-4 py-1 text-xs text-muted-foreground bg-card border-b">{typingNames} is typing...</div>}
               {selectedIds.size>0 && (
                 <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">

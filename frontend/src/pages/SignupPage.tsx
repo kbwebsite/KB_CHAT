@@ -77,10 +77,10 @@ export default function SignupPage() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto py-8">
         <Link to="/" className="flex items-center gap-2 mb-6">
           <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">KB</div>
-          <span className="font-bold">KB Chat</span>
+          <span className="font-bold">Kryzen</span>
         </Link>
         <h1 className="text-3xl font-bold tracking-tight">Create account</h1>
-        <p className="text-muted-foreground mt-1">Join KB Chat in seconds.</p>
+        <p className="text-muted-foreground mt-1">Join Kryzen in seconds.</p>
 
         <form onSubmit={handle} className="mt-6 space-y-3.5">
           {error && <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">{error}</div>}
