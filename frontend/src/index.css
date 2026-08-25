@@ -306,6 +306,11 @@ input:focus, textarea:focus, select:focus { outline: none; box-shadow: 0 0 0 2px
   height: 100svh;
   overflow: hidden;
 }
+@media (max-width: 1023px) {
+  .keyboard-aware {
+    padding-bottom: var(--mobile-nav-height);
+  }
+}
 .keyboard-aware .message-list {
   flex: 1;
   overflow-y: auto;

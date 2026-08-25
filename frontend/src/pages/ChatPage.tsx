@@ -457,7 +457,7 @@ export default function ChatPage() {
         </div>
       )}
 
-      <div className="flex-1 flex min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-h-0 overflow-hidden keyboard-aware">
         {/* Left sidebar with navigation icons + list */}
         <div className={`${mobileView==='chat' ? 'hidden lg:flex' : 'flex'} w-full lg:w-[380px] shrink-0 border-r bg-card flex-col overflow-hidden min-h-0`}>
           {/* Icon nav */}
@@ -571,7 +571,7 @@ export default function ChatPage() {
                 </div>
               )}
               {/* Message list */}
-              <div className="flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
+              <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
                 {loadingMessages && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
                 {hasMore[currentConversationId!] && activeRightTab==='chat' && <div className="text-center py-2"><button onClick={()=> fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-accent">Load older</button></div>}
                 {activeRightTab==='chat' ? (

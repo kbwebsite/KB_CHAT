@@ -57,11 +57,18 @@ class ConnectionManager:
             "type": "presence.online" if is_online else "presence.offline",
             "payload": {"user_id": user_id, "is_online": is_online}
         }
-        # broadcast to all connected users
+        # Only notify users who share a conversation with this user (not ALL users)
+        member_convs = set(self.conversation_members.keys())
+        notified = set()
         for uid in list(self.user_connections.keys()):
-            if uid == user_id:
+            if uid == user_id or uid in notified:
                 continue
-            await self.send_to_user(uid, payload)
+            # Check if they share any conversation
+            for conv_id, members in self.conversation_members.items():
+                if user_id in members and uid in members:
+                    await self.send_to_user(uid, payload)
+                    notified.add(uid)
+                    break
 
     async def send_typing(self, conversation_id: int, user_id: int, is_typing: bool, member_ids: List[int]):
         typ = "typing.start" if is_typing else "typing.stop"

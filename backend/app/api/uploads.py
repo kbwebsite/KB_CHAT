@@ -78,7 +78,7 @@ async def upload_file(file: UploadFile = File(...), db: Session = Depends(get_db
     }, "File uploaded")
 
 @router.get("/file/{filename}")
-async def get_file(filename: str):
+async def get_file(filename: str, token: str = None):
     safe = sanitize_filename(filename)
     file_path = os.path.join(UPLOAD_DIR, safe)
     if not os.path.exists(file_path):
@@ -86,6 +86,13 @@ async def get_file(filename: str):
     # check traversal
     if not os.path.abspath(file_path).startswith(os.path.abspath(UPLOAD_DIR)):
         raise HTTPException(status_code=403, detail="Forbidden")
+    # Optional token verification - if token provided, validate it
+    if token:
+        try:
+            from app.auth.security import decode_token
+            decode_token(token)
+        except Exception:
+            raise HTTPException(status_code=401, detail="Invalid token")
     from fastapi.responses import FileResponse
     mime, _ = mimetypes.guess_type(file_path)
     return FileResponse(file_path, media_type=mime or "application/octet-stream", filename=safe)

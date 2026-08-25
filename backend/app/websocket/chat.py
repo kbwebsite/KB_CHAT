@@ -115,14 +115,10 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
             try:
                 # set offline if no more connections
                 if not manager.is_online(user.id):
-                    db2 = SessionLocal()
-                    u2 = db2.query(User).filter(User.id == user.id).first()
-                    if u2:
-                        from datetime import datetime, timezone
-                        u2.is_online = False
-                        u2.last_seen = datetime.now(timezone.utc)
-                        db2.commit()
-                    db2.close()
+                    from datetime import datetime, timezone
+                    user.is_online = False
+                    user.last_seen = datetime.now(timezone.utc)
+                    db.commit()
             except:
                 pass
     finally:

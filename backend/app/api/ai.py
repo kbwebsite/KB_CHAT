@@ -138,10 +138,11 @@ async def ai_smart_search(
     results = []
     for m in msgs:
         conv = db.query(Conversation).filter_by(id=m.conversation_id).first()
+        sender = db.query(User).filter_by(id=m.sender_id).first() if m.sender_id else None
         results.append({
             "id": m.id,
             "content": m.content,
-            "sender": m.sender_display_name or "Unknown",
+            "sender": sender.display_name if sender else "Unknown",
             "conversation": conv.title if conv else "Direct",
             "created_at": m.created_at.isoformat() if m.created_at else None,
             "conversation_id": m.conversation_id,
