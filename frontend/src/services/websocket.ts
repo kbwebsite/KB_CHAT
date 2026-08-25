@@ -7,14 +7,14 @@ class WSService {
   private reconnectAttempts = 0
   private shouldReconnect = true
   private pingInterval: any = null
+  private lastPong = 0
 
   connect(token: string) {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) return
+    if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
+    if (this.ws) { this.ws.close(); this.ws = null }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
-    // Use current host, fallback to localhost:8000 if vite dev
     let wsHost = host
-    // if vite dev, host is 5173, backend is 8000
     if (host.includes('5173')) wsHost = '127.0.0.1:8000'
     this.url = `${protocol}//${wsHost}/ws/chat?token=${encodeURIComponent(token)}`
     this.shouldReconnect = true
@@ -26,24 +26,34 @@ class WSService {
     this.ws = new WebSocket(this.url)
     this.ws.onopen = () => {
       this.reconnectAttempts = 0
+      this.lastPong = Date.now()
       this.emit('_open', {})
-      // ping
       this.pingInterval = setInterval(()=> {
-        if (this.ws?.readyState === WebSocket.OPEN) this.send({type:'ping', payload:{}})
+        if (this.ws?.readyState === WebSocket.OPEN) {
+          if (Date.now() - this.lastPong > 60000) {
+            this.ws.close()
+            return
+          }
+          this.send({type:'ping', payload:{}})
+        }
       }, 30000)
     }
     this.ws.onmessage = (e) => {
       try {
         const data = JSON.parse(e.data)
+        if (data.type === 'pong') { this.lastPong = Date.now(); return }
         const t = data.type
         this.emit(t, data.payload)
-        this.emit('*', data)
       } catch {}
     }
-    this.ws.onclose = () => {
+    this.ws.onclose = (e) => {
       clearInterval(this.pingInterval)
       this.emit('_close', {})
-      if (this.shouldReconnect) {
+      if (e.code === 1008 || e.code === 1003) {
+        this.shouldReconnect = false
+        return
+      }
+      if (this.shouldReconnect && this.reconnectAttempts < 20) {
         const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000)
         this.reconnectAttempts++
         setTimeout(()=> this._connect(), delay)
@@ -80,8 +90,9 @@ class WSService {
   }
 
   private emit(type:string, payload:any) {
-    this.handlers.get(type)?.forEach(h=> h(payload))
-    // wildcard already handled? double emit for '*'
+    this.handlers.get(type)?.forEach(h=> {
+      try { h(payload) } catch (e) { console.error(`Handler error for ${type}:`, e) }
+    })
   }
 
   sendTyping(conversationId:number, isTyping:boolean) {

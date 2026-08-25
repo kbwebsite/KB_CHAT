@@ -124,6 +124,8 @@ async def ai_smart_search(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not body.message or not body.message.strip():
+        return success_response({"results": [], "summary": "", "count": 0})
     from sqlalchemy import or_
     from app.models.conversation import Conversation, ConversationMember
     from app.models.message import Message as MsgModel

@@ -54,7 +54,6 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       const last = msgs[msgs.length-1]
       if (last) {
         get().markRead(id, last.id)
-        convApi.markRead(id, last.id).catch(()=>{})
       }
     }
   },
@@ -79,8 +78,6 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type })
     if (res.success) {
       get().addMessage(res.data)
-      // also refresh conv list to update last message
-      get().fetchConversations()
     }
   },
   addMessage: (msg)=>{
