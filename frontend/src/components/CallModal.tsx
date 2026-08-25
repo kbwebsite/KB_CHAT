@@ -32,16 +32,21 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   const setupDoneRef=useRef(false)
   // CRITICAL: Use ref to track caller/callee role - NEVER re-run setup when isIncoming prop changes
   const isCallerRef=useRef(!isIncoming)
+  // Track whether incoming call has been accepted (callee accepted => now show hangup, not accept/reject)
+  const [hasAccepted, setHasAccepted]=useState(!isIncoming)
+
+  // Sync hasAccepted when parent marks incoming as false (accepted)
+  useEffect(()=>{ if (!isIncoming) setHasAccepted(true) }, [isIncoming])
 
   const iceServersRef = useRef<RTCIceServer[]>([{ urls: 'stun:stun.l.google.com:19302' }])
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null)
 
-  // timer - only runs after accepted (connected or not incoming)
+  // timer - runs after accepted (caller immediately, callee after accept)
   useEffect(()=>{
-    if (!open || connected || isIncoming) return
+    if (!open || !hasAccepted) return
     const t=setInterval(()=> setElapsed(e=>e+1), 1000)
     return ()=> clearInterval(t)
-  }, [open, connected, isIncoming])
+  }, [open, hasAccepted])
 
   // setup media + peer connection - ONLY runs once when open becomes true
   useEffect(()=>{
@@ -250,13 +255,13 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       <div className="relative z-10 mt-10 flex items-center gap-4">
         <button onClick={()=> setMicOn(!micOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors active:scale-95 ${micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
         {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors active:scale-95 ${camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
-        {isCallerRef.current===false ? (
+        {hasAccepted ? (
+          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
+        ) : (
           <>
             <button onClick={onReject} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
-            <button onClick={onAccept} className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors active:scale-95"><Phone className="w-7 h-7"/></button>
+            <button onClick={()=>{ setHasAccepted(true); onAccept?.() }} className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors active:scale-95"><Phone className="w-7 h-7"/></button>
           </>
-        ) : (
-          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
         )}
       </div>
 

@@ -77,8 +77,10 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
             mtype = msg.get("type")
             payload = msg.get("payload", {})
 
-            if mtype == "typing.start" or mtype == "typing.stop":
-                await _handle_typing(user.id, payload)
+            if mtype == "typing.start":
+                await _handle_typing(user.id, payload, True)
+            elif mtype == "typing.stop":
+                await _handle_typing(user.id, payload, False)
             elif mtype == "ping":
                 await websocket.send_text(json.dumps({"type": "pong", "payload": {}}))
             elif mtype == "message.read":
@@ -107,7 +109,7 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
         finally:
             db.close()
 
-async def _handle_typing(user_id: int, payload: dict):
+async def _handle_typing(user_id: int, payload: dict, is_typing: bool):
     conv_id = payload.get("conversation_id")
     if not conv_id:
         return
@@ -117,7 +119,6 @@ async def _handle_typing(user_id: int, payload: dict):
         if not member:
             return
         member_ids = [m.user_id for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()]
-        is_typing = True
         await manager.send_typing(conv_id, user_id, is_typing, member_ids)
     except Exception as e:
         logger.error(f"Failed to handle typing: {e}")

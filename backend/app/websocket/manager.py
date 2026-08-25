@@ -16,6 +16,7 @@ class ConnectionManager:
         await websocket.accept()
         async with self.lock:
             self.user_connections[user_id].add(websocket)
+        await self.broadcast_presence(user_id, True)
 
     async def disconnect(self, websocket: WebSocket, user_id: int):
         async with self.lock:
@@ -23,6 +24,9 @@ class ConnectionManager:
                 self.user_connections[user_id].discard(websocket)
                 if not self.user_connections[user_id]:
                     del self.user_connections[user_id]
+        # Only broadcast offline if no remaining connections
+        if user_id not in self.user_connections:
+            await self.broadcast_presence(user_id, False)
 
     async def send_to_user(self, user_id: int, data: dict):
         conns = list(self.user_connections.get(user_id, []))

@@ -388,11 +388,19 @@ export default function ChatPage() {
       .catch(e=> toast(e.response?.data?.detail || 'Call failed', 'error'))
   }
   const handleCallAccept=async ()=>{
-    if (callModal?.callId) { await callsApi.accept(callModal.callId); setCallModal(m=> m ? {...m, incoming:false} : null) }
+    if (callModal?.callId) {
+      try { await callsApi.accept(callModal.callId) } catch {}
+      setCallModal(m=> m ? {...m, incoming:false} : null)
+    }
   }
   const handleCallRejectOrEnd=async ()=>{
-    if (callModal?.callId) await callsApi.end(callModal.callId, callModal.incoming ? 'rejected' : 'ended')
+    const cid = callModal?.callId
+    const wasIncoming = callModal?.incoming
+    // Always clear UI first — API failure must not leave modal stuck
     setCallModal(null)
+    if (cid) {
+      try { await callsApi.end(cid, wasIncoming ? 'rejected' : 'ended') } catch {}
+    }
   }
 
   const typingNames = typingSet ? Array.from(typingSet).map(uid=>{
