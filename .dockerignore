@@ -1,0 +1,10 @@
+node_modules
+.git
+.env
+*.db
+__pycache__
+uploads
+*.pyc
+.DS_Store
+*.log
+backend/kbchat.db

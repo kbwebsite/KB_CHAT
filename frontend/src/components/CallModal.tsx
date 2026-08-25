@@ -70,7 +70,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
 
         pc.onicecandidate = (e)=>{
           if (e.candidate && peerId && callId) {
-            wsService.send({ type: 'call.ice_candidate', payload: { callId, candidate: e.candidate.toJSON(), to_user_id: peerId }})
+            wsService.send({ type: 'call.ice_candidate', payload: { callId, candidate: JSON.parse(JSON.stringify(e.candidate)), to_user_id: peerId }})
           }
         }
 
@@ -91,7 +91,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
           if (peerId && callId) {
-            wsService.send({ type: 'call.answer', payload: { callId, sdp: answer.toJSON(), to_user_id: peerId }})
+            wsService.send({ type: 'call.answer', payload: { callId, sdp: JSON.parse(JSON.stringify(answer)), to_user_id: peerId }})
           }
           pendingOfferRef.current = null
           setStatusText('Connected')
@@ -118,7 +118,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         const answer = await pcRef.current.createAnswer()
         await pcRef.current.setLocalDescription(answer)
         if (peerId && callId) {
-          wsService.send({ type: 'call.answer', payload: { callId, sdp: answer.toJSON(), to_user_id: peerId }})
+          wsService.send({ type: 'call.answer', payload: { callId, sdp: JSON.parse(JSON.stringify(answer)), to_user_id: peerId }})
         }
         setStatusText('Connected')
       } catch (e){ console.error('offer handle', e) }
@@ -152,7 +152,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         try {
           const offer = await pcRef.current.createOffer()
           await pcRef.current.setLocalDescription(offer)
-          wsService.send({ type: 'call.offer', payload: { callId, sdp: offer.toJSON(), to_user_id: peerId }})
+            wsService.send({ type: 'call.offer', payload: { callId, sdp: JSON.parse(JSON.stringify(offer)), to_user_id: peerId }})
           setStatusText('Connecting...')
         } catch (e){ console.error('create offer', e)}
       }
