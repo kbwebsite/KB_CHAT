@@ -33,11 +33,12 @@ class Settings(BaseSettings):
         # Use env DATABASE_URL if set (e.g., PostgreSQL), otherwise keep SQLite
         if not self.DATABASE_URL or self.DATABASE_URL == f"sqlite:///{_DEFAULT_DB_PATH}":
             self.DATABASE_URL = f"sqlite:///{_DEFAULT_DB_PATH}"
-        # Ensure the directory for the database file exists
-        db_path = self.DATABASE_URL.replace("sqlite:///", "")
-        db_dir = os.path.dirname(db_path)
-        if db_dir:
-            os.makedirs(db_dir, exist_ok=True)
+        # Only create directories for SQLite file paths
+        if self.DATABASE_URL.startswith("sqlite"):
+            db_path = self.DATABASE_URL.replace("sqlite:///", "")
+            db_dir = os.path.dirname(db_path)
+            if db_dir:
+                os.makedirs(db_dir, exist_ok=True)
 
     @property
     def cors_origins_list(self) -> List[str]:
