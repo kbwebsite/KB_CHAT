@@ -34,6 +34,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   const isCallerRef=useRef(!isIncoming)
 
   const iceServersRef = useRef<RTCIceServer[]>([{ urls: 'stun:stun.l.google.com:19302' }])
+  const refreshIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null)
 
   // timer - only runs after accepted (connected or not incoming)
   useEffect(()=>{
@@ -50,14 +51,11 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
 
     const setup = async ()=>{
       try {
-        // Fetch TURN credentials
+        // Fetch TURN credentials from server (Cloudflare or static)
         try {
           const turnRes = await callsApi.turn()
-          if (turnRes?.success && turnRes.data) {
-            iceServersRef.current = [
-              { urls: 'stun:stun.l.google.com:19302' },
-              { urls: turnRes.data.urls, username: turnRes.data.username, credential: turnRes.data.credential }
-            ]
+          if (turnRes?.success && turnRes.data && Array.isArray(turnRes.data)) {
+            iceServersRef.current = turnRes.data
           }
         } catch {}
 
@@ -95,6 +93,17 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
           }
           if (state==='closed') onEnd()
         }
+
+        // ICE credential refresh: fetch new TURN credentials every 5 min and apply via setConfiguration
+        refreshIntervalRef.current = setInterval(async () => {
+          if (pc.connectionState !== 'connected') return
+          try {
+            const turnRes = await callsApi.turn()
+            if (turnRes?.success && turnRes.data && Array.isArray(turnRes.data)) {
+              pc.setConfiguration({ iceServers: turnRes.data })
+            }
+          } catch {}
+        }, 300000)
 
         // Handle pending offer (callee received offer before media was ready)
         if (isCallerRef.current===false && pendingOfferRef.current) {
@@ -178,6 +187,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
     return ()=>{
       cancelled=true
       setupDoneRef.current = false
+      if (refreshIntervalRef.current) { clearInterval(refreshIntervalRef.current); refreshIntervalRef.current = null }
       wsService.off('call.offer', onOffer)
       wsService.off('call.answer', onAnswer)
       wsService.off('call.ice_candidate', onIce)

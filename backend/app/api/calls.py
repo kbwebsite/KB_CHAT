@@ -123,12 +123,47 @@ async def reject_call(call_id: int, db: Session = Depends(get_db), current_user:
     return await end_call(call_id, {"status": "rejected"}, db, current_user)
 
 @router.get("/turn")
-def get_turn_credentials():
+async def get_turn_credentials(current_user: User = Depends(get_current_user)):
     from app.database.config import settings
+    import httpx
+    import logging
+
+    logger = logging.getLogger(__name__)
+
+    # Cloudflare TURN - generate short-lived credentials
+    if settings.CLOUDFLARE_TURN_KEY_ID and settings.CLOUDFLARE_TURN_API_TOKEN:
+        try:
+            url = f"https://rtc.live.cloudflare.com/v1/turn/keys/{settings.CLOUDFLARE_TURN_KEY_ID}/credentials/generate-ice-servers"
+            async with httpx.AsyncClient(timeout=10) as client:
+                resp = await client.post(
+                    url,
+                    headers={
+                        "Authorization": f"Bearer {settings.CLOUDFLARE_TURN_API_TOKEN}",
+                        "Content-Type": "application/json",
+                    },
+                    json={"ttl": 600},
+                )
+                if resp.status_code == 201:
+                    data = resp.json()
+                    ice_servers = data.get("iceServers", [])
+                    if ice_servers:
+                        return success_response(ice_servers)
+                    logger.warning("Cloudflare TURN returned empty iceServers")
+                else:
+                    logger.error(f"Cloudflare TURN API returned {resp.status_code}")
+        except Exception as e:
+            logger.error(f"Cloudflare TURN credential generation failed: {e}")
+
+    # Fallback: static TURN from env vars
     if settings.TURN_SERVER_URL:
-        return success_response({
-            "urls": settings.TURN_SERVER_URL,
-            "username": settings.TURN_USERNAME,
-            "credential": settings.TURN_CREDENTIAL,
-        })
+        return success_response([
+            {"urls": "stun:stun.cloudflare.com:3478"},
+            {
+                "urls": settings.TURN_SERVER_URL,
+                "username": settings.TURN_USERNAME,
+                "credential": settings.TURN_CREDENTIAL,
+            },
+        ])
+
+    # No TURN configured - STUN only
     return success_response(None)

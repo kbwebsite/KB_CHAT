@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     TURN_SERVER_URL: str = ""
     TURN_USERNAME: str = ""
     TURN_CREDENTIAL: str = ""
+    CLOUDFLARE_TURN_KEY_ID: str = ""
+    CLOUDFLARE_TURN_API_TOKEN: str = ""
 
     class Config:
         env_file = ".env"
