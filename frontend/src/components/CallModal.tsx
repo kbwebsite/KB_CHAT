@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { PhoneOff, Mic, MicOff, Video, VideoOff, Phone } from 'lucide-react'
 import wsService from '../services/websocket'
+import { callsApi } from '../services/api'
 
 type CallType = 'voice' | 'video'
 
@@ -32,7 +33,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   // CRITICAL: Use ref to track caller/callee role - NEVER re-run setup when isIncoming prop changes
   const isCallerRef=useRef(!isIncoming)
 
-  const iceServers = [{ urls: 'stun:stun.l.google.com:19302' }]
+  const iceServersRef = useRef<RTCIceServer[]>([{ urls: 'stun:stun.l.google.com:19302' }])
 
   // timer - only runs after accepted (connected or not incoming)
   useEffect(()=>{
@@ -49,6 +50,17 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
 
     const setup = async ()=>{
       try {
+        // Fetch TURN credentials
+        try {
+          const turnRes = await callsApi.turn()
+          if (turnRes?.success && turnRes.data) {
+            iceServersRef.current = [
+              { urls: 'stun:stun.l.google.com:19302' },
+              { urls: turnRes.data.urls, username: turnRes.data.username, credential: turnRes.data.credential }
+            ]
+          }
+        } catch {}
+
         const wantVideo = type==='video'
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo })
         if (cancelled) { stream.getTracks().forEach(t=>t.stop()); return }
@@ -56,7 +68,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         if (localRef.current) localRef.current.srcObject = stream
         setPermissionError(null)
 
-        const pc = new RTCPeerConnection({ iceServers })
+        const pc = new RTCPeerConnection({ iceServers: iceServersRef.current })
         pcRef.current = pc
 
         stream.getTracks().forEach(track=> pc.addTrack(track, stream))

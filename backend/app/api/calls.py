@@ -121,3 +121,14 @@ async def accept_call(call_id: int, db: Session = Depends(get_db), current_user:
 @router.post("/{call_id}/reject")
 async def reject_call(call_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     return await end_call(call_id, {"status": "rejected"}, db, current_user)
+
+@router.get("/turn")
+def get_turn_credentials():
+    from app.database.config import settings
+    if settings.TURN_SERVER_URL:
+        return success_response({
+            "urls": settings.TURN_SERVER_URL,
+            "username": settings.TURN_USERNAME,
+            "credential": settings.TURN_CREDENTIAL,
+        })
+    return success_response(None)

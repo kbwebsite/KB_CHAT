@@ -62,7 +62,7 @@ create_tables()
 
 if settings.APP_ENV == "production" and settings.JWT_SECRET == "dev-secret-change-in-production-please-use-strong-random":
     import warnings
-    warnings.warn("CRITICAL: JWT_SECRET is the default dev value. Set a strong random JWT_SECRET in production!", stacklevel=1)
+    warnings.warn("CRITICAL: JWT_SECRET is the default dev value. Set a strong random JWT_SECRET in Render environment variables!", stacklevel=1)
 
 app.include_router(auth_router)
 app.include_router(users_router)

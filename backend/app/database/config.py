@@ -24,6 +24,9 @@ class Settings(BaseSettings):
     AI_BASE_URL: str = "https://api.openai.com/v1"
     AI_PROVIDER: str = "mock"
     GOOGLE_CLIENT_ID: str = ""
+    TURN_SERVER_URL: str = ""
+    TURN_USERNAME: str = ""
+    TURN_CREDENTIAL: str = ""
 
     class Config:
         env_file = ".env"

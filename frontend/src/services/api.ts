@@ -111,6 +111,7 @@ export const callsApi = {
   end: (id:number, status?:string) => api.post(`/api/calls/${id}/end`, {status}).then(r=>r.data),
   accept: (id:number) => api.post(`/api/calls/${id}/accept`).then(r=>r.data),
   reject: (id:number) => api.post(`/api/calls/${id}/reject`).then(r=>r.data),
+  turn: () => api.get('/api/calls/turn').then(r=>r.data),
 }
 
 export const settingsApi = {
