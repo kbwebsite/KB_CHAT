@@ -226,19 +226,19 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       </div>
 
       <div className="relative z-10 mt-10 flex items-center gap-4">
-        <button onClick={()=> setMicOn(!micOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
-        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
+        <button onClick={()=> setMicOn(!micOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors active:scale-95 ${micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
+        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors active:scale-95 ${camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
         {isCallerRef.current===false ? (
           <>
-            <button onClick={onReject} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors"><PhoneOff className="w-7 h-7"/></button>
-            <button onClick={onAccept} className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors"><Phone className="w-7 h-7"/></button>
+            <button onClick={onReject} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
+            <button onClick={onAccept} className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors active:scale-95"><Phone className="w-7 h-7"/></button>
           </>
         ) : (
-          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors"><PhoneOff className="w-7 h-7"/></button>
+          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
         )}
       </div>
 
-      <p className="relative z-10 absolute bottom-6 text-xs text-white/40 text-center px-4">WebRTC peer-to-peer • STUN stun.l.google.com</p>
+      <p className="relative z-10 absolute bottom-6 pb-[max(24px,env(safe-area-inset-bottom))] text-xs text-white/40 text-center px-4">WebRTC peer-to-peer • STUN stun.l.google.com</p>
     </div>
   )
 }

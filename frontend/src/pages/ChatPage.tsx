@@ -23,6 +23,8 @@ import { CommandPalette, buildCommands } from '../components/CommandPalette'
 import { PollPanel } from '../components/PollPanel'
 import { LinkPreview, hasUrl, extractUrls } from '../components/LinkPreview'
 import { DragDropZone } from '../components/DragDropZone'
+import { MobileNav } from '../components/MobileNav'
+import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
 import EventPanel from '../components/EventPanel'
 import ScheduleMessage from '../components/ScheduleMessage'
 import ChatInsights from '../components/ChatInsights'
@@ -30,7 +32,7 @@ import { msgPinApi, pollApi, aiApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { Message } from '../types'
-import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X, Bot, FileText } from 'lucide-react'
+import { Search, LogOut, Settings as SettingsIcon, Bookmark, Contact, Phone, MessageSquare, Users, Plus, Bell, Trash2, Download, X, Bot, FileText, Reply, Copy, Forward, Edit3, Sparkles, Languages } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -130,6 +132,8 @@ export default function ChatPage() {
   const typingSet = useChatStore((s)=> currentConversationId ? s.typingUsers[currentConversationId] : undefined)
   const [mobileView, setMobileView]=useState<'list'|'chat'>(typeof window !== 'undefined' && window.innerWidth < 1024 && currentConversationId ? 'chat' : 'list')
   useEffect(()=>{ if (currentConversationId && window.innerWidth < 1024) setMobileView('chat') }, [currentConversationId])
+  const [mobileNavTab, setMobileNavTab]=useState<'chats'|'status'|'calls'|'contacts'|'ai'>('chats')
+  const [mobileActionSheet, setMobileActionSheet]=useState<{open:boolean; msg?:Message}>({open:false})
 
   // scrolling: handle new messages, preserve position on loading older
   const scrollToBottom = (smooth=true)=>{
@@ -596,6 +600,7 @@ export default function ChatPage() {
                           } catch {}
                         }}
                         onAIAction={handleAIAction}
+                        onMobileMore={(m)=> setMobileActionSheet({open:true, msg:m})}
                       />
                     })}
                   </div>
@@ -811,6 +816,37 @@ export default function ChatPage() {
       </div>
 
       <div className="bg-amber-500 text-white text-xs text-center py-1.5 hidden" id="offline-banner">You're offline — will retry</div>
+
+      {/* Mobile bottom navigation */}
+      <MobileNav active={mobileNavTab} onTabChange={(tab)=>{
+        setMobileNavTab(tab)
+        if (tab==='ai') nav('/ai')
+        else if (tab==='chats') { setSidebarTab('chats'); setMobileView('list'); setShowContacts(false); setShowSaved(false); setShowCalls(false); setShowStatus(false) }
+        else if (tab==='status') { setShowStatus(true); setMobileView('list') }
+        else if (tab==='calls') { setShowCalls(true); setMobileView('list') }
+        else if (tab==='contacts') { setShowContacts(true); setMobileView('list') }
+      }} />
+
+      {/* Mobile message action bottom sheet */}
+      <BottomSheet open={mobileActionSheet.open} onClose={()=> setMobileActionSheet({open:false})} title="Message Actions">
+        {mobileActionSheet.msg && (
+          <>
+            <BottomSheetAction icon={<span>👍</span>} label="React" onClick={()=>{ if(mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({open:false}) }} />
+            <BottomSheetAction icon={<Reply className="w-4 h-4"/>} label="Reply" onClick={()=>{ if(mobileActionSheet.msg) { setReplyTo({id:mobileActionSheet.msg.id, content: mobileActionSheet.msg.content||'', sender: mobileActionSheet.msg.sender_display_name||'Unknown'}); setMobileActionSheet({open:false}) } }} />
+            <BottomSheetAction icon={<Copy className="w-4 h-4"/>} label="Copy" onClick={()=>{ if(mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({open:false}) }} />
+            <BottomSheetAction icon={<Forward className="w-4 h-4"/>} label="Forward" onClick={()=>{ if(mobileActionSheet.msg) { setForwardMsg(mobileActionSheet.msg); setMobileActionSheet({open:false}) } }} />
+            <BottomSheetAction icon={<Bookmark className="w-4 h-4"/>} label={savedIds.has(mobileActionSheet.msg.id) ? 'Unsave' : 'Save'} onClick={()=>{ if(mobileActionSheet.msg) { handleSave(mobileActionSheet.msg); setMobileActionSheet({open:false}) } }} />
+            <BottomSheetAction icon={<Sparkles className="w-4 h-4"/>} label="Summarize" onClick={()=>{ if(mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({open:false}) } }} />
+            <BottomSheetAction icon={<Languages className="w-4 h-4"/>} label="Translate" onClick={()=>{ if(mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({open:false}) } }} />
+            {mobileActionSheet.msg.sender_id === user?.id && (
+              <>
+                <BottomSheetAction icon={<Edit3 className="w-4 h-4"/>} label="Edit" onClick={()=>{ if(mobileActionSheet.msg) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content||''); setMobileActionSheet({open:false}) } }} />
+                <BottomSheetAction icon={<Trash2 className="w-4 h-4"/>} label="Delete" destructive onClick={()=>{ if(mobileActionSheet.msg && confirm('Delete?')) { deleteMessage(mobileActionSheet.msg.id); setMobileActionSheet({open:false}) } }} />
+              </>
+            )}
+          </>
+        )}
+      </BottomSheet>
     </div>
   )
 }

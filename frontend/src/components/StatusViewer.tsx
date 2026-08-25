@@ -47,9 +47,9 @@ export function StatusViewer({ statuses, startIndex, onClose }: { statuses:any[]
   if (!cur) return null
 
   return (
-    <div className="fixed inset-0 z-50 bg-black flex flex-col" onClick={()=> setPaused(!paused)}>
+    <div className="fixed inset-0 z-50 bg-black flex flex-col fullscreen-modal" onClick={()=> setPaused(!paused)}>
       {/* progress */}
-      <div className="flex gap-1 p-2">
+      <div className="flex gap-1 p-2 pt-[max(8px,env(safe-area-inset-top))]">
         {statuses.map((_,i)=> (
           <div key={i} className="flex-1 h-1 bg-white/20 rounded-full overflow-hidden">
             <div className="h-full bg-white transition-all" style={{width: i<idx ? '100%' : i===idx ? `${progress}%` : '0%'}}/>

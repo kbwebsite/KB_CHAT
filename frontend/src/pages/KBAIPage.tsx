@@ -126,7 +126,7 @@ export default function KBAIPage() {
           )}
         </div>
 
-        <div className="shrink-0 p-4 border-t border-border">
+        <div className="shrink-0 p-4 pb-[max(16px,env(safe-area-inset-bottom))] border-t border-border">
           <div className="flex gap-2 items-end">
             <textarea ref={inputRef} value={input} onChange={e=> setInput(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send() } }}

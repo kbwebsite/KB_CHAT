@@ -7,13 +7,14 @@ import { aiApi } from '../services/api'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onMobileMore }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
   onImageClick?:(url:string, name:string, all:{url:string,name:string}[], idx:number)=>void,
   savedIds?:Set<number>, onPin?:(m:Message)=>void,
-  onAIAction?:(msg:Message, action:string)=>void
+  onAIAction?:(msg:Message, action:string)=>void,
+  onMobileMore?:(msg:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
@@ -43,8 +44,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`relative px-3.5 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden
-          ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed' : isOwn ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border rounded-bl-md'}`}>
+        <div className={`relative px-3.5 py-2.5 rounded-2xl shadow-sm text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed' : isOwn ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-card border rounded-bl-md'}`} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && (
             <div className={`grid gap-1 mb-2 -mx-1 ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {imgAtts.map((img,i)=> {

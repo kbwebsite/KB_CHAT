@@ -154,3 +154,186 @@ input:focus, textarea:focus, select:focus { outline: none; box-shadow: 0 0 0 2px
 @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
 .slide-up { animation: slideUp 0.25s ease-out; }
 @keyframes shimmer { 0% { background-position: 100% 0 } 100% { background-position: -100% 0 } }
+
+/* ===== MOBILE-FIRST FOUNDATION ===== */
+
+/* Safe area insets for notched devices */
+:root {
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
+  --mobile-nav-height: 64px;
+  --mobile-header-height: 56px;
+}
+
+/* Touch-friendly minimum targets */
+@media (pointer: coarse) {
+  button, a, [role="button"], input, select, textarea {
+    min-height: 44px;
+  }
+}
+
+/* Mobile viewport handling - prevents keyboard from hiding composer */
+@supports (height: 100dvh) {
+  .mobile-h-full { height: 100dvh; height: 100svh; }
+}
+@supports not (height: 100dvh) {
+  .mobile-h-full { height: 100vh; }
+}
+
+/* Mobile bottom navigation bar */
+.mobile-bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: var(--mobile-nav-height);
+  padding-bottom: var(--sab);
+  background: hsl(var(--card));
+  border-top: 1px solid hsl(var(--border));
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  z-index: var(--z-sticky);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Mobile header */
+.mobile-header {
+  position: sticky;
+  top: 0;
+  height: var(--mobile-header-height);
+  padding-top: var(--sat);
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+  z-index: var(--z-sticky);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Bottom sheet overlay */
+.bottom-sheet-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  z-index: var(--z-overlay);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+  pointer-events: none;
+}
+.bottom-sheet-overlay.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Bottom sheet container */
+.bottom-sheet {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 85vh;
+  background: hsl(var(--card));
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  z-index: calc(var(--z-overlay) + 1);
+  transform: translateY(100%);
+  transition: transform 0.3s cubic-bezier(0.32, 0.72, 0, 1);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: var(--sab);
+}
+.bottom-sheet.open {
+  transform: translateY(0);
+}
+.bottom-sheet-handle {
+  width: 36px;
+  height: 4px;
+  background: hsl(var(--muted-foreground) / 0.3);
+  border-radius: 2px;
+  margin: 8px auto 4px;
+}
+
+/* Mobile chat layout */
+@media (max-width: 768px) {
+  .chat-page-layout {
+    flex-direction: column;
+    height: 100dvh;
+    height: 100svh;
+  }
+  .chat-sidebar {
+    width: 100% !important;
+    border-right: none !important;
+  }
+  .chat-main {
+    width: 100% !important;
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .chat-main.mobile-open {
+    transform: translateX(0);
+  }
+  .chat-info-panel {
+    position: absolute;
+    inset: 0;
+    z-index: 25;
+    width: 100% !important;
+    transform: translateX(100%);
+    transition: transform 0.25s cubic-bezier(0.32, 0.72, 0, 1);
+  }
+  .chat-info-panel.mobile-open {
+    transform: translateX(0);
+  }
+}
+
+/* Mobile message bubble adjustments */
+@media (max-width: 768px) {
+  .message-bubble {
+    max-width: 88% !important;
+  }
+}
+
+/* Mobile keyboard-aware container */
+.keyboard-aware {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  height: 100svh;
+  overflow: hidden;
+}
+.keyboard-aware .message-list {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+.keyboard-aware .composer {
+  flex-shrink: 0;
+  padding-bottom: var(--sab);
+}
+
+/* Prevent body scroll when modal is open */
+body.modal-open {
+  overflow: hidden;
+  position: fixed;
+  width: 100%;
+}
+
+/* Mobile-friendly scroll snap */
+.scroll-snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+.scroll-snap-x > * {
+  scroll-snap-align: start;
+}
+
+/* Status bar padding for fullscreen modals */
+.fullscreen-modal {
+  padding-top: var(--sat);
+}
