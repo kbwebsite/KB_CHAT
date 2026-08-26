@@ -106,7 +106,7 @@
 }
 
 /* HTML elements */
-html { background: hsl(var(--background)); color: hsl(var(--foreground)); overflow-x: hidden; }
+html { background: hsl(var(--background)); color: hsl(var(--foreground)); overflow-x: hidden; overscroll-behavior: none; overscroll-behavior-y: none; }
 html, body, #root { height: 100%; }
 body { @apply bg-background text-foreground font-sans antialiased; min-height: 100dvh; min-height: -webkit-fill-available; overflow-x: hidden; }
 #root { display: flex; flex-direction: column; min-height: 100dvh; }
@@ -509,9 +509,35 @@ header.h-14 + div + div .keyboard-aware section div.border-b.bg-card\/80 {
 .message-list::-webkit-scrollbar-thumb:hover {
   background: hsl(var(--muted-foreground) / 0.35);
 }
-html, body {
-  overscroll-behavior-y: contain;
+/* === PWA pull-to-refresh guard === */
+html,
+body,
+#root {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
 }
+
+/* Installed App standalone/fullscreen extra guard — must match standalone display */
+@media (display-mode: standalone), (display-mode: fullscreen) {
+  html,
+  body,
+  #root {
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+  }
+}
+/* Prevent rubber-band / pull-to-refresh on PWA root while allowing pan-y inside scroll containers */
+body {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+  /* allow vertical panning only inside scrollable containers */
+  touch-action: pan-y;
+}
+#root {
+  overscroll-behavior: none;
+  overscroll-behavior-y: none;
+}
+
 
 /* Micro-interactions — fast, smooth, purposeful */
 button:active:not(:disabled) { transform: scale(0.98); }
