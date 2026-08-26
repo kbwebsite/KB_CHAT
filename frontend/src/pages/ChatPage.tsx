@@ -710,26 +710,27 @@ export default function ChatPage() {
                 </div>
               )}
               {aiPanelOpen && (
-                <div className="mt-3 p-4 rounded-xl bg-card border border-violet-200">
-                  <div className="flex flex-col gap-3">
-                    <div className="flex flex-col gap-2">
-                      <h4 className="font-semibold text-sm">AI Assistant</h4>
-                      <button onClick={closeAiPanel} className=" text-xs text-muted-foreground hover:text-violet-600">Close</button>
+                <>
+                  <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden" onClick={closeAiPanel} />
+                  <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl kryzen-glass-strong border shadow-2xl slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden">
+                    <div className="flex items-center justify-between">
+                      <h4 className="font-semibold text-sm flex items-center gap-2"><span className="w-7 h-7 rounded-lg bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white"><Sparkles className="w-3.5 h-3.5"/></span> Kryzen AI</h4>
+                      <button onClick={closeAiPanel} className="p-1.5 rounded-full hover:bg-muted transition"><X className="w-4 h-4"/></button>
                     </div>
-                    <p className="text-xs text-muted-placeholder">Choose an action:</p>
-                    <div className="flex flex-col gap-2">
-                      <button onClick={()=> { handleAiAction('summarize'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Summarize conversation</button>
-                      <button onClick={()=> { handleAiAction('explain'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Explain message</button>
-                      <button onClick={()=> { handleAiAction('translate'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Translate message</button>
-                      <button onClick={()=> { handleAiAction('rewrite'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Rewrite message</button>
-                      <button onClick={()=> { handleAiAction('reply'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Generate reply</button>
-                      <button onClick={()=> { handleAiAction('extract-tasks'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Extract tasks/action items</button>
-                      <button onClick={()=> { handleAiAction('unread-summary'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Summarize unread messages</button>
+                    <p className="text-xs text-muted-foreground">Choose a contextual action — uses existing AI where available.</p>
+                    <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-1 overscroll-contain">
+                      <button onClick={()=> { handleAiAction('summarize'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-violet-500/10 hover:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-sm text-left flex items-center gap-2 border border-violet-500/10 transition active:scale-[0.98]"><Sparkles className="w-4 h-4"/> Summarize conversation</button>
+                      <button onClick={()=> { handleAiAction('explain'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-violet-500/10 hover:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-sm text-left flex items-center gap-2 border border-violet-500/10 transition active:scale-[0.98]"><FileText className="w-4 h-4"/> Explain message</button>
+                      <button onClick={()=> { handleAiAction('translate'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-violet-500/10 hover:bg-violet-500/15 text-violet-700 dark:text-violet-300 text-sm text-left flex items-center gap-2 border border-violet-500/10 transition active:scale-[0.98]"><Languages className="w-4 h-4"/> Translate message</button>
+                      <button onClick={()=> { handleAiAction('rewrite'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-muted hover:bg-accent text-sm text-left flex items-center gap-2 transition active:scale-[0.98]"><Edit3 className="w-4 h-4"/> Rewrite message</button>
+                      <button onClick={()=> { handleAiAction('reply'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-muted hover:bg-accent text-sm text-left flex items-center gap-2 transition active:scale-[0.98]"><Reply className="w-4 h-4"/> Generate reply</button>
+                      <button onClick={()=> { handleAiAction('extract-tasks'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-muted hover:bg-accent text-sm text-left flex items-center gap-2 transition active:scale-[0.98]"><FileText className="w-4 h-4"/> Extract tasks</button>
+                      <button onClick={()=> { handleAiAction('unread-summary'); closeAiPanel(); }} className="py-2.5 px-3 rounded-xl bg-muted hover:bg-accent text-sm text-left flex items-center gap-2 transition active:scale-[0.98]"><Bookmark className="w-4 h-4"/> Summarize unread</button>
                     </div>
-                    {aiLoading && <p className="text-xs text-muted-placeholder">Thinking...</p>}
+                    {aiLoading && <p className="text-xs text-muted-foreground animate-pulse flex items-center gap-2"><span className="w-2 h-2 bg-violet-500 rounded-full animate-bounce"/> Thinking...</p>}
                     {aiError && <p className="text-xs text-destructive">Error: {aiError}</p>}
                   </div>
-                </div>
+                </>
               )}
               <MessageComposer
                 onSend={handleSend}

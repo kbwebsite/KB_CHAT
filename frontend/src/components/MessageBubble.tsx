@@ -38,7 +38,12 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
         {onSelect && <input type="checkbox" checked={!!isSelected} onChange={()=> safeSelect(msg)} className={`w-4 h-4 rounded border ${isSelected ? 'block' : 'hidden group-hover:block'}`} />}
       </div>
       <div className={`max-w-[85%] sm:max-w-[78%] md:max-w-[68%] lg:max-w-[62%] xl:max-w-[60%] relative min-w-0 ${isOwn?'items-end':'items-start'} flex flex-col`}>
-        {isGroup && !isOwn && showAvatar && <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1 ml-1">{msg.sender_display_name}</span>}
+        {isGroup && !isOwn && showAvatar && (
+          <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1 ml-1 flex items-center gap-1.5">
+            {(msg as any).sender_avatar ? <img src={(msg as any).sender_avatar} alt="" className="w-5 h-5 rounded-full object-cover shadow-sm ring-1 ring-black/5" /> : null}
+            {msg.sender_display_name}
+          </span>
+        )}
         {msg.reply_to_content && (
           <div className={`text-xs px-3 py-1.5 rounded-t-xl border-l-2 -mb-1 mx-1 ${isOwn?'bg-primary/10 border-primary text-muted-foreground':'bg-muted border-muted-foreground'}`}>
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>

@@ -342,3 +342,285 @@ body.modal-open {
 .fullscreen-modal {
   padding-top: var(--sat);
 }
+
+/* ===== KRYZEN PREMIUM 3D SYSTEM ===== */
+/* Design tokens — sophisticated dark palette mapped to existing variables */
+:root {
+  --kryzen-bg: 224 40% 6%;
+  --kryzen-surface: 224 30% 9%;
+  --kryzen-surface-2: 224 28% 12%;
+  --kryzen-surface-3: 224 28% 14%;
+  --kryzen-violet: 263 70% 65%;
+  --kryzen-blue: 199 89% 60%;
+  --kryzen-border: 224 28% 14%;
+  --kryzen-glass: 224 30% 9% / 0.72;
+  --kryzen-shadow-sm: 0 2px 8px hsl(224 40% 6% / 0.35), 0 1px 2px hsl(224 40% 6% / 0.4);
+  --kryzen-shadow-md: 0 8px 24px hsl(224 40% 6% / 0.45), 0 4px 12px hsl(224 40% 6% / 0.35);
+  --kryzen-shadow-lg: 0 20px 40px hsl(224 40% 6% / 0.5), 0 8px 20px hsl(224 40% 6% / 0.4);
+  --kryzen-glow: 0 0 20px hsl(263 70% 65% / 0.15);
+  --kryzen-radius: 16px;
+  --kryzen-radius-lg: 20px;
+  --kryzen-blur: 18px;
+}
+
+/* Ambient depth background — extremely subtle, performant */
+.dark body,
+body {
+  background: hsl(var(--background));
+  position: relative;
+}
+.dark body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  background:
+    radial-gradient(700px 400px at 15% 0%, hsl(263 70% 65% / 0.06), transparent 60%),
+    radial-gradient(800px 500px at 85% 10%, hsl(199 89% 60% / 0.04), transparent 65%),
+    radial-gradient(600px 400px at 50% 100%, hsl(263 70% 65% / 0.03), transparent 60%);
+  opacity: 0.9;
+}
+
+/* Premium header — glass + subtle depth */
+header.h-14 {
+  background: hsl(var(--card) / 0.85) !important;
+  backdrop-filter: blur(var(--kryzen-blur)) saturate(160%);
+  -webkit-backdrop-filter: blur(var(--kryzen-blur)) saturate(160%);
+  border-bottom: 1px solid hsl(var(--border) / 0.8) !important;
+  box-shadow: var(--kryzen-shadow-sm);
+}
+
+/* Bootstrap-compat utilities — required breakpoints <576, 576-991, >=992, >=1200 */
+.d-none { display: none !important; }
+.d-flex { display: flex !important; }
+.d-block { display: block !important; }
+@media (min-width: 576px) {
+  .d-sm-none { display: none !important; }
+  .d-sm-flex { display: flex !important; }
+  .d-sm-block { display: block !important; }
+}
+@media (min-width: 992px) {
+  .d-lg-none { display: none !important; }
+  .d-lg-flex { display: flex !important; }
+  .d-lg-block { display: block !important; }
+}
+@media (min-width: 1200px) {
+  .d-xl-none { display: none !important; }
+  .d-xl-flex { display: flex !important; }
+}
+
+/* Glass utilities — lightweight, no heavy blur on low-end */
+.kryzen-glass {
+  background: hsl(var(--kryzen-glass));
+  backdrop-filter: blur(16px) saturate(160%);
+  -webkit-backdrop-filter: blur(16px) saturate(160%);
+  border: 1px solid hsl(var(--border) / 0.7);
+  box-shadow: var(--kryzen-shadow-sm);
+}
+.kryzen-glass-strong {
+  background: hsl(var(--card) / 0.9);
+  backdrop-filter: blur(20px) saturate(165%);
+  -webkit-backdrop-filter: blur(20px) saturate(165%);
+  border: 1px solid hsl(var(--border) / 0.8);
+  box-shadow: var(--kryzen-shadow-md);
+}
+.kryzen-card {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border) / 0.8);
+  border-radius: var(--kryzen-radius);
+  box-shadow: var(--kryzen-shadow-sm);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.kryzen-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--kryzen-shadow-md);
+  border-color: hsl(var(--kryzen-violet) / 0.2);
+}
+
+/* Conversation cards — subtle elevation, premium active state */
+.group.relative.w-full.flex.gap-3 {
+  border-radius: 14px;
+  transition: transform 150ms ease, background 150ms ease, box-shadow 150ms ease;
+}
+.group.relative.w-full.flex.gap-3:hover {
+  transform: translateY(-1px);
+}
+.group.relative.w-full.flex.gap-3.bg-primary {
+  box-shadow: 0 4px 16px hsl(263 70% 65% / 0.3), 0 2px 8px hsl(263 70% 65% / 0.2);
+  border: 1px solid hsl(263 70% 65% / 0.3);
+}
+
+/* Message bubbles — premium 3D depth, minimal */
+.msg-enter > div > div.relative {
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+.msg-enter > div > div.relative:hover {
+  box-shadow: 0 4px 12px hsl(224 40% 6% / 0.25);
+}
+.msg-enter > div > div.bg-primary {
+  background: linear-gradient(135deg, hsl(263 70% 65%), hsl(262 83% 58%)) !important;
+  box-shadow: 0 2px 10px hsl(263 70% 65% / 0.35), 0 1px 3px hsl(224 40% 6% / 0.3) !important;
+  border: none !important;
+}
+.msg-enter > div > div.bg-card {
+  background: hsl(var(--card) / 0.95) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid hsl(var(--border) / 0.7) !important;
+  box-shadow: var(--kryzen-shadow-sm);
+}
+
+/* Chat header tabs — premium pill */
+header.h-14 + div + div .keyboard-aware section div.border-b.bg-card\/80 {
+  background: hsl(var(--card) / 0.7) !important;
+}
+
+/* Composer — elevated glass */
+.composer {
+  background: hsl(var(--card) / 0.92) !important;
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  border-top: 1px solid hsl(var(--border) / 0.7) !important;
+  box-shadow: 0 -4px 20px hsl(224 40% 6% / 0.15);
+}
+.composer textarea {
+  box-shadow: inset 0 1px 2px hsl(224 40% 6% / 0.06);
+}
+
+/* Message list — dedicated scroll container, no pull-to-refresh, preserve scroll */
+.keyboard-aware .message-list,
+.message-list {
+  overscroll-behavior: contain !important;
+  overscroll-behavior-y: contain !important;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: hsl(var(--muted-foreground) / 0.25) transparent;
+}
+.keyboard-aware .message-list::-webkit-scrollbar,
+.message-list::-webkit-scrollbar {
+  width: 6px;
+}
+.keyboard-aware .message-list::-webkit-scrollbar-thumb,
+.message-list::-webkit-scrollbar-thumb {
+  background: hsl(var(--muted-foreground) / 0.22);
+  border-radius: 999px;
+}
+.keyboard-aware .message-list::-webkit-scrollbar-thumb:hover,
+.message-list::-webkit-scrollbar-thumb:hover {
+  background: hsl(var(--muted-foreground) / 0.35);
+}
+html, body {
+  overscroll-behavior-y: contain;
+}
+
+/* Micro-interactions — fast, smooth, purposeful */
+button:active:not(:disabled) { transform: scale(0.98); }
+a:active { transform: scale(0.98); }
+.kryzen-lift { transition: transform 150ms ease, box-shadow 150ms ease; }
+.kryzen-lift:hover { transform: translateY(-2px); box-shadow: var(--kryzen-shadow-md); }
+.kryzen-press:active { transform: scale(0.97); }
+
+/* Sidebar nav icons — premium active glow */
+.w-16 button.bg-primary {
+  box-shadow: 0 4px 12px hsl(263 70% 65% / 0.35), var(--kryzen-glow);
+  border: 1px solid hsl(263 70% 65% / 0.25);
+}
+
+/* Call modal — premium 3D depth, local video as floating card */
+.fixed.inset-0.z-50.bg-gradient-to-br {
+  background: radial-gradient(900px 600px at 30% 0%, hsl(263 70% 65% / 0.18), transparent 55%),
+              radial-gradient(800px 500px at 80% 100%, hsl(199 89% 60% / 0.12), transparent 60%),
+              linear-gradient(135deg, hsl(224 40% 8%), hsl(224 40% 4%)) !important;
+}
+.fixed.inset-0.z-50 video.absolute.top-4 {
+  box-shadow: var(--kryzen-shadow-lg), 0 0 0 1px hsl(0 0% 100% / 0.08);
+  transform: translateZ(8px);
+  border-radius: 16px !important;
+}
+
+/* AI panel — floating glass, not permanent */
+.mr-2.mb-2.p-3.rounded-xl.bg-violet-500\/5,
+.mt-3.p-4.rounded-xl.bg-card.border.border-violet-200 {
+  backdrop-filter: blur(12px);
+  box-shadow: var(--kryzen-shadow-md);
+}
+
+/* Profile avatar — subtle depth */
+.w-24.h-24.rounded-full,
+.w-8.h-8.rounded-full,
+.w-11.h-11.rounded-full,
+.w-9.h-9.rounded-full {
+  box-shadow: 0 2px 10px hsl(224 40% 6% / 0.25), 0 1px 3px hsl(224 40% 6% / 0.2);
+}
+
+/* Focus rings — premium */
+input:focus, textarea:focus, select:focus {
+  box-shadow: 0 0 0 3px hsl(var(--kryzen-violet) / 0.18) !important;
+  border-color: hsl(var(--kryzen-violet) / 0.5) !important;
+}
+
+/* Typography — clean hierarchy */
+.font-bold { letter-spacing: -0.02em; }
+.font-semibold { letter-spacing: -0.015em; }
+
+/* Performance guards — no heavy continuous animations */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Responsive — align to spec breakpoints 576 / 992 / 1200 */
+
+/* Mobile <576px — compact header, full-width, touch-friendly, no horizontal overflow */
+@media (max-width: 575.98px) {
+  header.h-14 { height: 56px !important; padding-left: 12px !important; padding-right: 12px !important; }
+  header.h-14 span.font-bold { font-size: 15px; }
+  .flex-1.flex.min-h-0.overflow-hidden.keyboard-aware { overflow-x: hidden; }
+  .msg-enter > div { max-width: 86% !important; }
+}
+
+/* Tablet 576-991px — balanced */
+@media (min-width: 576px) and (max-width: 991.98px) {
+  .lg\:w-\[380px\] { width: 340px !important; }
+}
+
+/* Desktop >=992px — proper desktop communication interface */
+@media (min-width: 992px) {
+  header.h-14 { height: 60px !important; }
+  .keyboard-aware { height: 100% !important; min-height: 0; }
+  .keyboard-aware .message-list { height: auto !important; }
+  /* Desktop must remain flex row, not collapsed */
+  .flex-1.flex.min-h-0.overflow-hidden.keyboard-aware > div.w-full.lg\:w-\[380px\] {
+    display: flex !important;
+    transform: none !important;
+    position: relative !important;
+  }
+  .flex-1.flex.min-h-0.overflow-hidden.keyboard-aware > section.flex-1 {
+    display: flex !important;
+    transform: none !important;
+    position: relative !important;
+  }
+}
+
+/* Large desktop >=1200px */
+@media (min-width: 1200px) {
+  .lg\:w-\[380px\] { width: 400px !important; }
+  .xl\:w-\[380px\] { width: 420px !important; }
+}
+
+/* Ensure no horizontal scroll at any breakpoint */
+html, body, #root, .keyboard-aware, .message-list, .composer {
+  max-width: 100vw;
+  overflow-x: hidden;
+}
+
+/* Bottom sheet and modals — depth */
+.bottom-sheet { box-shadow: var(--kryzen-shadow-lg); }
+.bottom-sheet-overlay { backdrop-filter: blur(4px); }
+
+/* Toast and panels — depth */
+div.fixed.inset-0.z-50 { backdrop-filter: blur(6px); }
+
