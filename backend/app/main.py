@@ -89,11 +89,15 @@ app.include_router(ws_router)
 
 @app.get("/api/health")
 def health():
-    return {"success": True, "data": {"status": "ok", "service": "KB Chat API"}, "message": None}
+    import os
+    commit_sha = os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7]
+    return {"success": True, "data": {"status": "ok", "service": "Kryzen API", "commit": commit_sha}, "message": None}
 
 @app.get("/api")
 def api_root():
-    return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share. AI-Powered.", "version": "3.0.0"}, "message": None}
+    import os
+    commit_sha = os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7]
+    return {"success": True, "data": {"name": "Kryzen API", "tagline": "Connect. Chat. Share.", "version": "3.0.0", "commit": commit_sha}, "message": None}
 
 # Serve frontend static files with SPA catch-all fallback
 # Frontend dist is copied to ../frontend/dist in Docker (from /app/frontend/dist relative to /app/backend)
@@ -107,7 +111,16 @@ if not frontend_dist.exists():
 if frontend_dist.exists():
     assets_dir = frontend_dist / "assets"
     if assets_dir.exists():
-        app.mount("/assets", StaticFiles(directory=str(assets_dir)), name="assets")
+        from starlette.staticfiles import StaticFiles as _StaticFiles
+        from starlette.responses import Response as _StarletteResponse
+
+        class _CacheStaticFiles(_StaticFiles):
+            async def get_response(self, path, scope):
+                response = await super().get_response(path, scope)
+                response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+                return response
+
+        app.mount("/assets", _CacheStaticFiles(directory=str(assets_dir)), name="assets")
 
     @app.get("/{full_path:path}")
     async def serve_spa(full_path: str):
@@ -119,17 +132,17 @@ if frontend_dist.exists():
         # If requesting an existing root-level file (e.g., favicon.svg, vite.svg, robots.txt)
         target_file = (frontend_dist / full_path).resolve()
         if full_path and target_file.is_file() and str(target_file).startswith(str(frontend_dist.resolve())):
-            return FileResponse(str(target_file))
+            return FileResponse(str(target_file), headers={"Cache-Control": "no-cache, must-revalidate"})
 
         # Fallback to index.html for all React Router SPA paths (/chat, /login, /signup, etc.)
         index_file = frontend_dist / "index.html"
         if index_file.is_file():
-            return FileResponse(str(index_file))
+            return FileResponse(str(index_file), headers={"Cache-Control": "no-cache, must-revalidate"})
         return {"detail": "Frontend not found"}
 else:
     @app.get("/")
     def root():
-        return {"success": True, "data": {"name": "KB Chat API", "tagline": "Connect. Chat. Share.", "version": "2.0.0", "frontend": "not built"}, "message": None}
+        return {"success": True, "data": {"name": "Kryzen API", "tagline": "Connect. Chat. Share.", "version": "3.0.0", "frontend": "not built"}, "message": None}
 
 # Mount uploads as static if needed (already handled via file endpoint)
 # Add rate limiting placeholder - simple middleware
