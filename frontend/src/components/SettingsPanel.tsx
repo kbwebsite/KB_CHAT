@@ -195,7 +195,7 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
           <LogOut className="w-4 h-4"/> Log out
         </button>
 
-        <p className="text-[11px] text-center text-muted-foreground">KB Chat v2 • Secure • Fast • Reliable</p>
+        <p className="text-[11px] text-center text-muted-foreground">Kryzen • Secure • Fast • Reliable</p>
       </div>
     </div>
   )

@@ -76,7 +76,7 @@ export default function SignupPage() {
     <div className="min-h-screen flex">
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto py-8">
         <Link to="/" className="flex items-center gap-2 mb-6">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">KB</div>
+          <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
           <span className="font-bold">Kryzen</span>
         </Link>
         <h1 className="text-3xl font-bold tracking-tight">Create account</h1>

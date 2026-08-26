@@ -193,7 +193,7 @@ export function initChatWS() {
     // notify if not focused
     if (document.hidden || useChatStore.getState().currentConversationId !== (payload as Message).conversation_id) {
       if ('Notification' in window && Notification.permission==='granted') {
-        new Notification('KB Chat', { body: `New message from ${(payload as any).sender_display_name || 'someone'}` })
+        new Notification('Kryzen', { body: `New message from ${(payload as any).sender_display_name || 'someone'}` })
       }
     }
   })

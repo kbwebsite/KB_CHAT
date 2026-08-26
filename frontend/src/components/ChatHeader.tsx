@@ -1,15 +1,16 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, MoreVertical, ArrowLeft, Phone, Video, Search, BellOff, Trash2, Download, FileText, Image as ImageIcon, Link as LinkIcon, Mic, RefreshCcw } from 'lucide-react'
+import { Users, MoreVertical, ArrowLeft, Phone, Video, Search, BellOff, Trash2, Download, FileText, Image as ImageIcon, Link as LinkIcon, Mic, RefreshCcw, Sparkles } from 'lucide-react'
 
-export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute, onSearch, activeTab, onTabChange, handleRefresh }: {
+export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute, onSearch, activeTab, onTabChange, handleRefresh, onAi }: {
   conv:Conversation|null, currentUserId?:number, onBack?:()=>void, onInfo?:()=>void,
   onCall?:(type:'voice'|'video')=>void,
   onMute?:()=>void,
   onSearch?:()=>void,
   activeTab?: string,
   onTabChange?:(tab:string)=>void,
-  handleRefresh?:()=>void
+  handleRefresh?:()=>void,
+  onAi?:()=>void
 }) {
   if (!conv) return <div className="h-[64px] border-b bg-card flex items-center px-4">Select a conversation</div>
   const title = conv.title || 'Unknown'
@@ -44,6 +45,7 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
           <button onClick={()=> onCall?.('video')} className="p-2 rounded-full hover:bg-muted" title="Video call"><Video className="w-4 h-4"/></button>
           <button onClick={onInfo} className="p-2 rounded-full hover:bg-muted" title="Info"><MoreVertical className="w-4 h-4"/></button>
           <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-muted" title="Refresh"><RefreshCcw className="w-4 h-4"/></button>
+          <button onClick={onAi} className="p-2 rounded-full hover:bg-muted" title="AI Assistant"><Sparkles className="w-4 h-4"/></button>
         </div>
       </div>
       {onTabChange && (

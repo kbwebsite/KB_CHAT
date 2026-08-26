@@ -83,7 +83,7 @@ export default function KBAIPage() {
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h1 className="text-base font-semibold">KB AI Assistant</h1>
+            <h1 className="text-base font-semibold">Kryzen AI Assistant</h1>
             <p className="text-xs text-muted-foreground">Ask anything about your project</p>
           </div>
         </div>
@@ -130,7 +130,7 @@ export default function KBAIPage() {
           <div className="flex gap-2 items-end">
             <textarea ref={inputRef} value={input} onChange={e=> setInput(e.target.value)}
               onKeyDown={e=>{ if(e.key==='Enter' && !e.shiftKey){ e.preventDefault(); send() } }}
-              placeholder="Ask KB AI..." rows={1}
+              placeholder="Ask Kryzen AI..." rows={1}
               className="flex-1 resize-none px-4 py-3 rounded-xl bg-secondary text-sm outline-none focus:ring-2 focus:ring-ring max-h-32" />
             <button onClick={send} disabled={loading || !input.trim()}
               className="shrink-0 w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-opacity">

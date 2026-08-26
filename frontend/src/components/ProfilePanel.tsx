@@ -78,7 +78,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">About</label>
-            <textarea value={about} onChange={e=>setAbout(e.target.value)} rows={3} className="w-full mt-1 px-3 py-2.5 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm resize-none" placeholder="Hey there! I'm using KB Chat." />
+            <textarea value={about} onChange={e=>setAbout(e.target.value)} rows={3} className="w-full mt-1 px-3 py-2.5 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm resize-none" placeholder="Hey there! I'm using Kryzen." />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground">Email</label>

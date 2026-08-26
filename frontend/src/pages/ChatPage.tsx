@@ -88,6 +88,10 @@ export default function ChatPage() {
   const [showNewIndicator, setShowNewIndicator]=useState(false)
   const [showRefresh, setShowRefresh]=useState(false)
   const isLoadingMoreRef = useRef(false)
+  const [aiPanelOpen, setAiPanelOpen]=useState(false)
+  const [aiLoading, setAiLoading]=useState(false)
+  const [aiError, setAiError]=useState<string|null>(null)
+  const [aiSelectedMessage, setAiSelectedMessage]=useState<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
   const listRef=useRef<HTMLDivElement>(null)
   const nav=useNavigate()
@@ -364,6 +368,36 @@ export default function ChatPage() {
       setAiResult({ text: resultText, action })
     } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
   }
+
+  // AI Assistant panel state
+  const toggleAiPanel = ()=> setAiPanelOpen(m=> !m)
+  const closeAiPanel = ()=> setAiPanelOpen(false)
+  const aiSendFeedback = (feedback:'success'|'error')=> {
+    setAiError(null)
+    setAiPanelOpen(false)
+  }
+
+  // Placeholder AI functions — replace with real API calls
+  const placeholderAiResponses: Record<string, string> = {
+    'summarize': 'This is a placeholder summary. The AI would summarize the conversation context here.',
+    'explain': 'This is a placeholder explanation. The AI would explain the selected message\'s context and meaning here.',
+    'translate': 'This is a placeholder translation. The AI would translate the selected message into the target language here.',
+    'rewrite': 'This is a placeholder rewrite. The AI would rewrite the selected message with different tone or style here.',
+    'reply': 'This is a placeholder reply. The AI would generate a contextual reply based on the conversation here.',
+    'extract-tasks': 'This is a placeholder task extraction. The AI would extract action items and tasks from the conversation here.',
+    'unread-summary': 'This is a placeholder unread summary. The AI would summarize recent unread messages here.',
+  }
+
+  const handleAiAction = async (action:string, selectedMsgId?: number)=> {
+    setAiLoading(true)
+    setAiError(null)
+    // Simulate API delay
+    await new Promise(resolve=> setTimeout(resolve, 1500))
+    // Use placeholder response if no real API is configured
+    const response = placeholderAiResponses[action] || 'AI action completed.'
+    setAiResult({ text: response, action })
+    setAiLoading(false)
+  }
   const handleSelectToggle=(msg:Message)=>{
     setSelectedIds(s=> { const n=new Set(s); if(n.has(msg.id)) n.delete(msg.id); else n.add(msg.id); return n })
   }
@@ -449,7 +483,7 @@ export default function ChatPage() {
     <div className="h-[100dvh] flex flex-col bg-background">
       <header className="h-14 border-b bg-card flex items-center justify-between px-3 sm:px-4 shrink-0">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white font-bold text-xs">KB</div>
+          <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
           <span className="font-bold hidden sm:inline">Kryzen</span>
           <span className="text-xs px-2 py-1 rounded-full bg-muted hidden sm:inline">Connect. Chat. Share.</span>
           <ServerStatus />
@@ -502,7 +536,7 @@ export default function ChatPage() {
               {id:'calls', icon: Phone, label:'Calls'},
               {id:'contacts', icon: Contact, label:'Contacts'},
               {id:'saved', icon: Bookmark, label:'Saved'},
-              {id:'ai', icon: Bot, label:'KB AI'},
+              {id:'ai', icon: Bot, label:'Kryzen AI'},
             ].map(item=> (
               <button key={item.id} onClick={()=>{
                 if (item.id==='status') { setShowStatus(true); setShowContacts(false); setShowSaved(false); setShowCalls(false) }
@@ -586,7 +620,7 @@ export default function ChatPage() {
         <section className={`${mobileView==='list' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-muted/20 ${settings.chat_wallpaper==='dots' ? 'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]' : settings.chat_wallpaper==='gradient' ? 'bg-gradient-to-br from-violet-500/5 to-indigo-500/5' : ''}`}>
           {currentConv ? (
             <DragDropZone onFilesUploaded={(ids)=> { if(ids.length>0) handleSend('', ids) }}>
-              <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} handleRefresh={handleRefresh} />
+              <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} handleRefresh={handleRefresh} onAi={toggleAiPanel} />
               {typingNames && <div className="px-4 py-1 text-xs text-muted-foreground bg-card border-b">{typingNames} is typing...</div>}
               {selectedIds.size>0 && (
                 <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">
@@ -669,10 +703,32 @@ export default function ChatPage() {
                 <div className="mx-2 mb-2 p-3 rounded-xl bg-violet-500/5 border border-violet-500/20 flex items-start gap-3 slide-up">
                   <div className="shrink-0 w-8 h-8 rounded-lg bg-violet-500/10 flex items-center justify-center"><Bot className="w-4 h-4 text-violet-500"/></div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-[11px] text-violet-500 font-medium mb-1 uppercase tracking-wide">KB AI · {aiResult.action}</p>
+                    <p className="text-[11px] text-violet-500 font-medium mb-1 uppercase tracking-wide">Kryzen AI · {aiResult.action}</p>
                     <p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>
                   </div>
                   <button onClick={()=> setAiResult(null)} className="shrink-0 p-1 hover:bg-muted rounded"><X className="w-3.5 h-3.5"/></button>
+                </div>
+              )}
+              {aiPanelOpen && (
+                <div className="mt-3 p-4 rounded-xl bg-card border border-violet-200">
+                  <div className="flex flex-col gap-3">
+                    <div className="flex flex-col gap-2">
+                      <h4 className="font-semibold text-sm">AI Assistant</h4>
+                      <button onClick={closeAiPanel} className=" text-xs text-muted-foreground hover:text-violet-600">Close</button>
+                    </div>
+                    <p className="text-xs text-muted-placeholder">Choose an action:</p>
+                    <div className="flex flex-col gap-2">
+                      <button onClick={()=> { handleAiAction('summarize'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Summarize conversation</button>
+                      <button onClick={()=> { handleAiAction('explain'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Explain message</button>
+                      <button onClick={()=> { handleAiAction('translate'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Translate message</button>
+                      <button onClick={()=> { handleAiAction('rewrite'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Rewrite message</button>
+                      <button onClick={()=> { handleAiAction('reply'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Generate reply</button>
+                      <button onClick={()=> { handleAiAction('extract-tasks'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Extract tasks/action items</button>
+                      <button onClick={()=> { handleAiAction('unread-summary'); closeAiPanel(); }} className="py-2 px-3 rounded bg-violet-100 text-violet-800 text-sm hover:bg-violet-200">Summarize unread messages</button>
+                    </div>
+                    {aiLoading && <p className="text-xs text-muted-placeholder">Thinking...</p>}
+                    {aiError && <p className="text-xs text-destructive">Error: {aiError}</p>}
+                  </div>
                 </div>
               )}
               <MessageComposer
@@ -696,7 +752,7 @@ export default function ChatPage() {
               <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xl mb-4">
                 <MessageSquare className="w-8 h-8"/>
               </div>
-              <h3 className="font-semibold text-lg">Welcome to KB Chat</h3>
+              <h3 className="font-semibold text-lg">Welcome to Kryzen</h3>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">Select a conversation or start a new chat. Try <kbd className="px-1.5 py-0.5 rounded bg-muted border text-xs">Ctrl+K</kbd> to search.</p>
               <button onClick={()=> setShowUserSearch(true)} className="mt-6 px-5 py-2.5 rounded-full bg-primary text-primary-foreground font-medium">Start a new chat</button>
             </div>
