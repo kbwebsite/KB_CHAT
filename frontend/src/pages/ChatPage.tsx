@@ -480,7 +480,7 @@ export default function ChatPage() {
   const totalUnread = conversations.reduce((a,b)=> a+b.unread_count, 0)
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-background">
+    <div className="h-[100dvh] flex flex-col bg-background kryzen-app-shell">
       <header className="h-14 border-b bg-card flex items-center justify-between px-3 sm:px-4 shrink-0">
         <div className="flex items-center gap-2">
           <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
