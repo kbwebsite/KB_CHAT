@@ -14,14 +14,14 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
   const isOwnLast = last?.sender_id === currentUserId
 
   return (
-    <div className={`group relative w-full flex gap-3 p-3 rounded-xl text-left transition ${active ? 'bg-primary text-primary-foreground shadow-sm' : 'hover:bg-muted'} ${isPinned ? 'ring-1 ring-primary/20 bg-primary/5' : ''}`}>
+    <div className={`group relative w-full flex gap-3 p-3 rounded-xl text-left transition kryzen-conv-item ${active ? 'kryzen-conv-active' : ''} ${isPinned ? 'kryzen-conv-pinned' : ''}`}>
       {isPinned && <span className="absolute top-1 right-1"><Pin className="w-3 h-3 text-primary opacity-70" /></span>}
       <button onClick={onClick} className="flex gap-3 flex-1 min-w-0 text-left">
         <div className="relative shrink-0">
-          <div className={`w-11 h-11 rounded-full flex items-center justify-center overflow-hidden ${active ? 'bg-white/20' : 'bg-gradient-to-br from-violet-500 to-indigo-600 text-white'}`}>
-            {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : isGroup ? <Users className="w-5 h-5"/> : <span className="text-sm font-semibold">{initials(title)}</span>}
+          <div className={`w-11 h-11 rounded-full flex items-center justify-center overflow-hidden kryzen-avatar-ring ${active ? 'bg-white/20' : ''}`}>
+            {avatar ? <img src={avatar} alt="" className="w-full h-full object-cover" /> : isGroup ? <Users className="w-5 h-5 text-white"/> : <span className="text-sm font-semibold text-white">{initials(title)}</span>}
           </div>
-          {!isGroup && conv.members.some(m=>m.is_online) && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full animate-pulse" />}
+          {!isGroup && conv.members.some(m=>m.is_online) && <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-500 border-2 border-background rounded-full kryzen-online-dot" />}
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between items-center gap-2">
@@ -36,12 +36,12 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
               {isTyping ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (last.content?.slice(0,38) || '📎 Attachment') : isGroup ? `${conv.members.length} members` : 'Start conversation'}
             </p>
             <span className="flex items-center gap-1 shrink-0">
-              {hasUnread && <span className={`px-1.5 py-0.5 rounded-full text-[11px] font-bold leading-none ${active?'bg-white text-primary':'bg-primary text-primary-foreground'} ${isMuted ? 'opacity-60' : ''}`}>{conv.unread_count}</span>}
+              {hasUnread && <span className={`kryzen-unread-badge px-1.5 py-0.5 rounded-full text-[11px] font-bold leading-none ${isMuted ? 'opacity-60' : ''}`}>{conv.unread_count}</span>}
             </span>
           </div>
         </div>
       </button>
-      <div className="hidden group-hover:flex items-center gap-1 absolute right-1 top-1/2 -translate-y-1/2 bg-card border rounded-full p-1 shadow-md">
+      <div className="hidden group-hover:flex items-center gap-1 absolute right-1 top-1/2 -translate-y-1/2 kryzen-dropdown-glass rounded-full p-1 z-10">
         <button onClick={(e)=>{ e.stopPropagation(); onPin?.(conv.id)}} title={isPinned?"Unpin":"Pin"} className={`p-1 rounded-full hover:bg-muted ${isPinned?'text-primary':''}`}><Pin className="w-3.5 h-3.5"/></button>
         <button onClick={(e)=>{ e.stopPropagation(); onMute?.(conv.id)}} title={isMuted?"Unmute":"Mute"} className={`p-1 rounded-full hover:bg-muted ${isMuted?'text-amber-500':''}`}><BellOff className="w-3.5 h-3.5"/></button>
         <button onClick={(e)=>{ e.stopPropagation(); onArchive?.(conv.id)}} title={isArchived?"Unarchive":"Archive"} className="p-1 rounded-full hover:bg-muted"><Archive className="w-3.5 h-3.5"/></button>
@@ -56,7 +56,7 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
       <div className="p-3 shrink-0">
         <div className="relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-          <input value={search} onChange={e=>onSearch(e.target.value)} placeholder="Search conversations..." className="w-full pl-9 pr-3 py-2.5 rounded-xl bg-muted border border-transparent focus:border-primary focus:bg-background outline-none text-sm transition" />
+          <input value={search} onChange={e=>onSearch(e.target.value)} placeholder="Search conversations..." className="w-full pl-9 pr-3 py-2.5 rounded-xl kryzen-input-glass outline-none text-sm" />
         </div>
       </div>
       <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 space-y-1 scrollbar-thin min-h-0">

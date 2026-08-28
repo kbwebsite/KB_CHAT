@@ -94,7 +94,22 @@ export default function ChatPage() {
   const [aiSelectedMessage, setAiSelectedMessage]=useState<number|null>(null)
   const searchRef=useRef<HTMLInputElement>(null)
   const listRef=useRef<HTMLDivElement>(null)
+  const shellRef=useRef<HTMLDivElement>(null)
   const nav=useNavigate()
+  const [shellTilt, setShellTilt]=useState({x:0,y:0})
+
+  useEffect(()=>{
+    const onMove=(e:MouseEvent)=>{
+      if (window.innerWidth < 992) return
+      const cx = window.innerWidth / 2
+      const cy = window.innerHeight / 2
+      const dx = (e.clientX - cx) / cx
+      const dy = (e.clientY - cy) / cy
+      setShellTilt({ x: dy * -1.5, y: dx * 2 })
+    }
+    window.addEventListener('mousemove', onMove, {passive:true})
+    return ()=> window.removeEventListener('mousemove', onMove)
+  },[])
 
   const handleRefresh = async ()=> {
     if (showRefresh) return
@@ -480,34 +495,34 @@ export default function ChatPage() {
   const totalUnread = conversations.reduce((a,b)=> a+b.unread_count, 0)
 
   return (
-    <div className="h-[100dvh] flex flex-col bg-background kryzen-app-shell">
-      <header className="h-14 border-b bg-card flex items-center justify-between px-3 sm:px-4 shrink-0">
+    <div ref={shellRef} className="h-[100dvh] flex flex-col bg-background kryzen-app-shell" style={{transform: `perspective(1200px) rotateX(${shellTilt.x}deg) rotateY(${shellTilt.y}deg)`, transition:'transform 0.4s cubic-bezier(0.22,1,0.36,1)'}}>
+      <header className="h-14 border-b flex items-center justify-between px-3 sm:px-4 shrink-0 kryzen-header-glass">
         <div className="flex items-center gap-2">
-          <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
-          <span className="font-bold hidden sm:inline">Kryzen</span>
-          <span className="text-xs px-2 py-1 rounded-full bg-muted hidden sm:inline">Connect. Chat. Share.</span>
+          <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl kryzen-logo-glow" />
+          <span className="font-bold hidden sm:inline kryzen-gradient-text">Kryzen</span>
+          <span className="text-xs px-2 py-1 rounded-full bg-primary/10 text-primary hidden sm:inline font-medium">Connect. Chat. Share.</span>
           <ServerStatus />
         </div>
         <div className="flex items-center gap-0.5 sm:gap-1">
-          <button onClick={()=> { setShowNotifications(true); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="p-2 rounded-full hover:bg-muted relative" title="Notifications">
+          <button onClick={()=> { setShowNotifications(true); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="kryzen-icon-btn relative" title="Notifications">
             <Bell className="w-4 h-4"/>
-            {totalUnread>0 && <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center">{totalUnread}</span>}
+            {totalUnread>0 && <span className="absolute -top-0.5 -right-0.5 w-5 h-5 rounded-full bg-red-500 text-white text-[10px] flex items-center justify-center kryzen-badge-pulse">{totalUnread}</span>}
           </button>
-          <button onClick={()=> setShowMessageSearch(!showMessageSearch)} className="p-2 rounded-full hover:bg-muted" title="Search (Ctrl+K)"><Search className="w-4 h-4"/></button>
-          <button onClick={()=> { setShowSaved(true); setShowNotifications(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="hidden sm:flex p-2 rounded-full hover:bg-muted" title="Saved"><Bookmark className="w-4 h-4"/></button>
-          <button onClick={()=> { setShowProfile(true); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowSettings(false)}} className="p-1 rounded-full hover:bg-muted">
-            <div className="w-8 h-8 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xs font-bold">
-              {user?.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" alt=""/> : (user?.display_name?.[0] || 'U')}
+          <button onClick={()=> setShowMessageSearch(!showMessageSearch)} className="kryzen-icon-btn" title="Search (Ctrl+K)"><Search className="w-4 h-4"/></button>
+          <button onClick={()=> { setShowSaved(true); setShowNotifications(false); setShowContacts(false); setShowCalls(false); setShowProfile(false); setShowSettings(false)}} className="hidden sm:flex kryzen-icon-btn" title="Saved"><Bookmark className="w-4 h-4"/></button>
+          <button onClick={()=> { setShowProfile(true); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowSettings(false)}} className="kryzen-avatar-btn">
+            <div className="w-8 h-8 rounded-full overflow-hidden kryzen-avatar-ring">
+              {user?.avatar_url ? <img src={user.avatar_url} className="w-full h-full object-cover" alt=""/> : <span className="w-full h-full flex items-center justify-center bg-gradient-to-br from-violet-500 to-indigo-600 text-white text-xs font-bold">{user?.display_name?.[0] || 'U'}</span>}
             </div>
           </button>
-          <button onClick={()=> { setShowSettings(true); setShowProfile(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false)}} className="p-2 rounded-full hover:bg-muted"><SettingsIcon className="w-4 h-4"/></button>
-          <button onClick={async ()=>{ await logout(); nav('/login')}} className="p-2 rounded-full hover:bg-muted text-destructive"><LogOut className="w-4 h-4"/></button>
+          <button onClick={()=> { setShowSettings(true); setShowProfile(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false)}} className="kryzen-icon-btn"><SettingsIcon className="w-4 h-4"/></button>
+          <button onClick={async ()=>{ await logout(); nav('/login')}} className="kryzen-icon-btn text-destructive"><LogOut className="w-4 h-4"/></button>
         </div>
       </header>
 
       {showMessageSearch && (
-        <div className="border-b p-2 bg-card flex gap-2">
-          <input ref={searchRef} value={messageSearch} onChange={e=>setMessageSearch(e.target.value)} placeholder="Search messages (Enter to search, Esc to close)..." className="flex-1 px-3 py-2 rounded-xl bg-muted outline-none text-sm" autoFocus />
+        <div className="border-b p-2 flex gap-2 kryzen-search-bar">
+          <input ref={searchRef} value={messageSearch} onChange={e=>setMessageSearch(e.target.value)} placeholder="Search messages (Enter to search, Esc to close)..." className="flex-1 px-3 py-2 rounded-xl kryzen-input-glass outline-none text-sm" autoFocus />
           <button onClick={async ()=>{
             if (!messageSearch.trim()) return
             const msgs = await useChatStore.getState().searchMessages(messageSearch.trim(), currentConversationId || undefined)
@@ -526,9 +541,9 @@ export default function ChatPage() {
 
       <div className="flex-1 flex min-h-0 overflow-hidden keyboard-aware" style={{position: 'relative'}}>
         {/* Left sidebar with navigation icons + list */}
-        <div className={`${mobileView==='chat' ? 'hidden lg:flex' : 'flex'} w-full lg:w-[380px] shrink-0 border-r bg-card flex-col overflow-hidden min-h-0`}>
+        <div className={`${mobileView==='chat' ? 'hidden lg:flex' : 'flex'} w-full lg:w-[380px] shrink-0 border-r flex-col overflow-hidden min-h-0 kryzen-sidebar`}>
           {/* Icon nav */}
-          <div className="w-16 border-r bg-muted/20 hidden sm:flex flex-col items-center py-4 gap-3">
+          <div className="w-16 border-r border-[var(--k-border)]/40 hidden sm:flex flex-col items-center py-4 gap-3" style={{background:'hsl(var(--k-surface) / 0.5)'}}>
             {[
               {id:'chats', icon: MessageSquare, label:'Chats', count: conversations.length},
               {id:'status', icon: Contact, label:'Status'},
@@ -545,7 +560,7 @@ export default function ChatPage() {
                 else if (item.id==='saved') { setShowSaved(true); setShowContacts(false); setShowCalls(false); setShowStatus(false) }
                 else if (item.id==='calls') { setShowCalls(true); setShowContacts(false); setShowSaved(false); setShowStatus(false) }
                 else if (item.id==='ai') { nav('/ai') }
-              }} className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 ${(item.id==='status' && showStatus) || ((sidebarTab===item.id && !showContacts && !showSaved && !showCalls && !showStatus) || (item.id==='contacts' && showContacts) || (item.id==='saved' && showSaved) || (item.id==='calls' && showCalls)) ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`} title={item.label}>
+              }} className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 kryzen-nav-btn ${(item.id==='status' && showStatus) || ((sidebarTab===item.id && !showContacts && !showSaved && !showCalls && !showStatus) || (item.id==='contacts' && showContacts) || (item.id==='saved' && showSaved) || (item.id==='calls' && showCalls)) ? 'bg-primary text-primary-foreground kryzen-nav-active' : 'text-muted-foreground'}`} title={item.label}>
                 <item.icon className="w-5 h-5"/>
                 {item.count !== undefined && item.count>0 && <span className="text-[9px]">{item.count}</span>}
               </button>
@@ -621,7 +636,7 @@ export default function ChatPage() {
           {currentConv ? (
             <DragDropZone onFilesUploaded={(ids)=> { if(ids.length>0) handleSend('', ids) }}>
               <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} handleRefresh={handleRefresh} onAi={toggleAiPanel} />
-              {typingNames && <div className="px-4 py-1 text-xs text-muted-foreground bg-card border-b">{typingNames} is typing...</div>}
+              {typingNames && <div className="px-4 py-1 text-xs text-muted-foreground bg-card border-b flex items-center gap-1.5"><span className="font-medium">{typingNames}</span> is typing<span className="typing-dots"><span/><span/><span/></span></div>}
               {selectedIds.size>0 && (
                 <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">
                   <span>{selectedIds.size} selected</span>
@@ -749,20 +764,20 @@ export default function ChatPage() {
               )}
             </DragDropZone>
           ) : (
-            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
-              <div className="w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white shadow-xl mb-4">
+            <div className="flex-1 flex flex-col items-center justify-center p-8 text-center hero-entrance">
+              <div className="empty-state-icon w-20 h-20 rounded-[1.5rem] bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white mb-4">
                 <MessageSquare className="w-8 h-8"/>
               </div>
               <h3 className="font-semibold text-lg">Welcome to Kryzen</h3>
               <p className="text-sm text-muted-foreground mt-1 max-w-sm">Select a conversation or start a new chat. Try <kbd className="px-1.5 py-0.5 rounded bg-muted border text-xs">Ctrl+K</kbd> to search.</p>
-              <button onClick={()=> setShowUserSearch(true)} className="mt-6 px-5 py-2.5 rounded-full bg-primary text-primary-foreground font-medium">Start a new chat</button>
+              <button onClick={()=> setShowUserSearch(true)} className="mt-6 px-5 py-2.5 rounded-full kryzen-cta-primary text-white font-medium">Start a new chat</button>
             </div>
           )}
         </section>
 
         {/* Right panel */}
         {(showProfile || showGroupInfo || showSettings || showNotifications || showSaved || showContacts || showCalls || showPolls || showPinned || showEvents || showSchedule || showInsights) && (
-          <aside className="absolute inset-y-0 right-0 w-full sm:w-[380px] bg-card border-l shadow-2xl z-30 flex flex-col overflow-hidden min-h-0 lg:relative lg:inset-auto lg:w-[360px] xl:w-[380px] shrink-0">
+          <aside className="absolute inset-y-0 right-0 w-full sm:w-[380px] border-l z-30 flex flex-col overflow-hidden min-h-0 lg:relative lg:inset-auto lg:w-[360px] xl:w-[380px] shrink-0 kryzen-panel-glass">
             {showProfile && <ProfilePanel onClose={()=> setShowProfile(false)} />}
             {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={()=> setShowGroupInfo(false)} onUpdated={()=> fetchConversations()} />}
             {showSettings && <SettingsPanel onClose={()=> setShowSettings(false)} />}

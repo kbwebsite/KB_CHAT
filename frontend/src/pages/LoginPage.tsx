@@ -71,16 +71,16 @@ export default function LoginPage() {
   }, [])
 
   return (
-    <div className="min-h-screen flex">
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto">
-        <Link to="/" className="flex items-center gap-2 mb-8">
+    <div className="min-h-screen flex relative overflow-hidden">
+      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto relative z-10">
+        <Link to="/" className="flex items-center gap-2 mb-8 auth-form-entrance">
           <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
           <span className="font-bold landing-hero-title">Kryzen</span>
         </Link>
-        <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
-        <p className="text-muted-foreground mt-1">Sign in to continue to Kryzen.</p>
+        <h1 className="text-3xl font-bold tracking-tight auth-form-entrance">Welcome back</h1>
+        <p className="text-muted-foreground mt-1 auth-form-entrance">Sign in to continue to Kryzen.</p>
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-4">
+        <form onSubmit={handleSubmit} className="mt-8 space-y-4 auth-form-entrance">
           {error && <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
           <div>
             <label className="text-sm font-medium">Email or Username</label>
@@ -98,7 +98,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div className="mt-4">
+        <div className="mt-4 auth-form-entrance">
           <div className="relative">
             <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[var(--k-border)]/40"/></div>
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
@@ -115,10 +115,11 @@ export default function LoginPage() {
           </div>
         </div>
 
-        <p className="text-sm text-center text-muted-foreground mt-4">Don't have an account? <Link to="/signup" className="text-primary font-semibold hover:underline">Create one</Link></p>
+        <p className="text-sm text-center text-muted-foreground mt-4 auth-form-entrance">Don't have an account? <Link to="/signup" className="text-primary font-semibold hover:underline">Create one</Link></p>
       </div>
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 auth-hero-panel items-center justify-center p-12">
-        <div className="relative max-w-md text-white">
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 auth-hero-panel items-center justify-center p-12 relative overflow-hidden">
+        <div className="auth-mesh-bg" />
+        <div className="relative max-w-md text-white hero-entrance-delay">
           <MessageCircle className="w-12 h-12 mb-4 opacity-90" />
           <h2 className="text-3xl font-bold leading-tight">Every message,<br/>instantly delivered.</h2>
           <p className="mt-3 text-white/80">Join thousands who connect daily on Kryzen. Secure, fast, and beautifully simple.</p>

@@ -26,32 +26,32 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
   ]
 
   return (
-    <div className="border-b bg-card/80 backdrop-blur shrink-0">
+    <div className="border-b shrink-0 kryzen-header-glass">
       <div className="h-[64px] flex items-center justify-between px-3 sm:px-4">
         <div className="flex items-center gap-3 min-w-0">
-          {onBack && <button onClick={onBack} className="lg:hidden p-2 rounded-full hover:bg-muted"><ArrowLeft className="w-5 h-5"/></button>}
-          <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center bg-gradient-to-br from-violet-500 to-indigo-600 text-white shrink-0">
-            {conv.avatar_url ? <img src={conv.avatar_url} className="w-full h-full object-cover" alt="" /> : conv.is_group ? <Users className="w-5 h-5"/> : <span className="text-sm font-semibold">{initials(title)}</span>}
+          {onBack && <button onClick={onBack} className="lg:hidden kryzen-icon-btn"><ArrowLeft className="w-5 h-5"/></button>}
+          <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center kryzen-avatar-ring shrink-0">
+            {conv.avatar_url ? <img src={conv.avatar_url} className="w-full h-full object-cover" alt="" /> : conv.is_group ? <Users className="w-5 h-5 text-white"/> : <span className="text-sm font-semibold text-white bg-gradient-to-br from-violet-500 to-indigo-600 w-full h-full flex items-center justify-center">{initials(title)}</span>}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-sm leading-tight truncate">{title}</p>
             <p className={`text-xs truncate ${isOnline?'text-emerald-600 dark:text-emerald-400': 'text-muted-foreground'}`}>{conv.is_group? subtitle : (isOnline ? 'Online' : subtitle)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-1">
-          <button onClick={onSearch} className="p-2 rounded-full hover:bg-muted" title="Search (Ctrl+K)"><Search className="w-4 h-4"/></button>
-          <button onClick={onMute} className="p-2 rounded-full hover:bg-muted hidden sm:flex" title="Mute"><BellOff className="w-4 h-4"/></button>
-          <button onClick={()=> onCall?.('voice')} className="p-2 rounded-full hover:bg-muted" title="Voice call"><Phone className="w-4 h-4"/></button>
-          <button onClick={()=> onCall?.('video')} className="p-2 rounded-full hover:bg-muted" title="Video call"><Video className="w-4 h-4"/></button>
-          <button onClick={onInfo} className="p-2 rounded-full hover:bg-muted" title="Info"><MoreVertical className="w-4 h-4"/></button>
-          <button onClick={handleRefresh} className="p-2 rounded-full hover:bg-muted" title="Refresh"><RefreshCcw className="w-4 h-4"/></button>
-          <button onClick={onAi} className="p-2 rounded-full hover:bg-muted" title="AI Assistant"><Sparkles className="w-4 h-4"/></button>
+        <div className="flex items-center gap-0.5">
+          <button onClick={onSearch} className="kryzen-icon-btn" title="Search (Ctrl+K)"><Search className="w-4 h-4"/></button>
+          <button onClick={onMute} className="kryzen-icon-btn hidden sm:flex" title="Mute"><BellOff className="w-4 h-4"/></button>
+          <button onClick={()=> onCall?.('voice')} className="kryzen-icon-btn" title="Voice call"><Phone className="w-4 h-4"/></button>
+          <button onClick={()=> onCall?.('video')} className="kryzen-icon-btn" title="Video call"><Video className="w-4 h-4"/></button>
+          <button onClick={onInfo} className="kryzen-icon-btn" title="Info"><MoreVertical className="w-4 h-4"/></button>
+          <button onClick={handleRefresh} className="kryzen-icon-btn" title="Refresh"><RefreshCcw className="w-4 h-4"/></button>
+          <button onClick={onAi} className="kryzen-icon-btn kryzen-ai-btn" title="AI Assistant"><Sparkles className="w-4 h-4"/></button>
         </div>
       </div>
       {onTabChange && (
         <div className="flex gap-1 px-2 pb-2 overflow-x-auto scrollbar-none scroll-smooth snap-x">
           {tabs.map(t=> (
-            <button key={t.id} onClick={()=> onTabChange(t.id)} className={`px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 whitespace-nowrap snap-start shrink-0 ${activeTab===t.id ? 'bg-primary text-primary-foreground' : 'hover:bg-muted text-muted-foreground'}`}>
+            <button key={t.id} onClick={()=> onTabChange(t.id)} className={`kryzen-tab-pill px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-1.5 whitespace-nowrap snap-start shrink-0 ${activeTab===t.id ? 'active' : ''}`}>
               {t.icon && <t.icon className="w-3 h-3"/>}{t.label}
             </button>
           ))}

@@ -2,10 +2,47 @@ import { Link } from 'react-router-dom'
 import { MessageCircle, Users, Shield, Zap, Image as ImageIcon, Smartphone, ArrowRight } from 'lucide-react'
 import { useAuthStore } from '../store/auth'
 
+function Particles() {
+  const particles = Array.from({ length: 18 }, (_, i) => ({
+    id: i,
+    left: `${Math.random() * 100}%`,
+    size: 2 + Math.random() * 3,
+    duration: 12 + Math.random() * 18,
+    delay: Math.random() * 15,
+    color: i % 3 === 0 ? 'hsl(263 70% 65%)' : i % 3 === 1 ? 'hsl(199 89% 60%)' : 'hsl(340 75% 60%)',
+  }))
+  return (
+    <div className="particles-container">
+      {particles.map(p => (
+        <div
+          key={p.id}
+          className="particle"
+          style={{
+            left: p.left,
+            width: p.size,
+            height: p.size,
+            background: p.color,
+            animationDuration: `${p.duration}s`,
+            animationDelay: `${p.delay}s`,
+          }}
+        />
+      ))}
+    </div>
+  )
+}
+
 export default function LandingPage() {
   const { user } = useAuthStore()
   return (
-    <div className="min-h-screen flex flex-col">
+    <div className="min-h-screen flex flex-col relative overflow-hidden">
+      {/* Floating orbs background */}
+      <div className="landing-orbs">
+        <div className="landing-orb" />
+        <div className="landing-orb" />
+        <div className="landing-orb" />
+      </div>
+      <Particles />
+
       <header className="landing-header sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
@@ -26,43 +63,43 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main className="flex-1">
+      <main className="flex-1 relative z-10">
         <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">Fast • Secure • Modern</div>
-              <h1 className="mt-4 text-4xl sm:text-5xl font-extrabold leading-[0.95] tracking-tight landing-hero-title" style={{fontFamily:'Plus Jakarta Sans, Inter, sans-serif'}}>
+              <div className="hero-entrance inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">Fast • Secure • Modern</div>
+              <h1 className="mt-4 text-4xl sm:text-5xl font-extrabold leading-[0.95] tracking-tight hero-entrance-delay gradient-text-animated" style={{fontFamily:'Plus Jakarta Sans, Inter, sans-serif'}}>
                 Kryzen<br/>
                 Connect. Chat. Share.
               </h1>
-              <p className="mt-4 text-lg text-muted-foreground leading-relaxed">A fast, modern messaging platform built for simple and meaningful communication. Real-time, private, and beautifully crafted.</p>
-              <div className="mt-8 flex flex-wrap gap-3">
+              <p className="mt-4 text-lg text-muted-foreground leading-relaxed hero-entrance-delay-2">A fast, modern messaging platform built for simple and meaningful communication. Real-time, private, and beautifully crafted.</p>
+              <div className="mt-8 flex flex-wrap gap-3 hero-entrance-delay-3">
                 <Link to={user?"/chat":"/signup"} className="landing-cta-primary px-7 py-3 rounded-full text-white font-semibold flex items-center gap-2">Get Started <ArrowRight className="w-4 h-4"/></Link>
                 <Link to="/login" className="landing-cta-secondary px-7 py-3 rounded-full font-semibold">Sign In</Link>
               </div>
-              <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground">
+              <div className="mt-6 flex items-center gap-4 text-xs text-muted-foreground hero-entrance-delay-4">
                 <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/> End-to-end ready architecture</span>
                 <span>•</span><span>No ads • No trackers</span>
               </div>
             </div>
-            <div className="relative">
+            <div className="relative hero-entrance-delay-2">
               <div className="absolute -inset-4 bg-gradient-to-br from-primary/15 to-accent/10 rounded-[2rem] blur-2xl" />
-              <div className="landing-preview-card overflow-hidden">
+              <div className="landing-preview-card preview-glow preview-float overflow-hidden relative z-10">
                 <div className="h-12 flex items-center gap-2 px-4 border-b border-[var(--k-border)]/50" style={{background:'hsl(var(--k-surface) / 0.8)'}}>
                   <span className="w-3 h-3 rounded-full bg-red-400"/><span className="w-3 h-3 rounded-full bg-yellow-400"/><span className="w-3 h-3 rounded-full bg-green-400"/>
                   <span className="ml-3 text-xs font-medium text-muted-foreground">Kryzen — Preview</span>
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-500" />
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 shadow-md" />
                     <div className="landing-preview-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Hey! Are we still meeting tomorrow?</p><p className="text-[11px] text-muted-foreground mt-1">10:42 AM</p></div>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <div className="landing-preview-msg-out text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Absolutely! Can't wait</p><p className="text-[11px] text-white/70 mt-1 text-right">10:43 AM ✓✓</p></div>
                   </div>
                   <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500" />
-                    <div className="landing-preview-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Check this design I made ✨</p><div className="mt-2 w-40 h-24 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs">Image Preview</div></div>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 shadow-md" />
+                    <div className="landing-preview-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Check this design I made ✨</p><div className="mt-2 w-40 h-24 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs shadow-inner">Image Preview</div></div>
                   </div>
                   <div className="flex gap-2 justify-end">
                     <div className="landing-preview-msg-out text-white rounded-2xl rounded-br-md px-4 py-2.5"><p className="text-sm">Love it! ❤️</p></div>
@@ -78,7 +115,7 @@ export default function LandingPage() {
         </section>
 
         <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-in">
             {[
               {icon: Zap, title:'Real-time messaging', desc:'Instant delivery with typing indicators, read receipts and presence.'},
               {icon: Users, title:'Groups', desc:'Create groups, manage roles, add members and collaborate.'},
@@ -97,7 +134,7 @@ export default function LandingPage() {
         </section>
       </main>
 
-      <footer className="border-t border-[var(--k-border)]/40 py-8 text-center text-xs text-muted-foreground">
+      <footer className="border-t border-[var(--k-border)]/40 py-8 text-center text-xs text-muted-foreground relative z-10">
         <p>© 2026 Kryzen • Connect. Chat. Share. • Built with FastAPI + React • Not affiliated with WhatsApp.</p>
       </footer>
     </div>

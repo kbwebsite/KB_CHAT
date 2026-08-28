@@ -119,9 +119,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   return (
-    <div className="composer border-t bg-card p-2 sm:p-3 pb-[max(8px,env(safe-area-inset-bottom))] shrink-0">
+    <div className="composer border-t p-2 sm:p-3 pb-[max(8px,env(safe-area-inset-bottom))] shrink-0 kryzen-composer-glass">
       {replyTo && (
-        <div className="flex items-center justify-between bg-muted rounded-xl px-3 py-2 mb-2 text-xs">
+        <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 text-xs kryzen-reply-bar">
           <div className="min-w-0">
             <p className="font-semibold text-primary">Replying to {replyTo.sender}</p>
             <p className="truncate text-muted-foreground">{replyTo.content}</p>
@@ -143,15 +143,15 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {uploadError && <div className="mb-2 p-2 rounded-lg bg-destructive/10 text-destructive text-xs flex justify-between"><span>{uploadError}</span><button onClick={()=> setUploadError(null)} className="ml-2 underline">Dismiss</button></div>}
       <div className="flex items-end gap-1.5 sm:gap-2">
         <div className="flex gap-0.5 sm:gap-1 shrink-0">
-          <button onClick={()=> fileRef.current?.click()} disabled={uploading} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition disabled:opacity-50" title="Attach file">
-            <Paperclip className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+          <button onClick={()=> fileRef.current?.click()} disabled={uploading} className="kryzen-icon-btn disabled:opacity-50" title="Attach file">
+            <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm" multiple />
-          <button onClick={()=> setShowEmoji(!showEmoji)} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition" title="Emoji">
-            <Smile className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+          <button onClick={()=> setShowEmoji(!showEmoji)} className="kryzen-icon-btn" title="Emoji">
+            <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-          <button onClick={()=> { setShowStickers(!showStickers); setShowEmoji(false) }} className="p-2 sm:p-2.5 rounded-xl hover:bg-muted transition" title="Stickers">
-            <Image className="w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
+          <button onClick={()=> { setShowStickers(!showStickers); setShowEmoji(false) }} className="kryzen-icon-btn" title="Stickers">
+            <Image className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <div className="hidden sm:block"><VoiceRecorder onSend={handleVoiceSend} /></div>
           <div className="sm:hidden flex items-center"><VoiceRecorder onSend={handleVoiceSend} /></div>
@@ -163,13 +163,13 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             rows={1}
-            className="w-full max-h-32 min-h-[44px] py-3 px-4 pr-12 rounded-2xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none resize-none text-sm leading-5 placeholder:text-muted-foreground/70"
+            className="w-full max-h-32 min-h-[44px] py-3 px-4 pr-12 rounded-2xl kryzen-input-glass outline-none resize-none text-sm leading-5 placeholder:text-muted-foreground/70"
             disabled={disabled || uploading}
           />
           <button
             onClick={handleSend}
             disabled={!text.trim() || uploading}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 hover:bg-primary/90 transition"
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full kryzen-send-btn flex items-center justify-center disabled:opacity-40"
             title="Send"
           >
             <Send className="w-4 h-4 ml-0.5" />
