@@ -75,39 +75,39 @@ export default function LoginPage() {
       <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto">
         <Link to="/" className="flex items-center gap-2 mb-8">
           <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
-          <span className="font-bold">Kryzen</span>
+          <span className="font-bold landing-hero-title">Kryzen</span>
         </Link>
         <h1 className="text-3xl font-bold tracking-tight">Welcome back</h1>
         <p className="text-muted-foreground mt-1">Sign in to continue to Kryzen.</p>
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-4">
-          {error && <div className="p-3 rounded-xl bg-destructive/10 text-destructive text-sm">{error}</div>}
+          {error && <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
           <div>
             <label className="text-sm font-medium">Email or Username</label>
-            <input value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com or username" className="mt-1 w-full px-4 py-3 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm" />
+            <input value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com or username" className="auth-input mt-1 w-full px-4 py-3 outline-none text-sm" />
           </div>
           <div>
             <label className="text-sm font-medium">Password</label>
             <div className="relative mt-1">
-              <input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" className="w-full px-4 py-3 pr-10 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm" />
-              <button type="button" onClick={()=>setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground">{show? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
+              <input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" className="auth-input w-full px-4 py-3 pr-10 outline-none text-sm" />
+              <button type="button" onClick={()=>setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors">{show? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
             </div>
           </div>
-          <button disabled={loading} className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold hover:bg-primary/90 disabled:opacity-50 shadow-lg shadow-primary/20">
+          <button disabled={loading} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
         <div className="mt-4">
           <div className="relative">
-            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-border"/></div>
+            <div className="absolute inset-0 flex items-center"><div className="w-full border-t border-[var(--k-border)]/40"/></div>
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
           </div>
           <div className="mt-4">
             {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
               <div ref={googleBtnRef} className="w-full flex justify-center"/>
             ) : (
-              <button disabled className="w-full py-3 rounded-xl border border-border bg-card text-sm text-muted-foreground opacity-50 cursor-not-allowed">
+              <button disabled className="auth-google-btn w-full py-3 rounded-xl text-sm text-muted-foreground cursor-not-allowed">
                 Google Sign-In (not configured)
               </button>
             )}
@@ -117,13 +117,12 @@ export default function LoginPage() {
 
         <p className="text-sm text-center text-muted-foreground mt-4">Don't have an account? <Link to="/signup" className="text-primary font-semibold hover:underline">Create one</Link></p>
       </div>
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 relative overflow-hidden items-center justify-center p-12">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_120%,rgba(255,255,255,0.15),transparent_50%)]" />
+      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 auth-hero-panel items-center justify-center p-12">
         <div className="relative max-w-md text-white">
           <MessageCircle className="w-12 h-12 mb-4 opacity-90" />
           <h2 className="text-3xl font-bold leading-tight">Every message,<br/>instantly delivered.</h2>
           <p className="mt-3 text-white/80">Join thousands who connect daily on Kryzen. Secure, fast, and beautifully simple.</p>
-          <div className="mt-8 p-4 rounded-2xl bg-white/10 backdrop-blur border border-white/15">
+          <div className="mt-8 p-4 rounded-2xl auth-hero-quote">
             <p className="text-sm text-white/90">"Kryzen feels like the messaging app we always wanted — clean, fast, no clutter."</p>
             <p className="text-xs text-white/60 mt-2">— Early user</p>
           </div>

@@ -228,39 +228,39 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       <div className="absolute inset-0 bg-black/40 pointer-events-none"/>
 
       {/* local preview */}
-      <video ref={localRef} autoPlay muted playsInline className={`absolute ${type==='video' ? 'top-4 right-4 w-32 h-24' : 'hidden'} rounded-xl bg-black object-cover border border-white/10 shadow-lg z-10`} />
+      <video ref={localRef} autoPlay muted playsInline className={`absolute ${type==='video' ? 'top-4 right-4 w-32 h-24 call-local-video' : 'hidden'} bg-black object-cover z-10`} />
 
       <div className="relative z-10 flex flex-col items-center gap-4">
         {!connected && (
           <>
-            <div className="w-28 h-28 rounded-full overflow-hidden bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-3xl font-bold shadow-xl">
+            <div className="call-avatar-ring w-28 h-28 rounded-full overflow-hidden bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-3xl font-bold shadow-xl">
               {peerAvatar ? <img src={peerAvatar} alt="" className="w-full h-full object-cover"/> : peerName[0]?.toUpperCase()}
             </div>
-            <h2 className="text-2xl font-semibold">{peerName}</h2>
-            <p className="text-sm text-white/70">{statusText} {connected ? '' : !isCallerRef.current ? '' : `• ${format(elapsed)}`}</p>
+            <h2 className="text-2xl font-semibold tracking-tight">{peerName}</h2>
+            <p className="text-sm text-white/60">{statusText} {connected ? '' : !isCallerRef.current ? '' : `• ${format(elapsed)}`}</p>
           </>
         )}
         {connected && type==='voice' && (
           <>
-            <div className="w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
-              <div className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center text-xl font-bold">{peerName[0]}</div>
+            <div className="call-connected-avatar w-20 h-20 rounded-full bg-emerald-500/20 flex items-center justify-center">
+              <div className="w-16 h-16 rounded-full bg-emerald-500 flex items-center justify-center text-xl font-bold shadow-lg">{peerName[0]}</div>
             </div>
-            <p className="text-sm text-white/60">On call • {format(elapsed)}</p>
+            <p className="text-sm text-white/60 call-status-glow">On call • {format(elapsed)}</p>
           </>
         )}
-        {permissionError && <p className="text-xs bg-red-500/20 border border-red-500/30 px-3 py-1.5 rounded-full max-w-sm text-center">{permissionError}</p>}
-        {!permissionError && type==='video' && !connected && <p className="text-xs text-white/50">Waiting for answer...</p>}
+        {permissionError && <p className="text-xs bg-red-500/15 border border-red-500/25 px-3 py-1.5 rounded-full max-w-sm text-center">{permissionError}</p>}
+        {!permissionError && type==='video' && !connected && <p className="text-xs text-white/40">Waiting for answer...</p>}
       </div>
 
       <div className="relative z-10 mt-10 flex items-center gap-4">
-        <button onClick={()=> setMicOn(!micOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors active:scale-95 ${micOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
-        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors active:scale-95 ${camOn ? 'bg-white/10 hover:bg-white/20' : 'bg-red-500 hover:bg-red-600'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
+        <button onClick={()=> setMicOn(!micOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${micOn ? '' : 'muted'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
+        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${camOn ? '' : 'muted'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
         {hasAccepted ? (
-          <button onClick={onEnd} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
+          <button onClick={onEnd} className="call-btn-end w-16 h-16 rounded-full flex items-center justify-center"><PhoneOff className="w-7 h-7"/></button>
         ) : (
           <>
-            <button onClick={onReject} className="w-16 h-16 rounded-full bg-red-600 hover:bg-red-700 flex items-center justify-center shadow-lg transition-colors active:scale-95"><PhoneOff className="w-7 h-7"/></button>
-            <button onClick={()=>{ setHasAccepted(true); onAccept?.() }} className="w-16 h-16 rounded-full bg-emerald-500 hover:bg-emerald-600 flex items-center justify-center shadow-lg transition-colors active:scale-95"><Phone className="w-7 h-7"/></button>
+            <button onClick={onReject} className="call-btn-end w-16 h-16 rounded-full flex items-center justify-center"><PhoneOff className="w-7 h-7"/></button>
+            <button onClick={()=>{ setHasAccepted(true); onAccept?.() }} className="call-btn-accept w-16 h-16 rounded-full flex items-center justify-center"><Phone className="w-7 h-7"/></button>
           </>
         )}
       </div>

@@ -1069,4 +1069,347 @@ div.absolute.hidden.group-hover\:flex {
 /* --- Performance: will-change only on animating elements --- */
 body::after, #root::before { will-change: transform; }
 
+/* ========================================================================
+   KRYZEN PREMIUM 3D — Non-chat pages: Landing, Login, Signup, Settings, Call
+   ======================================================================== */
+
+/* --- Landing page glass header --- */
+.landing-header {
+  background: hsl(var(--k-glass-strong)) !important;
+  backdrop-filter: blur(20px) saturate(170%);
+  -webkit-backdrop-filter: blur(20px) saturate(170%);
+  border-bottom: 1px solid hsl(var(--k-border) / 0.6) !important;
+  box-shadow: var(--kryzen-shadow-sm);
+}
+.landing-header:hover {
+  box-shadow: var(--kryzen-shadow-md);
+}
+
+/* --- Landing hero gradient text --- */
+.landing-hero-title {
+  background: linear-gradient(135deg, hsl(263 70% 72%), hsl(199 89% 64%));
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* --- Landing feature cards --- */
+.landing-feature-card {
+  background: hsl(var(--k-surface) / 0.72);
+  border: 1px solid hsl(var(--k-border) / 0.6);
+  border-radius: var(--kryzen-radius);
+  backdrop-filter: blur(14px) saturate(150%);
+  -webkit-backdrop-filter: blur(14px) saturate(150%);
+  box-shadow: var(--kryzen-shadow-sm);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  position: relative;
+  overflow: hidden;
+}
+.landing-feature-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(260px 140px at 18% 0%, hsl(0 0% 100% / 0.06), transparent 55%);
+  opacity: 0;
+  transition: opacity 220ms ease;
+  pointer-events: none;
+}
+.landing-feature-card:hover::before { opacity: 1; }
+.landing-feature-card:hover {
+  transform: translateY(-3px) translateZ(4px);
+  box-shadow: var(--kryzen-shadow-md);
+  border-color: hsl(var(--k-primary) / 0.2);
+}
+.landing-feature-card .icon-wrap {
+  background: linear-gradient(135deg, hsl(263 70% 65% / 0.12), hsl(199 89% 60% / 0.08));
+  box-shadow: 0 2px 8px hsl(263 70% 65% / 0.1);
+}
+
+/* --- Landing preview card --- */
+.landing-preview-card {
+  background: hsl(var(--k-surface) / 0.85);
+  border: 1px solid hsl(var(--k-border) / 0.7);
+  border-radius: 28px;
+  backdrop-filter: blur(22px) saturate(160%);
+  -webkit-backdrop-filter: blur(22px) saturate(160%);
+  box-shadow:
+    0 24px 60px hsl(224 40% 6% / 0.45),
+    0 8px 24px hsl(224 40% 6% / 0.35),
+    0 0 0 1px hsl(0 0% 100% / 0.04) inset,
+    0 1px 0 hsl(0 0% 100% / 0.06) inset;
+  position: relative;
+}
+.landing-preview-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(400px 180px at 20% 0%, hsl(0 0% 100% / 0.05), transparent 55%);
+  pointer-events: none;
+}
+.landing-preview-msg-in {
+  background: hsl(var(--k-surface-2) / 0.9) !important;
+  backdrop-filter: blur(8px);
+  border: 1px solid hsl(var(--k-border) / 0.5);
+}
+.landing-preview-msg-out {
+  background: linear-gradient(135deg, hsl(263 70% 65%), hsl(262 83% 58%)) !important;
+  box-shadow: 0 2px 10px hsl(263 70% 65% / 0.3);
+}
+
+/* --- Landing CTA buttons --- */
+.landing-cta-primary {
+  background: linear-gradient(135deg, hsl(263 70% 65%), hsl(262 83% 58%));
+  box-shadow: 0 8px 24px hsl(263 70% 65% / 0.3), 0 4px 12px hsl(224 40% 6% / 0.2);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease;
+}
+.landing-cta-primary:hover {
+  transform: translateY(-2px) translateZ(3px);
+  box-shadow: 0 12px 32px hsl(263 70% 65% / 0.4), 0 6px 16px hsl(224 40% 6% / 0.25);
+}
+.landing-cta-primary:active { transform: scale(0.97); }
+.landing-cta-secondary {
+  background: hsl(var(--k-surface) / 0.72);
+  border: 1px solid hsl(var(--k-border) / 0.6);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.landing-cta-secondary:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--kryzen-shadow-sm);
+  border-color: hsl(var(--k-primary) / 0.2);
+}
+
+/* --- Auth pages (Login/Signup) glass form card --- */
+.auth-form-card {
+  background: hsl(var(--k-surface) / 0.6);
+  border: 1px solid hsl(var(--k-border) / 0.5);
+  border-radius: var(--kryzen-radius-lg);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow:
+    0 20px 50px hsl(224 40% 6% / 0.35),
+    0 8px 20px hsl(224 40% 6% / 0.25),
+    0 0 0 1px hsl(0 0% 100% / 0.04) inset;
+  position: relative;
+  overflow: hidden;
+}
+.auth-form-card::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(400px 200px at 20% 0%, hsl(0 0% 100% / 0.05), transparent 55%);
+  pointer-events: none;
+}
+.auth-input {
+  background: hsl(var(--k-surface-2) / 0.8) !important;
+  border: 1px solid hsl(var(--k-border) / 0.4) !important;
+  border-radius: 14px;
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+}
+.auth-input:focus {
+  background: hsl(var(--k-surface) / 0.95) !important;
+  border-color: hsl(var(--k-primary) / 0.5) !important;
+  box-shadow: 0 0 0 3px hsl(263 70% 65% / 0.12), 0 4px 12px hsl(224 40% 6% / 0.1);
+}
+.auth-submit-btn {
+  background: linear-gradient(135deg, hsl(263 70% 65%), hsl(262 83% 58%));
+  box-shadow: 0 6px 20px hsl(263 70% 65% / 0.3), 0 3px 8px hsl(224 40% 6% / 0.2);
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease;
+}
+.auth-submit-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 28px hsl(263 70% 65% / 0.38), 0 5px 14px hsl(224 40% 6% / 0.22);
+}
+.auth-submit-btn:active { transform: scale(0.97); }
+.auth-google-btn {
+  background: hsl(var(--k-surface) / 0.6);
+  border: 1px solid hsl(var(--k-border) / 0.5);
+  backdrop-filter: blur(10px);
+  transition: transform 160ms ease, box-shadow 160ms ease, border-color 160ms ease;
+}
+.auth-google-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--kryzen-shadow-sm);
+  border-color: hsl(var(--k-border) / 0.7);
+}
+
+/* --- Auth right panel (login/signup hero) --- */
+.auth-hero-panel {
+  position: relative;
+  overflow: hidden;
+}
+.auth-hero-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(600px 400px at 30% 20%, hsl(0 0% 100% / 0.08), transparent 55%),
+    radial-gradient(500px 400px at 70% 80%, hsl(199 89% 60% / 0.12), transparent 60%);
+  pointer-events: none;
+}
+.auth-hero-quote {
+  background: hsl(0 0% 100% / 0.08);
+  border: 1px solid hsl(0 0% 100% / 0.12);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* --- Settings panel premium sections --- */
+.settings-section {
+  background: hsl(var(--k-surface) / 0.5);
+  border: 1px solid hsl(var(--k-border) / 0.4);
+  border-radius: var(--kryzen-radius);
+  padding: 16px;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: border-color 200ms ease;
+}
+.settings-section:hover {
+  border-color: hsl(var(--k-primary) / 0.15);
+}
+.settings-toggle {
+  appearance: none;
+  width: 38px;
+  height: 22px;
+  background: hsl(var(--k-border));
+  border-radius: 999px;
+  position: relative;
+  cursor: pointer;
+  transition: background 200ms ease;
+  flex-shrink: 0;
+}
+.settings-toggle::after {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: white;
+  border-radius: 50%;
+  box-shadow: 0 1px 4px hsl(224 40% 6% / 0.3);
+  transition: transform 200ms cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.settings-toggle:checked {
+  background: hsl(var(--k-primary));
+}
+.settings-toggle:checked::after {
+  transform: translateX(16px);
+}
+.settings-accent-dot {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid transparent;
+  transition: transform 180ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 180ms ease, border-color 180ms ease;
+  position: relative;
+}
+.settings-accent-dot:hover {
+  transform: scale(1.15);
+}
+.settings-accent-dot.active {
+  border-color: hsl(var(--k-text));
+  box-shadow: 0 0 0 3px hsl(var(--k-primary) / 0.3), 0 2px 8px hsl(224 40% 6% / 0.25);
+  transform: scale(1.1);
+}
+.settings-wallpaper-btn {
+  border: 1px solid hsl(var(--k-border) / 0.4);
+  border-radius: 14px;
+  transition: transform 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.settings-wallpaper-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--kryzen-shadow-sm);
+}
+.settings-wallpaper-btn.active {
+  border-color: hsl(var(--k-primary));
+  box-shadow: 0 0 0 2px hsl(var(--k-primary) / 0.2);
+}
+.settings-logout-btn {
+  background: linear-gradient(135deg, hsl(0 72% 51%), hsl(0 84% 60%));
+  box-shadow: 0 4px 16px hsl(0 72% 51% / 0.25);
+  transition: transform 180ms ease, box-shadow 180ms ease;
+}
+.settings-logout-btn:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 24px hsl(0 72% 51% / 0.35);
+}
+.settings-logout-btn:active { transform: scale(0.97); }
+
+/* --- Call modal premium depth --- */
+.call-avatar-ring {
+  position: relative;
+  border-radius: 50%;
+}
+.call-avatar-ring::before {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, hsl(263 70% 65% / 0.5), hsl(199 89% 60% / 0.4), hsl(263 70% 65% / 0.5));
+  filter: blur(8px);
+  opacity: 0.6;
+  animation: kryzenCallRingPulse 3s ease-in-out infinite;
+}
+@keyframes kryzenCallRingPulse {
+  0%, 100% { opacity: 0.5; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(1.04); }
+}
+.call-status-glow {
+  text-shadow: 0 0 12px hsl(142 76% 36% / 0.4);
+}
+.call-btn-mic {
+  background: hsl(0 0% 100% / 0.08);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  backdrop-filter: blur(10px);
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), background 160ms ease, box-shadow 160ms ease;
+}
+.call-btn-mic:hover {
+  background: hsl(0 0% 100% / 0.14);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px hsl(224 40% 6% / 0.2);
+}
+.call-btn-mic.muted {
+  background: hsl(0 72% 51% / 0.85);
+  border-color: hsl(0 72% 51% / 0.3);
+}
+.call-btn-end {
+  background: linear-gradient(135deg, hsl(0 72% 51%), hsl(0 84% 60%));
+  box-shadow: 0 6px 20px hsl(0 72% 51% / 0.4), 0 2px 8px hsl(224 40% 6% / 0.3);
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 160ms ease;
+}
+.call-btn-end:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 10px 28px hsl(0 72% 51% / 0.5), 0 4px 12px hsl(224 40% 6% / 0.3);
+}
+.call-btn-end:active { transform: scale(0.95); }
+.call-btn-accept {
+  background: linear-gradient(135deg, hsl(142 76% 36%), hsl(160 70% 40%));
+  box-shadow: 0 6px 20px hsl(142 76% 36% / 0.4), 0 2px 8px hsl(224 40% 6% / 0.3);
+  transition: transform 160ms cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 160ms ease;
+}
+.call-btn-accept:hover {
+  transform: translateY(-2px) scale(1.04);
+  box-shadow: 0 10px 28px hsl(142 76% 36% / 0.5), 0 4px 12px hsl(224 40% 6% / 0.3);
+}
+.call-btn-accept:active { transform: scale(0.95); }
+.call-local-video {
+  border-radius: 16px !important;
+  box-shadow: 0 8px 24px hsl(224 40% 6% / 0.45), 0 0 0 1px hsl(0 0% 100% / 0.08);
+  border: 1px solid hsl(0 0% 100% / 0.1);
+}
+/* Connected voice call avatar pulse */
+.call-connected-avatar {
+  animation: kryzenCallConnected 2.5s ease-in-out infinite;
+}
+@keyframes kryzenCallConnected {
+  0%, 100% { box-shadow: 0 0 0 0 hsl(142 76% 36% / 0.3); }
+  50% { box-shadow: 0 0 0 8px hsl(142 76% 36% / 0); }
+}
+
 
