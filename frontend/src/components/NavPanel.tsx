@@ -63,7 +63,7 @@ export function NavPanel({
 
       {/* Premium Card */}
       <div className="mx-3 mb-3">
-        <div className="premium-card">
+        <div className="premium-card shimmer">
           <div className="flex items-center gap-2 mb-2">
             <div className="w-8 h-8 rounded-lg gradient-primary flex items-center justify-center">
               <Crown className="w-4 h-4 text-white" />

@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -15,6 +15,8 @@ class ReactionCreate(BaseModel):
     emoji: str = Field(..., min_length=1, max_length=10)
 
 class AttachmentOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     filename: str
     original_filename: str
@@ -22,19 +24,17 @@ class AttachmentOut(BaseModel):
     file_size: int
     mime_type: str
 
-    class Config:
-        from_attributes = True
-
 class ReactionOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     username: Optional[str] = None
     emoji: str
 
-    class Config:
-        from_attributes = True
-
 class MessageOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     conversation_id: int
     sender_id: Optional[int] = None
@@ -52,6 +52,3 @@ class MessageOut(BaseModel):
     attachments: List[AttachmentOut] = []
     reactions: List[ReactionOut] = []
     status: str = "sent"  # sending, sent, delivered, read
-
-    class Config:
-        from_attributes = True

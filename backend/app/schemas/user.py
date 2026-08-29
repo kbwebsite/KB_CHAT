@@ -1,4 +1,4 @@
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 
@@ -39,6 +39,8 @@ class UserUpdate(BaseModel):
     avatar_url: Optional[str] = None
 
 class UserPublic(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     username: str
     display_name: str
@@ -47,9 +49,6 @@ class UserPublic(BaseModel):
     is_online: bool = False
     last_seen: Optional[datetime] = None
     created_at: Optional[datetime] = None
-
-    class Config:
-        from_attributes = True
 
 class UserPrivate(UserPublic):
     email: str

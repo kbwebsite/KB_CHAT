@@ -190,6 +190,27 @@ body {
   30% { transform: translateY(-4px); opacity: 1; }
 }
 
+@keyframes auroraDrift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); opacity: 0.8; }
+  33% { transform: translate3d(-10px, -8px, 0) scale(1.03); opacity: 1; }
+  66% { transform: translate3d(8px, -4px, 0) scale(0.98); opacity: 0.9; }
+}
+
+@keyframes orbFloat {
+  0%, 100% { transform: translate3d(0,0,0); }
+  50% { transform: translate3d(0,-12px,0); }
+}
+
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(200%); }
+}
+
+@keyframes borderGlow {
+  0%, 100% { border-color: hsl(262 83% 58% / 0.2); }
+  50% { border-color: hsl(262 83% 58% / 0.4); }
+}
+
 .animate-fade-in { animation: fadeIn 0.3s ease; }
 .animate-slide-up { animation: slideUp 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
 .animate-slide-in-right { animation: slideInRight 0.3s cubic-bezier(0.22, 1, 0.36, 1); }
@@ -197,6 +218,7 @@ body {
 .animate-scale-in { animation: scaleIn 0.25s cubic-bezier(0.22, 1, 0.36, 1); }
 .animate-float { animation: float 3s ease-in-out infinite; }
 .animate-glow { animation: glow 2s ease-in-out infinite; }
+.animate-aurora { animation: auroraDrift 12s ease-in-out infinite; }
 
 /* ═══════════════════════════════════════════════════════════════
    BUTTONS
@@ -436,19 +458,34 @@ body {
 .feature-card {
   padding: 20px;
   border-radius: 16px;
-  background: hsl(222 40% 8% / 0.6);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: hsl(222 40% 8% / 0.65);
+  backdrop-filter: blur(16px) saturate(150%);
+  -webkit-backdrop-filter: blur(16px) saturate(150%);
   border: 1px solid hsl(222 25% 16% / 0.8);
   text-align: center;
-  transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: all 0.4s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: default;
+  transform-style: preserve-3d;
+  will-change: transform;
+  position: relative;
 }
 .feature-card:hover {
-  transform: translateY(-4px);
-  border-color: hsl(262 83% 58% / 0.3);
-  box-shadow: 0 8px 24px hsl(0 0% 0% / 0.2);
+  transform: translateY(-6px) translateZ(10px) scale(1.02);
+  border-color: hsl(262 83% 58% / 0.35);
+  box-shadow: 0 16px 40px hsl(0 0% 0% / 0.3), 0 0 0 1px hsl(262 83% 58% / 0.12);
+  background: hsl(222 40% 9% / 0.75);
 }
+.feature-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(600px circle at var(--mouse-x, 50%) var(--mouse-y, 50%), hsl(262 83% 58% / 0.08), transparent 40%);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  pointer-events: none;
+}
+.feature-card:hover::before { opacity: 1; }
 .feature-card-icon {
   width: 48px;
   height: 48px;
@@ -466,10 +503,18 @@ body {
 .premium-card {
   padding: 16px;
   border-radius: 16px;
-  background: linear-gradient(135deg, hsl(262 83% 58% / 0.1), hsl(199 89% 48% / 0.1));
-  border: 1px solid hsl(262 83% 58% / 0.2);
+  background: linear-gradient(135deg, hsl(262 83% 58% / 0.12), hsl(199 89% 48% / 0.1));
+  border: 1px solid hsl(262 83% 58% / 0.22);
   position: relative;
   overflow: hidden;
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  transform-style: preserve-3d;
+  transition: transform 0.3s cubic-bezier(0.22,1,0.36,1), box-shadow 0.3s ease;
+}
+.premium-card:hover {
+  transform: translateY(-2px) translateZ(6px);
+  box-shadow: 0 12px 28px hsl(262 83% 58% / 0.18);
 }
 .premium-card::before {
   content: '';
@@ -492,10 +537,17 @@ body {
   gap: 12px;
   padding: 12px 16px;
   border-radius: 20px;
-  background: hsl(222 40% 8% / 0.8);
+  background: hsl(222 40% 8% / 0.85);
   border: 1px solid hsl(222 25% 16%);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  box-shadow: 0 8px 32px hsl(0 0% 0% / 0.25), 0 0 0 1px hsl(222 25% 16% / 0.6), inset 0 1px 0 hsl(0 0% 100% / 0.06);
+  transition: box-shadow 0.3s ease, transform 0.2s ease, border-color 0.3s ease;
+}
+.composer:focus-within {
+  border-color: hsl(262 83% 58% / 0.35);
+  box-shadow: 0 12px 40px hsl(262 83% 58% / 0.18), 0 0 0 1px hsl(262 83% 58% / 0.2), inset 0 1px 0 hsl(0 0% 100% / 0.08);
+  transform: translateY(-1px);
 }
 .composer-input {
   flex: 1;
@@ -553,18 +605,22 @@ body {
 
 .msg-sent,
 .kryzen-msg-sent {
-  background: linear-gradient(135deg, hsl(262 83% 58%), hsl(262 83% 65%));
+  background: linear-gradient(135deg, hsl(262 83% 58%), hsl(272 82% 62%));
   color: white;
   border-radius: 18px 18px 4px 18px;
-  box-shadow: 0 2px 8px hsl(262 83% 58% / 0.25);
+  box-shadow: 0 4px 16px hsl(262 83% 58% / 0.28), 0 1px 0 hsl(0 0% 100% / 0.12) inset;
+  position: relative;
 }
 
 .msg-received,
 .kryzen-msg-received {
-  background: hsl(222 35% 12%);
+  background: hsl(222 35% 12% / 0.95);
   color: hsl(var(--foreground));
   border-radius: 18px 18px 18px 4px;
   border: 1px solid hsl(222 25% 16%);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 2px 12px hsl(0 0% 0% / 0.18), inset 0 1px 0 hsl(0 0% 100% / 0.04);
 }
 
 .kryzen-msg-bubble {
@@ -615,12 +671,79 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   PREMIUM 3D + AMBIENT SYSTEM
+   ═══════════════════════════════════════════════════════════════ */
+
+.perspective-root {
+  perspective: 1200px;
+  perspective-origin: 50% 50%;
+}
+
+.panel-3d {
+  transform-style: preserve-3d;
+  will-change: transform;
+  transition: transform 0.4s cubic-bezier(0.22,1,0.36,1), box-shadow 0.4s ease;
+}
+
+.ambient-orb {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(40px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  opacity: 0.15;
+  will-change: transform;
+}
+
+.ambient-orb--violet {
+  width: 420px; height: 420px;
+  background: radial-gradient(circle, hsl(262 83% 58% / 1), transparent 70%);
+  top: -80px; right: -80px;
+  animation: orbFloat 8s ease-in-out infinite;
+}
+
+.ambient-orb--teal {
+  width: 360px; height: 360px;
+  background: radial-gradient(circle, hsl(173 80% 40% / 1), transparent 70%);
+  bottom: 10%; left: -80px;
+  animation: orbFloat 10s ease-in-out infinite reverse;
+}
+
+.ambient-orb--orange {
+  width: 320px; height: 320px;
+  background: radial-gradient(circle, hsl(25 95% 53% / 1), transparent 70%);
+  bottom: -60px; right: 20%;
+  animation: orbFloat 9s ease-in-out infinite;
+  opacity: 0.1;
+}
+
+.lift-3d:hover {
+  transform: translateY(-4px) translateZ(8px);
+  box-shadow: 0 12px 32px hsl(0 0% 0% / 0.25), 0 0 0 1px hsl(262 83% 58% / 0.15);
+}
+
+/* shimmer sweep for premium card */
+.shimmer {
+  position: relative;
+  overflow: hidden;
+}
+.shimmer::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 40%, hsl(0 0% 100% / 0.08) 50%, transparent 60%);
+  transform: translateX(-100%);
+  animation: shimmer 3.5s ease-in-out infinite;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    CHAT AREA BACKGROUND — SCENIC AURORA / MOUNTAIN
    ═══════════════════════════════════════════════════════════════ */
 
 .chat-scenic-bg {
   position: relative;
   background: hsl(222 47% 5%);
+  overflow: hidden;
 }
 
 .chat-scenic-bg::before {
@@ -628,6 +751,8 @@ body {
   position: absolute;
   inset: 0;
   z-index: 0;
+  will-change: transform;
+  animation: auroraDrift 18s ease-in-out infinite;
   background:
     /* Stars */
     radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 50%, transparent 100%),
@@ -822,6 +947,7 @@ body.modal-open {
   }
   .chat-panel {
     width: 100%;
+    padding-bottom: 64px; /* space for MobileNav */
   }
 }
 

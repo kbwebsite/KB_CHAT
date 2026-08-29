@@ -1,4 +1,4 @@
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import datetime
 
@@ -21,6 +21,8 @@ class GroupMemberAdd(BaseModel):
     usernames: Optional[List[str]] = None
 
 class ConversationMemberOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     user_id: int
     username: str
@@ -29,10 +31,9 @@ class ConversationMemberOut(BaseModel):
     role: str
     is_online: bool = False
 
-    class Config:
-        from_attributes = True
-
 class ConversationOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
     id: int
     is_group: bool
     title: Optional[str] = None
@@ -44,6 +45,3 @@ class ConversationOut(BaseModel):
     members: List[ConversationMemberOut] = []
     last_message: Optional[dict] = None
     unread_count: int = 0
-
-    class Config:
-        from_attributes = True

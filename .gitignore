@@ -16,3 +16,12 @@ frontend/build/
 .pytest_cache/
 .coverage
 htmlcov/
+.freebuff/
+.opencode/
+.playwright-mcp/
+reference-frames/
+*.png
+*.mp4
+site-*.png
+IDEA.md
+opencode.json
