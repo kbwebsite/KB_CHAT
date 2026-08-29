@@ -400,25 +400,25 @@ export default function ChatPage() {
     setAiPanelOpen(false)
   }
 
-  // Placeholder AI functions — replace with real API calls
-  const placeholderAiResponses: Record<string, string> = {
-    'summarize': 'This is a placeholder summary. The AI would summarize the conversation context here.',
-    'explain': 'This is a placeholder explanation. The AI would explain the selected message\'s context and meaning here.',
-    'translate': 'This is a placeholder translation. The AI would translate the selected message into the target language here.',
-    'rewrite': 'This is a placeholder rewrite. The AI would rewrite the selected message with different tone or style here.',
-    'reply': 'This is a placeholder reply. The AI would generate a contextual reply based on the conversation here.',
-    'extract-tasks': 'This is a placeholder task extraction. The AI would extract action items and tasks from the conversation here.',
-    'unread-summary': 'This is a placeholder unread summary. The AI would summarize recent unread messages here.',
-  }
-
-  const handleAiAction = async (action:string, selectedMsgId?: number)=> {
+  const handleAiAction = async (action:string)=> {
     setAiLoading(true)
     setAiError(null)
-    // Simulate API delay
-    await new Promise(resolve=> setTimeout(resolve, 1500))
-    // Use placeholder response if no real API is configured
-    const response = placeholderAiResponses[action] || 'AI action completed.'
-    setAiResult({ text: response, action })
+    try {
+      const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
+      const recentText = currentMsgs.slice(-10).map(m => `${m.sender_display_name || 'User'}: ${m.content}`).join('\n')
+      const contextText = recentText || 'No conversation context available.'
+      let res
+      if (action === 'summarize') res = await aiApi.summarize(contextText)
+      else if (action === 'translate') res = await aiApi.translate(contextText)
+      else if (action === 'explain') res = await aiApi.action(contextText, 'text', 'explain')
+      else if (action === 'rewrite') res = await aiApi.action(contextText, 'text', 'rewrite')
+      else if (action === 'reply') res = await aiApi.action(contextText, 'text', 'reply')
+      else if (action === 'extract-tasks') res = await aiApi.action(contextText, 'text', 'extract-tasks')
+      else if (action === 'unread-summary') res = await aiApi.summarize(contextText)
+      else res = await aiApi.action(contextText, 'text', action)
+      const resultText = res.data?.reply || res.data?.summary || res.data?.translation || res.data?.result || 'No result'
+      setAiResult({ text: resultText, action })
+    } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
     setAiLoading(false)
   }
   const handleSelectToggle=(msg:Message)=>{
