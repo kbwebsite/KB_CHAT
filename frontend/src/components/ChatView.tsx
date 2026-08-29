@@ -18,9 +18,11 @@ export function ChatView({
   aiPanelOpen, setAiPanelOpen, aiLoading, aiError, aiResult, setAiResult, handleAiPanelAction,
   isMuted, onMute, showPolls, showPinned, setShowPinned, showEvents, setShowEvents,
   showSchedule, setShowSchedule, showInsights, setShowInsights,
-  activeRightTab, handleMessageSearch, onNewChat
+  activeRightTab, handleMessageSearch, onNewChat,
+  totalUnread, onNotifications, onSearch, onSaved, onSettings, onThemeToggle, onLogout
 }: any) {
   const { user } = useAuthStore()
+  const settings = useSettingsStore()
   const {
     currentConversationId, messages, hasMore, loadingMessages,
     sendMessage, editMessage, deleteMessage, fetchMessages, fetchConversations
@@ -116,7 +118,50 @@ export function ChatView({
   if (!currentConv) {
     return (
       <div className="flex-1 flex flex-col bg-background min-h-0 overflow-hidden">
-        <ChatHeader conv={null} currentUserId={user?.id} />
+        {/* Welcome Header */}
+        <div className="chat-header">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm shrink-0 animate-glow">
+              K
+            </div>
+            <div>
+              <h1 className="font-bold text-lg gradient-text">Kryzen</h1>
+              <p className="text-[11px] text-muted-foreground">Connect. Chat. Share.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-1">
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400 mr-2">
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              Server: Online
+            </div>
+            <button onClick={onThemeToggle} className="icon-btn" title="Toggle theme">
+              {settings.theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
+            </button>
+            <button onClick={onNotifications} className="icon-btn relative" title="Notifications">
+              <Bell className="w-[18px] h-[18px]" />
+              {totalUnread > 0 && (
+                <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full gradient-primary text-[9px] text-white flex items-center justify-center font-bold">{totalUnread}</span>
+              )}
+            </button>
+            <button onClick={onSearch} className="icon-btn" title="Search">
+              <SearchIcon className="w-[18px] h-[18px]" />
+            </button>
+            <button className="icon-btn" title="Grid">
+              <LayoutGrid className="w-[18px] h-[18px]" />
+            </button>
+            <button onClick={onProfile} className="ml-1 cursor-pointer">
+              {user?.avatar_url ? (
+                <img src={user.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
+              ) : (
+                <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-xs">
+                  {user?.display_name?.[0] || user?.username?.[0] || 'U'}
+                </div>
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Welcome Content */}
         <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto">
           <div className="max-w-2xl w-full text-center">
             {/* Animated K Logo */}
@@ -321,3 +366,6 @@ export function ChatView({
     </DragDropZone>
   )
 }
+
+import { useSettingsStore } from '../store/settings'
+import { Bell, Search as SearchIcon, Moon, Sun, LayoutGrid } from 'lucide-react'

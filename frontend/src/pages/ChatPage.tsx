@@ -374,6 +374,13 @@ export default function ChatPage() {
         activeRightTab="chat"
         handleMessageSearch={handleMessageSearch}
         onNewChat={() => handleStartChat}
+        totalUnread={totalUnread}
+        onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
+        onSearch={() => setShowMessageSearch(!showMessageSearch)}
+        onSaved={() => { closeAllPanels(); setShowSaved(true) }}
+        onSettings={() => { closeAllPanels(); setShowSettings(true) }}
+        onThemeToggle={handleToggleTheme}
+        onLogout={() => { logout(); nav('/login') }}
       />
 
       <ChatPanels
