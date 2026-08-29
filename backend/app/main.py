@@ -275,9 +275,9 @@ async def security_headers(request: Request, call_next):
     response.headers["Permissions-Policy"] = (
         "camera=(), microphone=(self), geolocation=()"
     )
-    # minimal CSP for API + SPA; allow self, inline styles needed for Tailwind
+    # minimal CSP for API + SPA; allow self, inline styles/scripts needed for Vite + Tailwind
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' wss: ws: https:; media-src 'self' blob:; frame-ancestors 'none'"
+        "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' wss: ws: https: https://api.openai.com; media-src 'self' blob:; frame-ancestors 'none'"
     )
     return response
 
