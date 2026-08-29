@@ -1,12 +1,14 @@
 import { useRef, useEffect, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
+import { useSettingsStore } from '../store/settings'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
 import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
 import { Message } from '../types'
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Cloud } from 'lucide-react'
+import { Bell, Search as SearchIcon, Moon, Sun, LayoutGrid } from 'lucide-react'
 
 export function ChatView({
   onBack, onMobileViewChange, onCall, onProfile, onGroupInfo,
@@ -117,11 +119,10 @@ export function ChatView({
   // ─── Welcome Screen (no conversation selected) ───
   if (!currentConv) {
     return (
-      <div className="flex-1 flex flex-col bg-background min-h-0 overflow-hidden">
-        {/* Welcome Header */}
-        <div className="chat-header">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background">
+        <div className="chat-header shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm shrink-0 animate-glow">
+            <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
               K
             </div>
             <div>
@@ -130,7 +131,7 @@ export function ChatView({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <div className="flex items-center gap-1.5 text-xs text-emerald-400 mr-2">
+            <div className="flex items-center gap-1.5 text-xs text-emerald-400 mr-2 hidden sm:flex">
               <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               Server: Online
             </div>
@@ -161,38 +162,25 @@ export function ChatView({
           </div>
         </div>
 
-        {/* Welcome Content */}
         <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto">
           <div className="max-w-2xl w-full text-center">
-            {/* Animated K Logo */}
             <div className="welcome-logo mx-auto mb-6 animate-float">
               <span className="text-4xl font-bold text-white">K</span>
             </div>
-
-            {/* Title */}
             <h1 className="text-3xl font-bold mb-2">
               Welcome to <span className="gradient-text">Kryzen</span>
             </h1>
             <p className="text-muted-foreground mb-8 text-sm">
               Start a conversation, share ideas, and stay connected.
             </p>
-
-            {/* CTA Button */}
-            <button
-              onClick={onNewChat}
-              className="btn-gradient px-8 py-3 rounded-2xl text-sm font-semibold text-white mb-10"
-            >
+            <button onClick={onNewChat} className="btn-gradient px-8 py-3 rounded-2xl text-sm font-semibold text-white mb-10">
               Start New Chat +
             </button>
-
-            {/* Divider */}
             <div className="flex items-center gap-4 mb-8">
               <div className="flex-1 h-px bg-border" />
               <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Everything in one place</span>
               <div className="flex-1 h-px bg-border" />
             </div>
-
-            {/* Feature Cards */}
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
                 { icon: MessageSquare, label: 'Real-time Messaging', desc: 'Message anyone instantly, anytime.', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(199 89% 48%))' },
@@ -233,14 +221,14 @@ export function ChatView({
         />
 
         {typingNames && (
-          <div className="px-4 py-1.5 text-xs text-muted-foreground glass-subtle">
+          <div className="px-4 py-1.5 text-xs text-muted-foreground glass-subtle shrink-0">
             <span className="font-medium">{typingNames}</span> is typing
             <span className="typing-dots ml-1"><span /><span /><span /></span>
           </div>
         )}
 
         {selectedIds.size > 0 && (
-          <div className="px-3 py-2 gradient-primary text-white flex items-center justify-between text-sm">
+          <div className="px-3 py-2 gradient-primary text-white flex items-center justify-between text-sm shrink-0">
             <span>{selectedIds.size} selected</span>
             <div className="flex gap-2">
               <button onClick={handleSelectDelete} className="px-3 py-1 rounded-full bg-white/20 text-xs">Delete</button>
@@ -250,7 +238,7 @@ export function ChatView({
         )}
 
         {editTarget && (
-          <div className="px-3 py-2 bg-warning/10 border-b border-border flex items-center justify-between text-sm">
+          <div className="px-3 py-2 bg-warning/10 border-b border-border flex items-center justify-between text-sm shrink-0">
             <span>Editing: <span className="font-medium">{editTarget.content?.slice(0, 40)}</span></span>
             <button onClick={() => { setEditTarget(null); setEditText('') }} className="px-3 py-1 rounded-full bg-muted border border-border text-xs">Cancel</button>
           </div>
@@ -305,7 +293,7 @@ export function ChatView({
         </div>
 
         {aiResult && (
-          <div className="mx-2 mb-2 p-3 rounded-xl glass-subtle flex items-start gap-3 animate-slide-up">
+          <div className="mx-2 mb-2 p-3 rounded-xl glass-subtle flex items-start gap-3 animate-slide-up shrink-0">
             <div className="shrink-0 w-8 h-8 rounded-lg gradient-primary flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>
             <div className="flex-1 min-w-0">
               <p className="text-[11px] gradient-text font-semibold mb-1 uppercase tracking-wide">Kryzen AI · {aiResult.action}</p>
@@ -355,17 +343,7 @@ export function ChatView({
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
         />
-
-        {editTarget && (
-          <div className="p-2 glass-strong border-t border-border flex gap-2">
-            <input value={editText} onChange={e => setEditText(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-muted border border-border outline-none text-sm" placeholder="Edit message..." />
-            <button onClick={() => { if (editText.trim()) { editMessage(editTarget.id, editText.trim()); setEditTarget(null); setEditText('') } }} className="px-4 py-2 rounded-xl btn-gradient text-sm font-medium text-white">Save</button>
-          </div>
-        )}
       </div>
     </DragDropZone>
   )
 }
-
-import { useSettingsStore } from '../store/settings'
-import { Bell, Search as SearchIcon, Moon, Sun, LayoutGrid } from 'lucide-react'

@@ -40,7 +40,7 @@ export function ChatPanels({
   if (!currentConv && !showProfile && !showSettings && !showNotifications) return null
 
   return (
-    <aside className="absolute inset-y-0 right-0 w-full sm:w-[360px] border-l border-border z-30 flex flex-col overflow-hidden min-h-0 lg:relative lg:inset-auto lg:w-[360px] xl:w-[380px] shrink-0 bg-card modal-entrance">
+    <aside className="absolute inset-y-0 right-0 w-full sm:w-[360px] border-l border-border z-30 flex flex-col overflow-hidden min-h-0 bg-background modal-entrance">
       {showProfile && <ProfilePanel onClose={onClose} />}
       {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={() => {}} />}
       {showSettings && <SettingsPanel onClose={onClose} />}

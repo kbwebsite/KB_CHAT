@@ -326,84 +326,86 @@ export default function ChatPage() {
         }}
       />
 
-      <ChatView
-        onBack={() => { setMobileView('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false) }}
-        onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
-        onCall={handleCall}
-        onProfile={() => { closeAllPanels(); setShowProfile(true) }}
-        onGroupInfo={() => setShowGroupInfo(!showGroupInfo)}
-        replyTo={replyTo}
-        setReplyTo={setReplyTo}
-        editTarget={editTarget}
-        setEditTarget={setEditTarget}
-        editText={editText}
-        setEditText={setEditText}
-        lightbox={lightbox}
-        setLightbox={setLightbox}
-        forwardMsg={forwardMsg}
-        setForwardMsg={setForwardMsg}
-        selectedIds={selectedIds}
-        setSelectedIds={setSelectedIds}
-        savedIds={savedIds}
-        setSavedIds={setSavedIds}
-        onMobileMore={(msg: Message) => setMobileActionSheet({ open: true, msg })}
-        onReact={handleReact}
-        onSave={handleSave}
-        onAIAction={handleAIAction}
-        onPin={handlePin}
-        pinnedMessages={pinnedMessages}
-        setPinnedMessages={setPinnedMessages}
-        aiPanelOpen={aiPanelOpen}
-        setAiPanelOpen={setAiPanelOpen}
-        aiLoading={aiLoading}
-        aiError={aiError}
-        aiResult={aiResult}
-        setAiResult={setAiResult}
-        handleAiPanelAction={handleAiPanelAction}
-        isMuted={isMuted}
-        onMute={handleMute}
-        showPolls={showPolls}
-        showPinned={showPinned}
-        setShowPinned={setShowPinned}
-        showEvents={showEvents}
-        setShowEvents={setShowEvents}
-        showSchedule={showSchedule}
-        setShowSchedule={setShowSchedule}
-        showInsights={showInsights}
-        setShowInsights={setShowInsights}
-        activeRightTab="chat"
-        handleMessageSearch={handleMessageSearch}
-        onNewChat={() => handleStartChat}
-        totalUnread={totalUnread}
-        onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
-        onSearch={() => setShowMessageSearch(!showMessageSearch)}
-        onSaved={() => { closeAllPanels(); setShowSaved(true) }}
-        onSettings={() => { closeAllPanels(); setShowSettings(true) }}
-        onThemeToggle={handleToggleTheme}
-        onLogout={() => { logout(); nav('/login') }}
-      />
+      <div className="chat-panel">
+        <ChatView
+          onBack={() => { setMobileView('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false) }}
+          onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
+          onCall={handleCall}
+          onProfile={() => { closeAllPanels(); setShowProfile(true) }}
+          onGroupInfo={() => setShowGroupInfo(!showGroupInfo)}
+          replyTo={replyTo}
+          setReplyTo={setReplyTo}
+          editTarget={editTarget}
+          setEditTarget={setEditTarget}
+          editText={editText}
+          setEditText={setEditText}
+          lightbox={lightbox}
+          setLightbox={setLightbox}
+          forwardMsg={forwardMsg}
+          setForwardMsg={setForwardMsg}
+          selectedIds={selectedIds}
+          setSelectedIds={setSelectedIds}
+          savedIds={savedIds}
+          setSavedIds={setSavedIds}
+          onMobileMore={(msg: Message) => setMobileActionSheet({ open: true, msg })}
+          onReact={handleReact}
+          onSave={handleSave}
+          onAIAction={handleAIAction}
+          onPin={handlePin}
+          pinnedMessages={pinnedMessages}
+          setPinnedMessages={setPinnedMessages}
+          aiPanelOpen={aiPanelOpen}
+          setAiPanelOpen={setAiPanelOpen}
+          aiLoading={aiLoading}
+          aiError={aiError}
+          aiResult={aiResult}
+          setAiResult={setAiResult}
+          handleAiPanelAction={handleAiPanelAction}
+          isMuted={isMuted}
+          onMute={handleMute}
+          showPolls={showPolls}
+          showPinned={showPinned}
+          setShowPinned={setShowPinned}
+          showEvents={showEvents}
+          setShowEvents={setShowEvents}
+          showSchedule={showSchedule}
+          setShowSchedule={setShowSchedule}
+          showInsights={showInsights}
+          setShowInsights={setShowInsights}
+          activeRightTab="chat"
+          handleMessageSearch={handleMessageSearch}
+          onNewChat={() => handleStartChat}
+          totalUnread={totalUnread}
+          onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
+          onSearch={() => setShowMessageSearch(!showMessageSearch)}
+          onSaved={() => { closeAllPanels(); setShowSaved(true) }}
+          onSettings={() => { closeAllPanels(); setShowSettings(true) }}
+          onThemeToggle={handleToggleTheme}
+          onLogout={() => { logout(); nav('/login') }}
+        />
 
-      <ChatPanels
-        showProfile={showProfile}
-        showGroupInfo={showGroupInfo}
-        showSettings={showSettings}
-        showNotifications={showNotifications}
-        showPolls={showPolls}
-        showPinned={showPinned}
-        showEvents={showEvents}
-        showSchedule={showSchedule}
-        showInsights={showInsights}
-        onClose={closeAllPanels}
-        onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
-        pinnedMessages={pinnedMessages}
-        setPinnedMessages={setPinnedMessages}
-        setShowPinned={setShowPinned}
-        setShowPolls={setShowPolls}
-        setShowEvents={setShowEvents}
-        setShowSchedule={setShowSchedule}
-        setShowInsights={setShowInsights}
-        onChat={handleStartChat}
-      />
+        <ChatPanels
+          showProfile={showProfile}
+          showGroupInfo={showGroupInfo}
+          showSettings={showSettings}
+          showNotifications={showNotifications}
+          showPolls={showPolls}
+          showPinned={showPinned}
+          showEvents={showEvents}
+          showSchedule={showSchedule}
+          showInsights={showInsights}
+          onClose={closeAllPanels}
+          onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
+          pinnedMessages={pinnedMessages}
+          setPinnedMessages={setPinnedMessages}
+          setShowPinned={setShowPinned}
+          setShowPolls={setShowPolls}
+          setShowEvents={setShowEvents}
+          setShowSchedule={setShowSchedule}
+          setShowInsights={setShowInsights}
+          onChat={handleStartChat}
+        />
+      </div>
 
       <ChatModals
         lightbox={lightbox}
