@@ -12,7 +12,7 @@ export function MobileNav({ active, onTabChange }: { active: NavTab, onTabChange
   ]
 
   return (
-    <nav className="mobile-bottom-nav lg:hidden">
+    <nav className="mobile-bottom-nav lg:hidden" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
       {tabs.map(tab => {
         const Icon = tab.icon
         const isActive = active === tab.id

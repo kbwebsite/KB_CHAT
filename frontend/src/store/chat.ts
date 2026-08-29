@@ -9,7 +9,7 @@ interface ChatState {
   messages: Record<number, Message[]>
   hasMore: Record<number, boolean>
   loadingConvs: boolean
-  loadingMessages: boolean
+  loadingMessages: Record<number, boolean>
   typingUsers: Record<number, Set<number>> // convId -> set of userIds
   onlineUsers: Set<number>
   searchQuery: string
@@ -36,7 +36,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({
   messages: {},
   hasMore: {},
   loadingConvs: false,
-  loadingMessages: false,
+  loadingMessages: {},
   typingUsers: {},
   onlineUsers: new Set(),
   searchQuery: '',
@@ -58,7 +58,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     }
   },
   fetchMessages: async (convId, before)=>{
-    set({loadingMessages:true})
+    set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: true } }))
     try {
       const res = await msgApi.list(convId, { before, limit: 50 })
       if (res.success) {
@@ -72,7 +72,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({
           return { messages: {...state.messages, [convId]: unique }, hasMore: {...state.hasMore, [convId]: has_more } }
         })
       }
-    } finally { set({loadingMessages:false}) }
+    } finally { set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } })) }
   },
   sendMessage: async (convId, content, replyTo, attachmentIds, type='text')=>{
     const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type })

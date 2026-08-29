@@ -46,6 +46,8 @@ export default function ChatPage() {
     conversations, currentConversationId, messages, hasMore, loadingMessages, loadingConvs,
     fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react
   } = useChatStore() as any
+
+  const isCurrentLoading = currentConversationId ? loadingMessages[currentConversationId] : false
   const settings = useSettingsStore()
   const [search, setSearch]=useState('')
   const [sidebarTab, setSidebarTab]=useState<SidebarTab>('chats')
@@ -145,7 +147,7 @@ export default function ChatPage() {
   useEffect(()=>{
     const onKey=(e:KeyboardEvent)=>{
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase()==='k') { e.preventDefault(); setShowCommandPalette(true); }
-      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false); }
+      if (e.key==='Escape') { setShowProfile(false); setShowSettings(false); setShowNotifications(false); setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false); setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null); setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false); setMobileActionSheet({open:false}); }
     }
     window.addEventListener('keydown', onKey)
     return ()=> window.removeEventListener('keydown', onKey)
@@ -163,7 +165,7 @@ export default function ChatPage() {
   const currentConv = conversations.find(c=> c.id===currentConversationId) || null
   const currentMsgs = currentConversationId ? (messages[currentConversationId]||[]) : []
   const typingSet = useChatStore((s)=> currentConversationId ? s.typingUsers[currentConversationId] : undefined)
-  const [mobileView, setMobileView]=useState<'list'|'chat'>(typeof window !== 'undefined' && window.innerWidth >= 1024 && currentConversationId ? 'chat' : 'list')
+  const [mobileView, setMobileView]=useState<'list'|'chat'>(typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'chat' : 'list')
   useEffect(()=>{ if (currentConversationId && window.innerWidth < 1024) setMobileView('chat') }, [currentConversationId])
   const [mobileNavTab, setMobileNavTab]=useState<'chats'|'status'|'calls'|'contacts'|'ai'>('chats')
   const [mobileActionSheet, setMobileActionSheet]=useState<{open:boolean; msg?:Message}>({open:false})
@@ -186,7 +188,7 @@ export default function ChatPage() {
     setIsAtBottom(atBottom)
     if (atBottom) setShowNewIndicator(false)
     // infinite scroll: near top
-    if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMoreRef.current && !loadingMessages) {
+    if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMoreRef.current && !isCurrentLoading) {
       const firstId = currentMsgs[0]?.id
       if (!firstId) return
       isLoadingMoreRef.current = true
@@ -196,9 +198,9 @@ export default function ChatPage() {
   }
 
   // restore scroll position after older messages load
-  const prevLoadingRef = useRef(loadingMessages)
+  const prevLoadingRef = useRef(isCurrentLoading)
   useEffect(()=>{
-    if (prevLoadingRef.current && !loadingMessages && scrollSnapshotRef.current) {
+    if (prevLoadingRef.current && !isCurrentLoading && scrollSnapshotRef.current) {
       const { prevHeight, prevTop, convId } = scrollSnapshotRef.current
       if (convId === currentConversationId) {
         scrollSnapshotRef.current = null
@@ -213,8 +215,8 @@ export default function ChatPage() {
       }
       isLoadingMoreRef.current = false
     }
-    prevLoadingRef.current = loadingMessages
-  }, [loadingMessages, currentConversationId])
+    prevLoadingRef.current = isCurrentLoading
+  }, [isCurrentLoading, currentConversationId])
 
 // auto-scroll when new messages arrive only if user was at bottom
   const prevMsgLenRef=useRef(0)
@@ -280,6 +282,12 @@ export default function ChatPage() {
     setShowGroupInfo(false)
     setActiveRightTab('chat')
     setIsMuted(false)
+    setMobileActionSheet({open:false})
+    setReplyTo(null)
+    setEditTarget(null)
+    setEditText('')
+    setSelectedIds(new Set())
+    setShowMessageSearch(false)
     // load pinned messages
     try { const res = await msgPinApi.list(id); if (res.success) setPinnedMessages(res.data) } catch {}
   }
@@ -635,7 +643,7 @@ export default function ChatPage() {
         <section className={`${mobileView==='list' ? 'hidden lg:flex' : 'flex'} flex-1 flex-col min-w-0 min-h-0 overflow-hidden bg-muted/20 ${settings.chat_wallpaper==='dots' ? 'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px] dark:bg-[radial-gradient(circle_at_1px_1px,rgba(255,255,255,0.06)_1px,transparent_0)]' : settings.chat_wallpaper==='gradient' ? 'bg-gradient-to-br from-violet-500/5 to-indigo-500/5' : ''}`}>
           {currentConv ? (
             <DragDropZone onFilesUploaded={(ids)=> { if(ids.length>0) handleSend('', ids) }}>
-              <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> setMobileView('list')} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} handleRefresh={handleRefresh} onAi={toggleAiPanel} />
+              <ChatHeader conv={currentConv} currentUserId={user?.id} onBack={()=> { setMobileView('list'); setMobileActionSheet({open:false}); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false); }} onInfo={()=> setShowGroupInfo(!showGroupInfo)} onCall={handleCall} onMute={handleMute} onSearch={()=> setShowMessageSearch(!showMessageSearch)} activeTab={activeRightTab} onTabChange={(t)=> setActiveRightTab(t as any)} handleRefresh={handleRefresh} onAi={toggleAiPanel} />
               {typingNames && <div className="px-4 py-1 text-xs text-muted-foreground bg-card border-b flex items-center gap-1.5"><span className="font-medium">{typingNames}</span> is typing<span className="typing-dots"><span/><span/><span/></span></div>}
               {selectedIds.size>0 && (
                 <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">
@@ -654,7 +662,7 @@ export default function ChatPage() {
               )}
               {/* Message list */}
               <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
-                {loadingMessages && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
+                {isCurrentLoading && <div className="sticky top-0 z-10 flex justify-center py-2 bg-background/80 backdrop-blur"><span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span></div>}
                 {hasMore[currentConversationId!] && activeRightTab==='chat' && <div className="text-center py-2"><button onClick={()=> fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-accent">Load older</button></div>}
                 {activeRightTab==='chat' ? (
                   <div className="py-2 space-y-0.5">

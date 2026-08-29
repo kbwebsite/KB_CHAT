@@ -10,6 +10,7 @@ interface BottomSheetProps {
 export function BottomSheet({ open, onClose, title, children }: BottomSheetProps) {
   const sheetRef = useRef<HTMLDivElement>(null)
   const startY = useRef(0)
+  const historyPushed = useRef(false)
 
   useEffect(()=>{
     if (open) {
@@ -29,14 +30,27 @@ export function BottomSheet({ open, onClose, title, children }: BottomSheetProps
     if (dy > 80) onClose()
   }
 
-  // Back button support
+  // Back button support — push history entry when opened, pop on close
   useEffect(()=>{
-    if (!open) return
-    const handler = ()=> onClose()
-    window.history.pushState({ bottomSheet: true }, '')
-    window.addEventListener('popstate', handler)
-    return ()=> window.removeEventListener('popstate', handler)
-  }, [open])
+    if (open && !historyPushed.current) {
+      historyPushed.current = true
+      window.history.pushState({ bottomSheet: true }, '')
+      const handler = ()=> {
+        historyPushed.current = false
+        onClose()
+      }
+      window.addEventListener('popstate', handler)
+      return ()=> {
+        window.removeEventListener('popstate', handler)
+        // If component unmounts while open, clean up history state
+        if (historyPushed.current) {
+          historyPushed.current = false
+        }
+      }
+    } else if (!open) {
+      historyPushed.current = false
+    }
+  }, [open, onClose])
 
   return (
     <>
