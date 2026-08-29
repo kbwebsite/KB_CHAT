@@ -437,7 +437,9 @@ body {
   padding: 20px;
   border-radius: 16px;
   background: hsl(222 40% 8% / 0.6);
-  border: 1px solid hsl(222 25% 16%);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid hsl(222 25% 16% / 0.8);
   text-align: center;
   transition: all 0.3s cubic-bezier(0.22, 1, 0.36, 1);
   cursor: default;
@@ -613,15 +615,77 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   CHAT AREA BACKGROUND
+   CHAT AREA BACKGROUND — SCENIC AURORA / MOUNTAIN
    ═══════════════════════════════════════════════════════════════ */
 
+.chat-scenic-bg {
+  position: relative;
+  background: hsl(222 47% 5%);
+}
+
+.chat-scenic-bg::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  background:
+    /* Stars */
+    radial-gradient(1px 1px at 10% 15%, rgba(255,255,255,0.6) 50%, transparent 100%),
+    radial-gradient(1px 1px at 25% 8%, rgba(255,255,255,0.4) 50%, transparent 100%),
+    radial-gradient(1px 1px at 40% 22%, rgba(255,255,255,0.5) 50%, transparent 100%),
+    radial-gradient(1px 1px at 55% 5%, rgba(255,255,255,0.3) 50%, transparent 100%),
+    radial-gradient(1px 1px at 70% 18%, rgba(255,255,255,0.6) 50%, transparent 100%),
+    radial-gradient(1px 1px at 85% 12%, rgba(255,255,255,0.4) 50%, transparent 100%),
+    radial-gradient(1px 1px at 15% 30%, rgba(255,255,255,0.3) 50%, transparent 100%),
+    radial-gradient(1px 1px at 60% 28%, rgba(255,255,255,0.5) 50%, transparent 100%),
+    radial-gradient(1px 1px at 90% 25%, rgba(255,255,255,0.4) 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 35% 10%, rgba(255,255,255,0.7) 50%, transparent 100%),
+    radial-gradient(1.5px 1.5px at 78% 7%, rgba(255,255,255,0.6) 50%, transparent 100%),
+    /* Aurora glow — teal/green */
+    radial-gradient(ellipse 60% 35% at 65% 20%, hsl(160 80% 40% / 0.25) 0%, transparent 70%),
+    radial-gradient(ellipse 45% 30% at 50% 25%, hsl(170 70% 45% / 0.2) 0%, transparent 65%),
+    /* Aurora glow — purple/violet */
+    radial-gradient(ellipse 50% 40% at 35% 30%, hsl(262 83% 58% / 0.15) 0%, transparent 65%),
+    radial-gradient(ellipse 40% 25% at 75% 35%, hsl(280 60% 50% / 0.12) 0%, transparent 60%),
+    /* Aurora glow — blue accent */
+    radial-gradient(ellipse 55% 30% at 55% 15%, hsl(200 80% 50% / 0.15) 0%, transparent 60%),
+    /* Mountain silhouette base — dark gradient at bottom */
+    linear-gradient(to bottom, transparent 55%, hsl(222 50% 6% / 0.8) 75%, hsl(222 55% 5%) 100%);
+  pointer-events: none;
+}
+
+.chat-scenic-bg::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  z-index: 0;
+  pointer-events: none;
+  /* Mountain shapes using layered radial gradients */
+  background:
+    /* Left mountain peak */
+    radial-gradient(ellipse 40% 50% at 15% 100%, hsl(222 50% 6%) 0%, transparent 70%),
+    /* Center-left mountain */
+    radial-gradient(ellipse 35% 60% at 35% 100%, hsl(222 48% 7%) 0%, transparent 65%),
+    /* Center mountain (tallest) */
+    radial-gradient(ellipse 30% 70% at 50% 100%, hsl(222 50% 5%) 0%, transparent 60%),
+    /* Right mountain */
+    radial-gradient(ellipse 38% 55% at 70% 100%, hsl(222 48% 6%) 0%, transparent 65%),
+    /* Far right hill */
+    radial-gradient(ellipse 30% 45% at 88% 100%, hsl(222 50% 7%) 0%, transparent 70%),
+    /* Tree line hint */
+    linear-gradient(to bottom, transparent 60%, hsl(150 20% 5% / 0.4) 80%, hsl(222 55% 5%) 100%);
+}
+
+.chat-scenic-bg > * {
+  position: relative;
+  z-index: 1;
+}
+
 .message-list {
-  background-image:
-    radial-gradient(circle at 20% 50%, hsl(262 83% 58% / 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 80% 20%, hsl(199 89% 48% / 0.03) 0%, transparent 50%),
-    radial-gradient(circle at 50% 80%, hsl(330 81% 60% / 0.02) 0%, transparent 50%);
-  background-color: hsl(222 47% 5%);
+  background: transparent;
 }
 
 /* ═══════════════════════════════════════════════════════════════

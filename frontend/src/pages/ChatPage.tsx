@@ -326,7 +326,7 @@ export default function ChatPage() {
         }}
       />
 
-      <div className="chat-panel">
+      <div className="chat-panel chat-scenic-bg">
         <ChatView
           onBack={() => { setMobileView('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false) }}
           onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}

@@ -119,7 +119,7 @@ export function ChatView({
   // ─── Welcome Screen (no conversation selected) ───
   if (!currentConv) {
     return (
-      <div className="flex-1 flex flex-col min-h-0 overflow-hidden bg-background">
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
         <div className="chat-header shrink-0">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
@@ -177,9 +177,9 @@ export function ChatView({
               Start New Chat +
             </button>
             <div className="flex items-center gap-4 mb-8">
-              <div className="flex-1 h-px bg-border" />
+              <div className="flex-1 h-px bg-border/50" />
               <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Everything in one place</span>
-              <div className="flex-1 h-px bg-border" />
+              <div className="flex-1 h-px bg-border/50" />
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
               {[
