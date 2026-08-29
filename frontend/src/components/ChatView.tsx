@@ -255,33 +255,48 @@ export function ChatView({
               <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full glass hover:opacity-80 transition-opacity">Load older</button>
             </div>
           )}
-          <div className="py-2 px-2 sm:px-4 space-y-0.5">
+          <div className="py-2 px-2 sm:px-4">
             {currentMsgs.map((msg: any, idx: number) => {
               const prev = currentMsgs[idx - 1]
+              const next = currentMsgs[idx + 1]
               const isOwn = msg.sender_id === user?.id
               const showAvatar = !!currentConv.is_group && (!prev || prev.sender_id !== msg.sender_id)
+              const prevDate = prev ? new Date(prev.created_at).toDateString() : null
+              const msgDate = new Date(msg.created_at).toDateString()
+              const showDateSep = prevDate !== msgDate
+              const isLastInGroup = !next || next.sender_id !== msg.sender_id || (next && new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() > 300000)
               return (
-                <MessageBubble
-                  key={msg.id}
-                  msg={msg}
-                  isOwn={!!isOwn}
-                  isGroup={!!currentConv.is_group}
-                  showAvatar={showAvatar}
-                  onReply={(m: any) => setReplyTo({ id: m.id, content: m.content || '', sender: m.sender_display_name || 'Unknown' })}
-                  onEdit={(m: any) => { setEditTarget(m); setEditText(m.content || '') }}
-                  onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
-                  onReact={onReact}
-                  onCopy={(t: string) => navigator.clipboard.writeText(t)}
-                  onForward={(m: any) => setForwardMsg(m)}
-                  onSave={onSave}
-                  onSelect={(m: any) => setSelectedIds((s: Set<number>) => { const n = new Set(s); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n })}
-                  isSelected={selectedIds.has(msg.id)}
-                  onImageClick={(url: string, name: string, all: any[], idx: number) => setLightbox({ images: all, idx })}
-                  savedIds={savedIds}
-                  onPin={onPin}
-                  onAIAction={onAIAction}
-                  onMobileMore={(m: any) => onMobileMore(m)}
-                />
+                <div key={msg.id}>
+                  {showDateSep && (
+                    <div className="flex items-center gap-3 my-4">
+                      <div className="flex-1 h-px bg-border/50" />
+                      <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded-full bg-surface-2/50">{new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                      <div className="flex-1 h-px bg-border/50" />
+                    </div>
+                  )}
+                  <div className={isLastInGroup ? 'mb-3' : 'mb-0.5'}>
+                    <MessageBubble
+                      msg={msg}
+                      isOwn={!!isOwn}
+                      isGroup={!!currentConv.is_group}
+                      showAvatar={showAvatar}
+                      onReply={(m: any) => setReplyTo({ id: m.id, content: m.content || '', sender: m.sender_display_name || 'Unknown' })}
+                      onEdit={(m: any) => { setEditTarget(m); setEditText(m.content || '') }}
+                      onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
+                      onReact={onReact}
+                      onCopy={(t: string) => navigator.clipboard.writeText(t)}
+                      onForward={(m: any) => setForwardMsg(m)}
+                      onSave={onSave}
+                      onSelect={(m: any) => setSelectedIds((s: Set<number>) => { const n = new Set(s); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n })}
+                      isSelected={selectedIds.has(msg.id)}
+                      onImageClick={(url: string, name: string, all: any[], idx: number) => setLightbox({ images: all, idx })}
+                      savedIds={savedIds}
+                      onPin={onPin}
+                      onAIAction={onAIAction}
+                      onMobileMore={(m: any) => onMobileMore(m)}
+                    />
+                  </div>
+                </div>
               )
             })}
           </div>
