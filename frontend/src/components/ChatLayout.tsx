@@ -1,9 +1,5 @@
 import { ReactNode } from 'react'
 import { NavPanel } from './NavPanel'
-import { ServerStatus } from './ServerStatus'
-import { Bell, Search, Grid3X3, Settings } from 'lucide-react'
-import { useAuthStore } from '../store/auth'
-import { useSettingsStore } from '../store/settings'
 
 type NavPanelTab = 'chats' | 'contacts' | 'groups' | 'calls' | 'saved' | 'files' | 'settings'
 
@@ -20,9 +16,6 @@ export function ChatLayout({
   onSettings: () => void
   totalUnread: number
 }) {
-  const { user } = useAuthStore()
-  const settings = useSettingsStore()
-
   return (
     <div className="app-layout">
       <NavPanel
@@ -30,7 +23,7 @@ export function ChatLayout({
         onTabChange={onNavTabChange}
         onSettings={onSettings}
       />
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
+      <div className="flex-1 flex min-w-0 min-h-0 overflow-hidden">
         {children}
       </div>
     </div>
