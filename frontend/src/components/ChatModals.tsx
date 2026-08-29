@@ -2,32 +2,23 @@ import { Lightbox } from './Lightbox'
 import { CallModal } from './CallModal'
 import { StatusViewer } from './StatusViewer'
 import { CommandPalette, buildCommands } from './CommandPalette'
-import { useChatStore } from '../store/chat'
 import { X } from 'lucide-react'
+import { useToastStore } from '../store/toast'
 
 export function ChatModals({
-  lightbox,
-  setLightbox,
-  callModal,
-  setCallModal,
-  statusViewer,
-  setStatusViewer,
-  forwardMsg,
-  setForwardMsg,
-  showCommandPalette,
-  setShowCommandPalette,
-  conversations,
-  onForward,
-  onNewChat,
-  onNewGroup,
-  onNewStatus,
-  onSettings,
-  onSaved,
-  onCalls,
-  onNotifications,
-  onToggleTheme,
-  onLogout
+  lightbox, setLightbox,
+  callModal, setCallModal,
+  statusViewer, setStatusViewer,
+  forwardMsg, setForwardMsg,
+  showCommandPalette, setShowCommandPalette,
+  conversations, onForward,
+  onNewChat, onNewGroup, onNewStatus,
+  onSettings, onSaved, onCalls, onNotifications,
+  onToggleTheme, onLogout,
+  onCallAccept, onCallRejectOrEnd
 }: any) {
+  const toast = useToastStore(s => s.push)
+
   return (
     <>
       {lightbox && <Lightbox images={lightbox.images} startIndex={lightbox.idx} onClose={() => setLightbox(null)} />}
@@ -40,9 +31,9 @@ export function ChatModals({
           isIncoming={callModal.incoming}
           callId={callModal.callId}
           peerId={callModal.peerId}
-          onAccept={callModal.onAccept}
-          onReject={callModal.onReject}
-          onEnd={callModal.onEnd}
+          onAccept={onCallAccept}
+          onReject={onCallRejectOrEnd}
+          onEnd={onCallRejectOrEnd}
         />
       )}
       {statusViewer && (
@@ -94,7 +85,8 @@ export function ChatModals({
                   const el = document.getElementById(`fwd-${c.id}`) as HTMLInputElement
                   if (el?.checked) ids.push(c.id)
                 })
-                if (ids.length > 0) onForward(ids)
+                if (ids.length === 0) return toast('Select at least one chat', 'error')
+                onForward(ids)
               }} className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground font-medium transition-colors hover:bg-primary/90">Forward</button>
             </div>
           </div>

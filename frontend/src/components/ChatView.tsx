@@ -1,35 +1,25 @@
-import { useRef, useEffect, useState, useCallback } from 'react'
+import { useRef, useEffect, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
 import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
-import { msgPinApi, aiApi } from '../services/api'
+import { msgPinApi } from '../services/api'
 import { Message } from '../types'
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, MessageSquare } from 'lucide-react'
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare } from 'lucide-react'
 
 export function ChatView({
-  onBack,
-  onMobileViewChange,
-  onCall,
-  onProfile,
-  onGroupInfo,
-  replyTo,
-  setReplyTo,
-  editTarget,
-  setEditTarget,
-  editText,
-  setEditText,
-  lightbox,
-  setLightbox,
-  forwardMsg,
-  setForwardMsg,
-  selectedIds,
-  setSelectedIds,
-  savedIds,
-  setSavedIds,
-  onMobileMore
+  onBack, onMobileViewChange, onCall, onProfile, onGroupInfo,
+  replyTo, setReplyTo, editTarget, setEditTarget, editText, setEditText,
+  lightbox, setLightbox, forwardMsg, setForwardMsg,
+  selectedIds, setSelectedIds, savedIds, setSavedIds,
+  onMobileMore, onReact, onSave, onAIAction, onPin,
+  pinnedMessages, setPinnedMessages,
+  aiPanelOpen, setAiPanelOpen, aiLoading, aiError, aiResult, setAiResult, handleAiPanelAction,
+  isMuted, onMute, showPolls, showPinned, setShowPinned, showEvents, setShowEvents,
+  showSchedule, setShowSchedule, showInsights, setShowInsights,
+  activeRightTab, handleMessageSearch
 }: any) {
   const { user } = useAuthStore()
   const {
@@ -44,11 +34,6 @@ export function ChatView({
 
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
-  const [aiPanelOpen, setAiPanelOpen] = useState(false)
-  const [aiResult, setAiResult] = useState<{ text: string; action: string } | null>(null)
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState<string | null>(null)
-  const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
   const [showRefresh, setShowRefresh] = useState(false)
 
   const listRef = useRef<HTMLDivElement>(null)
@@ -62,22 +47,18 @@ export function ChatView({
   }).join(', ') : ''
 
   const scrollToBottom = (smooth = true) => {
-    const el = listRef.current
-    if (!el) return
+    const el = listRef.current; if (!el) return
     el.scrollTo({ top: el.scrollHeight, behavior: smooth ? 'smooth' : 'auto' })
-    setShowNewIndicator(false)
-    setIsAtBottom(true)
+    setShowNewIndicator(false); setIsAtBottom(true)
   }
 
   const handleMessageScroll = () => {
-    const el = listRef.current
-    if (!el) return
+    const el = listRef.current; if (!el) return
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
     setIsAtBottom(atBottom)
     if (atBottom) setShowNewIndicator(false)
     if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMoreRef.current && !isCurrentLoading) {
-      const firstId = currentMsgs[0]?.id
-      if (!firstId) return
+      const firstId = currentMsgs[0]?.id; if (!firstId) return
       isLoadingMoreRef.current = true
       scrollSnapshotRef.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop, convId: currentConversationId! }
       fetchMessages(currentConversationId!, firstId)
@@ -91,14 +72,9 @@ export function ChatView({
       if (convId === currentConversationId) {
         scrollSnapshotRef.current = null
         requestAnimationFrame(() => {
-          if (listRef.current) {
-            const newHeight = listRef.current.scrollHeight
-            listRef.current.scrollTop = prevTop + (newHeight - prevHeight)
-          }
+          if (listRef.current) { const newHeight = listRef.current.scrollHeight; listRef.current.scrollTop = prevTop + (newHeight - prevHeight) }
         })
-      } else {
-        scrollSnapshotRef.current = null
-      }
+      } else { scrollSnapshotRef.current = null }
       isLoadingMoreRef.current = false
     }
     prevLoadingRef.current = isCurrentLoading
@@ -107,113 +83,36 @@ export function ChatView({
   useEffect(() => {
     const len = currentMsgs.length
     if (len > prevMsgLenRef.current) {
-      if (isAtBottom) {
-        setTimeout(() => scrollToBottom(true), 50)
-      } else {
-        setShowNewIndicator(true)
-      }
+      if (isAtBottom) setTimeout(() => scrollToBottom(true), 50)
+      else setShowNewIndicator(true)
     }
     prevMsgLenRef.current = len
   }, [currentMsgs.length])
 
   useEffect(() => {
-    setIsAtBottom(true)
-    setShowNewIndicator(false)
-    setTimeout(() => scrollToBottom(false), 100)
+    setIsAtBottom(true); setShowNewIndicator(false); setTimeout(() => scrollToBottom(false), 100)
   }, [currentConversationId])
 
   const handleSend = async (content: string, attachmentIds?: number[], type?: string) => {
     if (!currentConversationId) return
-    if (editTarget) {
-      await editMessage(editTarget.id, content)
-      setEditTarget(null)
-      setEditText('')
-      return
-    }
-    try {
-      await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type)
-    } catch (e: any) {
-      console.error('Send failed:', e)
-    }
-  }
-
-  const handleReact = async (id: number, emoji: string) => {
-    const msg = currentMsgs.find((m: any) => m.id === id)
-    if (!msg || !user) return
-    const myReacts = msg.reactions.filter((r: any) => r.user_id === user.id)
-    const hasSame = myReacts.some((r: any) => r.emoji === emoji)
-    try {
-      if (hasSame) {
-        const { msgApi } = await import('../services/api')
-        await msgApi.removeReaction(id, emoji)
-      } else {
-        const { msgApi } = await import('../services/api')
-        for (const r of myReacts) {
-          try { await msgApi.removeReaction(id, r.emoji) } catch {}
-        }
-        await msgApi.react(id, emoji)
-      }
-    } catch {}
-  }
-
-  const handleAIAction = async (msg: Message, action: string) => {
-    setAiResult(null)
-    try {
-      const text = msg.content || ''
-      let res
-      if (action === 'summarize') res = await aiApi.summarize(text)
-      else if (action === 'translate') res = await aiApi.translate(text)
-      else res = await aiApi.action(text, 'text', action)
-      const resultText = res.data?.reply || res.data?.summary || res.data?.translation || res.data?.result || 'No result'
-      setAiResult({ text: resultText, action })
-    } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
-  }
-
-  const handleAiPanelAction = async (action: string) => {
-    setAiLoading(true)
-    setAiError(null)
-    try {
-      const msgs = currentConversationId ? (messages[currentConversationId] || []) : []
-      const recentText = msgs.slice(-10).map((m: any) => `${m.sender_display_name || 'User'}: ${m.content}`).join('\n')
-      const contextText = recentText || 'No conversation context available.'
-      let res
-      if (action === 'summarize') res = await aiApi.summarize(contextText)
-      else if (action === 'translate') res = await aiApi.translate(contextText)
-      else res = await aiApi.action(contextText, 'text', action)
-      const resultText = res.data?.reply || res.data?.summary || res.data?.translation || res.data?.result || 'No result'
-      setAiResult({ text: resultText, action })
-    } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
-    setAiLoading(false)
+    if (editTarget) { await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return }
+    try { await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type) }
+    catch (e: any) { console.error('Send failed:', e) }
   }
 
   const handleRefresh = async () => {
-    if (showRefresh) return
-    setShowRefresh(true)
-    try {
-      await fetchConversations()
-      if (currentConversationId) await fetchMessages(currentConversationId)
-    } catch {}
+    if (showRefresh) return; setShowRefresh(true)
+    try { await fetchConversations(); if (currentConversationId) await fetchMessages(currentConversationId) } catch {}
     setShowRefresh(false)
   }
 
-  const handlePin = async (m: any) => {
-    try {
-      if ((m as any).is_pinned) { await msgPinApi.unpin(m.id) } else { await msgPinApi.pin(m.id) }
-      if (currentConversationId) { const res = await msgPinApi.list(currentConversationId); if (res.success) setPinnedMessages(res.data) }
-      fetchMessages(currentConversationId!)
-    } catch {}
+  const handleSelectDelete = async () => {
+    if (selectedIds.size === 0) return
+    if (!confirm(`Delete ${selectedIds.size} selected messages?`)) return
+    for (const id of selectedIds) { const m = currentMsgs.find((x: any) => x.id === id); if (m && m.sender_id === user?.id) await deleteMessage(id) }
+    setSelectedIds(new Set())
   }
 
-  const handleSave = async (msg: Message) => {
-    const { savedApi } = await import('../services/api')
-    const isSaved = savedIds.has(msg.id)
-    try {
-      if (isSaved) { await savedApi.unsave(msg.id); setSavedIds((s: Set<number>) => { const n = new Set(s); n.delete(msg.id); return n }) }
-      else { await savedApi.save(msg.id); setSavedIds((s: Set<number>) => new Set(s).add(msg.id)) }
-    } catch {}
-  }
-
-  // Empty state when no conversation selected
   if (!currentConv) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 min-h-0">
@@ -222,9 +121,7 @@ export function ChatView({
             <MessageSquare className="w-8 h-8 text-primary" />
           </div>
           <h2 className="text-lg font-semibold mb-2">Welcome to Kryzen</h2>
-          <p className="text-sm text-muted-foreground max-w-sm">
-            Select a conversation from the sidebar or start a new chat to begin messaging.
-          </p>
+          <p className="text-sm text-muted-foreground max-w-sm">Select a conversation from the sidebar or start a new chat to begin messaging.</p>
         </div>
       </div>
     )
@@ -236,12 +133,13 @@ export function ChatView({
         <ChatHeader
           conv={currentConv}
           currentUserId={user?.id}
-          onBack={() => { onMobileViewChange('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()) }}
-          onInfo={() => onGroupInfo(true)}
+          onBack={onBack}
+          onInfo={onGroupInfo}
           onCall={onCall}
-          onSearch={() => {}}
-          onAi={() => setAiPanelOpen(!aiPanelOpen)}
+          onMute={onMute}
+          onSearch={handleMessageSearch}
           handleRefresh={handleRefresh}
+          onAi={() => setAiPanelOpen(!aiPanelOpen)}
         />
 
         {typingNames && (
@@ -255,7 +153,7 @@ export function ChatView({
           <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">
             <span>{selectedIds.size} selected</span>
             <div className="flex gap-2">
-              <button onClick={() => { selectedIds.forEach((id: number) => { const m = currentMsgs.find((x: any) => x.id === id); if (m && m.sender_id === user?.id) deleteMessage(id) }); setSelectedIds(new Set()) }} className="px-3 py-1 rounded-full bg-white text-primary text-xs">Delete</button>
+              <button onClick={handleSelectDelete} className="px-3 py-1 rounded-full bg-white text-primary text-xs">Delete</button>
               <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1 rounded-full bg-white/20 text-xs">Cancel</button>
             </div>
           </div>
@@ -276,9 +174,7 @@ export function ChatView({
           )}
           {hasMore[currentConversationId!] && (
             <div className="text-center py-2">
-              <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-muted/80 transition-colors">
-                Load older
-              </button>
+              <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-muted/80 transition-colors">Load older</button>
             </div>
           )}
           <div className="py-2 space-y-0.5">
@@ -296,23 +192,16 @@ export function ChatView({
                   onReply={(m: any) => setReplyTo({ id: m.id, content: m.content || '', sender: m.sender_display_name || 'Unknown' })}
                   onEdit={(m: any) => { setEditTarget(m); setEditText(m.content || '') }}
                   onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
-                  onReact={handleReact}
+                  onReact={onReact}
                   onCopy={(t: string) => navigator.clipboard.writeText(t)}
                   onForward={(m: any) => setForwardMsg(m)}
-                  onSave={handleSave}
-                  onSelect={(m: any) => {
-                    setSelectedIds((s: Set<number>) => {
-                      const n = new Set(s)
-                      if (n.has(m.id)) n.delete(m.id)
-                      else n.add(m.id)
-                      return n
-                    })
-                  }}
+                  onSave={onSave}
+                  onSelect={(m: any) => setSelectedIds((s: Set<number>) => { const n = new Set(s); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n })}
                   isSelected={selectedIds.has(msg.id)}
                   onImageClick={(url: string, name: string, all: any[], idx: number) => setLightbox({ images: all, idx })}
                   savedIds={savedIds}
-                  onPin={handlePin}
-                  onAIAction={handleAIAction}
+                  onPin={onPin}
+                  onAIAction={onAIAction}
                   onMobileMore={(m: any) => onMobileMore(m)}
                 />
               )
@@ -354,7 +243,9 @@ export function ChatView({
                   { action: 'explain', label: 'Explain message', icon: FileText },
                   { action: 'translate', label: 'Translate message', icon: Languages },
                   { action: 'rewrite', label: 'Rewrite message', icon: Edit3 },
-                  { action: 'reply', label: 'Generate reply', icon: Reply }
+                  { action: 'reply', label: 'Generate reply', icon: Reply },
+                  { action: 'extract-tasks', label: 'Extract tasks', icon: FileText },
+                  { action: 'unread-summary', label: 'Summarize unread', icon: Bookmark }
                 ].map(({ action, label, icon: Icon }) => (
                   <button key={action} onClick={() => { handleAiPanelAction(action); setAiPanelOpen(false) }} className="py-2.5 px-3 rounded-xl bg-accent/10 hover:bg-accent/15 text-accent text-sm text-left flex items-center gap-2 border border-accent/10 transition-all active:scale-[0.98]">
                     <Icon className="w-4 h-4" /> {label}
@@ -378,11 +269,7 @@ export function ChatView({
         {editTarget && (
           <div className="p-2 bg-muted border-t border-border flex gap-2">
             <input value={editText} onChange={e => setEditText(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-background border border-border outline-none text-sm" placeholder="Edit message..." />
-            <button onClick={() => {
-              if (editText.trim()) { editMessage(editTarget.id, editText.trim()); setEditTarget(null); setEditText('') }
-            }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90">
-              Save
-            </button>
+            <button onClick={() => { if (editText.trim()) { editMessage(editTarget.id, editText.trim()); setEditTarget(null); setEditText('') } }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90">Save</button>
           </div>
         )}
       </div>

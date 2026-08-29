@@ -25,6 +25,7 @@ export function ChatPanels({
   showInsights,
   onClose,
   onJump,
+  onChat,
   pinnedMessages,
   setPinnedMessages,
   setShowPinned,
@@ -36,15 +37,15 @@ export function ChatPanels({
   const { currentConversationId } = useChatStore() as any
   const currentConv = useChatStore(s => s.conversations.find((c: any) => c.id === currentConversationId))
 
-  if (!currentConv) return null
+  if (!currentConv && !showProfile && !showSettings && !showNotifications) return null
 
   return (
     <aside className="absolute inset-y-0 right-0 w-full sm:w-[360px] border-l border-border z-30 flex flex-col overflow-hidden min-h-0 lg:relative lg:inset-auto lg:w-[360px] xl:w-[380px] shrink-0 bg-card modal-entrance">
       {showProfile && <ProfilePanel onClose={onClose} />}
-      {showGroupInfo && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={() => {}} />}
+      {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={() => {}} />}
       {showSettings && <SettingsPanel onClose={onClose} />}
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
-      {showPolls && <PollPanel conversationId={currentConv.id} onClose={() => setShowPolls(false)} />}
+      {showPolls && currentConv && <PollPanel conversationId={currentConv.id} onClose={() => setShowPolls(false)} />}
       {showPinned && (
         <div className="flex flex-col h-full bg-background">
           <div className="flex items-center justify-between p-3 border-b border-border">
@@ -63,7 +64,7 @@ export function ChatPanels({
           </div>
         </div>
       )}
-      {showEvents && (
+      {showEvents && currentConv && (
         <div className="flex flex-col h-full bg-background">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="font-semibold text-sm">Events</h3>
@@ -74,7 +75,7 @@ export function ChatPanels({
           </div>
         </div>
       )}
-      {showSchedule && (
+      {showSchedule && currentConv && (
         <div className="flex flex-col h-full bg-background">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="font-semibold text-sm">Scheduled</h3>
@@ -85,7 +86,7 @@ export function ChatPanels({
           </div>
         </div>
       )}
-      {showInsights && (
+      {showInsights && currentConv && (
         <div className="flex flex-col h-full bg-background">
           <div className="flex items-center justify-between p-3 border-b border-border">
             <h3 className="font-semibold text-sm">Insights</h3>

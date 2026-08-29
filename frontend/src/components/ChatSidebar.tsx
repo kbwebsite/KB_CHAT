@@ -15,11 +15,13 @@ type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
 export function ChatSidebar({
   onSelect,
   onStatusViewer,
-  onMobileViewChange
+  onMobileViewChange,
+  onMute
 }: {
   onSelect: (id: number) => void
   onStatusViewer: (statuses: any[], idx: number) => void
   onMobileViewChange: (view: 'list' | 'chat') => void
+  onMute?: () => void
 }) {
   const { user } = useAuthStore()
   const {
@@ -249,18 +251,19 @@ export function ChatSidebar({
               </div>
             )}
             <div className="flex-1 min-h-0">
-              <ConversationList
-                conversations={filteredByTab}
-                activeId={currentConversationId}
-                onSelect={(id: number) => handleSelect(id)}
-                search={search}
-                onSearch={setSearch}
-                typingMap={typingMap}
-                currentUserId={user?.id}
-                onPin={handlePin}
-                onArchive={handleArchive}
-                loading={loadingConvs}
-              />
+                  <ConversationList
+                    conversations={filteredByTab}
+                    activeId={currentConversationId}
+                    onSelect={(id: number) => handleSelect(id)}
+                    search={search}
+                    onSearch={setSearch}
+                    typingMap={typingMap}
+                    currentUserId={user?.id}
+                    onPin={handlePin}
+                    onArchive={handleArchive}
+                    onMute={onMute}
+                    loading={loadingConvs}
+                  />
             </div>
           </>
         )}
