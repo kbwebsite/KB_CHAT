@@ -119,7 +119,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   return (
-    <div className="composer border-t border-border p-2 sm:p-3 shrink-0 bg-background">
+    <div className="composer border-t border-border p-2 sm:p-3 shrink-0 kryzen-glass">
       {replyTo && (
         <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 text-xs bg-muted border border-border">
           <div className="min-w-0">
@@ -174,7 +174,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <button
             onClick={handleSend}
             disabled={!text.trim() || uploading}
-            className="send-btn absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 transition-all"
+            className="send-btn absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-gradient-to-br from-primary to-accent text-white flex items-center justify-center disabled:opacity-40 transition-all kryzen-hover-lift"
             title="Send"
           >
             <Send className="w-4 h-4 ml-0.5" />

@@ -22,13 +22,13 @@ export function MobileNav({ active, onTabChange }: { active: NavTab, onTabChange
             onClick={() => onTabChange(tab.id)}
             className={`flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-xl transition-all relative ${
               isActive
-                ? 'text-primary bg-primary/10 scale-105'
+                ? 'text-primary bg-primary/10 scale-105 kryzen-glow'
                 : 'text-muted-foreground hover:bg-muted active:scale-95'
             }`}
           >
             <Icon className="w-5 h-5" />
             <span className="text-[10px] font-medium">{tab.label}</span>
-            {isActive && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-primary" />}
+            {isActive && <div className="absolute bottom-1 w-1 h-1 rounded-full bg-primary pulse-dot" />}
           </button>
         )
       })}

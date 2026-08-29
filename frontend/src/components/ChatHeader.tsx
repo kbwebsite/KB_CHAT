@@ -1,6 +1,6 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, MoreVertical, ArrowLeft, Phone, Video, Search, BellOff, Trash2, Download, FileText, Image as ImageIcon, Link as LinkIcon, Mic, RefreshCcw, Sparkles } from 'lucide-react'
+import { Users, MoreVertical, ArrowLeft, Phone, Video, Search, BellOff, RefreshCcw, Sparkles } from 'lucide-react'
 
 export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute, onSearch, activeTab, onTabChange, handleRefresh, onAi }: {
   conv:Conversation|null, currentUserId?:number, onBack?:()=>void, onInfo?:()=>void,
@@ -12,7 +12,7 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
   handleRefresh?:()=>void,
   onAi?:()=>void
 }) {
-  if (!conv) return <div className="h-[64px] border-b bg-card flex items-center px-4">Select a conversation</div>
+  if (!conv) return <div className="h-[64px] border-b kryzen-glass flex items-center px-4">Select a conversation</div>
   const title = conv.title || 'Unknown'
   const isOnline = !conv.is_group && conv.members.some(m=> m.user_id !== currentUserId && m.is_online)
   const subtitle = conv.is_group ? `${conv.members.length} members` : isOnline ? 'Online' : formatLastSeen(conv.members.find(m=> m.user_id!==currentUserId)?.is_online ? undefined : undefined, false)
@@ -26,12 +26,12 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
   ]
 
   return (
-    <div className="border-b shrink-0 kryzen-header-glass">
+    <div className="border-b shrink-0 kryzen-glass">
       <div className="h-[64px] flex items-center justify-between px-3 sm:px-4">
         <div className="flex items-center gap-3 min-w-0">
           {onBack && <button onClick={onBack} className="lg:hidden kryzen-icon-btn"><ArrowLeft className="w-5 h-5"/></button>}
           <div className="w-9 h-9 rounded-full overflow-hidden flex items-center justify-center kryzen-avatar-ring shrink-0">
-            {conv.avatar_url ? <img src={conv.avatar_url} className="w-full h-full object-cover" alt="" /> : conv.is_group ? <Users className="w-5 h-5 text-white"/> : <span className="text-sm font-semibold text-white bg-gradient-to-br from-violet-500 to-indigo-600 w-full h-full flex items-center justify-center">{initials(title)}</span>}
+            {conv.avatar_url ? <img src={conv.avatar_url} className="w-full h-full object-cover rounded-full" alt="" /> : conv.is_group ? <Users className="w-5 h-5 text-white"/> : <span className="text-sm font-semibold text-white bg-gradient-to-br from-violet-500 to-indigo-600 w-full h-full flex items-center justify-center">{initials(title)}</span>}
           </div>
           <div className="min-w-0">
             <p className="font-semibold text-sm leading-tight truncate">{title}</p>
@@ -39,7 +39,7 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
           </div>
         </div>
         <div className="flex items-center gap-0.5">
-          <button onClick={onSearch} className="kryzen-icon-btn" title="Search (Ctrl+K)"><Search className="w-4 h-4"/></button>
+          <button onClick={onSearch} className="kryzen-icon-btn" title="Search"><Search className="w-4 h-4"/></button>
           <button onClick={onMute} className="kryzen-icon-btn hidden sm:flex" title="Mute"><BellOff className="w-4 h-4"/></button>
           <button onClick={()=> onCall?.('voice')} className="kryzen-icon-btn" title="Voice call"><Phone className="w-4 h-4"/></button>
           <button onClick={()=> onCall?.('video')} className="kryzen-icon-btn" title="Video call"><Video className="w-4 h-4"/></button>
@@ -60,3 +60,6 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
     </div>
   )
 }
+
+// Re-import for tab icons
+import { FileText, Image as ImageIcon, Link as LinkIcon, Mic } from 'lucide-react'

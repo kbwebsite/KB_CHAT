@@ -113,7 +113,7 @@ export function ChatSidebar({
   }
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 border-r border-border flex flex-col overflow-hidden min-h-0 bg-card">
+    <div className="w-full lg:w-[340px] shrink-0 border-r border-border flex flex-col overflow-hidden min-h-0 kryzen-glass sidebar-slide-in">
       {/* Desktop icon nav */}
       <div className="w-16 border-r border-border hidden sm:flex flex-col items-center py-4 gap-3 bg-muted/30">
         {[

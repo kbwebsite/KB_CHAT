@@ -60,7 +60,7 @@ export function ChatModals({
       />
       {forwardMsg && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 modal-entrance">
-          <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-border">
+          <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-border kryzen-glass-strong modal-entrance">
             <div className="p-4 border-b border-border flex justify-between items-center">
               <h3 className="font-semibold">Forward message</h3>
               <button onClick={() => setForwardMsg(null)} className="p-2 hover:bg-muted rounded-full transition-colors"><X className="w-4 h-4" /></button>

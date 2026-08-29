@@ -143,7 +143,7 @@ export function ChatView({
         />
 
         {typingNames && (
-          <div className="px-4 py-1 text-xs text-muted-foreground bg-muted border-b border-border">
+          <div className="px-4 py-1 text-xs text-muted-foreground bg-muted/50 border-b border-border kryzen-glass-subtle">
             <span className="font-medium">{typingNames}</span> is typing
             <span className="typing-dots ml-1"><span /><span /><span /></span>
           </div>
@@ -228,7 +228,7 @@ export function ChatView({
         {aiPanelOpen && (
           <>
             <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden" onClick={() => setAiPanelOpen(false)} />
-            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl bg-card border border-border shadow-2xl slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden modal-entrance">
+            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl kryzen-glass-strong shadow-2xl slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden modal-entrance">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-sm flex items-center gap-2">
                   <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground"><Sparkles className="w-3.5 h-3.5" /></span>
