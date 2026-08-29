@@ -5,9 +5,8 @@ import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
 import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
-import { msgPinApi } from '../services/api'
 import { Message } from '../types'
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare } from 'lucide-react'
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Cloud } from 'lucide-react'
 
 export function ChatView({
   onBack, onMobileViewChange, onCall, onProfile, onGroupInfo,
@@ -19,7 +18,7 @@ export function ChatView({
   aiPanelOpen, setAiPanelOpen, aiLoading, aiError, aiResult, setAiResult, handleAiPanelAction,
   isMuted, onMute, showPolls, showPinned, setShowPinned, showEvents, setShowEvents,
   showSchedule, setShowSchedule, showInsights, setShowInsights,
-  activeRightTab, handleMessageSearch
+  activeRightTab, handleMessageSearch, onNewChat
 }: any) {
   const { user } = useAuthStore()
   const {
@@ -113,20 +112,66 @@ export function ChatView({
     setSelectedIds(new Set())
   }
 
+  // ─── Welcome Screen (no conversation selected) ───
   if (!currentConv) {
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 min-h-0">
-        <div className="text-center px-4">
-          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
-            <MessageSquare className="w-8 h-8 text-primary" />
+      <div className="flex-1 flex flex-col bg-background min-h-0 overflow-hidden">
+        <ChatHeader conv={null} currentUserId={user?.id} />
+        <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto">
+          <div className="max-w-2xl w-full text-center">
+            {/* Animated K Logo */}
+            <div className="welcome-logo mx-auto mb-6 animate-float">
+              <span className="text-4xl font-bold text-white">K</span>
+            </div>
+
+            {/* Title */}
+            <h1 className="text-3xl font-bold mb-2">
+              Welcome to <span className="gradient-text">Kryzen</span>
+            </h1>
+            <p className="text-muted-foreground mb-8 text-sm">
+              Start a conversation, share ideas, and stay connected.
+            </p>
+
+            {/* CTA Button */}
+            <button
+              onClick={onNewChat}
+              className="btn-gradient px-8 py-3 rounded-2xl text-sm font-semibold text-white mb-10"
+            >
+              Start New Chat +
+            </button>
+
+            {/* Divider */}
+            <div className="flex items-center gap-4 mb-8">
+              <div className="flex-1 h-px bg-border" />
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Everything in one place</span>
+              <div className="flex-1 h-px bg-border" />
+            </div>
+
+            {/* Feature Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+              {[
+                { icon: MessageSquare, label: 'Real-time Messaging', desc: 'Message anyone instantly, anytime.', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(199 89% 48%))' },
+                { icon: Users, label: 'Group Chats', desc: 'Create groups and chat with your team.', gradient: 'linear-gradient(135deg, hsl(142 76% 36%), hsl(199 89% 48%))' },
+                { icon: Phone, label: 'Voice & Calls', desc: 'High quality voice & video calls.', gradient: 'linear-gradient(135deg, hsl(38 92% 50%), hsl(0 84% 60%))' },
+                { icon: Shield, label: 'Secure & Private', desc: 'End-to-end encryption for complete privacy.', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(330 81% 60%))' },
+                { icon: Cloud, label: 'Cloud Sync', desc: 'Access your chats from anywhere, any device.', gradient: 'linear-gradient(135deg, hsl(199 89% 48%), hsl(173 80% 40%))' },
+              ].map(({ icon: Icon, label, desc, gradient }, i) => (
+                <div key={i} className="feature-card animate-slide-up" style={{ animationDelay: `${i * 0.08}s` }}>
+                  <div className="feature-card-icon" style={{ background: gradient }}>
+                    <Icon className="w-5 h-5 text-white" />
+                  </div>
+                  <h3 className="font-semibold text-xs mb-1">{label}</h3>
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">{desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
-          <h2 className="text-lg font-semibold mb-2">Welcome to Kryzen</h2>
-          <p className="text-sm text-muted-foreground max-w-sm">Select a conversation from the sidebar or start a new chat to begin messaging.</p>
         </div>
       </div>
     )
   }
 
+  // ─── Active Conversation ───
   return (
     <DragDropZone onFilesUploaded={(ids: number[]) => { if (ids.length > 0) handleSend('', ids) }}>
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-background">
@@ -143,17 +188,17 @@ export function ChatView({
         />
 
         {typingNames && (
-          <div className="px-4 py-1 text-xs text-muted-foreground bg-muted/50 border-b border-border kryzen-glass-subtle">
+          <div className="px-4 py-1.5 text-xs text-muted-foreground glass-subtle">
             <span className="font-medium">{typingNames}</span> is typing
             <span className="typing-dots ml-1"><span /><span /><span /></span>
           </div>
         )}
 
         {selectedIds.size > 0 && (
-          <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">
+          <div className="px-3 py-2 gradient-primary text-white flex items-center justify-between text-sm">
             <span>{selectedIds.size} selected</span>
             <div className="flex gap-2">
-              <button onClick={handleSelectDelete} className="px-3 py-1 rounded-full bg-white text-primary text-xs">Delete</button>
+              <button onClick={handleSelectDelete} className="px-3 py-1 rounded-full bg-white/20 text-xs">Delete</button>
               <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1 rounded-full bg-white/20 text-xs">Cancel</button>
             </div>
           </div>
@@ -168,16 +213,16 @@ export function ChatView({
 
         <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
           {isCurrentLoading && (
-            <div className="sticky top-0 z-10 flex justify-center py-2 bg-muted/80 backdrop-blur">
-              <span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span>
+            <div className="sticky top-0 z-10 flex justify-center py-2">
+              <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
             </div>
           )}
           {hasMore[currentConversationId!] && (
             <div className="text-center py-2">
-              <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-muted/80 transition-colors">Load older</button>
+              <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full glass hover:opacity-80 transition-opacity">Load older</button>
             </div>
           )}
-          <div className="py-2 space-y-0.5">
+          <div className="py-2 px-2 sm:px-4 space-y-0.5">
             {currentMsgs.map((msg: any, idx: number) => {
               const prev = currentMsgs[idx - 1]
               const isOwn = msg.sender_id === user?.id
@@ -208,35 +253,35 @@ export function ChatView({
             })}
           </div>
           {showNewIndicator && (
-            <button onClick={() => scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:bg-primary/90 animate-bounce mx-auto block w-fit">
+            <button onClick={() => scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full btn-gradient text-xs font-semibold text-white shadow-lg animate-bounce mx-auto block w-fit">
               ↓ New messages
             </button>
           )}
         </div>
 
         {aiResult && (
-          <div className="mx-2 mb-2 p-3 rounded-xl bg-accent/5 border border-accent/20 flex items-start gap-3 slide-up">
-            <div className="shrink-0 w-8 h-8 rounded-lg bg-accent/10 flex items-center justify-center"><Bot className="w-4 h-4 text-accent" /></div>
+          <div className="mx-2 mb-2 p-3 rounded-xl glass-subtle flex items-start gap-3 animate-slide-up">
+            <div className="shrink-0 w-8 h-8 rounded-lg gradient-primary flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] text-accent font-medium mb-1 uppercase tracking-wide">Kryzen AI · {aiResult.action}</p>
+              <p className="text-[11px] gradient-text font-semibold mb-1 uppercase tracking-wide">Kryzen AI · {aiResult.action}</p>
               <p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>
             </div>
-            <button onClick={() => setAiResult(null)} className="shrink-0 p-1 hover:bg-muted rounded transition-colors"><X className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setAiResult(null)} className="shrink-0 icon-btn w-7 h-7"><X className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
         {aiPanelOpen && (
           <>
-            <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden" onClick={() => setAiPanelOpen(false)} />
-            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl kryzen-glass-strong shadow-2xl slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden modal-entrance">
+            <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden" onClick={() => setAiPanelOpen(false)} />
+            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl glass-strong shadow-2xl animate-slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-sm flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground"><Sparkles className="w-3.5 h-3.5" /></span>
+                  <span className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center text-white"><Sparkles className="w-3.5 h-3.5" /></span>
                   Kryzen AI
                 </h4>
-                <button onClick={() => setAiPanelOpen(false)} className="p-1.5 rounded-full hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+                <button onClick={() => setAiPanelOpen(false)} className="icon-btn w-7 h-7"><X className="w-4 h-4" /></button>
               </div>
-              <p className="text-xs text-muted-foreground">Choose a contextual action — uses existing AI where available.</p>
+              <p className="text-xs text-muted-foreground">Choose a contextual action.</p>
               <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-1 overscroll-contain">
                 {[
                   { action: 'summarize', label: 'Summarize conversation', icon: Sparkles },
@@ -247,12 +292,12 @@ export function ChatView({
                   { action: 'extract-tasks', label: 'Extract tasks', icon: FileText },
                   { action: 'unread-summary', label: 'Summarize unread', icon: Bookmark }
                 ].map(({ action, label, icon: Icon }) => (
-                  <button key={action} onClick={() => { handleAiPanelAction(action); setAiPanelOpen(false) }} className="py-2.5 px-3 rounded-xl bg-accent/10 hover:bg-accent/15 text-accent text-sm text-left flex items-center gap-2 border border-accent/10 transition-all active:scale-[0.98]">
-                    <Icon className="w-4 h-4" /> {label}
+                  <button key={action} onClick={() => { handleAiPanelAction(action); setAiPanelOpen(false) }} className="py-2.5 px-3 rounded-xl glass-subtle hover:bg-primary/10 text-sm text-left flex items-center gap-2 border border-border/50 transition-all active:scale-[0.98]">
+                    <Icon className="w-4 h-4 text-primary" /> {label}
                   </button>
                 ))}
               </div>
-              {aiLoading && <p className="text-xs text-muted-foreground animate-pulse flex items-center gap-2"><span className="w-2 h-2 bg-accent rounded-full animate-bounce" /> Thinking...</p>}
+              {aiLoading && <p className="text-xs text-muted-foreground animate-pulse flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full animate-bounce" /> Thinking...</p>}
               {aiError && <p className="text-xs text-destructive">Error: {aiError}</p>}
             </div>
           </>
@@ -267,9 +312,9 @@ export function ChatView({
         />
 
         {editTarget && (
-          <div className="p-2 bg-muted border-t border-border flex gap-2">
-            <input value={editText} onChange={e => setEditText(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-background border border-border outline-none text-sm" placeholder="Edit message..." />
-            <button onClick={() => { if (editText.trim()) { editMessage(editTarget.id, editText.trim()); setEditTarget(null); setEditText('') } }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90">Save</button>
+          <div className="p-2 glass-strong border-t border-border flex gap-2">
+            <input value={editText} onChange={e => setEditText(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-muted border border-border outline-none text-sm" placeholder="Edit message..." />
+            <button onClick={() => { if (editText.trim()) { editMessage(editTarget.id, editText.trim()); setEditTarget(null); setEditText('') } }} className="px-4 py-2 rounded-xl btn-gradient text-sm font-medium text-white">Save</button>
           </div>
         )}
       </div>

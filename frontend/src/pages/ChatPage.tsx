@@ -17,6 +17,8 @@ import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2 } fr
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
+type NavPanelTab = 'chats' | 'contacts' | 'groups' | 'calls' | 'saved' | 'files' | 'settings'
+
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
   const toast = useToastStore(s => s.push)
@@ -29,6 +31,7 @@ export default function ChatPage() {
 
   const [mobileView, setMobileView] = useState<'list' | 'chat'>(typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'chat' : 'list')
   const [mobileNavTab, setMobileNavTab] = useState<'chats' | 'status' | 'calls' | 'contacts' | 'ai'>('chats')
+  const [activeNavTab, setActiveNavTab] = useState<NavPanelTab>('chats')
   const [showProfile, setShowProfile] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -274,6 +277,22 @@ export default function ChatPage() {
     settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
   }
 
+  // ─── Nav panel tab change ───
+  const handleNavTabChange = (tab: NavPanelTab) => {
+    setActiveNavTab(tab)
+    if (tab === 'chats' || tab === 'groups') {
+      // Already showing conversation list
+    } else if (tab === 'contacts') {
+      setShowContacts(true)
+    } else if (tab === 'calls') {
+      setShowCalls(true)
+    } else if (tab === 'saved') {
+      setShowSaved(true)
+    } else if (tab === 'settings') {
+      setShowSettings(true)
+    }
+  }
+
   // ─── Mobile view auto-switch ───
   useEffect(() => { if (currentConversationId && window.innerWidth < 1024) setMobileView('chat') }, [currentConversationId])
 
@@ -286,27 +305,25 @@ export default function ChatPage() {
 
   const totalUnread = conversations.reduce((a: number, b: any) => a + b.unread_count, 0)
 
+  // Map sidebar tab for ChatSidebar
+  const sidebarTab: 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved' = activeNavTab === 'groups' ? 'groups' : 'chats'
+
   return (
     <ChatLayout
-      totalUnread={totalUnread}
-      onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
-      onSearch={() => setShowMessageSearch(!showMessageSearch)}
-      onSaved={() => { closeAllPanels(); setShowSaved(true) }}
-      onProfile={() => { closeAllPanels(); setShowProfile(true) }}
+      activeNavTab={activeNavTab}
+      onNavTabChange={handleNavTabChange}
       onSettings={() => { closeAllPanels(); setShowSettings(true) }}
-      onThemeToggle={handleToggleTheme}
-      onLogout={() => { logout(); nav('/login') }}
-      showMessageSearch={showMessageSearch}
-      messageSearch={messageSearch}
-      onMessageSearchChange={setMessageSearch}
-      onMessageSearchSubmit={handleMessageSearch}
-      onMessageSearchClose={() => { setShowMessageSearch(false); setMessageSearch('') }}
+      totalUnread={totalUnread}
     >
       <ChatSidebar
         onSelect={(id: number) => { handleSelect(id); setMobileView('chat') }}
         onStatusViewer={(statuses: any[], idx: number) => setStatusViewer({ statuses, idx })}
         onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
         onMute={handleMute}
+        activeTab={sidebarTab as any}
+        onTabChange={(tab) => {
+          if (tab === 'chats' || tab === 'groups') setActiveNavTab(tab)
+        }}
       />
 
       <ChatView
@@ -356,6 +373,7 @@ export default function ChatPage() {
         setShowInsights={setShowInsights}
         activeRightTab="chat"
         handleMessageSearch={handleMessageSearch}
+        onNewChat={() => handleStartChat}
       />
 
       <ChatPanels
@@ -393,8 +411,8 @@ export default function ChatPage() {
         setShowCommandPalette={setShowCommandPalette}
         conversations={conversations}
         onForward={handleForward}
-        onNewChat={() => { closeAllPanels(); /* sidebar handles user search */ }}
-        onNewGroup={() => { closeAllPanels(); /* sidebar handles new group */ }}
+        onNewChat={() => { closeAllPanels() }}
+        onNewGroup={() => { closeAllPanels() }}
         onNewStatus={() => { closeAllPanels(); setShowStatus(true) }}
         onSettings={() => { closeAllPanels(); setShowSettings(true) }}
         onSaved={() => { closeAllPanels(); setShowSaved(true) }}
