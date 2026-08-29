@@ -20,10 +20,10 @@ export function MobileNav({ active, onTabChange }: { active: NavTab, onTabChange
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-xl transition-all ${
+            className={`flex flex-col items-center justify-center gap-0.5 w-16 h-14 rounded-xl transition-all relative ${
               isActive
                 ? 'text-primary bg-primary/10 scale-105'
-                : 'text-text-muted hover:bg-surface-2 active:scale-95'
+                : 'text-muted-foreground hover:bg-muted active:scale-95'
             }`}
           >
             <Icon className="w-5 h-5" />

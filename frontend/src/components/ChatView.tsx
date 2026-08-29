@@ -7,7 +7,7 @@ import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
 import { msgPinApi, aiApi } from '../services/api'
 import { Message } from '../types'
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages } from 'lucide-react'
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, MessageSquare } from 'lucide-react'
 
 export function ChatView({
   onBack,
@@ -49,11 +49,6 @@ export function ChatView({
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
-  const [showPinned, setShowPinned] = useState(false)
-  const [showPolls, setShowPolls] = useState(false)
-  const [showEvents, setShowEvents] = useState(false)
-  const [showSchedule, setShowSchedule] = useState(false)
-  const [showInsights, setShowInsights] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
 
   const listRef = useRef<HTMLDivElement>(null)
@@ -218,16 +213,31 @@ export function ChatView({
     } catch {}
   }
 
-  if (!currentConv) return null
+  // Empty state when no conversation selected
+  if (!currentConv) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center bg-muted/20 min-h-0">
+        <div className="text-center px-4">
+          <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-primary/10 flex items-center justify-center">
+            <MessageSquare className="w-8 h-8 text-primary" />
+          </div>
+          <h2 className="text-lg font-semibold mb-2">Welcome to Kryzen</h2>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Select a conversation from the sidebar or start a new chat to begin messaging.
+          </p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <DragDropZone onFilesUploaded={(ids: number[]) => { if (ids.length > 0) handleSend('', ids) }}>
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-surface-2/50">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-background">
         <ChatHeader
           conv={currentConv}
           currentUserId={user?.id}
           onBack={() => { onMobileViewChange('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()) }}
-          onInfo={() => onGroupInfo(!showPolls)}
+          onInfo={() => onGroupInfo(true)}
           onCall={onCall}
           onSearch={() => {}}
           onAi={() => setAiPanelOpen(!aiPanelOpen)}
@@ -235,38 +245,38 @@ export function ChatView({
         />
 
         {typingNames && (
-          <div className="px-4 py-1 text-xs text-text-muted bg-surface border-b flex items-center gap-1.5 border-border/30">
+          <div className="px-4 py-1 text-xs text-muted-foreground bg-muted border-b border-border">
             <span className="font-medium">{typingNames}</span> is typing
-            <span className="typing-dots"><span /><span /><span /></span>
+            <span className="typing-dots ml-1"><span /><span /><span /></span>
           </div>
         )}
 
         {selectedIds.size > 0 && (
-          <div className="px-3 py-2 bg-primary text-white flex items-center justify-between text-sm">
+          <div className="px-3 py-2 bg-primary text-primary-foreground flex items-center justify-between text-sm">
             <span>{selectedIds.size} selected</span>
             <div className="flex gap-2">
-              <button onClick={() => { selectedIds.forEach((id: number) => { const m = currentMsgs.find((x: any) => x.id === id); if (m && m.sender_id === user?.id) deleteMessage(id) }); setSelectedIds(new Set()) }} className="px-3 py-1 rounded-full bg-white text-primary text-xs flex items-center gap-1">Delete</button>
+              <button onClick={() => { selectedIds.forEach((id: number) => { const m = currentMsgs.find((x: any) => x.id === id); if (m && m.sender_id === user?.id) deleteMessage(id) }); setSelectedIds(new Set()) }} className="px-3 py-1 rounded-full bg-white text-primary text-xs">Delete</button>
               <button onClick={() => setSelectedIds(new Set())} className="px-3 py-1 rounded-full bg-white/20 text-xs">Cancel</button>
             </div>
           </div>
         )}
 
         {editTarget && (
-          <div className="px-3 py-2 bg-warning/10 border-b flex items-center justify-between text-sm border-border/30">
+          <div className="px-3 py-2 bg-warning/10 border-b border-border flex items-center justify-between text-sm">
             <span>Editing: <span className="font-medium">{editTarget.content?.slice(0, 40)}</span></span>
-            <button onClick={() => { setEditTarget(null); setEditText('') }} className="px-3 py-1 rounded-full bg-surface border border-border/30 text-xs transition-colors hover:bg-surface-2">Cancel</button>
+            <button onClick={() => { setEditTarget(null); setEditText('') }} className="px-3 py-1 rounded-full bg-muted border border-border text-xs">Cancel</button>
           </div>
         )}
 
         <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
           {isCurrentLoading && (
-            <div className="sticky top-0 z-10 flex justify-center py-2 bg-surface/80 backdrop-blur">
-              <span className="text-xs px-3 py-1 rounded-full bg-surface-2 animate-pulse">Loading older...</span>
+            <div className="sticky top-0 z-10 flex justify-center py-2 bg-muted/80 backdrop-blur">
+              <span className="text-xs px-3 py-1 rounded-full bg-muted animate-pulse">Loading older...</span>
             </div>
           )}
           {hasMore[currentConversationId!] && (
             <div className="text-center py-2">
-              <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-surface-2 hover:bg-surface-3 transition-colors">
+              <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full bg-muted hover:bg-muted/80 transition-colors">
                 Load older
               </button>
             </div>
@@ -309,7 +319,7 @@ export function ChatView({
             })}
           </div>
           {showNewIndicator && (
-            <button onClick={() => scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full bg-primary text-white text-xs shadow-lg hover:bg-primary/90 animate-bounce mx-auto block w-fit transition-colors">
+            <button onClick={() => scrollToBottom(true)} className="sticky bottom-4 z-10 self-center px-4 py-1.5 rounded-full bg-primary text-primary-foreground text-xs shadow-lg hover:bg-primary/90 animate-bounce mx-auto block w-fit">
               ↓ New messages
             </button>
           )}
@@ -322,22 +332,22 @@ export function ChatView({
               <p className="text-[11px] text-accent font-medium mb-1 uppercase tracking-wide">Kryzen AI · {aiResult.action}</p>
               <p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>
             </div>
-            <button onClick={() => setAiResult(null)} className="shrink-0 p-1 hover:bg-surface-2 rounded transition-colors"><X className="w-3.5 h-3.5" /></button>
+            <button onClick={() => setAiResult(null)} className="shrink-0 p-1 hover:bg-muted rounded transition-colors"><X className="w-3.5 h-3.5" /></button>
           </div>
         )}
 
         {aiPanelOpen && (
           <>
             <div className="fixed inset-0 z-40 bg-black/20 backdrop-blur-sm lg:hidden" onClick={() => setAiPanelOpen(false)} />
-            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl glass-strong border border-border/30 shadow-2xl slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden modal-entrance">
+            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl bg-card border border-border shadow-2xl slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden modal-entrance">
               <div className="flex items-center justify-between">
                 <h4 className="font-semibold text-sm flex items-center gap-2">
-                  <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white"><Sparkles className="w-3.5 h-3.5" /></span>
+                  <span className="w-7 h-7 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center text-primary-foreground"><Sparkles className="w-3.5 h-3.5" /></span>
                   Kryzen AI
                 </h4>
-                <button onClick={() => setAiPanelOpen(false)} className="p-1.5 rounded-full hover:bg-surface-2 transition-colors"><X className="w-4 h-4" /></button>
+                <button onClick={() => setAiPanelOpen(false)} className="p-1.5 rounded-full hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
               </div>
-              <p className="text-xs text-text-muted">Choose a contextual action — uses existing AI where available.</p>
+              <p className="text-xs text-muted-foreground">Choose a contextual action — uses existing AI where available.</p>
               <div className="grid grid-cols-1 gap-2 overflow-y-auto pr-1 overscroll-contain">
                 {[
                   { action: 'summarize', label: 'Summarize conversation', icon: Sparkles },
@@ -351,8 +361,8 @@ export function ChatView({
                   </button>
                 ))}
               </div>
-              {aiLoading && <p className="text-xs text-text-muted animate-pulse flex items-center gap-2"><span className="w-2 h-2 bg-accent rounded-full animate-bounce" /> Thinking...</p>}
-              {aiError && <p className="text-xs text-error">Error: {aiError}</p>}
+              {aiLoading && <p className="text-xs text-muted-foreground animate-pulse flex items-center gap-2"><span className="w-2 h-2 bg-accent rounded-full animate-bounce" /> Thinking...</p>}
+              {aiError && <p className="text-xs text-destructive">Error: {aiError}</p>}
             </div>
           </>
         )}
@@ -366,11 +376,11 @@ export function ChatView({
         />
 
         {editTarget && (
-          <div className="p-2 bg-surface border-t flex gap-2 border-border/30">
-            <input value={editText} onChange={e => setEditText(e.target.value)} className="flex-1 px-3 py-2 rounded-xl input-glass outline-none text-sm" placeholder="Edit message..." />
+          <div className="p-2 bg-muted border-t border-border flex gap-2">
+            <input value={editText} onChange={e => setEditText(e.target.value)} className="flex-1 px-3 py-2 rounded-xl bg-background border border-border outline-none text-sm" placeholder="Edit message..." />
             <button onClick={() => {
               if (editText.trim()) { editMessage(editTarget.id, editText.trim()); setEditTarget(null); setEditText('') }
-            }} className="px-4 py-2 rounded-xl bg-primary text-white text-sm font-medium transition-colors hover:bg-primary/90">
+            }} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90">
               Save
             </button>
           </div>

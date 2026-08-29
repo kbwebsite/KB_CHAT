@@ -79,7 +79,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           const isImage = att.mime_type.startsWith('image/')
           const isVoice = att.mime_type.startsWith('audio/')
           const type = isImage ? 'image' : isVoice ? 'voice' : 'file'
-          const fallback = isImage ? (text || '📷 Image') : isVoice ? `🎙️ Voice ${Math.round(att.file_size / 1024)}KB` : `📎 ${att.original_filename}`
+          const fallback = isImage ? (text || 'Image') : isVoice ? `Voice ${Math.round(att.file_size / 1024)}KB` : `File: ${att.original_filename}`
           onSend(fallback, [att.id], type as any)
           setText('')
         }
@@ -102,7 +102,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       const res = await uploadApi.upload(file, (p) => setProgress(p))
       if (res.success) {
         const att = res.data
-        onSend(`🎙️ Voice ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`, [att.id], 'voice' as any)
+        onSend(`Voice ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`, [att.id], 'voice' as any)
       }
     } catch (err: any) {
       setUploadError('Voice upload failed')
@@ -119,43 +119,43 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   return (
-    <div className="composer border-t p-2 sm:p-3 shrink-0 border-border/30">
+    <div className="composer border-t border-border p-2 sm:p-3 shrink-0 bg-background">
       {replyTo && (
-        <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 text-xs bg-surface-2/50 border border-border/30">
+        <div className="flex items-center justify-between rounded-xl px-3 py-2 mb-2 text-xs bg-muted border border-border">
           <div className="min-w-0">
             <p className="font-semibold text-primary">Replying to {replyTo.sender}</p>
-            <p className="truncate text-text-muted">{replyTo.content}</p>
+            <p className="truncate text-muted-foreground">{replyTo.content}</p>
           </div>
-          <button onClick={onCancelReply} className="p-1 hover:bg-surface-2 rounded-full transition-colors"><X className="w-4 h-4" /></button>
+          <button onClick={onCancelReply} className="p-1 hover:bg-muted/80 rounded-full transition-colors"><X className="w-4 h-4" /></button>
         </div>
       )}
       {uploading && (
         <div className="mb-2">
-          <div className="h-1.5 bg-surface-2 rounded-full overflow-hidden">
+          <div className="h-1.5 bg-muted rounded-full overflow-hidden">
             <div className="h-full bg-primary transition-all" style={{ width: `${progress}%` }} />
           </div>
-          <div className="flex justify-between text-[11px] text-text-muted mt-1">
+          <div className="flex justify-between text-[11px] text-muted-foreground mt-1">
             <span>Uploading {progress}%</span>
-            <button onClick={() => abortRef.current?.abort()} className="text-error hover:underline">Cancel</button>
+            <button onClick={() => abortRef.current?.abort()} className="text-destructive hover:underline">Cancel</button>
           </div>
         </div>
       )}
       {uploadError && (
-        <div className="mb-2 p-2 rounded-lg bg-error/10 text-error text-xs flex justify-between">
+        <div className="mb-2 p-2 rounded-lg bg-destructive/10 text-destructive text-xs flex justify-between">
           <span>{uploadError}</span>
           <button onClick={() => setUploadError(null)} className="ml-2 underline">Dismiss</button>
         </div>
       )}
       <div className="flex items-end gap-1.5 sm:gap-2">
         <div className="flex gap-0.5 sm:gap-1 shrink-0">
-          <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-xl hover:bg-surface-2 transition-colors disabled:opacity-50" title="Attach file">
+          <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-xl hover:bg-muted transition-colors disabled:opacity-50" title="Attach file">
             <Paperclip className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm" multiple />
-          <button onClick={() => setShowEmoji(!showEmoji)} className="p-2 rounded-xl hover:bg-surface-2 transition-colors" title="Emoji">
+          <button onClick={() => setShowEmoji(!showEmoji)} className="p-2 rounded-xl hover:bg-muted transition-colors" title="Emoji">
             <Smile className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
-          <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false) }} className="p-2 rounded-xl hover:bg-surface-2 transition-colors" title="Stickers">
+          <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false) }} className="p-2 rounded-xl hover:bg-muted transition-colors" title="Stickers">
             <Image className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
           <div className="hidden sm:block"><VoiceRecorder onSend={handleVoiceSend} /></div>
@@ -168,13 +168,13 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             rows={1}
-            className="w-full max-h-32 min-h-[44px] py-3 px-4 pr-12 rounded-2xl input-glass outline-none resize-none text-sm leading-5 placeholder:text-text-muted/70"
+            className="w-full max-h-32 min-h-[44px] py-3 px-4 pr-12 rounded-2xl bg-background border border-border outline-none resize-none text-sm leading-5 placeholder:text-muted-foreground"
             disabled={disabled || uploading}
           />
           <button
             onClick={handleSend}
             disabled={!text.trim() || uploading}
-            className="send-btn absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary text-white flex items-center justify-center disabled:opacity-40 transition-all"
+            className="send-btn absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center disabled:opacity-40 transition-all"
             title="Send"
           >
             <Send className="w-4 h-4 ml-0.5" />

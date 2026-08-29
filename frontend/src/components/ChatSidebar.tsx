@@ -24,7 +24,7 @@ export function ChatSidebar({
   const { user } = useAuthStore()
   const {
     conversations, currentConversationId, messages, typingUsers,
-    loadingConvs, fetchConversations, setCurrent, fetchMessages, searchMessages
+    loadingConvs, fetchConversations, setCurrent, fetchMessages
   } = useChatStore() as any
 
   const [search, setSearch] = useState('')
@@ -111,9 +111,9 @@ export function ChatSidebar({
   }
 
   return (
-    <div className="w-full lg:w-[340px] shrink-0 border-r flex flex-col overflow-hidden min-h-0 glass border-r border-border/30">
+    <div className="w-full lg:w-[340px] shrink-0 border-r border-border flex flex-col overflow-hidden min-h-0 bg-card">
       {/* Desktop icon nav */}
-      <div className="w-16 border-r border-border/30 hidden sm:flex flex-col items-center py-4 gap-3 bg-surface/50">
+      <div className="w-16 border-r border-border hidden sm:flex flex-col items-center py-4 gap-3 bg-muted/30">
         {[
           { id: 'chats', icon: MessageSquare, label: 'Chats', count: conversations.length },
           { id: 'status', icon: Contact, label: 'Status' },
@@ -131,14 +131,14 @@ export function ChatSidebar({
               else if (item.id === 'saved') setShowSaved(true)
               else if (item.id === 'calls') setShowCalls(true)
             }}
-            className={`nav-icon w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 ${
+            className={`w-10 h-10 rounded-xl flex flex-col items-center justify-center gap-0.5 transition-colors ${
               (item.id === sidebarTab && !showContacts && !showSaved && !showCalls && !showStatus) ||
               (item.id === 'contacts' && showContacts) ||
               (item.id === 'saved' && showSaved) ||
               (item.id === 'calls' && showCalls) ||
               (item.id === 'status' && showStatus)
-                ? 'active text-white'
-                : 'text-text-muted hover:bg-surface-2'
+                ? 'bg-primary text-primary-foreground'
+                : 'text-muted-foreground hover:bg-muted'
             }`}
             title={item.label}
           >
@@ -151,7 +151,7 @@ export function ChatSidebar({
       </div>
 
       {/* Mobile top tabs */}
-      <div className="sm:hidden flex gap-1 p-2 border-b overflow-x-auto scrollbar-none border-border/30">
+      <div className="sm:hidden flex gap-1 p-2 border-b border-border overflow-x-auto">
         {[
           { id: 'chats', label: 'Chats' },
           { id: 'status', label: 'Status' },
@@ -175,8 +175,8 @@ export function ChatSidebar({
               (t.id === 'saved' && showSaved) ||
               (t.id === 'calls' && showCalls) ||
               (t.id === 'status' && showStatus)
-                ? 'badge'
-                : 'bg-surface-2'
+                ? 'bg-primary text-primary-foreground'
+                : 'bg-muted'
             }`}
           >
             {t.label}
@@ -196,40 +196,40 @@ export function ChatSidebar({
           <CallsPanel onClose={() => setShowCalls(false)} />
         ) : (
           <>
-            <div className="flex items-center justify-between p-3 border-b border-border/30">
+            <div className="flex items-center justify-between p-3 border-b border-border">
               <h2 className="font-semibold flex items-center gap-2 text-sm">
                 {sidebarTab === 'groups' ? <Users className="w-4 h-4" /> : <MessageSquare className="w-4 h-4" />}
                 {sidebarTab === 'groups' ? 'Groups' : 'Chats'}
               </h2>
               <div className="flex gap-1">
-                <button onClick={() => setShowNewGroup(true)} className="p-2 rounded-full hover:bg-surface-2 transition-colors" title="New Group">
+                <button onClick={() => setShowNewGroup(true)} className="p-2 rounded-full hover:bg-muted transition-colors" title="New Group">
                   <Users className="w-4 h-4" />
                 </button>
-                <button onClick={() => setShowUserSearch(!showUserSearch)} className="p-2 rounded-full bg-primary text-white hover:bg-primary/90 transition-colors" title="New Chat">
+                <button onClick={() => setShowUserSearch(!showUserSearch)} className="p-2 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 transition-colors" title="New Chat">
                   <Plus className="w-4 h-4" />
                 </button>
               </div>
             </div>
             {showUserSearch && (
-              <div className="border-b bg-surface-2/20 border-border/30">
+              <div className="border-b border-border bg-muted/20">
                 <UserSearch onSelect={handleStartChat} />
-                <button onClick={() => setShowUserSearch(false)} className="w-full text-xs py-2 text-text-muted hover:bg-surface-2 transition-colors">
+                <button onClick={() => setShowUserSearch(false)} className="w-full text-xs py-2 text-muted-foreground hover:bg-muted transition-colors">
                   Close
                 </button>
               </div>
             )}
             {showNewGroup && (
-              <div className="p-3 border-b bg-surface-2/20 space-y-2 border-border/30">
+              <div className="p-3 border-b border-border bg-muted/20 space-y-2">
                 <h3 className="font-medium text-sm">New Group</h3>
                 <input
                   value={groupTitle}
                   onChange={e => setGroupTitle(e.target.value)}
                   placeholder="Group name"
-                  className="w-full px-3 py-2 rounded-xl input-glass outline-none text-sm"
+                  className="w-full px-3 py-2 rounded-xl bg-background border border-border outline-none text-sm"
                 />
                 <div className="flex flex-wrap gap-1">
                   {groupMembers.map((m: any) => (
-                    <span key={m.id} className="px-2 py-1 rounded-full badge text-xs flex items-center gap-1">
+                    <span key={m.id} className="px-2 py-1 rounded-full bg-primary text-primary-foreground text-xs flex items-center gap-1">
                       {m.display_name}
                       <button onClick={() => setGroupMembers(gm => gm.filter((x: any) => x.id !== m.id))}>×</button>
                     </span>
@@ -239,10 +239,10 @@ export function ChatSidebar({
                   if (!groupMembers.find((m: any) => m.id === u.id)) setGroupMembers([...groupMembers, u])
                 }} />
                 <div className="flex gap-2">
-                  <button onClick={handleCreateGroup} className="flex-1 py-2 rounded-xl bg-primary text-white text-sm font-medium transition-colors hover:bg-primary/90">
+                  <button onClick={handleCreateGroup} className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium transition-colors hover:bg-primary/90">
                     Create
                   </button>
-                  <button onClick={() => setShowNewGroup(false)} className="px-4 py-2 rounded-xl bg-surface-2 border border-border/30 text-sm transition-colors hover:bg-surface-3">
+                  <button onClick={() => setShowNewGroup(false)} className="px-4 py-2 rounded-xl bg-muted border border-border text-sm transition-colors hover:bg-muted/80">
                     Cancel
                   </button>
                 </div>
