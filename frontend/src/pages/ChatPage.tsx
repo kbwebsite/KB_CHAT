@@ -65,6 +65,10 @@ export default function ChatPage() {
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
+  const [showLanguageSelector, setShowLanguageSelector] = useState(false)
+  const [languages, setLanguages] = useState<Array<{code: string, name: string, native: string}>>([])
+  const [languagesLoading, setLanguagesLoading] = useState(false)
+  const [pendingTranslateMsg, setPendingTranslateMsg] = useState<Message | null>(null)
 
   const currentConv = conversations.find((c: any) => c.id === currentConversationId) || null
 
@@ -198,19 +202,58 @@ export default function ChatPage() {
 
   // ─── AI action ───
   const handleAIAction = async (msg: Message, action: string) => {
+    if (action === 'translate') {
+      await handleTranslateClick(msg)
+      return
+    }
     setAiResult(null)
     try {
       const text = msg.content || ''
       let res
       if (action === 'summarize') res = await aiApi.summarize(text)
-      else if (action === 'translate') res = await aiApi.translate(text)
       else res = await aiApi.action(text, 'text', action)
-      const resultText = res.data?.reply || res.data?.summary || res.data?.translation || res.data?.result || 'No result'
+      const resultText = res.data?.reply || res.data?.summary || res.data?.result || 'No result'
       setAiResult({ text: resultText, action })
     } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
+}
+
+const fetchLanguages = async () => {
+    if (languages.length > 0) return
+    setLanguagesLoading(true)
+    try {
+      const res = await aiApi.getLanguages()
+      if (res.success && res.data?.languages) setLanguages(res.data.languages)
+    } catch {}
+    setLanguagesLoading(false)
   }
 
-  const handleAiPanelAction = async (action: string) => {
+  const handleLanguageSelect = async (langCode: string, langName: string) => {
+    setShowLanguageSelector(false)
+    setLanguagesLoading(false)
+    if (pendingTranslateMsg) {
+      // Translate specific message
+      try {
+        setAiLoading(true)
+        const res = await aiApi.translate(pendingTranslateMsg.content || '', langName)
+        const resultText = res.data?.translation || res.data?.result || 'No result'
+        setAiResult({ text: resultText, action: 'translate' })
+      } catch { setAiResult({ text: 'AI action failed. Please try again.', action: 'translate' }) }
+      setAiLoading(false)
+      setPendingTranslateMsg(null)
+    } else {
+      // Translate conversation context (from AI panel)
+      await handleAiPanelAction('translate', langName)
+    }
+  }
+
+  const handleTranslateClick = async (msg?: Message) => {
+    if (msg) setPendingTranslateMsg(msg)
+    else setPendingTranslateMsg(null)
+    await fetchLanguages()
+    setShowLanguageSelector(true)
+  }
+
+  const handleAiPanelAction = async (action: string, targetLanguage?: string) => {
     setAiLoading(true); setAiError(null)
     try {
       const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
@@ -218,7 +261,7 @@ export default function ChatPage() {
       const contextText = recentText || 'No conversation context available.'
       let res
       if (action === 'summarize') res = await aiApi.summarize(contextText)
-      else if (action === 'translate') res = await aiApi.translate(contextText)
+      else if (action === 'translate') res = await aiApi.translate(contextText, targetLanguage)
       else if (action === 'extract-tasks') res = await aiApi.action(contextText, 'text', 'extract-tasks')
       else if (action === 'unread-summary') res = await aiApi.summarize(contextText)
       else res = await aiApi.action(contextText, 'text', action)
@@ -395,6 +438,13 @@ export default function ChatPage() {
             onSettings={() => { closeAllPanels(); setShowSettings(true) }}
             onThemeToggle={handleToggleTheme}
             onLogout={() => { logout(); nav('/login') }}
+            // Language selector props
+            showLanguageSelector={showLanguageSelector}
+            languages={languages}
+            languagesLoading={languagesLoading}
+            handleLanguageSelect={handleLanguageSelect}
+            handleTranslateClick={handleTranslateClick}
+            onCloseLanguageSelector={() => setShowLanguageSelector(false)}
           />
         </ErrorBoundary>
 

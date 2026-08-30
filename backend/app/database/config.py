@@ -36,6 +36,12 @@ class Settings(BaseSettings):
     TURN_CREDENTIAL: str = ""
     CLOUDFLARE_TURN_KEY_ID: str = ""
     CLOUDFLARE_TURN_API_TOKEN: str = ""
+    # AI Agent settings
+    EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
+    VECTOR_STORE_PATH: str = "./vector_store"
+    CODE_INDEX_ENABLED: bool = True
+    AGENT_MAX_ITERATIONS: int = 10
+    AGENT_MAX_CONTEXT_TOKENS: int = 8000
 
     def model_post_init(self, __context):
         # Normalize postgres:// -> postgresql:// for SQLAlchemy/psycopg2

@@ -234,8 +234,10 @@ export const aiApi = {
     api.post('/api/ai/action', { code, language, action, instruction }).then(r=>r.data),
   summarize: (text: string) =>
     api.post('/api/ai/summarize', { message: text }).then(r=>r.data),
-  translate: (text: string) =>
-    api.post('/api/ai/translate', { message: text }).then(r=>r.data),
+  translate: (text: string, targetLanguage?: string) =>
+    api.post('/api/ai/translate', { message: text, target_language: targetLanguage || 'English' }).then(r=>r.data),
+  getLanguages: () =>
+    api.get('/api/ai/languages').then(r=>r.data),
   analyzeFile: (file: File, question?: string) => {
     const fd = new FormData()
     fd.append('file', file)

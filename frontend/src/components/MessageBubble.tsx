@@ -7,13 +7,14 @@ import { aiApi } from '../services/api'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onMobileMore }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
   onImageClick?:(url:string, name:string, all:{url:string,name:string}[], idx:number)=>void,
   savedIds?:Set<number>, onPin?:(m:Message)=>void,
   onAIAction?:(msg:Message, action:string)=>void,
+  onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
@@ -141,7 +142,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                 <>
                   <div className="border-t my-1"/>
                   <button onClick={()=>{ onAIAction(msg, 'summarize'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Sparkles className="w-3.5 h-3.5"/> Summarize</button>
-                  <button onClick={()=>{ onAIAction(msg, 'translate'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Languages className="w-3.5 h-3.5"/> Translate</button>
+                  <button onClick={()=>{ onTranslateAction?.(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Languages className="w-3.5 h-3.5"/> Translate</button>
                   <button onClick={()=>{ onAIAction(msg, 'explain'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><FileText className="w-3.5 h-3.5"/> Explain</button>
                 </>
               )}

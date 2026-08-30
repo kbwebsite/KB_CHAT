@@ -7,7 +7,8 @@ import { MessageComposer } from './MessageComposer'
 import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
 import { Message } from '../types'
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Cloud } from 'lucide-react'
+
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Cloud, Globe, ChevronRight } from 'lucide-react'
 import { Bell, Search as SearchIcon, Moon, Sun, LayoutGrid } from 'lucide-react'
 
 export function ChatView({
@@ -21,7 +22,9 @@ export function ChatView({
   isMuted, onMute, showPolls, showPinned, setShowPinned, showEvents, setShowEvents,
   showSchedule, setShowSchedule, showInsights, setShowInsights,
   activeRightTab, handleMessageSearch, onNewChat,
-  totalUnread, onNotifications, onSearch, onSaved, onSettings, onThemeToggle, onLogout
+  totalUnread, onNotifications, onSearch, onSaved, onSettings, onThemeToggle, onLogout,
+  // Language selector (from ChatPage)
+  showLanguageSelector, languages, languagesLoading, handleLanguageSelect, handleTranslateClick, onCloseLanguageSelector
 }: any) {
   const { user } = useAuthStore()
   const settings = useSettingsStore()
@@ -307,6 +310,7 @@ export function ChatView({
                       savedIds={savedIds}
                       onPin={onPin}
                       onAIAction={onAIAction}
+                      onTranslateAction={handleTranslateClick}
                       onMobileMore={(m: any) => onMobileMore(m)}
                     />
                   </div>
@@ -354,13 +358,62 @@ export function ChatView({
                   { action: 'extract-tasks', label: 'Extract tasks', icon: FileText },
                   { action: 'unread-summary', label: 'Summarize unread', icon: Bookmark }
                 ].map(({ action, label, icon: Icon }) => (
-                  <button key={action} onClick={() => { handleAiPanelAction(action); setAiPanelOpen(false) }} className="py-2.5 px-3 rounded-xl glass-subtle hover:bg-primary/10 text-sm text-left flex items-center gap-2 border border-border/50 transition-all active:scale-[0.98]">
+                  <button
+                    key={action}
+                    onClick={() => {
+                      if (action === 'translate') {
+                        handleTranslateClick('panel')
+                      } else {
+                        handleAiPanelAction(action)
+                      }
+                      setAiPanelOpen(false)
+                    }}
+                    className="py-2.5 px-3 rounded-xl glass-subtle hover:bg-primary/10 text-sm text-left flex items-center gap-2 border border-border/50 transition-all active:scale-[0.98]"
+                  >
                     <Icon className="w-4 h-4 text-primary" /> {label}
                   </button>
                 ))}
               </div>
               {aiLoading && <p className="text-xs text-muted-foreground animate-pulse flex items-center gap-2"><span className="w-2 h-2 bg-primary rounded-full animate-bounce" /> Thinking...</p>}
               {aiError && <p className="text-xs text-destructive">Error: {aiError}</p>}
+            </div>
+          </>
+        )}
+
+        {showLanguageSelector && (
+          <>
+            <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden" onClick={onCloseLanguageSelector} />
+            <div className="fixed bottom-[88px] right-3 left-3 sm:left-auto sm:w-[360px] z-50 p-4 rounded-2xl glass-strong shadow-2xl animate-slide-up flex flex-col gap-3 max-h-[65vh] overflow-hidden">
+              <div className="flex items-center justify-between">
+                <h4 className="font-semibold text-sm flex items-center gap-2">
+                  <span className="w-7 h-7 rounded-lg gradient-primary flex items-center justify-center text-white"><Globe className="w-3.5 h-3.5" /></span>
+                  Select Language
+                </h4>
+                <button onClick={onCloseLanguageSelector} className="icon-btn w-7 h-7"><X className="w-4 h-4" /></button>
+              </div>
+              <p className="text-xs text-muted-foreground">Choose target language for translation.</p>
+              <div className="flex-1 overflow-y-auto pr-1 overscroll-contain space-y-1 max-h-[50vh]">
+                {languagesLoading ? (
+                  <div className="flex items-center justify-center py-4">
+                    <span className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                  </div>
+                ) : (
+                  languages.map((lang) => (
+                    <button
+                      key={lang.code}
+                      onClick={() => handleLanguageSelect(lang.code, lang.name)}
+                      className="py-2.5 px-3 rounded-xl glass-subtle hover:bg-primary/10 text-sm text-left flex items-center justify-between border border-border/50 transition-all active:scale-[0.98]"
+                    >
+                      <span className="flex items-center gap-2">
+                        <span className="text-lg">{lang.code === 'en' ? '🇺🇸' : lang.code === 'es' ? '🇪🇸' : lang.code === 'fr' ? '🇫🇷' : lang.code === 'de' ? '🇩🇪' : lang.code === 'it' ? '🇮🇹' : lang.code === 'pt' ? '🇵🇹' : lang.code === 'ru' ? '🇷🇺' : lang.code === 'zh' ? '🇨🇳' : lang.code === 'ja' ? '🇯🇵' : lang.code === 'ko' ? '🇰🇷' : lang.code === 'ar' ? '🇸🇦' : lang.code === 'hi' ? '🇮🇳' : '🌐'}</span>
+                        <span className="font-medium">{lang.name}</span>
+                        {lang.native !== lang.name && <span className="text-xs text-muted-foreground">({lang.native})</span>}
+                      </span>
+                      <ChevronRight className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  ))
+                )}
+              </div>
             </div>
           </>
         )}
