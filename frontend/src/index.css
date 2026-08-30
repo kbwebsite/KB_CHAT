@@ -693,6 +693,7 @@ body {
   mix-blend-mode: screen;
   opacity: 0.15;
   will-change: transform;
+  z-index: 0;
 }
 
 .ambient-orb--violet {
@@ -804,9 +805,10 @@ body {
     linear-gradient(to bottom, transparent 60%, hsl(150 20% 5% / 0.4) 80%, hsl(222 55% 5%) 100%);
 }
 
-.chat-scenic-bg > * {
+.chat-scenic-bg > :not(.ambient-orb) {
   position: relative;
   z-index: 1;
+  pointer-events: auto;
 }
 
 .message-list {
