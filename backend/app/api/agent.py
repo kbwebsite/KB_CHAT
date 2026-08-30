@@ -6,8 +6,7 @@ from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import success_response
-from app.ai.agent.core import get_agent, ReactAgent
-from app.ai.agent.schemas import AgentResponse
+from app.ai.agent.core import get_agent
 from app.ai.retriever import get_retriever
 from app.ai.indexer import CodeIndexer
 from app.ai.vector_store import get_vector_store
@@ -53,19 +52,8 @@ async def agent_chat(
     return success_response(
         {
             "response": response.response,
-            "actions_taken": [
-                {
-                    "thought": a.thought,
-                    "action": a.action,
-                    "input": a.action_input,
-                    "observation": a.observation,
-                }
-                for a in response.actions_taken
-            ],
-            "files_changed": [
-                {"file_path": f.file_path, "diff": f.unified_diff}
-                for f in response.files_changed
-            ],
+            "actions_taken": [],
+            "files_changed": [],
             "provider": settings.AI_PROVIDER,
         }
     )
@@ -179,5 +167,5 @@ async def list_tools(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    agent = get_agent()
-    return success_response({"tools": agent.tool_definitions})
+    # Service agent doesn't have tools - return empty list
+    return success_response({"tools": []})

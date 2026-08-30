@@ -1,0 +1,348 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "experimental": {
+    "mcp_timeout": 30000
+  },
+  "mcp": {
+    "21st": {
+      "type": "remote",
+      "url": "https://21st.dev/api/mcp",
+      "headers": {
+        "x-api-key": "{env:API_KEY_21ST}"
+      },
+      "enabled": true
+    },
+    "context7": {
+      "type": "remote",
+      "url": "https://mcp.context7.com/mcp",
+      "enabled": true
+    },
+    "filesystem": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-filesystem", "C:/Users/krish/OneDrive/Documents/Default Project/KB-CHAT"],
+      "enabled": true
+    },
+    "sequential-thinking": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "enabled": true
+    },
+    "memory": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-memory"],
+      "enabled": true
+    },
+    "fetch": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-fetch"],
+      "enabled": true
+    },
+    "playwright": {
+      "type": "local",
+      "command": ["npx", "-y", "@playwright/mcp@latest"],
+      "enabled": true
+    },
+    "desktop-commander": {
+      "type": "local",
+      "command": ["npx", "-y", "@wonderwhy-er/desktop-commander"],
+      "enabled": true
+    },
+    "figma": {
+      "type": "remote",
+      "url": "https://mcp.figma.com/mcp",
+      "headers": {
+        "X-Figma-Token": "{env:FIGMA_ACCESS_TOKEN}"
+      },
+      "enabled": false
+    },
+    "github": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-github"],
+      "environment": {
+        "GITHUB_PERSONAL_ACCESS_TOKEN": "{env:GITHUB_TOKEN}"
+      },
+      "enabled": false
+    },
+    "atlassian": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-remote", "https://mcp.atlassian.com/v1/sse"],
+      "enabled": false
+    },
+    "supabase": {
+      "type": "local",
+      "command": ["npx", "-y", "@supabase/mcp-server-supabase@latest"],
+      "environment": {
+        "SUPABASE_ACCESS_TOKEN": "{env:SUPABASE_ACCESS_TOKEN}"
+      },
+      "enabled": false
+    },
+    "notion": {
+      "type": "remote",
+      "url": "https://mcp.notion.com/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:NOTION_TOKEN}"
+      },
+      "enabled": false
+    },
+    "serena": {
+      "type": "local",
+      "command": ["npx", "-y", "@serena/mcp-serena"],
+      "enabled": false
+    },
+    "slack": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-slack"],
+      "environment": {
+        "SLACK_BOT_TOKEN": "{env:SLACK_BOT_TOKEN}",
+        "SLACK_TEAM_ID": "{env:SLACK_TEAM_ID}"
+      },
+      "enabled": false
+    },
+    "browser": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
+      "enabled": false
+    },
+    "aws": {
+      "type": "local",
+      "command": ["npx", "-y", "@awslabs/mcp-server-aws"],
+      "environment": {
+        "AWS_ACCESS_KEY_ID": "{env:AWS_ACCESS_KEY_ID}",
+        "AWS_SECRET_ACCESS_KEY": "{env:AWS_SECRET_ACCESS_KEY}"
+      },
+      "enabled": false
+    },
+    "azure": {
+      "type": "local",
+      "command": ["npx", "-y", "@azure/mcp-server-azure"],
+      "enabled": false
+    },
+    "zapier": {
+      "type": "remote",
+      "url": "https://mcp.zapier.com/mcp",
+      "headers": {
+        "x-api-key": "{env:ZAPIER_API_KEY}"
+      },
+      "enabled": false
+    },
+    "linear": {
+      "type": "remote",
+      "url": "https://mcp.linear.app/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:LINEAR_API_KEY}"
+      },
+      "enabled": false
+    },
+    "docker": {
+      "type": "local",
+      "command": ["npx", "-y", "docker-mcp-server"],
+      "enabled": false
+    },
+    "gitlab": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-gitlab"],
+      "environment": {
+        "GITLAB_PERSONAL_ACCESS_TOKEN": "{env:GITLAB_TOKEN}"
+      },
+      "enabled": false
+    },
+    "obsidian": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-obsidian"],
+      "environment": {
+        "OBSIDIAN_VAULT_PATH": "{env:OBSIDIAN_VAULT_PATH}"
+      },
+      "enabled": false
+    },
+    "postgres": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-postgres"],
+      "environment": {
+        "POSTGRES_CONNECTION_STRING": "{env:POSTGRES_CONNECTION_STRING}"
+      },
+      "enabled": false
+    },
+    "puppeteer": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-puppeteer"],
+      "enabled": false
+    },
+    "firecrawl": {
+      "type": "local",
+      "command": ["npx", "-y", "firecrawl-mcp"],
+      "environment": {
+        "FIRECRAWL_API_KEY": "{env:FIRECRAWL_API_KEY}"
+      },
+      "enabled": false
+    },
+    "datadog": {
+      "type": "local",
+      "command": ["npx", "-y", "@datadog/mcp-server-datadog"],
+      "environment": {
+        "DATADOG_API_KEY": "{env:DATADOG_API_KEY}",
+        "DATADOG_APP_KEY": "{env:DATADOG_APP_KEY}"
+      },
+      "enabled": false
+    },
+    "salesforce": {
+      "type": "local",
+      "command": ["npx", "-y", "@salesforce/mcp-server"],
+      "enabled": false
+    },
+    "grafana": {
+      "type": "local",
+      "command": ["npx", "-y", "@grafana/mcp-grafana"],
+      "environment": {
+        "GRAFANA_URL": "{env:GRAFANA_URL}",
+        "GRAFANA_API_KEY": "{env:GRAFANA_API_KEY}"
+      },
+      "enabled": false
+    },
+    "google-drive": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-gdrive"],
+      "enabled": false
+    },
+    "stripe": {
+      "type": "local",
+      "command": ["npx", "-y", "@stripe/mcp-server-stripe"],
+      "environment": {
+        "STRIPE_SECRET_KEY": "{env:STRIPE_SECRET_KEY}"
+      },
+      "enabled": false
+    },
+    "gmail": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-gmail"],
+      "enabled": false
+    },
+    "shopify": {
+      "type": "local",
+      "command": ["npx", "-y", "@shopify/dev-mcp"],
+      "enabled": false
+    },
+    "sentry": {
+      "type": "remote",
+      "url": "https://mcp.sentry.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:SENTRY_TOKEN}"
+      },
+      "enabled": false
+    },
+    "brave-search": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-brave-search"],
+      "environment": {
+        "BRAVE_API_KEY": "{env:BRAVE_API_KEY}"
+      },
+      "enabled": false
+    },
+    "mysql": {
+      "type": "local",
+      "command": ["npx", "-y", "@benborla29/mcp-server-mysql"],
+      "environment": {
+        "MYSQL_CONNECTION_STRING": "{env:MYSQL_CONNECTION_STRING}"
+      },
+      "enabled": false
+    },
+    "hubspot": {
+      "type": "local",
+      "command": ["npx", "-y", "@hubspot/mcp-server-hubspot"],
+      "environment": {
+        "HUBSPOT_ACCESS_TOKEN": "{env:HUBSPOT_ACCESS_TOKEN}"
+      },
+      "enabled": false
+    },
+    "snowflake": {
+      "type": "local",
+      "command": ["npx", "-y", "@snowflake/mcp-server-snowflake"],
+      "enabled": false
+    },
+    "exa": {
+      "type": "local",
+      "command": ["npx", "-y", "exa-mcp-server"],
+      "environment": {
+        "EXA_API_KEY": "{env:EXA_API_KEY}"
+      },
+      "enabled": false
+    },
+    "google-calendar": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-google-calendar"],
+      "enabled": false
+    },
+    "wordpress": {
+      "type": "local",
+      "command": ["npx", "-y", "@wordpress/mcp-server-wordpress"],
+      "enabled": false
+    },
+    "terraform": {
+      "type": "local",
+      "command": ["npx", "-y", "@hashicorp/mcp-server-terraform"],
+      "enabled": false
+    },
+    "vercel": {
+      "type": "remote",
+      "url": "https://mcp.vercel.com/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:VERCEL_TOKEN}"
+      },
+      "enabled": false
+    },
+    "tavily": {
+      "type": "local",
+      "command": ["npx", "-y", "tavily-mcp"],
+      "environment": {
+        "TAVILY_API_KEY": "{env:TAVILY_API_KEY}"
+      },
+      "enabled": false
+    },
+    "asana": {
+      "type": "remote",
+      "url": "https://mcp.asana.com/mcp",
+      "headers": {
+        "Authorization": "Bearer {env:ASANA_TOKEN}"
+      },
+      "enabled": false
+    },
+    "cloudflare": {
+      "type": "local",
+      "command": ["npx", "-y", "@cloudflare/mcp-server-cloudflare"],
+      "environment": {
+        "CLOUDFLARE_API_TOKEN": "{env:CLOUDFLARE_API_TOKEN}"
+      },
+      "enabled": false
+    },
+    "airtable": {
+      "type": "local",
+      "command": ["npx", "-y", "airtable-mcp-server"],
+      "environment": {
+        "AIRTABLE_API_KEY": "{env:AIRTABLE_API_KEY}"
+      },
+      "enabled": false
+    },
+    "kubernetes": {
+      "type": "local",
+      "command": ["npx", "-y", "mcp-server-kubernetes"],
+      "enabled": false
+    },
+    "google-sheets": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-google-sheets"],
+      "enabled": false
+    },
+    "dbt": {
+      "type": "local",
+      "command": ["npx", "-y", "@dbt/mcp-server-dbt"],
+      "enabled": false
+    },
+    "redis": {
+      "type": "local",
+      "command": ["npx", "-y", "@modelcontextprotocol/server-redis"],
+      "environment": {
+        "REDIS_URL": "{env:REDIS_URL}"
+      },
+      "enabled": false
+    }
+  }
+}

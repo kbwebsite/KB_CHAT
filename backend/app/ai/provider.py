@@ -1,7 +1,5 @@
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
-import json
-import re
 import httpx
 from app.database.config import settings
 
@@ -13,341 +11,517 @@ class AIProvider(ABC):
     ) -> str:
         raise NotImplementedError
 
-    @abstractmethod
-    async def code_action(
-        self, code: str, language: str, action: str, instruction: str = ""
-    ) -> str:
-        raise NotImplementedError
 
+class ServiceProvider(AIProvider):
+    """Service AI agent for KB-CHAT users. Provides help, how-to guides, troubleshooting, and proactive tips."""
 
-class MockProvider(AIProvider):
-    """Rule-based provider for demo/offline. Never requires API key."""
+    # Knowledge base: user-facing how-to guides and troubleshooting
+    HELP_TOPICS = {
+        "getting_started": {
+            "keywords": ["start", "begin", "new", "first time", "setup", "onboard"],
+            "response": (
+                "Welcome to KB-CHAT! 🎉 Here's how to get started:\n\n"
+                "1. **Create an account** — Sign up with your email and password\n"
+                "2. **Add contacts** — Search for people by username or email\n"
+                "3. **Start a chat** — Click the + button or select a contact\n"
+                "4. **Explore features** — Try groups, calls, polls, stickers, and more\n\n"
+                "💡 **Pro tip:** Enable notifications in Settings so you never miss a message!"
+            ),
+        },
+        "create_group": {
+            "keywords": [
+                "group",
+                "create group",
+                "new group",
+                "team",
+                "channel",
+                "add members",
+            ],
+            "response": (
+                "**Creating a Group Chat**\n\n"
+                "1. Click the **+** button in the sidebar\n"
+                "2. Select **'New Group'**\n"
+                "3. Add a group name and optional photo\n"
+                "4. Search and select members to add\n"
+                "5. Click **Create**\n\n"
+                "📝 **As admin you can:**\n"
+                "• Add/remove members anytime\n"
+                "• Promote others to admin\n"
+                "• Change group name/photo\n"
+                "• Create polls, events, and shared notes\n\n"
+                "💡 **Pro tip:** Use @mentions to get someone's attention in busy groups!"
+            ),
+        },
+        "send_message": {
+            "keywords": ["send", "message", "text", "chat", "type", "write"],
+            "response": (
+                "**Sending Messages**\n\n"
+                "• **Text** — Type in the input box and press Enter\n"
+                "• **Voice note** — Hold the 🎤 button to record\n"
+                "• **Sticker** — Click the 😊 button to pick a sticker\n"
+                "• **File/Image** — Drag & drop or click 📎 to attach\n"
+                "• **Poll** — Click 📊 to create a quick poll\n\n"
+                "**Message features:**\n"
+                "• **Reply** — Swipe right on a message (mobile) or hover → Reply\n"
+                "• **React** — Hover a message → 😊 to add an emoji reaction\n"
+                "• **Forward** — Hover → Forward to another chat\n"
+                "• **Save** — Hover → Bookmark for later in Saved Messages\n\n"
+                "💡 **Pro tip:** Press Shift+Enter for a new line without sending!"
+            ),
+        },
+        "voice_video_call": {
+            "keywords": ["call", "video call", "voice call", "ring", "webrtc", "meet"],
+            "response": (
+                "**Making Calls**\n\n"
+                "1. Open any 1:1 chat or group\n"
+                "2. Click the 📞 **Voice** or 📹 **Video** button in the header\n"
+                "3. Wait for the other person to accept\n\n"
+                "**During a call you can:**\n"
+                "• Toggle camera/microphone\n"
+                "• Switch cameras\n"
+                "• Share your screen\n"
+                "• Send chat messages (opens side panel)\n"
+                "• See call duration\n\n"
+                "📋 **Call History** — View past calls in the Calls panel (📞 icon in sidebar)\n\n"
+                "💡 **Pro tip:** Test your mic/camera first in Settings → Privacy!"
+            ),
+        },
+        "polls": {
+            "keywords": ["poll", "vote", "survey", "choice", "question", "decide"],
+            "response": (
+                "**Creating Polls**\n\n"
+                "1. In any chat, click 📊 in the composer\n"
+                "2. Enter your question\n"
+                "3. Add answer options (minimum 2)\n"
+                "4. Choose: single choice or multiple choice\n"
+                "5. Set optional expiry time\n"
+                "6. Send!\n\n"
+                "**Everyone in the chat can:**\n"
+                "• Vote anonymously or publicly\n"
+                "• Change their vote before expiry\n"
+                "• See real-time results\n\n"
+                "💡 **Pro tip:** Great for group decisions — 'Where should we eat?' or 'Meeting time?'"
+            ),
+        },
+        "stickers": {
+            "keywords": ["sticker", "emoji pack", "sticker pack", "fun"],
+            "response": (
+                "**Using Stickers**\n\n"
+                "1. Click 😊 in the message composer\n"
+                "2. Browse installed packs or click **+** to get more\n"
+                "3. Tap any sticker to send instantly\n\n"
+                "**Managing packs:**\n"
+                "• **Get new packs** — Sticker panel → Browse store → Install\n"
+                "• **Reorder** — Drag packs to prioritize favorites\n"
+                "• **Remove** — Long press a pack → Remove\n\n"
+                "💡 **Pro tip:** Some packs are animated — they play once when sent!"
+            ),
+        },
+        "scheduled_messages": {
+            "keywords": [
+                "schedule",
+                "later",
+                "send later",
+                "delayed",
+                "timed",
+                "remind",
+            ],
+            "response": (
+                "**Scheduling Messages**\n\n"
+                "1. Compose your message\n"
+                "2. Click the ⏰ clock icon next to send\n"
+                "3. Pick date & time\n"
+                "4. Confirm — message sends automatically\n\n"
+                "**Manage scheduled messages:**\n"
+                "• View/edit/cancel in the Scheduled panel (📅 in sidebar)\n"
+                "• Messages send even if you're offline\n"
+                "• Works in 1:1 and group chats\n\n"
+                "💡 **Pro tip:** Perfect for birthday wishes, reminders, or crossing time zones!"
+            ),
+        },
+        "saved_messages": {
+            "keywords": ["save", "bookmark", "pin", "saved", "keep", "favorite"],
+            "response": (
+                "**Saved Messages** — Your personal bookmark space\n\n"
+                "• **Save any message** — Hover → Bookmark icon (🔖)\n"
+                "• **Access** — Click 📌 in sidebar → Saved Messages\n"
+                "• **Organize** — Works like a private chat with yourself\n"
+                "• **Search** — Filter saved items instantly\n\n"
+                "💡 **Pro tip:** Forward important info to Saved Messages for quick reference later!"
+            ),
+        },
+        "status_stories": {
+            "keywords": [
+                "status",
+                "story",
+                "stories",
+                "temporary",
+                "expire",
+                "24 hours",
+            ],
+            "response": (
+                "**Status Updates (Stories)**\n\n"
+                "1. Click your avatar → **Add Status**\n"
+                "2. Share text, photo, video, or voice note\n"
+                "3. Choose who sees it: All contacts / Selected / Custom\n"
+                "4. Expires automatically after 24 hours\n\n"
+                "**Features:**\n"
+                "• See who viewed your status\n"
+                "• Reply privately to anyone's status\n"
+                "• Add to Highlights to keep forever\n"
+                "• Mute contacts' statuses you don't want to see\n\n"
+                "💡 **Pro tip:** Great for quick updates — 'At the gym', 'Working on project', etc.!"
+            ),
+        },
+        "notifications": {
+            "keywords": [
+                "notification",
+                "alert",
+                "sound",
+                "mute",
+                "push",
+                "disturb",
+                "silent",
+            ],
+            "response": (
+                "**Notification Settings**\n\n"
+                "**Global settings** (Settings → Notifications):\n"
+                "• Message sounds on/off\n"
+                "• Desktop push notifications\n"
+                "• Vibration (mobile)\n\n"
+                "**Per-chat control:**\n"
+                "• Open chat → Header → Mute notifications\n"
+                "• Choose: 1 hour, 8 hours, 2 days, Until turned on\n"
+                "• Muted chats show a 🔕 icon\n\n"
+                "**Do Not Disturb:**\n"
+                "• Profile → Do Not Disturb mode\n"
+                "• Set schedule (e.g., 10 PM – 7 AM)\n"
+                "• Allow exceptions for favorites\n\n"
+                "💡 **Pro tip:** Mute busy groups but keep mentions on!"
+            ),
+        },
+        "privacy_settings": {
+            "keywords": [
+                "privacy",
+                "private",
+                "who can see",
+                "last seen",
+                "read receipt",
+                "block",
+            ],
+            "response": (
+                "**Privacy Controls** (Settings → Privacy Center)\n\n"
+                "**Who can see:**\n"
+                "• Last seen & online status\n"
+                "• Profile photo\n"
+                "• About/bio\n"
+                "• Status updates\n\n"
+                "**Options for each:** Everyone / My Contacts / Nobody / Custom\n\n"
+                "**Other controls:**\n"
+                "• Read receipts (blue checks) — toggle on/off\n"
+                "• Groups — who can add you\n"
+                "• Blocked contacts list\n"
+                "• Fingerprint/Face ID lock for app\n\n"
+                "💡 **Pro tip:** 'Nobody' for last seen = you also can't see others'!"
+            ),
+        },
+        "profile_settings": {
+            "keywords": [
+                "profile",
+                "avatar",
+                "photo",
+                "name",
+                "display name",
+                "username",
+                "bio",
+                "about",
+            ],
+            "response": (
+                "**Editing Your Profile**\n\n"
+                "1. Click your avatar → **Settings** → **Profile**\n"
+                "2. **Display name** — What others see in chats\n"
+                "3. **Username** — Your unique @handle for search\n"
+                "4. **Profile photo** — Click to upload/crop\n"
+                "5. **About** — Short bio (optional)\n\n"
+                "💡 **Pro tip:** Set a username so people can find you without your phone number!"
+            ),
+        },
+        "file_sharing": {
+            "keywords": [
+                "file",
+                "image",
+                "photo",
+                "video",
+                "document",
+                "upload",
+                "attach",
+                "drag drop",
+            ],
+            "response": (
+                "**Sharing Files & Media**\n\n"
+                "**Drag & drop** or click 📎 in any chat:\n"
+                "• **Images** — Auto-preview, swipe to browse multiples\n"
+                "• **Videos** — Play inline, download option\n"
+                "• **Documents** — PDF, DOC, TXT preview\n"
+                "• **Any file** — Up to 100MB per file\n\n"
+                "**Media gallery** — Click chat header → Media to see all shared files\n\n"
+                "💡 **Pro tip:** Long-press an image → Save to device!"
+            ),
+        },
+        "link_previews": {
+            "keywords": ["link", "url", "preview", "website", "open graph"],
+            "response": (
+                "**Link Previews**\n\n"
+                "Automatic! Just paste any URL in chat:\n"
+                "• Article → Title, image, description\n"
+                "• YouTube → Embedded player\n"
+                "• Twitter/X → Tweet preview\n"
+                "• GitHub → Repo info\n\n"
+                "**To disable:** Settings → Privacy → Link Previews off\n\n"
+                "💡 **Pro tip:** Previews load instantly — no need to leave the chat!"
+            ),
+        },
+        "events": {
+            "keywords": [
+                "event",
+                "meeting",
+                "deadline",
+                "calendar",
+                "rsvp",
+                "schedule event",
+            ],
+            "response": (
+                "**Group Events** (admin only)\n\n"
+                "1. Open group → 📅 Events → Create Event\n"
+                "2. Title, description, date/time\n"
+                "3. Optional: location, video call link\n"
+                "4. Members get notified & can RSVP\n\n"
+                "**Everyone sees:**\n"
+                "• Upcoming events in group header\n"
+                "• RSVP status: Going / Maybe / Can't go\n"
+                "• Reminders 24h and 1h before\n\n"
+                "💡 **Pro tip:** Add a video call link for virtual meetings!"
+            ),
+        },
+        "highlights": {
+            "keywords": ["highlight", "featured", "curate", "save status", "permanent"],
+            "response": (
+                "**Status Highlights**\n\n"
+                "Turn temporary statuses into permanent collections:\n\n"
+                "1. View your status → ⭐ Add to Highlight\n"
+                "2. Create new highlight or add to existing\n"
+                "3. Name it (e.g., 'Travel 2024', 'Work Projects')\n"
+                "4. Appears on your profile for everyone to see\n\n"
+                "💡 **Pro tip:** Great for portfolios, memories, or team updates!"
+            ),
+        },
+        "saved_messages_search": {
+            "keywords": ["search", "find", "look for", "where is", "locate"],
+            "response": (
+                "**Finding Things in KB-CHAT**\n\n"
+                "🔍 **Global Search** (top of sidebar):\n"
+                "• Search messages across all chats\n"
+                "• Filter by: text, images, files, links\n"
+                "• Search within a specific chat\n\n"
+                "📌 **Saved Messages** — Your personal archive\n"
+                "📅 **Scheduled** — Pending messages\n"
+                "📞 **Calls** — Call history\n"
+                "📊 **Insights** — Your chat statistics\n\n"
+                "💡 **Pro tip:** Use 'from:@username' in search to find messages from someone!"
+            ),
+        },
+        "account_security": {
+            "keywords": [
+                "security",
+                "password",
+                "2fa",
+                "two factor",
+                "login",
+                "session",
+                "device",
+                "hack",
+            ],
+            "response": (
+                "**Account Security**\n\n"
+                "**Sessions** (Settings → Sessions):\n"
+                "• See all logged-in devices\n"
+                "• Revoke any suspicious session\n"
+                "• Current session marked\n\n"
+                "**Password:**\n"
+                "• Change in Settings → Security\n"
+                "• Use a strong, unique password\n\n"
+                "**Extra protection:**\n"
+                "• App lock (Fingerprint/Face ID)\n"
+                "• Auto-lock timer\n\n"
+                "🚨 **If compromised:**\n"
+                "1. Revoke all sessions immediately\n"
+                "2. Change password\n"
+                "3. Check for unfamiliar devices\n\n"
+                "💡 **Pro tip:** Review sessions monthly!"
+            ),
+        },
+        "troubleshooting": {
+            "keywords": [
+                "not working",
+                "broken",
+                "error",
+                "problem",
+                "issue",
+                "bug",
+                "crash",
+                "slow",
+                "sync",
+            ],
+            "response": (
+                "**Common Fixes**\n\n"
+                "**Messages not sending?**\n"
+                "• Check internet connection\n"
+                "• Try refresh (pull down on mobile)\n"
+                "• Log out → log back in\n\n"
+                "**Calls failing?**\n"
+                "• Grant camera/mic permissions\n"
+                "• Try voice call first (less bandwidth)\n"
+                "• Check firewall/VPN\n\n"
+                "**Notifications not arriving?**\n"
+                "• Check app notification permissions (OS settings)\n"
+                "• Verify chat isn't muted\n"
+                "• Check Do Not Disturb mode\n\n"
+                "**Sync issues?**\n"
+                "• Pull to refresh chat list\n"
+                "• Log out from all devices → log in again\n\n"
+                "**Still stuck?** Describe the issue and I'll help further!"
+            ),
+        },
+        "keyboard_shortcuts": {
+            "keywords": ["shortcut", "hotkey", "keyboard", "keys", "command"],
+            "response": (
+                "**Keyboard Shortcuts** (Desktop/Web)\n\n"
+                "• **Ctrl/Cmd + N** — New chat\n"
+                "• **Ctrl/Cmd + F** — Search\n"
+                "• **Ctrl/Cmd + Shift + M** — Mute/unmute chat\n"
+                "• **Ctrl/Cmd + ,** — Settings\n"
+                "• **Ctrl/Cmd + Shift + N** — New group\n"
+                "• **Esc** — Close modal/panel\n"
+                "• **Arrow Up/Down** — Navigate chats\n"
+                "• **Enter** — Open selected chat\n"
+                "• **Shift + Enter** — New line in composer\n\n"
+                "💡 **Pro tip:** Press **?** anywhere to see all shortcuts!"
+            ),
+        },
+    }
 
-    def _extract_tool_observations(
-        self, messages: List[Dict[str, Any]]
-    ) -> List[Dict[str, str]]:
-        """Extract tool observations from message history.
-        Handles both direct tool role messages and TOOL RESULT user messages
-        (which the agent core converts from tool role).
-        """
-        observations = []
-        for msg in messages:
-            content = msg.get("content", "")
-            # Handle TOOL RESULT format from agent core:
-            # {"role": "user", "content": "TOOL RESULT (tool_name): observation output"}
-            if "TOOL RESULT" in content:
-                # Extract the output after "TOOL RESULT (tool_name): "
-                match = re.search(r"TOOL RESULT \(\w+\):(.+)", content)
-                if match:
-                    output = match.group(1).strip()
-                    observations.append(
-                        {
-                            "tool": "tool",
-                            "output": output,
-                            "success": not output.lower().startswith("error"),
-                        }
-                    )
-                else:
-                    # Fallback: just output everything after "TOOL RESULT:"
-                    fallback = content.replace("TOOL RESULT", "").strip()
-                    observations.append(
-                        {
-                            "tool": "tool",
-                            "output": fallback,
-                            "success": not fallback.lower().startswith("error"),
-                        }
-                    )
-            # Handle direct tool role messages
-            elif msg.get("role") == "tool" and msg.get("content"):
-                observations.append(
-                    {
-                        "tool": msg.get("name", "tool"),
-                        "output": msg["content"],
-                        "success": not msg["content"].lower().startswith("error"),
-                    }
-                )
-        return observations
+    # Proactive tips based on context
+    PROACTIVE_TIPS = [
+        "💡 **Tip:** You can reply to a specific message by swiping right (mobile) or hovering → Reply (desktop). Keeps conversations organized!",
+        "💡 **Tip:** Create a poll in a group to quickly decide on things — 'Where for lunch?' or 'Meeting time?'",
+        "💡 **Tip:** Save important messages to 'Saved Messages' (📌 in sidebar) — it's your personal bookmark space.",
+        "💡 **Tip:** Schedule messages to send later — perfect for reminders or crossing time zones (⏰ icon in composer).",
+        "💡 **Tip:** Mute busy groups but keep mentions on — you'll still get notified when someone @'s you.",
+        "💡 **Tip:** Press **?** anywhere to see all keyboard shortcuts. **Ctrl+N** for new chat, **Ctrl+F** to search.",
+        "💡 **Tip:** Your status updates expire in 24h — add favorites to Highlights to keep them on your profile forever.",
+        "💡 **Tip:** Drag & drop images/files directly into chat. Click the media gallery (chat header) to browse all shared files.",
+        "💡 **Tip:** Set a username (@handle) in Profile so people can find you without your phone number.",
+        "💡 **Tip:** Review active sessions monthly (Settings → Sessions) — revoke any you don't recognize.",
+    ]
 
-    async def code_action(
-        self, code: str, language: str, action: str, instruction: str = ""
-    ) -> str:
-        if action == "explain":
-            return f"This {language} code handles UI and data flow. Key parts: variables, functions, and event handlers work together."
-        if action == "fix":
-            return code.strip() + "\n// fixed: validated syntax"
-        if action == "improve":
-            return f"// improved\n{code}"
-        if action == "tests":
-            if language == "python":
-                return "import pytest\n\ndef test_example():\n    assert 1 + 1 == 2"
-            return "describe('app', () => { test('works', () => { expect(1+1).toBe(2); }); });"
-        return code
+    def _match_topic(self, query: str) -> Optional[str]:
+        """Find the best matching help topic for a user query."""
+        query_lower = query.lower()
+        best_match = None
+        best_score = 0
+        for topic, data in self.HELP_TOPICS.items():
+            score = sum(1 for kw in data["keywords"] if kw in query_lower)
+            if score > best_score:
+                best_score = score
+                best_match = topic
+        return best_match if best_score > 0 else None
 
-    def _is_agent_mode(self, messages: List[Dict[str, Any]]) -> bool:
-        if not messages:
-            return False
-        system_msg = (
-            messages[0].get("content", "")
-            if messages[0].get("role") == "system"
-            else ""
-        )
-        return "AVAILABLE TOOLS:" in system_msg or "THOUGHT:" in system_msg
+    def _get_greeting(self) -> str:
+        import random
+
+        greetings = [
+            "Hey there! 👋 How can I help you with KB-CHAT today?",
+            "Hi! 😊 What would you like to know about KB-CHAT?",
+            "Hello! I'm your KB-CHAT assistant. Ask me anything!",
+            "Welcome! Need help with a feature or having an issue?",
+        ]
+        return random.choice(greetings)
+
+    def _get_proactive_tip(self) -> str:
+        import random
+
+        return random.choice(self.PROACTIVE_TIPS)
+
+    def _is_greeting(self, query: str) -> bool:
+        greetings = [
+            "hi",
+            "hello",
+            "hey",
+            "howdy",
+            "greetings",
+            "good morning",
+            "good evening",
+        ]
+        return any(g in query.lower() for g in greetings)
+
+    def _is_proactive_request(self, query: str) -> bool:
+        keywords = [
+            "tip",
+            "tips",
+            "suggestion",
+            "suggest",
+            "advice",
+            "recommend",
+            "what else",
+            "feature",
+            "discover",
+            "hidden",
+        ]
+        return any(k in query.lower() for k in keywords)
 
     async def chat(
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
     ) -> str:
-        # Check if we're in agent mode (ReAct format expected)
-        if self._is_agent_mode(messages):
-            # Extract any tool observations from history
-            observations = self._extract_tool_observations(messages)
+        if not messages:
+            return self._get_greeting() + "\n\n" + self._get_proactive_tip()
 
-            # Build observation summary from last 3 observations
-            obs_summary_parts = []
-            for obs in observations[-3:]:
-                status = "✓" if obs.get("success") else "✗"
-                output_preview = obs.get("output", "")[:80].replace("\n", " ")
-                obs_summary_parts.append(f"{status} {obs['tool']}: {output_preview}")
+        user_msg = messages[-1].get("content", "").strip()
+        if not user_msg:
+            return self._get_greeting()
 
-            obs_summary = (
-                " | ".join(obs_summary_parts)
-                if obs_summary_parts
-                else "No observations yet"
-            )
+        # Greeting handling
+        if self._is_greeting(user_msg) and len(user_msg) < 20:
+            return self._get_greeting() + "\n\n" + self._get_proactive_tip()
 
-            last = messages[-1]["content"].lower() if messages else ""
+        # Proactive tip request
+        if self._is_proactive_request(user_msg):
+            tips = "\n\n".join(self.PROACTIVE_TIPS[:3])
+            return f"Here are some KB-CHAT tips you might not know:\n\n{tips}"
 
-            # If there are observations, incorporate them into the FINAL response
-            if observations:
-                if (
-                    "read_file" in last
-                    or "what" in last
-                    or "explain" in last
-                    or "structure" in last
-                ):
-                    return f"""THOUGHT: The user wants to understand the project structure. I've retrieved code using file tools.
-OBSERVATION: {obs_summary}
-FINAL: Based on the retrieved code sections, the project has multiple Python modules handling different features. The main entry point is app/main.py with route handlers for various features including authentication, conversations, and messages. Key files include app/api/ai.py for AI operations, app/models/ for database models, and app/database/ for configuration."""
+        # Topic matching
+        topic = self._match_topic(user_msg)
+        if topic:
+            response = self.HELP_TOPICS[topic]["response"]
+            # Add a relevant proactive tip at the end
+            return response + "\n\n" + self._get_proactive_tip()
 
-                if "authentication" in last or "auth" in last:
-                    return f"""THOUGHT: The user is asking about authentication. I've searched for auth-related code using grep.
-OBSERVATION: {obs_summary}
-FINAL: Authentication in KB-CHAT uses JWT-based sessions with a dev-secret in production. The auth flow is handled in app/api/auth.py with password hashing via bcrypt. Token validation occurs in the middleware and protected routes require valid JWT tokens in the Authorization header."""
-
-                # Default synthesis
-                return f"""THOUGHT: I've analyzed the tool observations about the codebase.
-OBSERVATION: {obs_summary}
-FINAL: The KB-CHAT project is a full-stack application with React frontend and FastAPI backend. I can help you explain code, fix bugs, add features, or refactor modules. The codebase follows a feature-based organization with separate modules for conversations, messages, authentication, and AI operations."""
-
-            # No observations yet - take first action based on query
-            if (
-                "read_file" in last
-                or "what" in last
-                or "explain" in last
-                or "structure" in last
-            ):
-                return """THOUGHT: The user wants to understand the project structure. I'll use glob_files to list the main directories.
-ACTION: glob_files
-ACTION_INPUT: {"pattern": "**/*.py"}
-FINAL: I'll show you the Python files in the project."""
-            if "authentication" in last or "auth" in last:
-                return """THOUGHT: The user is asking about authentication. Let me search for auth-related files.
-ACTION: grep
-ACTION_INPUT: {"pattern": "auth|login|jwt", "file_pattern": "**/*.py"}
-FINAL: I found authentication-related code in the backend."""
-            return """THOUGHT: I'll explore the project to answer this question.
-ACTION: list_directory
-ACTION_INPUT: {"path": "."}
-FINAL: Here's the project structure."""
-
-        # Regular chat mode
-        last = messages[-1]["content"].lower() if messages else ""
-        if "dark mode" in last:
-            return "I'll add a dark mode toggle. It will switch CSS variables and persist in localStorage."
-        if "fix" in last or "error" in last:
-            return "I checked your files for syntax issues and fixed what I found. Validation should now pass."
-        if "explain" in last:
-            return "This project is a responsive frontend app. The main logic lives in script.js, styles in CSS, and markup in index.html."
-        if "add" in last:
-            return f"Got it — I'll update the project to: {messages[-1]['content']}. Regenerating the affected files..."
-        if "translate" in last:
-            # Extract target language from message
-            lang_match = re.search(r"translate.*to\s+(.+?):", last)
-            target_lang = (
-                lang_match.group(1).strip() if lang_match else "the target language"
-            )
-            # Extract the text to translate
-            text_match = re.search(r"translate.*?:\s*(.+)", last, re.DOTALL)
-            text_to_translate = text_match.group(1).strip() if text_match else ""
-            # Simple dictionary-based translations for common phrases
-            simple_translations = {
-                "spanish": {
-                    "hello": "hola",
-                    "hi": "hola",
-                    "goodbye": "adiós",
-                    "thank you": "gracias",
-                    "thanks": "gracias",
-                    "please": "por favor",
-                    "yes": "sí",
-                    "no": "no",
-                    "good morning": "buenos días",
-                    "good night": "buenas noches",
-                    "how are you": "cómo estás",
-                    "i love you": "te quiero",
-                    "welcome": "bienvenido",
-                    "hello this is a test message for translation": "hola este es un mensaje de prueba para traducción",
-                },
-                "french": {
-                    "hello": "bonjour",
-                    "hi": "salut",
-                    "goodbye": "au revoir",
-                    "thank you": "merci",
-                    "thanks": "merci",
-                    "please": "s'il vous plaît",
-                    "yes": "oui",
-                    "no": "non",
-                    "good morning": "bonjour",
-                    "good night": "bonne nuit",
-                    "how are you": "comment allez-vous",
-                    "i love you": "je t'aime",
-                    "welcome": "bienvenue",
-                    "hello this is a test message for translation": "bonjour ceci est un message de test pour la traduction",
-                },
-                "german": {
-                    "hello": "hallo",
-                    "hi": "hallo",
-                    "goodbye": "auf wiedersehen",
-                    "thank you": "danke",
-                    "thanks": "danke",
-                    "please": "bitte",
-                    "yes": "ja",
-                    "no": "nein",
-                    "good morning": "guten morgen",
-                    "good night": "gute nacht",
-                    "how are you": "wie geht es ihnen",
-                    "i love you": "ich liebe dich",
-                    "welcome": "willkommen",
-                    "hello this is a test message for translation": "hallo dies ist eine testnachricht für die übersetzung",
-                },
-                "portuguese": {
-                    "hello": "olá",
-                    "hi": "oi",
-                    "goodbye": "adeus",
-                    "thank you": "obrigado",
-                    "thanks": "obrigado",
-                    "please": "por favor",
-                    "yes": "sim",
-                    "no": "não",
-                    "good morning": "bom dia",
-                    "good night": "boa noite",
-                    "how are you": "como você está",
-                    "i love you": "eu te amo",
-                    "welcome": "bem-vindo",
-                    "hello this is a test message for translation": "olá esta é uma mensagem de teste para tradução",
-                },
-                "russian": {
-                    "hello": "привет",
-                    "hi": "привет",
-                    "goodbye": "до свидания",
-                    "thank you": "спасибо",
-                    "thanks": "спасибо",
-                    "please": "пожалуйста",
-                    "yes": "да",
-                    "no": "нет",
-                    "good morning": "доброе утро",
-                    "good night": "спокойной ночи",
-                    "how are you": "как дела",
-                    "i love you": "я тебя люблю",
-                    "welcome": "добро пожаловать",
-                },
-                "chinese": {
-                    "hello": "你好",
-                    "hi": "你好",
-                    "goodbye": "再见",
-                    "thank you": "谢谢",
-                    "thanks": "谢谢",
-                    "please": "请",
-                    "yes": "是",
-                    "no": "不",
-                    "good morning": "早上好",
-                    "good night": "晚安",
-                    "how are you": "你好吗",
-                    "i love you": "我爱你",
-                    "welcome": "欢迎",
-                },
-                "japanese": {
-                    "hello": "こんにちは",
-                    "hi": "やあ",
-                    "goodbye": "さようなら",
-                    "thank you": "ありがとう",
-                    "thanks": "ありがとう",
-                    "please": "お願いします",
-                    "yes": "はい",
-                    "no": "いいえ",
-                    "good morning": "おはようございます",
-                    "good night": "おやすみなさい",
-                    "how are you": "お元気ですか",
-                    "i love you": "愛しています",
-                    "welcome": "ようこそ",
-                },
-                "korean": {
-                    "hello": "안녕하세요",
-                    "hi": "안녕",
-                    "goodbye": "안녕히 가세요",
-                    "thank you": "감사합니다",
-                    "thanks": "고마워요",
-                    "please": "제발",
-                    "yes": "네",
-                    "no": "아니요",
-                    "good morning": "좋은 아침",
-                    "good night": "잘 자요",
-                    "how are you": "어떻게 지내세요",
-                    "i love you": "사랑해요",
-                    "welcome": "환영합니다",
-                },
-                "hindi": {
-                    "hello": "नमस्ते",
-                    "hi": "नमस्ते",
-                    "goodbye": "अलविदा",
-                    "thank you": "धन्यवाद",
-                    "thanks": "शुक्रिया",
-                    "please": "कृपया",
-                    "yes": "हाँ",
-                    "no": "नहीं",
-                    "good morning": "सुप्रभात",
-                    "good night": "शुभ रात्रि",
-                    "how are you": "आप कैसे हैं",
-                    "i love you": "मैं तुमसे प्यार करता हूँ",
-                    "welcome": "स्वागत है",
-                },
-                "arabic": {
-                    "hello": "مرحبا",
-                    "hi": "مرحبا",
-                    "goodbye": "وداعا",
-                    "thank you": "شكرا",
-                    "thanks": "شكرا",
-                    "please": "من فضلك",
-                    "yes": "نعم",
-                    "no": "لا",
-                    "good morning": "صباح الخير",
-                    "good night": "تصبح على خير",
-                    "how are you": "كيف حالك",
-                    "i love you": "أحبك",
-                    "welcome": "مرحبا بك",
-                },
-            }
-            lang_lower = target_lang.lower().strip()
-            text_lower = text_to_translate.lower().strip()
-            if lang_lower in simple_translations:
-                translation = simple_translations[lang_lower].get(
-                    text_lower, text_to_translate
-                )
-                return f"[{target_lang}] {translation}"
-            return f"[{target_lang}] {text_to_translate}"
-        return f"Understood. I can modify files, explain code, fix errors, or add features. Tell me what to change!"
+        # General help
+        return (
+            "I'm here to help with KB-CHAT! 😊 You can ask me things like:\n\n"
+            "• **'How do I create a group?'**\n"
+            "• **'How do video calls work?'**\n"
+            "• **'How do I mute notifications?'**\n"
+            "• **'How do I change my profile photo?'**\n"
+            "• **'How do polls work?'**\n"
+            "• **'How do I schedule a message?'**\n"
+            "• **'My messages aren't sending — help!'**\n\n"
+            "Or ask for **'tips'** to discover hidden features!\n\n"
+            + self._get_proactive_tip()
+        )
 
 
 class OpenAICompatibleProvider(AIProvider):
-    """Calls any OpenAI-compatible /v1/chat/completions endpoint."""
+    """Calls any OpenAI-compatible /v1/chat/completions endpoint for service agent."""
 
     def __init__(self):
         self.base_url = settings.AI_BASE_URL.rstrip("/")
@@ -363,8 +537,7 @@ class OpenAICompatibleProvider(AIProvider):
     async def _chat_completion(
         self,
         messages: List[Dict[str, Any]],
-        json_mode: bool = False,
-        temperature: float = 0.4,
+        temperature: float = 0.6,
     ) -> str:
         url = f"{self.base_url}/chat/completions"
         payload: Dict[str, Any] = {
@@ -372,8 +545,6 @@ class OpenAICompatibleProvider(AIProvider):
             "messages": messages,
             "temperature": temperature,
         }
-        if json_mode:
-            payload["response_format"] = {"type": "json_object"}
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(url, headers=self._headers(), json=payload)
             r.raise_for_status()
@@ -384,49 +555,23 @@ class OpenAICompatibleProvider(AIProvider):
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
     ) -> str:
         if not self.api_key:
-            return await MockProvider().chat(messages, context)
+            return await ServiceProvider().chat(messages, context)
         try:
             system = (
-                "You are KB Chat AI assistant. Help users with their projects, answer questions, "
-                "explain code, suggest improvements. Be concise, 2-4 sentences. "
-                "If they ask to modify files, describe what you will change."
+                "You are KB-CHAT's friendly support assistant. Help users with the app — "
+                "answer how-to questions, troubleshoot issues, suggest features. "
+                "Be warm, concise (2-4 sentences), and practical. "
+                "If you don't know something, say so and offer to help with what you do know."
             )
             msgs = [{"role": "system", "content": system}] + messages
-            return await self._chat_completion(msgs, temperature=0.6)
+            return await self._chat_completion(msgs)
         except Exception as e:
             print(f"[ai] chat fallback: {e}")
-            return await MockProvider().chat(messages, context)
-
-    async def code_action(
-        self, code: str, language: str, action: str, instruction: str = ""
-    ) -> str:
-        if not self.api_key:
-            return await MockProvider().code_action(code, language, action, instruction)
-        prompts = {
-            "explain": f"Explain this {language} code in simple language, 1 short paragraph + bullet points.",
-            "fix": f"Fix syntax/logic errors in this {language} code. Return ONLY the fixed code, no explanation.",
-            "improve": f"Improve this {language} code for readability and performance. Return ONLY improved code.",
-            "convert": f"Convert this code to {language}. Return ONLY converted code.",
-            "tests": f"Generate tests for this {language} code. Return ONLY test code.",
-        }
-        sys = prompts.get(action, prompts["fix"])
-        if instruction:
-            sys += f" Extra instruction: {instruction}"
-        try:
-            return await self._chat_completion(
-                [
-                    {"role": "system", "content": sys},
-                    {"role": "user", "content": code[:6000]},
-                ],
-                temperature=0.3,
-            )
-        except Exception as e:
-            print(f"[ai] code_action fallback: {e}")
-            return await MockProvider().code_action(code, language, action, instruction)
+            return await ServiceProvider().chat(messages, context)
 
 
 def get_ai_provider() -> AIProvider:
     name = (settings.AI_PROVIDER or "mock").lower()
     if name in ("openai", "openai-compatible", "openai_compatible"):
         return OpenAICompatibleProvider()
-    return MockProvider()
+    return ServiceProvider()

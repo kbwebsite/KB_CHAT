@@ -1,13 +1,12 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, Send, Sparkles, Search, Upload, Trash2, Copy, Check, RotateCcw, FileCode, Loader2 } from 'lucide-react'
+import { Bot, Send, Sparkles, MessageCircle, Loader2 } from 'lucide-react'
 import { agentApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
 interface AgentMessage {
-  role: 'user' | 'assistant' | 'system' | 'tool'
+  role: 'user' | 'assistant' | 'system'
   content: string
   timestamp: Date
-  toolCalls?: Array<{ tool: string; input: any; output: string; success: boolean }>
 }
 
 export function AgentPanel({
@@ -21,25 +20,13 @@ export function AgentPanel({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState(false)
-  const [showIndexStatus, setShowIndexStatus] = useState(false)
-  const [indexStatus, setIndexStatus] = useState<any>(null)
-  const [indexLoading, setIndexLoading] = useState(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const eventSourceRef = useRef<EventSource | null>(null)
   const user = useAuthStore(s => s.user)
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight)
   }, [messages])
-
-  useEffect(() => {
-    return () => {
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close()
-      }
-    }
-  }, [])
 
   const send = async () => {
     if (!input.trim() || loading) return
@@ -72,14 +59,11 @@ export function AgentPanel({
       const reader = response.body?.getReader()
       const decoder = new TextDecoder()
       let buffer = ''
-      let assistantContent = ''
-      let currentToolCalls: AgentMessage['toolCalls'] = []
 
       const assistantMsg: AgentMessage = {
         role: 'assistant',
         content: '',
         timestamp: new Date(),
-        toolCalls: []
       }
       let assistantIndex = messages.length
       setMessages(prev => [...prev, assistantMsg])
@@ -97,7 +81,15 @@ export function AgentPanel({
             if (data === '[DONE]') continue
             try {
               const event = JSON.parse(data)
-              handleStreamEvent(event, assistantIndex, setMessages)
+              if (event.type === 'final') {
+                setMessages(prev => {
+                  const next = [...prev]
+                  if (next[assistantIndex]) {
+                    next[assistantIndex] = { ...next[assistantIndex], content: event.content }
+                  }
+                  return next
+                })
+              }
             } catch (e) {
               console.error('Parse error:', e)
             }
@@ -113,7 +105,6 @@ export function AgentPanel({
           role: 'assistant',
           content: res.data.response,
           timestamp: new Date(),
-          toolCalls: res.data.actions_taken || []
         }])
       } catch {
         setMessages(prev => [...prev, {
@@ -129,66 +120,13 @@ export function AgentPanel({
     }
   }
 
-  const handleStreamEvent = (
-    event: any,
-    assistantIndex: number,
-    setMessages: React.Dispatch<React.SetStateAction<AgentMessage[]>>
-  ) => {
-    setMessages(prev => {
-      const next = [...prev]
-      const msg = next[assistantIndex]
-      if (!msg) return next
-
-      switch (event.type) {
-        case 'thought':
-          return next // Could show thought in UI
-        case 'action':
-          return next
-        case 'observation':
-          // Update tool call with observation
-          return next
-        case 'final':
-          next[assistantIndex] = {
-            ...msg,
-            content: event.content
-          }
-          return next
-        default:
-          return next
-      }
-    })
-  }
-
-  const checkIndexStatus = async () => {
-    setIndexLoading(true)
-    try {
-      const res = await agentApi.indexStatus()
-      setIndexStatus(res.data)
-      setShowIndexStatus(true)
-    } catch (e) {
-      console.error('Failed to get index status:', e)
-    }
-    setIndexLoading(false)
-  }
-
-  const reindex = async (incremental = false) => {
-    setIndexLoading(true)
-    try {
-      const res = await agentApi.index(incremental)
-      setIndexStatus(res.data)
-      setShowIndexStatus(true)
-    } catch (e) {
-      console.error('Reindex failed:', e)
-    }
-    setIndexLoading(false)
-  }
-
   const quickQuestions = [
-    'Explain the project structure',
-    'How does authentication work?',
-    'Find all API endpoints',
-    'Show me the database models',
-    'What are the WebSocket events?',
+    'How do I create a group chat?',
+    'How do video calls work?',
+    'How do I mute notifications?',
+    'How do polls work?',
+    'How do I schedule a message?',
+    'My messages aren\'t sending — help!',
   ]
 
   return (
@@ -196,31 +134,15 @@ export function AgentPanel({
       {/* Header */}
       <div className="shrink-0 p-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center">
-            <Bot className="w-4 h-4 text-white" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
+            <MessageCircle className="w-4 h-4 text-white" />
           </div>
           <div>
-            <h2 className="text-sm font-semibold">Kryzen Agent</h2>
-            <p className="text-[10px] text-muted-foreground">Code-aware AI assistant</p>
+            <h2 className="text-sm font-semibold">KB-CHAT Assistant</h2>
+            <p className="text-[10px] text-muted-foreground">Your KB-CHAT helper</p>
           </div>
         </div>
         <div className="flex items-center gap-1">
-          <button
-            onClick={checkIndexStatus}
-            disabled={indexLoading}
-            className="icon-btn w-7 h-7 text-xs"
-            title="Index status"
-          >
-            <Search className="w-3.5 h-3.5" />
-          </button>
-          <button
-            onClick={() => reindex(false)}
-            disabled={indexLoading}
-            className="icon-btn w-7 h-7 text-xs"
-            title="Full reindex"
-          >
-            <RotateCcw className="w-3.5 h-3.5" />
-          </button>
           {onMinimize && (
             <button onClick={onMinimize} className="icon-btn w-7 h-7" title="Minimize">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -229,53 +151,21 @@ export function AgentPanel({
             </button>
           )}
           <button onClick={onClose} className="icon-btn w-7 h-7" title="Close">
-            <Trash2 className="w-3.5 h-3.5" />
+            <Sparkles className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>
-
-      {/* Index Status Banner */}
-      {showIndexStatus && indexStatus && (
-        <div className="shrink-0 p-3 border-b border-border bg-muted/30 text-xs">
-          <div className="flex items-center justify-between mb-1">
-            <span className="font-medium">Index Status</span>
-            <button onClick={() => setShowIndexStatus(false)} className="text-muted-foreground hover:text-foreground">×</button>
-          </div>
-          <div className="space-y-1 text-muted-foreground">
-            <div>Total vectors: <span className="font-mono text-foreground">{indexStatus.total_vectors}</span></div>
-            <div>Embedding model: <span className="font-mono text-foreground">{indexStatus.embedding_model}</span></div>
-            <div>Store path: <span className="font-mono text-foreground truncate max-w-[200px]">{indexStatus.vector_store_path}</span></div>
-            {indexStatus.message && <div className="text-emerald-500">{indexStatus.message}</div>}
-          </div>
-          <div className="flex gap-2 mt-2">
-            <button
-              onClick={() => reindex(true)}
-              disabled={indexLoading}
-              className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 disabled:opacity-40"
-            >
-              {indexLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : 'Incremental Update'}
-            </button>
-            <button
-              onClick={() => reindex(false)}
-              disabled={indexLoading}
-              className="text-xs px-2 py-1 rounded bg-secondary hover:bg-secondary/80 disabled:opacity-40"
-            >
-              Full Reindex
-            </button>
-          </div>
-        </div>
-      )}
 
       {/* Messages */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3 opacity-60">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 flex items-center justify-center">
-              <Bot className="w-6 h-6 text-violet-500" />
+            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-600/20 flex items-center justify-center">
+              <MessageCircle className="w-6 h-6 text-emerald-500" />
             </div>
             <div>
-              <p className="text-sm font-medium">Ask me anything about your codebase</p>
-              <p className="text-xs text-muted-foreground mt-1">I can read, write, edit files, run tests, and search code</p>
+              <p className="text-sm font-medium">Hi! How can I help you with KB-CHAT?</p>
+              <p className="text-xs text-muted-foreground mt-1">Ask me about features, settings, or troubleshooting</p>
             </div>
             <div className="flex flex-wrap gap-1.5 justify-center max-w-xs">
               {quickQuestions.map(q => (
@@ -298,28 +188,6 @@ export function AgentPanel({
                 : 'bg-secondary rounded-bl-md'
             }`}>
               {m.content}
-              {m.toolCalls && m.toolCalls.length > 0 && (
-                <div className="mt-2 space-y-1">
-                  {m.toolCalls.map((tc, ti) => (
-                    <details key={ti} className="text-[10px] bg-background/50 rounded p-1.5">
-                      <summary className="flex items-center gap-1 cursor-pointer text-muted-foreground">
-                        <span className="font-mono">{tc.tool}</span>
-                        <span className={tc.success ? 'text-emerald-500' : 'text-red-500'}>
-                          {tc.success ? '✓' : '✗'}
-                        </span>
-                      </summary>
-                      <div className="mt-1 font-mono text-[9px] whitespace-pre-wrap overflow-x-auto">
-                        {typeof tc.input === 'object' ? JSON.stringify(tc.input, null, 2) : tc.input}
-                      </div>
-                      {tc.output && (
-                        <div className="mt-1 p-1.5 bg-background rounded text-[9px] whitespace-pre-wrap overflow-x-auto max-h-32 overflow-y-auto">
-                          {tc.output.slice(0, 500)}{tc.output.length > 500 ? '...' : ''}
-                        </div>
-                      )}
-                    </details>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
         ))}
@@ -357,7 +225,7 @@ export function AgentPanel({
                 send()
               }
             }}
-            placeholder="Ask about code, request changes, run tests..."
+            placeholder="Ask me anything about KB-CHAT..."
             rows={1}
             className="flex-1 resize-none px-3 py-2 rounded-xl bg-secondary text-sm outline-none focus:ring-2 focus:ring-ring max-h-24"
             disabled={loading}
