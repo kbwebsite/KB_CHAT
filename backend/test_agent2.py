@@ -7,11 +7,14 @@ async def test():
     print("Agent created")
     # Ask about authentication
     response = await agent.run("How does authentication work in this project?")
-    print("Response:", response.response[:500])
-    print("Actions taken:", len(response.actions_taken))
+    print("Full response object:")
+    print("  response:", response.response)
+    print("  actions_taken:", len(response.actions_taken))
     for a in response.actions_taken:
-        print(f"  - {a.action}: {a.action_input}")
+        print(f"  - action: {a.action}")
+        print(f"    input: {a.action_input}")
+        print(f"    observation: {a.observation}")
+    print("Done")
 
 
 asyncio.run(test())
-print("Done")
