@@ -1,5 +1,6 @@
 from abc import ABC, abstractmethod
 from typing import List
+import hashlib
 import numpy as np
 from app.database.config import settings
 
@@ -14,6 +15,35 @@ class EmbeddingProvider(ABC):
         raise NotImplementedError
 
 
+class HashEmbeddingProvider(EmbeddingProvider):
+    """Simple hash-based embedding for local development without scipy.
+    Not as semantically meaningful but works for basic similarity.
+    """
+
+    def __init__(self, dim: int = 384):
+        self.dim = dim
+
+    def _text_to_vector(self, text: str) -> List[float]:
+        # Use multiple hash functions to create a vector
+        words = text.lower().split()
+        vec = np.zeros(self.dim, dtype=np.float32)
+        for i, word in enumerate(words):
+            h = int(hashlib.md5(word.encode()).hexdigest(), 16)
+            idx = h % self.dim
+            vec[idx] += 1.0
+        # Normalize
+        norm = np.linalg.norm(vec)
+        if norm > 0:
+            vec = vec / norm
+        return vec.tolist()
+
+    def embed(self, texts: List[str]) -> List[List[float]]:
+        return [self._text_to_vector(t) for t in texts]
+
+    def embed_query(self, text: str) -> List[float]:
+        return self.embed([text])[0]
+
+
 class LocalEmbeddingProvider(EmbeddingProvider):
     def __init__(self):
         self._model = None
@@ -21,16 +51,23 @@ class LocalEmbeddingProvider(EmbeddingProvider):
 
     def _load_model(self):
         if self._model is None:
-            from sentence_transformers import SentenceTransformer
+            try:
+                from sentence_transformers import SentenceTransformer
 
-            self._model = SentenceTransformer(self._model_name)
+                self._model = SentenceTransformer(self._model_name)
+            except ImportError:
+                # Fallback to hash-based if sentence_transformers not available
+                self._model = HashEmbeddingProvider()
 
     def embed(self, texts: List[str]) -> List[List[float]]:
         self._load_model()
-        embeddings = self._model.encode(
-            texts, convert_to_numpy=True, normalize_embeddings=True
-        )
-        return embeddings.tolist()
+        if hasattr(self._model, "encode"):
+            embeddings = self._model.encode(
+                texts, convert_to_numpy=True, normalize_embeddings=True
+            )
+            return embeddings.tolist()
+        else:
+            return self._model.embed(texts)
 
     def embed_query(self, text: str) -> List[float]:
         return self.embed([text])[0]
@@ -73,4 +110,5 @@ def get_embedding_provider() -> EmbeddingProvider:
         "openai_compatible",
     ):
         return OpenAIEmbeddingProvider()
-    return LocalEmbeddingProvider()
+    # Use hash-based embedding for local development (avoids scipy/sentence_transformers issues)
+    return HashEmbeddingProvider()

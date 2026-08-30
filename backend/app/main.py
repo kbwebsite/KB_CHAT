@@ -63,6 +63,7 @@ from app.models.notification_setting import NotificationSetting
 from app.models.session import UserSession
 from app.models.sticker import StickerPack, Sticker, UserSticker
 
+
 from app.api.auth import router as auth_router
 from app.api.users import router as users_router
 from app.api.conversations import router as conv_router

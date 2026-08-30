@@ -252,3 +252,16 @@ export const aiApi = {
   smartSearch: (query: string) =>
     api.post('/api/ai/smart-search', { message: query }).then(r=>r.data),
 }
+
+export const agentApi = {
+  chat: (message: string) =>
+    api.post('/api/ai/agent/chat', { message }).then(r=>r.data),
+  retrieve: (query: string, k: number = 10) =>
+    api.post('/api/ai/agent/retrieve', { query, k }).then(r=>r.data),
+  index: (incremental: boolean = false, files?: string[]) =>
+    api.post('/api/ai/agent/index', { incremental, files }).then(r=>r.data),
+  indexStatus: () =>
+    api.get('/api/ai/agent/index/status').then(r=>r.data),
+  listTools: () =>
+    api.get('/api/ai/agent/tools').then(r=>r.data),
+}

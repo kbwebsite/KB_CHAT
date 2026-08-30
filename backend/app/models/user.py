@@ -1,6 +1,8 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Index
+from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database.connection import Base
+
 
 class User(Base):
     __tablename__ = "users"
@@ -19,7 +21,9 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     auth_provider = Column(String(20), nullable=True, default="local")  # local, google
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    updated_at = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
 
     __table_args__ = (
         Index("ix_users_username_lower", username),

@@ -75,5 +75,14 @@ class Settings(BaseSettings):
         )
         return os.path.join(base, self.UPLOAD_DIR.lstrip("./"))
 
+    @property
+    def vector_store_path_abs(self) -> str:
+        if os.path.isabs(self.VECTOR_STORE_PATH):
+            return self.VECTOR_STORE_PATH
+        base = os.path.dirname(
+            os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        )
+        return os.path.join(base, self.VECTOR_STORE_PATH.lstrip("./"))
+
 
 settings = Settings()

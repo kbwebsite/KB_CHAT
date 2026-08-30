@@ -9,12 +9,13 @@ import { ChatPanels } from '../components/ChatPanels'
 import { ChatModals } from '../components/ChatModals'
 import { MobileNav } from '../components/MobileNav'
 import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
-import { msgPinApi, aiApi } from '../services/api'
+import { msgPinApi, aiApi, agentApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
-import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2 } from 'lucide-react'
+import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot } from 'lucide-react'
+import { AgentPanel } from '../components/AgentPanel'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -69,6 +70,7 @@ export default function ChatPage() {
   const [languages, setLanguages] = useState<Array<{code: string, name: string, native: string}>>([])
   const [languagesLoading, setLanguagesLoading] = useState(false)
   const [pendingTranslateMsg, setPendingTranslateMsg] = useState<Message | null>(null)
+  const [showAgentPanel, setShowAgentPanel] = useState(false)
 
   const currentConv = conversations.find((c: any) => c.id === currentConversationId) || null
 
@@ -345,6 +347,7 @@ const fetchLanguages = async () => {
     setShowProfile(false); setShowGroupInfo(false); setShowSettings(false); setShowNotifications(false)
     setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
     setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false)
+    setShowAgentPanel(false)
   }
 
   const totalUnread = conversations.reduce((a: number, b: any) => a + b.unread_count, 0)
@@ -445,6 +448,7 @@ const fetchLanguages = async () => {
             handleLanguageSelect={handleLanguageSelect}
             handleTranslateClick={handleTranslateClick}
             onCloseLanguageSelector={() => setShowLanguageSelector(false)}
+            onAgent={() => { closeAllPanels(); setShowAgentPanel(true) }}
           />
         </ErrorBoundary>
 
@@ -458,6 +462,7 @@ const fetchLanguages = async () => {
           showEvents={showEvents}
           showSchedule={showSchedule}
           showInsights={showInsights}
+          showAgentPanel={showAgentPanel}
           onClose={closeAllPanels}
           onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
           pinnedMessages={pinnedMessages}

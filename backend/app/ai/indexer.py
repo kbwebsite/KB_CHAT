@@ -4,7 +4,7 @@ from typing import List, Dict, Any, Optional
 from dataclasses import dataclass
 from pathlib import Path
 import tree_sitter
-from tree_sitter import Language, Parser
+from tree_sitter import Parser
 import tree_sitter_python as tspython
 import tree_sitter_javascript as tsjavascript
 import tree_sitter_typescript as tstypescript
@@ -23,12 +23,12 @@ class CodeChunk:
 
 
 class CodeIndexer:
-    LANGUAGE_PARSERS = {
-        ".py": Language(tspython.language()),
-        ".js": Language(tsjavascript.language()),
-        ".jsx": Language(tsjavascript.language()),
-        ".ts": Language(tstypescript.language_typescript()),
-        ".tsx": Language(tstypescript.language_tsx()),
+    LANGUAGES = {
+        ".py": tspython.language(),
+        ".js": tsjavascript.language(),
+        ".jsx": tsjavascript.language(),
+        ".ts": tstypescript.language_typescript(),
+        ".tsx": tstypescript.language_tsx(),
     }
 
     EXTENSION_TO_LANGUAGE = {
@@ -42,13 +42,11 @@ class CodeIndexer:
     def __init__(self, root_path: str):
         self.root_path = Path(root_path).resolve()
         self.parsers: Dict[str, Parser] = {}
-        for ext, lang in self.LANGUAGE_PARSERS.items():
-            parser = Parser()
-            parser.set_language(lang)
-            self.parsers[ext] = parser
+        for ext, lang in self.LANGUAGES.items():
+            self.parsers[ext] = Parser(tree_sitter.Language(lang))
 
     def should_index_file(self, file_path: Path) -> bool:
-        if file_path.suffix not in self.LANGUAGE_PARSERS:
+        if file_path.suffix not in self.LANGUAGES:
             return False
         # Skip common ignore patterns
         ignore_patterns = [

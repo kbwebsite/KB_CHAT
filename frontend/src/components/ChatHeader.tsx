@@ -1,16 +1,17 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, RefreshCcw, Sparkles, Bell, Moon, Sun, LayoutGrid, MoreVertical } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, RefreshCcw, Sparkles, Bell, Moon, Sun, LayoutGrid, MoreVertical, Bot } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
 import { useAuthStore } from '../store/auth'
 
-export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute, onSearch, handleRefresh, onAi }: {
+export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute, onSearch, handleRefresh, onAi, onAgent }: {
   conv: Conversation | null, currentUserId?: number, onBack?: () => void, onInfo?: () => void,
   onCall?: (type: 'voice' | 'video') => void,
   onMute?: () => void,
   onSearch?: () => void,
   handleRefresh?: () => void,
-  onAi?: () => void
+  onAi?: () => void,
+  onAgent?: () => void
 }) {
   const settings = useSettingsStore()
   const { user } = useAuthStore()
@@ -74,6 +75,9 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
         </button>
         <button onClick={onAi} className="icon-btn" title="AI Assistant">
           <Sparkles className="w-[18px] h-[18px]" />
+        </button>
+        <button onClick={onAgent} className="icon-btn" title="Code Agent">
+          <Bot className="w-[18px] h-[18px]" />
         </button>
         <button onClick={() => {}} className="ml-1 cursor-pointer hidden sm:block">
           {user?.avatar_url ? (

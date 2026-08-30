@@ -7,18 +7,58 @@ from app.database.config import settings
 
 class AIProvider(ABC):
     @abstractmethod
-    async def chat(self, messages: List[Dict[str, str]], context: Dict[str, Any] = None) -> str:
+    async def chat(
+        self, messages: List[Dict[str, str]], context: Dict[str, Any] = None
+    ) -> str:
         raise NotImplementedError
 
     @abstractmethod
-    async def code_action(self, code: str, language: str, action: str, instruction: str = "") -> str:
+    async def code_action(
+        self, code: str, language: str, action: str, instruction: str = ""
+    ) -> str:
         raise NotImplementedError
 
 
 class MockProvider(AIProvider):
     """Rule-based provider for demo/offline. Never requires API key."""
 
-    async def chat(self, messages: List[Dict[str, str]], context: Dict[str, Any] = None) -> str:
+    def _is_agent_mode(self, messages: List[Dict[str, str]]) -> bool:
+        if not messages:
+            return False
+        system_msg = (
+            messages[0].get("content", "")
+            if messages[0].get("role") == "system"
+            else ""
+        )
+        return "AVAILABLE TOOLS:" in system_msg or "THOUGHT:" in system_msg
+
+    async def chat(
+        self, messages: List[Dict[str, str]], context: Dict[str, Any] = None
+    ) -> str:
+        # Check if we're in agent mode (ReAct format expected)
+        if self._is_agent_mode(messages):
+            last = messages[-1]["content"].lower() if messages else ""
+            if (
+                "read_file" in last
+                or "what" in last
+                or "explain" in last
+                or "structure" in last
+            ):
+                return """THOUGHT: The user wants to understand the project structure. I'll use glob_files to list the main directories.
+ACTION: glob_files
+ACTION_INPUT: {"pattern": "**/*.py"}
+FINAL: I'll show you the Python files in the project."""
+            if "authentication" in last or "auth" in last:
+                return """THOUGHT: The user is asking about authentication. Let me search for auth-related files.
+ACTION: grep
+ACTION_INPUT: {"pattern": "auth|login|jwt", "file_pattern": "**/*.py"}
+FINAL: I found authentication-related code in the backend."""
+            return """THOUGHT: I'll explore the project to answer this question.
+ACTION: list_directory
+ACTION_INPUT: {"path": "."}
+FINAL: Here's the project structure."""
+
+        # Regular chat mode
         last = messages[-1]["content"].lower() if messages else ""
         if "dark mode" in last:
             return "I'll add a dark mode toggle. It will switch CSS variables and persist in localStorage."
@@ -30,7 +70,9 @@ class MockProvider(AIProvider):
             return f"Got it — I'll update the project to: {messages[-1]['content']}. Regenerating the affected files..."
         return f"Understood. I can modify files, explain code, fix errors, or add features. Tell me what to change!"
 
-    async def code_action(self, code: str, language: str, action: str, instruction: str = "") -> str:
+    async def code_action(
+        self, code: str, language: str, action: str, instruction: str = ""
+    ) -> str:
         if action == "explain":
             return f"This {language} code handles UI and data flow. Key parts: variables, functions, and event handlers work together."
         if action == "fix":
@@ -53,11 +95,23 @@ class OpenAICompatibleProvider(AIProvider):
         self.model = settings.AI_MODEL
 
     def _headers(self):
-        return {"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}
+        return {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json",
+        }
 
-    async def _chat_completion(self, messages: List[Dict[str, str]], json_mode: bool = False, temperature: float = 0.4) -> str:
+    async def _chat_completion(
+        self,
+        messages: List[Dict[str, str]],
+        json_mode: bool = False,
+        temperature: float = 0.4,
+    ) -> str:
         url = f"{self.base_url}/chat/completions"
-        payload: Dict[str, Any] = {"model": self.model, "messages": messages, "temperature": temperature}
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+        }
         if json_mode:
             payload["response_format"] = {"type": "json_object"}
         async with httpx.AsyncClient(timeout=60) as client:
@@ -66,7 +120,9 @@ class OpenAICompatibleProvider(AIProvider):
             data = r.json()
             return data["choices"][0]["message"]["content"]
 
-    async def chat(self, messages: List[Dict[str, str]], context: Dict[str, Any] = None) -> str:
+    async def chat(
+        self, messages: List[Dict[str, str]], context: Dict[str, Any] = None
+    ) -> str:
         if not self.api_key:
             return await MockProvider().chat(messages, context)
         try:
@@ -81,7 +137,9 @@ class OpenAICompatibleProvider(AIProvider):
             print(f"[ai] chat fallback: {e}")
             return await MockProvider().chat(messages, context)
 
-    async def code_action(self, code: str, language: str, action: str, instruction: str = "") -> str:
+    async def code_action(
+        self, code: str, language: str, action: str, instruction: str = ""
+    ) -> str:
         if not self.api_key:
             return await MockProvider().code_action(code, language, action, instruction)
         prompts = {
@@ -96,8 +154,11 @@ class OpenAICompatibleProvider(AIProvider):
             sys += f" Extra instruction: {instruction}"
         try:
             return await self._chat_completion(
-                [{"role": "system", "content": sys}, {"role": "user", "content": code[:6000]}],
-                temperature=0.3
+                [
+                    {"role": "system", "content": sys},
+                    {"role": "user", "content": code[:6000]},
+                ],
+                temperature=0.3,
             )
         except Exception as e:
             print(f"[ai] code_action fallback: {e}")

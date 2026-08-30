@@ -9,6 +9,7 @@ import { PollPanel } from './PollPanel'
 import EventPanel from './EventPanel'
 import ScheduleMessage from './ScheduleMessage'
 import ChatInsights from './ChatInsights'
+import { AgentPanel } from './AgentPanel'
 import { useChatStore } from '../store/chat'
 import { msgPinApi } from '../services/api'
 import { X } from 'lucide-react'
@@ -23,6 +24,7 @@ export function ChatPanels({
   showEvents,
   showSchedule,
   showInsights,
+  showAgentPanel,
   onClose,
   onJump,
   onChat,
@@ -95,6 +97,11 @@ export function ChatPanels({
           <div className="flex-1 overflow-y-auto">
             <ChatInsights convId={currentConv.id} />
           </div>
+        </div>
+      )}
+      {showAgentPanel && (
+        <div className="flex flex-col h-full bg-background">
+          <AgentPanel onClose={onClose} onMinimize={onClose} />
         </div>
       )}
     </aside>
