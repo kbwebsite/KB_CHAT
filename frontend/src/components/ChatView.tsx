@@ -45,7 +45,7 @@ export function ChatView({
   const prevMsgLenRef = useRef(0)
 
   const typingNames = typingSet ? Array.from(typingSet).map((uid: any) => {
-    const mem = currentConv?.members.find((m: any) => m.user_id === uid)
+    const mem = currentConv?.members?.find((m: any) => m.user_id === uid)
     return mem?.display_name || 'Someone'
   }).join(', ') : ''
 
@@ -114,6 +114,20 @@ export function ChatView({
     if (!confirm(`Delete ${selectedIds.size} selected messages?`)) return
     for (const id of selectedIds) { const m = currentMsgs.find((x: any) => x.id === id); if (m && m.sender_id === user?.id) await deleteMessage(id) }
     setSelectedIds(new Set())
+  }
+
+  // ─── Loading: conversation selected but not yet found in store ───
+  if (currentConversationId && !currentConv) {
+    return (
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
+          <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center animate-pulse">
+            <span className="text-white font-bold text-sm">K</span>
+          </div>
+          <p className="text-sm text-muted-foreground">Loading conversation...</p>
+        </div>
+      </div>
+    )
   }
 
   // ─── Welcome Screen (no conversation selected) ───
@@ -260,7 +274,7 @@ export function ChatView({
               const prev = currentMsgs[idx - 1]
               const next = currentMsgs[idx + 1]
               const isOwn = msg.sender_id === user?.id
-              const showAvatar = !!currentConv.is_group && (!prev || prev.sender_id !== msg.sender_id)
+              const showAvatar = !!currentConv?.is_group && (!prev || prev.sender_id !== msg.sender_id)
               const prevDate = prev ? new Date(prev.created_at).toDateString() : null
               const msgDate = new Date(msg.created_at).toDateString()
               const showDateSep = prevDate !== msgDate
@@ -278,7 +292,7 @@ export function ChatView({
                     <MessageBubble
                       msg={msg}
                       isOwn={!!isOwn}
-                      isGroup={!!currentConv.is_group}
+                      isGroup={!!currentConv?.is_group}
                       showAvatar={showAvatar}
                       onReply={(m: any) => setReplyTo({ id: m.id, content: m.content || '', sender: m.sender_display_name || 'Unknown' })}
                       onEdit={(m: any) => { setEditTarget(m); setEditText(m.content || '') }}

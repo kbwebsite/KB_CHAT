@@ -59,8 +59,7 @@ export function ChatSidebar({
   })()
 
   const handleSelect = async (id: number) => {
-    setCurrent(id)
-    fetchMessages(id)
+    onSelect(id)
     setShowStatus(false)
     setShowContacts(false)
     setShowSaved(false)

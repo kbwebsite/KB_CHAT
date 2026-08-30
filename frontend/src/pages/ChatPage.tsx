@@ -12,6 +12,7 @@ import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
 import { msgPinApi, aiApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
+import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
 import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2 } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
@@ -330,62 +331,72 @@ export default function ChatPage() {
         <div className="ambient-orb ambient-orb--violet" aria-hidden="true" />
         <div className="ambient-orb ambient-orb--teal" aria-hidden="true" />
         <div className="ambient-orb ambient-orb--orange" aria-hidden="true" />
-        <ChatView
-          onBack={() => { setMobileView('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false) }}
-          onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
-          onCall={handleCall}
-          onProfile={() => { closeAllPanels(); setShowProfile(true) }}
-          onGroupInfo={() => setShowGroupInfo(!showGroupInfo)}
-          replyTo={replyTo}
-          setReplyTo={setReplyTo}
-          editTarget={editTarget}
-          setEditTarget={setEditTarget}
-          editText={editText}
-          setEditText={setEditText}
-          lightbox={lightbox}
-          setLightbox={setLightbox}
-          forwardMsg={forwardMsg}
-          setForwardMsg={setForwardMsg}
-          selectedIds={selectedIds}
-          setSelectedIds={setSelectedIds}
-          savedIds={savedIds}
-          setSavedIds={setSavedIds}
-          onMobileMore={(msg: Message) => setMobileActionSheet({ open: true, msg })}
-          onReact={handleReact}
-          onSave={handleSave}
-          onAIAction={handleAIAction}
-          onPin={handlePin}
-          pinnedMessages={pinnedMessages}
-          setPinnedMessages={setPinnedMessages}
-          aiPanelOpen={aiPanelOpen}
-          setAiPanelOpen={setAiPanelOpen}
-          aiLoading={aiLoading}
-          aiError={aiError}
-          aiResult={aiResult}
-          setAiResult={setAiResult}
-          handleAiPanelAction={handleAiPanelAction}
-          isMuted={isMuted}
-          onMute={handleMute}
-          showPolls={showPolls}
-          showPinned={showPinned}
-          setShowPinned={setShowPinned}
-          showEvents={showEvents}
-          setShowEvents={setShowEvents}
-          showSchedule={showSchedule}
-          setShowSchedule={setShowSchedule}
-          showInsights={showInsights}
-          setShowInsights={setShowInsights}
-          activeRightTab="chat"
-          handleMessageSearch={handleMessageSearch}
-          onNewChat={handleStartChat}
-          totalUnread={totalUnread}
-          onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
-          onSearch={() => setShowMessageSearch(!showMessageSearch)}
-          onSaved={() => { closeAllPanels(); setShowSaved(true) }}
-          onSettings={() => { closeAllPanels(); setShowSettings(true) }}
-          onThemeToggle={handleToggleTheme}
-          onLogout={() => { logout(); nav('/login') }}
-        />
+        <ErrorBoundary fallback={
+          <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
+            <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center">
+              <span className="text-destructive text-xl">!</span>
+            </div>
+            <p className="text-sm text-muted-foreground text-center">Chat view crashed. Try selecting a conversation again.</p>
+            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium">Reload</button>
+          </div>
+        }>
+          <ChatView
+            onBack={() => { setMobileView('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false) }}
+            onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
+            onCall={handleCall}
+            onProfile={() => { closeAllPanels(); setShowProfile(true) }}
+            onGroupInfo={() => setShowGroupInfo(!showGroupInfo)}
+            replyTo={replyTo}
+            setReplyTo={setReplyTo}
+            editTarget={editTarget}
+            setEditTarget={setEditTarget}
+            editText={editText}
+            setEditText={setEditText}
+            lightbox={lightbox}
+            setLightbox={setLightbox}
+            forwardMsg={forwardMsg}
+            setForwardMsg={setForwardMsg}
+            selectedIds={selectedIds}
+            setSelectedIds={setSelectedIds}
+            savedIds={savedIds}
+            setSavedIds={setSavedIds}
+            onMobileMore={(msg: Message) => setMobileActionSheet({ open: true, msg })}
+            onReact={handleReact}
+            onSave={handleSave}
+            onAIAction={handleAIAction}
+            onPin={handlePin}
+            pinnedMessages={pinnedMessages}
+            setPinnedMessages={setPinnedMessages}
+            aiPanelOpen={aiPanelOpen}
+            setAiPanelOpen={setAiPanelOpen}
+            aiLoading={aiLoading}
+            aiError={aiError}
+            aiResult={aiResult}
+            setAiResult={setAiResult}
+            handleAiPanelAction={handleAiPanelAction}
+            isMuted={isMuted}
+            onMute={handleMute}
+            showPolls={showPolls}
+            showPinned={showPinned}
+            setShowPinned={setShowPinned}
+            showEvents={showEvents}
+            setShowEvents={setShowEvents}
+            showSchedule={showSchedule}
+            setShowSchedule={setShowSchedule}
+            showInsights={showInsights}
+            setShowInsights={setShowInsights}
+            activeRightTab="chat"
+            handleMessageSearch={handleMessageSearch}
+            onNewChat={handleStartChat}
+            totalUnread={totalUnread}
+            onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
+            onSearch={() => setShowMessageSearch(!showMessageSearch)}
+            onSaved={() => { closeAllPanels(); setShowSaved(true) }}
+            onSettings={() => { closeAllPanels(); setShowSettings(true) }}
+            onThemeToggle={handleToggleTheme}
+            onLogout={() => { logout(); nav('/login') }}
+          />
+        </ErrorBoundary>
 
         <ChatPanels
           showProfile={showProfile}
