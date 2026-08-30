@@ -377,7 +377,7 @@ export default function ChatPage() {
           setShowInsights={setShowInsights}
           activeRightTab="chat"
           handleMessageSearch={handleMessageSearch}
-          onNewChat={() => handleStartChat}
+          onNewChat={handleStartChat}
           totalUnread={totalUnread}
           onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
           onSearch={() => setShowMessageSearch(!showMessageSearch)}

@@ -1,6 +1,6 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, RefreshCcw, Sparkles, Bell, Moon, Sun, LayoutGrid } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, RefreshCcw, Sparkles, Bell, Moon, Sun, LayoutGrid, MoreVertical } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
 import { useAuthStore } from '../store/auth'
 
@@ -88,5 +88,3 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
     </div>
   )
 }
-
-import { MoreVertical } from 'lucide-react'
