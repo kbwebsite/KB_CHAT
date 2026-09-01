@@ -365,7 +365,13 @@ export default function ChatPage() {
 
   return (
     <ChatLayout>
-      <div className="app-layout">
+      {/* Ambient 3D background orbs */}
+      <div className="app-ambient-bg">
+        <div className="app-ambient-orb app-ambient-orb--1" />
+        <div className="app-ambient-orb app-ambient-orb--2" />
+        <div className="app-ambient-orb app-ambient-orb--3" />
+      </div>
+      <div className="app-layout" style={{ position: 'relative', zIndex: 1 }}>
         {/* Sidebar - conversation list */}
         {showSidebar && (
           <ChatSidebar
