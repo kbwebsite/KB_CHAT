@@ -5,6 +5,7 @@ import { NotificationPanel } from './NotificationPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { ContactsPanel } from './ContactsPanel'
 import { CallsPanel } from './CallsPanel'
+import { StatusPanel } from './StatusPanel'
 import { PollPanel } from './PollPanel'
 import EventPanel from './EventPanel'
 import ScheduleMessage from './ScheduleMessage'
@@ -31,6 +32,7 @@ export function ChatPanels({
   onClose,
   onJump,
   onChat,
+  onStatusViewer,
   pinnedMessages,
   setPinnedMessages,
   setShowPinned,
@@ -57,15 +59,7 @@ export function ChatPanels({
       {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}
       {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} />}
       {showCalls && <CallsPanel onClose={onClose} />}
-      {showStatus && <div className="flex flex-col h-full bg-background">
-        <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
-          <h3 className="font-semibold text-sm">Status</h3>
-          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
-        </div>
-        <div className="flex-1 overflow-y-auto">
-          {/* StatusPanel will be imported if needed */}
-        </div>
-      </div>}
+      {showStatus && <StatusPanel onClose={onClose} onViewer={onStatusViewer || (() => {})} />}
       {showPolls && currentConv && <PollPanel conversationId={currentConv.id} onClose={() => setShowPolls(false)} />}
       {showPinned && (
         <div className="flex flex-col h-full bg-background">

@@ -1777,6 +1777,7 @@ body {
 @media (min-width: 1024px) {
   .bottom-nav { display: none; }
   .mobile-header { display: none; }
+  .chat-header-back { display: none; }
 
   .app-layout {
     display: flex;

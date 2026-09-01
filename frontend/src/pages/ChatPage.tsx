@@ -456,34 +456,37 @@ export default function ChatPage() {
               />
             </ErrorBoundary>
 
-            <ChatPanels
-              showProfile={showProfile}
-              showGroupInfo={showGroupInfo}
-              showSettings={showSettings}
-              showNotifications={showNotifications}
-              showSaved={showSaved}
-              showContacts={showContacts}
-              showCalls={showCalls}
-              showStatus={showStatus}
-              showPolls={showPolls}
-              showPinned={showPinned}
-              showEvents={showEvents}
-              showSchedule={showSchedule}
-              showInsights={showInsights}
-              showAgentPanel={showAgentPanel}
-              onClose={closeAllPanels}
-              onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
-              pinnedMessages={pinnedMessages}
-              setPinnedMessages={setPinnedMessages}
-              setShowPinned={setShowPinned}
-              setShowPolls={setShowPolls}
-              setShowEvents={setShowEvents}
-              setShowSchedule={setShowSchedule}
-              setShowInsights={setShowInsights}
-              onChat={handleStartChat}
-            />
           </div>
         )}
+
+        {/* Panels - always render as full-screen overlay regardless of view state */}
+        <ChatPanels
+          showProfile={showProfile}
+          showGroupInfo={showGroupInfo}
+          showSettings={showSettings}
+          showNotifications={showNotifications}
+          showSaved={showSaved}
+          showContacts={showContacts}
+          showCalls={showCalls}
+          showStatus={showStatus}
+          showPolls={showPolls}
+          showPinned={showPinned}
+          showEvents={showEvents}
+          showSchedule={showSchedule}
+          showInsights={showInsights}
+          showAgentPanel={showAgentPanel}
+          onClose={closeAllPanels}
+          onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
+          onStatusViewer={(statuses: any[], idx: number) => { closeAllPanels(); setStatusViewer({ statuses, idx }) }}
+          pinnedMessages={pinnedMessages}
+          setPinnedMessages={setPinnedMessages}
+          setShowPinned={setShowPinned}
+          setShowPolls={setShowPolls}
+          setShowEvents={setShowEvents}
+          setShowSchedule={setShowSchedule}
+          setShowInsights={setShowInsights}
+          onChat={handleStartChat}
+        />
 
         {/* Bottom navigation */}
         <MobileNav
