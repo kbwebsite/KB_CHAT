@@ -1,38 +1,43 @@
-import { MessageSquare, Users, Phone, Contact, Bot } from 'lucide-react'
+import { MessageSquare, Radio, Phone, Users, Sparkles } from 'lucide-react'
 
 type NavTab = 'chats' | 'status' | 'calls' | 'contacts' | 'ai'
 
-export function MobileNav({ active, onTabChange }: { active: NavTab, onTabChange: (tab: NavTab) => void }) {
-  const tabs: { id: NavTab; icon: typeof MessageSquare; label: string }[] = [
-    { id: 'chats', icon: MessageSquare, label: 'Chats' },
-    { id: 'status', icon: Contact, label: 'Status' },
-    { id: 'calls', icon: Phone, label: 'Calls' },
+export function MobileNav({ active, onTabChange, unreadCounts }: {
+  active: NavTab
+  onTabChange: (tab: NavTab) => void
+  unreadCounts?: Record<string, number>
+}) {
+  const tabs: { id: NavTab; icon: typeof MessageSquare; label: string; badge?: number }[] = [
+    { id: 'chats', icon: MessageSquare, label: 'Chats', badge: unreadCounts?.chats },
+    { id: 'status', icon: Radio, label: 'Status', badge: unreadCounts?.status },
+    { id: 'calls', icon: Phone, label: 'Calls', badge: unreadCounts?.calls },
     { id: 'contacts', icon: Users, label: 'Contacts' },
-    { id: 'ai', icon: Bot, label: 'AI' }
+    { id: 'ai', icon: Sparkles, label: 'AI' }
   ]
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 lg:hidden glass-strong" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-      <div className="flex items-center justify-around py-1">
+    <nav className="bottom-nav" role="navigation" aria-label="Main navigation">
+      <div className="flex items-stretch" style={{ height: 'var(--bottom-nav-height)' }}>
         {tabs.map(tab => {
           const Icon = tab.icon
           const isActive = active === tab.id
+          const badge = tab.badge && tab.badge > 0 ? tab.badge : null
           return (
             <button
               key={tab.id}
               onClick={() => onTabChange(tab.id)}
-              className={`flex flex-col items-center justify-center gap-0.5 w-14 h-12 rounded-xl transition-all relative ${
-                isActive
-                  ? 'text-white scale-105'
-                  : 'text-muted-foreground hover:text-foreground active:scale-95'
-              }`}
+              className={`bottom-nav-item ${isActive ? 'active' : ''}`}
+              aria-label={tab.label}
+              aria-current={isActive ? 'page' : undefined}
             >
-              {isActive && (
-                <div className="absolute inset-0 rounded-xl gradient-primary opacity-20" />
+              {isActive && <div className="absolute inset-0 bg-accent-subtle opacity-30" />}
+              <Icon className="bottom-nav-icon" />
+              <span>{tab.label}</span>
+              {badge && (
+                <span className="bottom-nav-badge" aria-label={`${badge} unread`}>
+                  {badge > 99 ? '99+' : badge}
+                </span>
               )}
-              <Icon className="w-5 h-5 relative z-10" />
-              <span className="text-[10px] font-medium relative z-10">{tab.label}</span>
-              {isActive && <div className="absolute -bottom-0.5 w-1 h-1 rounded-full bg-white pulse-dot" />}
             </button>
           )
         })}

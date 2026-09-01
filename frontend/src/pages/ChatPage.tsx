@@ -15,11 +15,8 @@ import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
 import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot } from 'lucide-react'
-import { AgentPanel } from '../components/AgentPanel'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
-
-type NavPanelTab = 'chats' | 'contacts' | 'groups' | 'calls' | 'saved' | 'files' | 'settings'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
@@ -31,9 +28,9 @@ export default function ChatPage() {
     fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react
   } = useChatStore() as any
 
-  const [mobileView, setMobileView] = useState<'list' | 'chat'>(typeof window !== 'undefined' && window.innerWidth >= 1024 ? 'chat' : 'list')
+  // Mobile-first navigation: 'list' shows conversation list, 'chat' shows active chat
+  const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
   const [mobileNavTab, setMobileNavTab] = useState<'chats' | 'status' | 'calls' | 'contacts' | 'ai'>('chats')
-  const [activeNavTab, setActiveNavTab] = useState<NavPanelTab>('chats')
   const [showProfile, setShowProfile] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -90,22 +87,36 @@ export default function ChatPage() {
     return () => { off1(); off2(); off3() }
   }, [])
 
-  // ─── Keyboard shortcuts ───
+  // ─── Keyboard shortcuts (desktop only) ───
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowCommandPalette(true) }
       if (e.key === 'Escape') {
-        setShowProfile(false); setShowSettings(false); setShowNotifications(false)
-        setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
-        setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null)
-        setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false)
-        setShowEvents(false); setShowSchedule(false); setShowInsights(false)
-        setMobileActionSheet({ open: false }); setShowMessageSearch(false)
+        if (mobileView === 'chat') {
+          handleBack()
+        } else {
+          setShowProfile(false); setShowSettings(false); setShowNotifications(false)
+          setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
+          setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null)
+          setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false)
+          setShowEvents(false); setShowSchedule(false); setShowInsights(false)
+          setMobileActionSheet({ open: false }); setShowMessageSearch(false)
+        }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [])
+  }, [mobileView])
+
+  // ─── Back navigation (mobile) ───
+  const handleBack = () => {
+    setMobileView('list')
+    setReplyTo(null)
+    setEditTarget(null)
+    setEditText('')
+    setSelectedIds(new Set())
+    setShowMessageSearch(false)
+  }
 
   // ─── Conversation selection ───
   const handleSelect = async (id: number) => {
@@ -119,6 +130,7 @@ export default function ChatPage() {
     setEditText('')
     setSelectedIds(new Set())
     setShowMessageSearch(false)
+    setMobileView('chat')
     try { const res = await msgPinApi.list(id); if (res.success) setPinnedMessages(res.data) } catch {}
   }
 
@@ -130,7 +142,7 @@ export default function ChatPage() {
         await fetchConversations()
         setCurrent(res.data.id)
         fetchMessages(res.data.id)
-        if (window.innerWidth < 1024) setMobileView('chat')
+        setMobileView('chat')
       }
     } catch (e: any) { toast(e.response?.data?.detail || 'Failed to start chat', 'error') }
   }
@@ -217,9 +229,9 @@ export default function ChatPage() {
       const resultText = res.data?.reply || res.data?.summary || res.data?.result || 'No result'
       setAiResult({ text: resultText, action })
     } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
-}
+  }
 
-const fetchLanguages = async () => {
+  const fetchLanguages = async () => {
     if (languages.length > 0) return
     setLanguagesLoading(true)
     try {
@@ -233,7 +245,6 @@ const fetchLanguages = async () => {
     setShowLanguageSelector(false)
     setLanguagesLoading(false)
     if (pendingTranslateMsg) {
-      // Translate specific message
       try {
         setAiLoading(true)
         const res = await aiApi.translate(pendingTranslateMsg.content || '', langName)
@@ -243,7 +254,6 @@ const fetchLanguages = async () => {
       setAiLoading(false)
       setPendingTranslateMsg(null)
     } else {
-      // Translate conversation context (from AI panel)
       await handleAiPanelAction('translate', langName)
     }
   }
@@ -304,7 +314,7 @@ const fetchLanguages = async () => {
     const msgs = await useChatStore.getState().searchMessages(messageSearch.trim(), currentConversationId || undefined)
     if (msgs.length > 0) {
       const first = msgs[0]; setCurrent(first.conversation_id); fetchMessages(first.conversation_id)
-      if (window.innerWidth < 1024) setMobileView('chat')
+      setMobileView('chat')
       toast(`Found ${msgs.length} messages. Jumped to conversation.`, 'info')
     } else toast('No results', 'info')
   }
@@ -318,29 +328,28 @@ const fetchLanguages = async () => {
     } catch {}
   }
 
-  // ─── Toggle theme ───
-  const handleToggleTheme = () => {
-    settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' })
-  }
-
   // ─── Nav panel tab change ───
-  const handleNavTabChange = (tab: NavPanelTab) => {
-    setActiveNavTab(tab)
-    if (tab === 'chats' || tab === 'groups') {
-      // Already showing conversation list
-    } else if (tab === 'contacts') {
-      setShowContacts(true)
+  const handleNavTabChange = (tab: typeof mobileNavTab) => {
+    setMobileNavTab(tab)
+    if (tab === 'chats') {
+      setMobileView('list')
+      closeAllPanels()
+    } else if (tab === 'status') {
+      setMobileView('list')
+      closeAllPanels()
+      setShowStatus(true)
     } else if (tab === 'calls') {
+      setMobileView('list')
+      closeAllPanels()
       setShowCalls(true)
-    } else if (tab === 'saved') {
-      setShowSaved(true)
-    } else if (tab === 'settings') {
-      setShowSettings(true)
+    } else if (tab === 'contacts') {
+      setMobileView('list')
+      closeAllPanels()
+      setShowContacts(true)
+    } else if (tab === 'ai') {
+      nav('/ai')
     }
   }
-
-  // ─── Mobile view auto-switch ───
-  useEffect(() => { if (currentConversationId && window.innerWidth < 1024) setMobileView('chat') }, [currentConversationId])
 
   // ─── Close panels mutually exclusively ───
   const closeAllPanels = () => {
@@ -352,184 +361,184 @@ const fetchLanguages = async () => {
 
   const totalUnread = conversations.reduce((a: number, b: any) => a + b.unread_count, 0)
 
-  // Map sidebar tab for ChatSidebar
-  const sidebarTab: 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved' = activeNavTab === 'groups' ? 'groups' : 'chats'
+  // Determine if we should show chat view
+  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024
+  const showChatView = isDesktop || mobileView === 'chat'
+  const showSidebar = isDesktop || mobileView === 'list'
 
   return (
-    <ChatLayout
-      activeNavTab={activeNavTab}
-      onNavTabChange={handleNavTabChange}
-      onSettings={() => { closeAllPanels(); setShowSettings(true) }}
-      totalUnread={totalUnread}
-    >
-      <ChatSidebar
-        onSelect={(id: number) => { handleSelect(id); setMobileView('chat') }}
-        onStatusViewer={(statuses: any[], idx: number) => setStatusViewer({ statuses, idx })}
-        onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
-        onMute={handleMute}
-        activeTab={sidebarTab as any}
-        onTabChange={(tab) => {
-          if (tab === 'chats' || tab === 'groups') setActiveNavTab(tab)
-        }}
-      />
-
-      <div className="chat-panel chat-scenic-bg">
-        <div className="ambient-orb ambient-orb--violet" aria-hidden="true" />
-        <div className="ambient-orb ambient-orb--teal" aria-hidden="true" />
-        <div className="ambient-orb ambient-orb--orange" aria-hidden="true" />
-        <ErrorBoundary fallback={
-          <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
-            <div className="w-12 h-12 rounded-2xl bg-destructive/10 flex items-center justify-center">
-              <span className="text-destructive text-xl">!</span>
-            </div>
-            <p className="text-sm text-muted-foreground text-center">Chat view crashed. Try selecting a conversation again.</p>
-            <button onClick={() => window.location.reload()} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium">Reload</button>
-          </div>
-        }>
-          <ChatView
-            onBack={() => { setMobileView('list'); setReplyTo(null); setEditTarget(null); setEditText(''); setSelectedIds(new Set()); setShowMessageSearch(false) }}
+    <ChatLayout>
+      <div className="app-layout">
+        {/* Sidebar - conversation list */}
+        {showSidebar && (
+          <ChatSidebar
+            onSelect={handleSelect}
+            onStatusViewer={(statuses: any[], idx: number) => setStatusViewer({ statuses, idx })}
             onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
-            onCall={handleCall}
-            onProfile={() => { closeAllPanels(); setShowProfile(true) }}
-            onGroupInfo={() => setShowGroupInfo(!showGroupInfo)}
-            replyTo={replyTo}
-            setReplyTo={setReplyTo}
-            editTarget={editTarget}
-            setEditTarget={setEditTarget}
-            editText={editText}
-            setEditText={setEditText}
-            lightbox={lightbox}
-            setLightbox={setLightbox}
-            forwardMsg={forwardMsg}
-            setForwardMsg={setForwardMsg}
-            selectedIds={selectedIds}
-            setSelectedIds={setSelectedIds}
-            savedIds={savedIds}
-            setSavedIds={setSavedIds}
-            onMobileMore={(msg: Message) => setMobileActionSheet({ open: true, msg })}
-            onReact={handleReact}
-            onSave={handleSave}
-            onAIAction={handleAIAction}
-            onPin={handlePin}
-            pinnedMessages={pinnedMessages}
-            setPinnedMessages={setPinnedMessages}
-            aiPanelOpen={aiPanelOpen}
-            setAiPanelOpen={setAiPanelOpen}
-            aiLoading={aiLoading}
-            aiError={aiError}
-            aiResult={aiResult}
-            setAiResult={setAiResult}
-            handleAiPanelAction={handleAiPanelAction}
-            isMuted={isMuted}
             onMute={handleMute}
-            showPolls={showPolls}
-            showPinned={showPinned}
-            setShowPinned={setShowPinned}
-            showEvents={showEvents}
-            setShowEvents={setShowEvents}
-            showSchedule={showSchedule}
-            setShowSchedule={setShowSchedule}
-            showInsights={showInsights}
-            setShowInsights={setShowInsights}
-            activeRightTab="chat"
-            handleMessageSearch={handleMessageSearch}
-            onNewChat={handleStartChat}
-            totalUnread={totalUnread}
-            onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
-            onSearch={() => setShowMessageSearch(!showMessageSearch)}
-            onSaved={() => { closeAllPanels(); setShowSaved(true) }}
-            onSettings={() => { closeAllPanels(); setShowSettings(true) }}
-            onThemeToggle={handleToggleTheme}
-            onLogout={() => { logout(); nav('/login') }}
-            // Language selector props
-            showLanguageSelector={showLanguageSelector}
-            languages={languages}
-            languagesLoading={languagesLoading}
-            handleLanguageSelect={handleLanguageSelect}
-            handleTranslateClick={handleTranslateClick}
-            onCloseLanguageSelector={() => setShowLanguageSelector(false)}
-            onAgent={() => { closeAllPanels(); setShowAgentPanel(true) }}
+            activeTab="chats"
+            onTabChange={() => {}}
+            onProfile={() => { closeAllPanels(); setShowProfile(true) }}
           />
-        </ErrorBoundary>
-
-        <ChatPanels
-          showProfile={showProfile}
-          showGroupInfo={showGroupInfo}
-          showSettings={showSettings}
-          showNotifications={showNotifications}
-          showPolls={showPolls}
-          showPinned={showPinned}
-          showEvents={showEvents}
-          showSchedule={showSchedule}
-          showInsights={showInsights}
-          showAgentPanel={showAgentPanel}
-          onClose={closeAllPanels}
-          onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
-          pinnedMessages={pinnedMessages}
-          setPinnedMessages={setPinnedMessages}
-          setShowPinned={setShowPinned}
-          setShowPolls={setShowPolls}
-          setShowEvents={setShowEvents}
-          setShowSchedule={setShowSchedule}
-          setShowInsights={setShowInsights}
-          onChat={handleStartChat}
-        />
-      </div>
-
-      <ChatModals
-        lightbox={lightbox}
-        setLightbox={setLightbox}
-        callModal={callModal}
-        setCallModal={setCallModal}
-        statusViewer={statusViewer}
-        setStatusViewer={setStatusViewer}
-        forwardMsg={forwardMsg}
-        setForwardMsg={setForwardMsg}
-        showCommandPalette={showCommandPalette}
-        setShowCommandPalette={setShowCommandPalette}
-        conversations={conversations}
-        onForward={handleForward}
-        onNewChat={() => { closeAllPanels() }}
-        onNewGroup={() => { closeAllPanels() }}
-        onNewStatus={() => { closeAllPanels(); setShowStatus(true) }}
-        onSettings={() => { closeAllPanels(); setShowSettings(true) }}
-        onSaved={() => { closeAllPanels(); setShowSaved(true) }}
-        onCalls={() => { closeAllPanels(); setShowCalls(true) }}
-        onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
-        onToggleTheme={handleToggleTheme}
-        onLogout={() => { logout(); nav('/login') }}
-        onCallAccept={handleCallAccept}
-        onCallRejectOrEnd={handleCallRejectOrEnd}
-      />
-
-      <MobileNav active={mobileNavTab} onTabChange={(tab) => {
-        setMobileNavTab(tab)
-        if (tab === 'ai') nav('/ai')
-        else if (tab === 'chats') { closeAllPanels(); setMobileView('list') }
-        else if (tab === 'status') { closeAllPanels(); setShowStatus(true); setMobileView('list') }
-        else if (tab === 'calls') { closeAllPanels(); setShowCalls(true); setMobileView('list') }
-        else if (tab === 'contacts') { closeAllPanels(); setShowContacts(true); setMobileView('list') }
-      }} />
-
-      <BottomSheet open={mobileActionSheet.open} onClose={() => setMobileActionSheet({ open: false })} title="Message Actions">
-        {mobileActionSheet.msg && (
-          <>
-            <BottomSheetAction icon={<span>👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({ open: false }) }} />
-            <BottomSheetAction icon={<Reply className="w-4 h-4" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
-            <BottomSheetAction icon={<Copy className="w-4 h-4" />} label="Copy" onClick={() => { if (mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({ open: false }) }} />
-            <BottomSheetAction icon={<Forward className="w-4 h-4" />} label="Forward" onClick={() => { if (mobileActionSheet.msg) { setForwardMsg(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
-            <BottomSheetAction icon={<Bookmark className="w-4 h-4" />} label={savedIds.has(mobileActionSheet.msg.id) ? 'Unsave' : 'Save'} onClick={() => { if (mobileActionSheet.msg) { handleSave(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
-            <BottomSheetAction icon={<Sparkles className="w-4 h-4" />} label="Summarize" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({ open: false }) } }} />
-            <BottomSheetAction icon={<Languages className="w-4 h-4" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
-            {mobileActionSheet.msg.sender_id === user?.id && (
-              <>
-                <BottomSheetAction icon={<Edit3 className="w-4 h-4" />} label="Edit" onClick={() => { if (mobileActionSheet.msg) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
-                <BottomSheetAction icon={<Trash2 className="w-4 h-4" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg && confirm('Delete?')) { deleteMessage(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
-              </>
-            )}
-          </>
         )}
-      </BottomSheet>
+
+        {/* Chat panel */}
+        {showChatView && (
+          <div className="chat-panel" style={{ background: 'var(--bg-primary)' }}>
+            <ErrorBoundary fallback={
+              <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
+                <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
+                  <span className="text-xl" style={{ color: 'var(--error)' }}>!</span>
+                </div>
+                <p className="text-sm text-center" style={{ color: 'var(--text-secondary)' }}>Chat view crashed. Try selecting a conversation again.</p>
+                <button onClick={() => window.location.reload()} className="btn-primary">Reload</button>
+              </div>
+            }>
+              <ChatView
+                onBack={handleBack}
+                onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
+                onCall={handleCall}
+                onProfile={() => { closeAllPanels(); setShowProfile(true) }}
+                onGroupInfo={() => setShowGroupInfo(!showGroupInfo)}
+                replyTo={replyTo}
+                setReplyTo={setReplyTo}
+                editTarget={editTarget}
+                setEditTarget={setEditTarget}
+                editText={editText}
+                setEditText={setEditText}
+                lightbox={lightbox}
+                setLightbox={setLightbox}
+                forwardMsg={forwardMsg}
+                setForwardMsg={setForwardMsg}
+                selectedIds={selectedIds}
+                setSelectedIds={setSelectedIds}
+                savedIds={savedIds}
+                setSavedIds={setSavedIds}
+                onMobileMore={(msg: Message) => setMobileActionSheet({ open: true, msg })}
+                onReact={handleReact}
+                onSave={handleSave}
+                onAIAction={handleAIAction}
+                onPin={handlePin}
+                pinnedMessages={pinnedMessages}
+                setPinnedMessages={setPinnedMessages}
+                aiPanelOpen={aiPanelOpen}
+                setAiPanelOpen={setAiPanelOpen}
+                aiLoading={aiLoading}
+                aiError={aiError}
+                aiResult={aiResult}
+                setAiResult={setAiResult}
+                handleAiPanelAction={handleAiPanelAction}
+                isMuted={isMuted}
+                onMute={handleMute}
+                showPolls={showPolls}
+                showPinned={showPinned}
+                setShowPinned={setShowPinned}
+                showEvents={showEvents}
+                setShowEvents={setShowEvents}
+                showSchedule={showSchedule}
+                setShowSchedule={setShowSchedule}
+                showInsights={showInsights}
+                setShowInsights={setShowInsights}
+                activeRightTab="chat"
+                handleMessageSearch={handleMessageSearch}
+                onNewChat={handleStartChat}
+                totalUnread={totalUnread}
+                onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
+                onSearch={() => setShowMessageSearch(!showMessageSearch)}
+                onSaved={() => { closeAllPanels(); setShowSaved(true) }}
+                onSettings={() => { closeAllPanels(); setShowSettings(true) }}
+                onThemeToggle={() => settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
+                onLogout={() => { logout(); nav('/login') }}
+                showLanguageSelector={showLanguageSelector}
+                languages={languages}
+                languagesLoading={languagesLoading}
+                handleLanguageSelect={handleLanguageSelect}
+                handleTranslateClick={handleTranslateClick}
+                onCloseLanguageSelector={() => setShowLanguageSelector(false)}
+                onAgent={() => { closeAllPanels(); setShowAgentPanel(true) }}
+              />
+            </ErrorBoundary>
+
+            <ChatPanels
+              showProfile={showProfile}
+              showGroupInfo={showGroupInfo}
+              showSettings={showSettings}
+              showNotifications={showNotifications}
+              showPolls={showPolls}
+              showPinned={showPinned}
+              showEvents={showEvents}
+              showSchedule={showSchedule}
+              showInsights={showInsights}
+              showAgentPanel={showAgentPanel}
+              onClose={closeAllPanels}
+              onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
+              pinnedMessages={pinnedMessages}
+              setPinnedMessages={setPinnedMessages}
+              setShowPinned={setShowPinned}
+              setShowPolls={setShowPolls}
+              setShowEvents={setShowEvents}
+              setShowSchedule={setShowSchedule}
+              setShowInsights={setShowInsights}
+              onChat={handleStartChat}
+            />
+          </div>
+        )}
+
+        {/* Bottom navigation */}
+        <MobileNav
+          active={mobileNavTab}
+          onTabChange={handleNavTabChange}
+          unreadCounts={{ chats: totalUnread }}
+        />
+
+        {/* Modals */}
+        <ChatModals
+          lightbox={lightbox}
+          setLightbox={setLightbox}
+          callModal={callModal}
+          setCallModal={setCallModal}
+          statusViewer={statusViewer}
+          setStatusViewer={setStatusViewer}
+          forwardMsg={forwardMsg}
+          setForwardMsg={setForwardMsg}
+          showCommandPalette={showCommandPalette}
+          setShowCommandPalette={setShowCommandPalette}
+          conversations={conversations}
+          onForward={handleForward}
+          onNewChat={() => { closeAllPanels() }}
+          onNewGroup={() => { closeAllPanels() }}
+          onNewStatus={() => { closeAllPanels(); setShowStatus(true) }}
+          onSettings={() => { closeAllPanels(); setShowSettings(true) }}
+          onSaved={() => { closeAllPanels(); setShowSaved(true) }}
+          onCalls={() => { closeAllPanels(); setShowCalls(true) }}
+          onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
+          onToggleTheme={() => settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' })}
+          onLogout={() => { logout(); nav('/login') }}
+          onCallAccept={handleCallAccept}
+          onCallRejectOrEnd={handleCallRejectOrEnd}
+        />
+
+        {/* Mobile action sheet */}
+        <BottomSheet open={mobileActionSheet.open} onClose={() => setMobileActionSheet({ open: false })} title="Message Actions">
+          {mobileActionSheet.msg && (
+            <>
+              <BottomSheetAction icon={<span className="text-lg">👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({ open: false }) }} />
+              <BottomSheetAction icon={<Reply className="w-5 h-5" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<Copy className="w-5 h-5" />} label="Copy" onClick={() => { if (mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({ open: false }) }} />
+              <BottomSheetAction icon={<Forward className="w-5 h-5" />} label="Forward" onClick={() => { if (mobileActionSheet.msg) { setForwardMsg(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<Bookmark className="w-5 h-5" />} label={savedIds.has(mobileActionSheet.msg.id) ? 'Unsave' : 'Save'} onClick={() => { if (mobileActionSheet.msg) { handleSave(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<Sparkles className="w-5 h-5" />} label="Summarize" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
+              {mobileActionSheet.msg.sender_id === user?.id && (
+                <>
+                  <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
+                  <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg && confirm('Delete?')) { deleteMessage(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
+                </>
+              )}
+            </>
+          )}
+        </BottomSheet>
+      </div>
     </ChatLayout>
   )
 }

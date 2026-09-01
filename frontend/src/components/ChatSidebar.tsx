@@ -8,7 +8,7 @@ import { ContactsPanel } from './ContactsPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { CallsPanel } from './CallsPanel'
 import { convApi } from '../services/api'
-import { Plus } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus } from 'lucide-react'
 
 type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
 
@@ -19,6 +19,7 @@ export function ChatSidebar({
   onMute,
   activeTab,
   onTabChange,
+  onProfile,
 }: {
   onSelect: (id: number) => void
   onStatusViewer: (statuses: any[], idx: number) => void
@@ -26,6 +27,7 @@ export function ChatSidebar({
   onMute?: () => void
   activeTab: SidebarTab
   onTabChange: (tab: SidebarTab) => void
+  onProfile?: () => void
 }) {
   const { user } = useAuthStore()
   const {
@@ -116,17 +118,47 @@ export function ChatSidebar({
 
   return (
     <div className="conv-panel">
-      {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 shrink-0">
-        <h2 className="font-bold text-base">Chats</h2>
+      {/* Mobile Header */}
+      <div className="mobile-header">
+        <h1 className="mobile-header-title">Kryzen</h1>
         <button
           onClick={() => setShowUserSearch(!showUserSearch)}
-          className="w-8 h-8 rounded-xl gradient-primary flex items-center justify-center text-white hover:scale-105 transition-transform"
-          title="New Chat"
+          className="btn-icon"
+          aria-label="New Chat"
         >
-          <Plus className="w-4 h-4" />
+          <UserPlus className="w-5 h-5" />
+        </button>
+        <button
+          onClick={onProfile}
+          className="btn-icon"
+          aria-label="Profile"
+        >
+          {user?.avatar_url ? (
+            <img
+              src={user.avatar_url}
+              alt=""
+              className="w-7 h-7 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-7 h-7 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-bold">
+              {(user?.display_name || user?.username || '?')[0].toUpperCase()}
+            </div>
+          )}
         </button>
       </div>
+
+      {/* Search */}
+      {!showStatus && !showContacts && !showSaved && !showCalls && (
+        <div className="search-bar">
+          <Search className="w-4 h-4 text-tertiary" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search conversations..."
+            aria-label="Search conversations"
+          />
+        </div>
+      )}
 
       {/* Content */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
@@ -141,25 +173,28 @@ export function ChatSidebar({
         ) : (
           <>
             {showUserSearch && (
-              <div className="border-b border-border">
+              <div className="animate-slide-down">
                 <UserSearch onSelect={handleStartChat} />
-                <button onClick={() => setShowUserSearch(false)} className="w-full text-xs py-2 text-muted-foreground hover:bg-muted/50 transition-colors">
+                <button
+                  onClick={() => setShowUserSearch(false)}
+                  className="w-full py-3 text-sm text-secondary hover:bg-elevated transition-colors"
+                >
                   Close
                 </button>
               </div>
             )}
             {showNewGroup && (
-              <div className="p-3 border-b border-border space-y-2">
-                <h3 className="font-medium text-sm">New Group</h3>
+              <div className="p-4 space-y-3 animate-slide-down border-b border-subtle">
+                <h3 className="font-semibold text-sm">New Group</h3>
                 <input
                   value={groupTitle}
                   onChange={e => setGroupTitle(e.target.value)}
                   placeholder="Group name"
-                  className="w-full px-3 py-2 rounded-xl bg-muted border border-border outline-none text-sm"
+                  className="w-full px-3 py-2.5 rounded-xl bg-elevated border border-medium outline-none text-sm"
                 />
-                <div className="flex flex-wrap gap-1">
+                <div className="flex flex-wrap gap-1.5">
                   {groupMembers.map((m: any) => (
-                    <span key={m.id} className="px-2 py-1 rounded-full gradient-primary text-white text-xs flex items-center gap-1">
+                    <span key={m.id} className="px-2.5 py-1 rounded-full gradient-primary text-white text-xs flex items-center gap-1">
                       {m.display_name}
                       <button onClick={() => setGroupMembers(gm => gm.filter((x: any) => x.id !== m.id))}>×</button>
                     </span>
@@ -169,10 +204,10 @@ export function ChatSidebar({
                   if (!groupMembers.find((m: any) => m.id === u.id)) setGroupMembers([...groupMembers, u])
                 }} />
                 <div className="flex gap-2">
-                  <button onClick={handleCreateGroup} className="flex-1 py-2 rounded-xl btn-gradient text-sm font-medium text-white">
+                  <button onClick={handleCreateGroup} className="flex-1 py-2.5 rounded-xl btn-primary text-sm font-medium">
                     Create
                   </button>
-                  <button onClick={() => setShowNewGroup(false)} className="px-4 py-2 rounded-xl bg-muted border border-border text-sm">
+                  <button onClick={() => setShowNewGroup(false)} className="px-4 py-2.5 rounded-xl btn-secondary text-sm">
                     Cancel
                   </button>
                 </div>

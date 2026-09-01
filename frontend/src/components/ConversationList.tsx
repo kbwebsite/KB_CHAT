@@ -1,14 +1,14 @@
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
-import { Users, Search, Pin, BellOff, Archive, Check, CheckCheck } from 'lucide-react'
+import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare } from 'lucide-react'
 
 const avatarGradients = [
-  'linear-gradient(135deg, #f97316, #ec4899)',
-  'linear-gradient(135deg, #8b5cf6, #3b82f6)',
-  'linear-gradient(135deg, #10b981, #06b6d4)',
-  'linear-gradient(135deg, #f43f5e, #8b5cf6)',
-  'linear-gradient(135deg, #f59e0b, #ef4444)',
+  'linear-gradient(135deg, #6366f1, #8b5cf6)',
+  'linear-gradient(135deg, #ec4899, #8b5cf6)',
   'linear-gradient(135deg, #06b6d4, #3b82f6)',
+  'linear-gradient(135deg, #f43f5e, #ec4899)',
+  'linear-gradient(135deg, #f59e0b, #ef4444)',
+  'linear-gradient(135deg, #10b981, #06b6d4)',
 ]
 
 function getAvatarGradient(id: number) {
@@ -29,43 +29,45 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
   const isOwnLast = last?.sender_id === currentUserId
 
   return (
-    <div className={`conv-item ${active ? 'active' : ''}`}>
-      {isPinned && <span className="absolute top-2 right-2"><Pin className="w-3 h-3 text-primary opacity-70" /></span>}
-      <button onClick={onClick} className="flex gap-3 flex-1 min-w-0 text-left">
-        <div className={`conv-avatar ${!isGroup && conv.members.some(m => m.is_online) ? 'online' : ''}`}
-          style={{ background: avatar ? 'none' : getAvatarGradient(conv.id) }}>
-          {avatar ? (
-            <img src={avatar} alt="" className="w-full h-full object-cover rounded-2xl" />
-          ) : isGroup ? (
-            <Users className="w-5 h-5 text-white" />
-          ) : (
-            <span className="text-sm font-semibold text-white">{initials(title)}</span>
+    <div
+      className={`conv-item ${active ? 'active' : ''}`}
+      onClick={onClick}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
+    >
+      <div className={`conv-avatar ${!isGroup && conv.members.some(m => m.is_online) ? 'online' : ''}`}
+        style={{ background: avatar ? 'none' : getAvatarGradient(conv.id) }}>
+        {avatar ? (
+          <img src={avatar} alt="" className="w-full h-full object-cover rounded-[16px]" />
+        ) : isGroup ? (
+          <Users className="w-5 h-5 text-white" />
+        ) : (
+          <span className="text-sm font-bold text-white">{initials(title)}</span>
+        )}
+      </div>
+      <div className="conv-content">
+        <div className="conv-top-row">
+          <span className="conv-name">
+            {title}
+            {isMuted && <BellOff className="w-3 h-3 opacity-40 inline ml-1" />}
+            {isPinned && <Pin className="w-3 h-3 opacity-40 inline ml-1" />}
+          </span>
+          <span className="conv-time">
+            {isOwnLast && last && <CheckCheck className="w-3.5 h-3.5 inline mr-0.5 text-accent-primary" />}
+            {last ? formatTime(last.created_at) : ''}
+          </span>
+        </div>
+        <div className="conv-bottom-row">
+          <span className={`conv-preview ${isTyping ? 'conv-typing' : ''}`}>
+            {isTyping ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (last.content?.slice(0, 45) || '📎 Attachment') : isGroup ? `${conv.members.length} members` : 'Start conversation'}
+          </span>
+          {hasUnread && (
+            <span className={`conv-unread ${isMuted ? 'opacity-60' : ''}`}>
+              {conv.unread_count > 99 ? '99+' : conv.unread_count}
+            </span>
           )}
         </div>
-        <div className="flex-1 min-w-0">
-          <div className="flex justify-between items-center gap-2">
-            <p className={`font-medium truncate text-sm ${active ? 'text-white' : 'text-foreground'}`}>
-              {title} {isMuted && <BellOff className="w-3 h-3 opacity-50 inline" />} {isArchived && <Archive className="w-3 h-3 opacity-40 inline" />}
-            </p>
-            <span className={`text-[11px] shrink-0 flex items-center gap-1 ${active ? 'text-white/60' : 'text-muted-foreground'}`}>
-              {isOwnLast && last && <CheckCheck className="w-3 h-3" />}
-              {last ? formatTime(last.created_at) : ''}
-            </span>
-          </div>
-          <div className="flex justify-between items-center gap-2 mt-0.5">
-            <p className={`truncate text-xs flex-1 ${isTyping ? 'text-primary font-medium animate-pulse' : active ? 'text-white/70' : 'text-muted-foreground'}`}>
-              {isTyping ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (last.content?.slice(0, 38) || '📎 Attachment') : isGroup ? `${conv.members.length} members` : 'Start conversation'}
-            </p>
-            <span className="flex items-center gap-1 shrink-0">
-              {hasUnread && <span className={`nav-badge ${isMuted ? 'opacity-60' : ''}`}>{conv.unread_count}</span>}
-            </span>
-          </div>
-        </div>
-      </button>
-      <div className="hidden group-hover:flex items-center gap-1 absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1 z-10 glass-subtle">
-        <button onClick={(e) => { e.stopPropagation(); onPin?.(conv.id) }} title={isPinned ? "Unpin" : "Pin"} className={`icon-btn w-7 h-7 ${isPinned ? 'text-primary' : ''}`}><Pin className="w-3.5 h-3.5" /></button>
-        <button onClick={(e) => { e.stopPropagation(); onMute?.(conv.id) }} title={isMuted ? "Unmute" : "Mute"} className={`icon-btn w-7 h-7 ${isMuted ? 'text-amber-500' : ''}`}><BellOff className="w-3.5 h-3.5" /></button>
-        <button onClick={(e) => { e.stopPropagation(); onArchive?.(conv.id) }} title={isArchived ? "Unarchive" : "Archive"} className="icon-btn w-7 h-7"><Archive className="w-3.5 h-3.5" /></button>
       </div>
     </div>
   )
@@ -76,41 +78,43 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
 }) {
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
-      <div className="p-3 shrink-0">
-        <div className="search-bar">
-          <Search className="w-4 h-4 text-muted-foreground" />
-          <input value={search} onChange={e => onSearch(e.target.value)} placeholder="Search conversations..." className="flex-1 bg-transparent border-none outline-none text-sm" />
-        </div>
-      </div>
-      <div className="flex-1 overflow-y-auto overflow-x-hidden px-2 pb-2 space-y-1 min-h-0">
+      <div className="conv-list flex-1 overflow-y-auto overflow-x-hidden min-h-0">
         {loading ? (
-          <div className="p-3 space-y-3">
-            {Array.from({ length: 5 }).map((_, i) => (
+          <div className="p-4 space-y-3">
+            {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex gap-3 animate-pulse">
-                <div className="w-12 h-12 rounded-2xl bg-muted" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-3 w-24 bg-muted rounded" />
-                  <div className="h-3 w-full bg-muted rounded" />
+                <div className="w-[52px] h-[52px] rounded-[16px] bg-elevated" />
+                <div className="flex-1 space-y-2 py-1">
+                  <div className="h-3.5 w-28 rounded bg-elevated" />
+                  <div className="h-3 w-full rounded bg-elevated" />
                 </div>
               </div>
             ))}
           </div>
         ) : conversations.length === 0 ? (
-          <div className="p-8 text-center">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-2xl gradient-primary flex items-center justify-center opacity-50">
-              <MessageSquare className="w-8 h-8 text-white" />
+          <div className="empty-state">
+            <div className="empty-state-icon">
+              <MessageSquare className="w-7 h-7" />
             </div>
-            <p className="text-sm text-muted-foreground">No conversations yet.</p>
-            <p className="text-xs text-muted-foreground/60 mt-1">Search users to start chatting.</p>
+            <p className="empty-state-title">No conversations yet</p>
+            <p className="empty-state-text">Search for users to start chatting</p>
           </div>
         ) : (
           conversations.map(c => (
-            <ConversationItem key={c.id} conv={c} active={c.id === activeId} onClick={() => onSelect(c.id)} isTyping={!!typingMap?.[c.id]?.size} currentUserId={currentUserId} onPin={onPin} onMute={onMute} onArchive={onArchive} />
+            <ConversationItem
+              key={c.id}
+              conv={c}
+              active={c.id === activeId}
+              onClick={() => onSelect(c.id)}
+              isTyping={!!typingMap?.[c.id]?.size}
+              currentUserId={currentUserId}
+              onPin={onPin}
+              onMute={onMute}
+              onArchive={onArchive}
+            />
           ))
         )}
       </div>
     </div>
   )
 }
-
-import { MessageSquare } from 'lucide-react'
