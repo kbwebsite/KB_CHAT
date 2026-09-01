@@ -119,8 +119,8 @@ export function ChatSidebar({
   return (
     <div className="conv-panel">
       {/* Mobile Header */}
-      <div className="mobile-header">
-        <h1 className="mobile-header-title">Kryzen</h1>
+      <div className="mobile-header" style={{ background: 'rgba(6,6,14,0.92)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderBottom: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
+        <h1 className="mobile-header-title gradient-text" style={{ fontWeight: 800 }}>Kryzen</h1>
         <button
           onClick={() => setShowUserSearch(!showUserSearch)}
           className="btn-icon"
@@ -149,7 +149,7 @@ export function ChatSidebar({
 
       {/* Search */}
       {!showStatus && !showContacts && !showSaved && !showCalls && (
-        <div className="search-bar">
+        <div className="search-bar" style={{ background: 'rgba(20,20,42,0.6)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)' }}>
           <Search className="w-4 h-4 text-tertiary" />
           <input
             value={search}

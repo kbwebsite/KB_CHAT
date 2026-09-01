@@ -132,7 +132,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   return (
-    <div className="composer-wrapper">
+    <div className="composer-wrapper" style={{ background: 'rgba(6,6,14,0.97)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderTop: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.4)' }}>
       {/* Reply preview */}
       {replyTo && (
         <div className="composer-reply-preview">
@@ -189,6 +189,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           placeholder="Type a message..."
           rows={1}
           className="composer-textarea"
+          style={{ background: 'rgba(20,20,42,0.8)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, color: '#f0f0ff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 8px rgba(0,0,0,0.2)' }}
           disabled={disabled || uploading}
         />
 
@@ -206,6 +207,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             onClick={handleSend}
             disabled={uploading}
             className="composer-send-btn"
+            style={{ background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', boxShadow: '0 4px 20px rgba(124,92,252,0.5), 0 0 0 1px rgba(124,92,252,0.2)' }}
             aria-label="Send message"
           >
             <Send className="w-5 h-5" />

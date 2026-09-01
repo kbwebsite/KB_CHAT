@@ -37,7 +37,7 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
       onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onClick() } }}
     >
       <div className={`conv-avatar ${!isGroup && conv.members.some(m => m.is_online) ? 'online' : ''}`}
-        style={{ background: avatar ? 'none' : getAvatarGradient(conv.id) }}>
+        style={{ background: avatar ? 'none' : getAvatarGradient(conv.id), boxShadow: '0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)' }}>
         {avatar ? (
           <img src={avatar} alt="" className="w-full h-full object-cover rounded-[16px]" />
         ) : isGroup ? (

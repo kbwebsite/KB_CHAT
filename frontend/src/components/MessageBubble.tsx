@@ -50,7 +50,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden kryzen-msg-bubble ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'kryzen-msg-sent rounded-2xl rounded-br-md' : 'kryzen-msg-received rounded-2xl rounded-bl-md'}`} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
+        <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && (
             <div className={`grid gap-1 mb-2 -mx-1 ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
               {imgAtts.map((img,i)=> {

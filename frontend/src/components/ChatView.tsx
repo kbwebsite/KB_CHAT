@@ -138,7 +138,7 @@ export function ChatView({
   if (!currentConv) {
     return (
       <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
-        <div className="chat-header shrink-0">
+        <div className="chat-header shrink-0" style={{ background: 'rgba(6,6,14,0.92)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderBottom: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white font-bold text-sm shrink-0">
               K
@@ -173,10 +173,11 @@ export function ChatView({
           </div>
         </div>
 
-        <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto">
+        <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto" style={{ background: 'radial-gradient(ellipse at 50% 30%, rgba(124,92,252,0.08) 0%, transparent 60%)' }}>
           <div className="max-w-lg w-full text-center">
-            <div className="welcome-logo mx-auto mb-4 animate-float">
+            <div className="mx-auto mb-5 animate-float" style={{ width: 88, height: 88, borderRadius: 24, background: 'linear-gradient(135deg, #7c5cfc, #a855f7, #22d3ee)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 8px 40px rgba(124,92,252,0.45), 0 0 80px rgba(124,92,252,0.2), inset 0 1px 0 rgba(255,255,255,0.15)', position: 'relative' }}>
               <span className="text-4xl font-bold text-white">K</span>
+              <div style={{ position: 'absolute', inset: -3, borderRadius: 27, background: 'linear-gradient(135deg, #7c5cfc, #f472b6, #22d3ee)', zIndex: -1, opacity: 0.5, filter: 'blur(16px)' }} />
             </div>
             <h1 className="text-2xl sm:text-3xl font-bold mb-2">
               Welcome to <span className="gradient-text">Kryzen</span>
@@ -188,9 +189,9 @@ export function ChatView({
               Start New Chat +
             </button>
             <div className="flex items-center gap-4 mb-6">
-              <div className="flex-1 h-px bg-border/50" />
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(124,92,252,0.3), transparent)' }} />
               <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Features</span>
-              <div className="flex-1 h-px bg-border/50" />
+              <div className="flex-1 h-px" style={{ background: 'linear-gradient(90deg, transparent, rgba(124,92,252,0.3), transparent)' }} />
             </div>
             <div className="grid grid-cols-2 gap-3">
               {[
