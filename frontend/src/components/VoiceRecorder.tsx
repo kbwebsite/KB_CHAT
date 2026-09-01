@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Mic, Square, Trash2, Send } from 'lucide-react'
+import { Mic, Square, Trash2 } from 'lucide-react'
 
 export function VoiceRecorder({ onSend }: { onSend: (blob: Blob, duration:number)=>void }) {
   const [recording, setRecording]=useState(false)
@@ -40,13 +40,11 @@ export function VoiceRecorder({ onSend }: { onSend: (blob: Blob, duration:number
   }
   const cancel=()=>{
     mediaRef.current?.state !== 'inactive' && mediaRef.current?.stop()
-    // clear chunks to avoid send
     chunksRef.current = []
     setRecording(false)
     setDuration(0)
     clearInterval(timerRef.current)
     streamRef.current?.getTracks().forEach(t=> t.stop())
-    // override onstop to not send - quick hack: recreate
     if (mediaRef.current) mediaRef.current.onstop = null as any
   }
 
@@ -55,16 +53,22 @@ export function VoiceRecorder({ onSend }: { onSend: (blob: Blob, duration:number
   return (
     <div className="flex items-center gap-2">
       {!recording ? (
-        <button onClick={start} className="p-2.5 rounded-xl hover:bg-muted" title="Record voice"><Mic className="w-5 h-5 text-muted-foreground"/></button>
+        <button onClick={start} className="composer-action-btn" title="Record voice" aria-label="Record voice message">
+          <Mic className="w-5 h-5" />
+        </button>
       ) : (
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-red-500/10 border border-red-500/20">
+        <div className="flex items-center gap-2 px-3 py-2 rounded-full" style={{ background: 'rgba(239, 68, 68, 0.12)', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
           <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse"/>
-          <span className="text-xs font-mono">{fmt(duration)}</span>
-          <button onClick={cancel} className="p-1 hover:bg-white/10 rounded-full"><Trash2 className="w-4 h-4 text-red-500"/></button>
-          <button onClick={stop} className="p-1.5 rounded-full bg-red-500 text-white"><Square className="w-3 h-3"/></button>
+          <span className="text-xs font-mono" style={{ color: 'var(--error)' }}>{fmt(duration)}</span>
+          <button onClick={cancel} className="w-8 h-8 flex items-center justify-center rounded-full active:bg-white/10" aria-label="Cancel recording">
+            <Trash2 className="w-4 h-4 text-red-500"/>
+          </button>
+          <button onClick={stop} className="w-9 h-9 flex items-center justify-center rounded-full bg-red-500 text-white" aria-label="Stop and send recording">
+            <Square className="w-3.5 h-3.5"/>
+          </button>
         </div>
       )}
-      {permissionError && <span className="text-xs text-red-500">{permissionError}</span>}
+      {permissionError && <span className="text-xs" style={{ color: 'var(--error)' }}>{permissionError}</span>}
     </div>
   )
 }

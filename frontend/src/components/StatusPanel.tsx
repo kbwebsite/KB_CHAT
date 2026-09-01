@@ -55,7 +55,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
                       <p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleTimeString()} • {s.view_count} views</p>
                     </div>
                   </button>
-                  <button onClick={()=> handleDelete(s.id)} className="p-2 opacity-0 group-hover:opacity-100 hover:bg-background rounded-full"><Trash2 className="w-4 h-4 text-destructive"/></button>
+                  <button onClick={()=> handleDelete(s.id)} className="p-2 opacity-60 active:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-background rounded-full"><Trash2 className="w-4 h-4 text-destructive"/></button>
                   <Eye className="w-3 h-3 text-muted-foreground" />
                 </div>
               ))}

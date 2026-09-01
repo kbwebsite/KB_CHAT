@@ -22,7 +22,7 @@ export default function StickerPicker({ onSelect }: { onSelect: (url: string) =>
   const activeStickers = activeTab === 'recent' ? recent : packs.find(p => p.id === activeTab)?.stickers || []
 
   return (
-    <div className="w-72 bg-[var(--bg-primary)] border border-[var(--border)] rounded-xl shadow-lg overflow-hidden">
+    <div className="w-full max-w-72 bg-[var(--bg-primary)] border border-[var(--border)] rounded-xl shadow-lg overflow-hidden">
       <div className="flex gap-1 p-2 border-b border-[var(--border)] overflow-x-auto">
         <button onClick={() => setActiveTab('recent')}
           className={`text-xs px-2 py-1 rounded shrink-0 ${activeTab === 'recent' ? 'bg-[var(--primary)] text-white' : 'hover:bg-[var(--bg-tertiary)]'}`}>

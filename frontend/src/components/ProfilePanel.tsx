@@ -88,32 +88,32 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
             <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg ring-1 ring-black/5 kryzen-lift">
               {avatarSrc ? <img src={avatarSrc} alt="" className={`w-full h-full ${fit==='cover'?'object-cover':'object-contain bg-muted'}`} /> : initials(user.display_name)}
             </div>
-            <label className="absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer shadow-md hover:bg-primary/90 transition active:scale-95 ring-2 ring-card">
-              <Camera className="w-4 h-4"/>
+            <label className="absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center cursor-pointer shadow-md hover:bg-primary/90 transition active:scale-95 ring-2 ring-card" aria-label="Change profile photo">
+              <Camera className="w-5 h-5"/>
               <input type="file" className="hidden" accept="image/*" onChange={handleAvatar} />
             </label>
             {avatarSrc && (
-              <button onClick={()=> setShowPreview(true)} className="absolute -top-1 -left-1 w-7 h-7 rounded-full bg-card border shadow-sm flex items-center justify-center hover:bg-muted transition" title="Preview">
-                <Eye className="w-3.5 h-3.5"/>
+              <button onClick={()=> setShowPreview(true)} className="absolute -top-1 -left-1 w-9 h-9 rounded-full bg-card border shadow-sm flex items-center justify-center hover:bg-muted transition" title="Preview" aria-label="Preview photo">
+                <Eye className="w-4 h-4"/>
               </button>
             )}
           </div>
           <p className="text-sm text-muted-foreground">@{user.username}</p>
           <div className="flex flex-wrap gap-2 justify-center">
-            <label className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition active:scale-95">
+            <label className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-full bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer transition active:scale-95 min-h-[44px]">
               <Camera className="w-3.5 h-3.5"/> {user.avatar_url ? 'Change' : 'Upload'} photo
               <input type="file" className="hidden" accept="image/*" onChange={handleAvatar} />
             </label>
             {user.avatar_url && (
-              <button onClick={handleRemove} disabled={removing} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-destructive/10 hover:text-destructive border transition disabled:opacity-50">
+              <button onClick={handleRemove} disabled={removing} className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-full bg-muted hover:bg-destructive/10 hover:text-destructive border transition disabled:opacity-50 min-h-[44px]">
                 <Trash2 className="w-3.5 h-3.5"/> {removing?'Removing...':'Remove'}
               </button>
             )}
-            <button onClick={()=> setFit(f=> f==='cover'?'contain':'cover')} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-accent border transition">
+            <button onClick={()=> setFit(f=> f==='cover'?'contain':'cover')} className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-full bg-muted hover:bg-accent border transition min-h-[44px]">
               <ImageIcon className="w-3.5 h-3.5"/> Fit: {fit}
             </button>
           </div>
-          <button onClick={()=> setShowQR(!showQR)} className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full bg-muted hover:bg-accent transition">
+          <button onClick={()=> setShowQR(!showQR)} className="flex items-center gap-1.5 text-xs px-4 py-2.5 rounded-full bg-muted hover:bg-accent transition min-h-[44px]">
             <QrCode className="w-3.5 h-3.5" /> {showQR ? 'Hide' : 'Show'} QR Code
           </button>
           <p className="text-[11px] text-muted-foreground text-center max-w-[260px]">Photo persists after refresh, logout/login and on other devices. Uses Supabase storage when configured.</p>
