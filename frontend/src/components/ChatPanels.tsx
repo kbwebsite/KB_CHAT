@@ -11,7 +11,6 @@ import ScheduleMessage from './ScheduleMessage'
 import ChatInsights from './ChatInsights'
 import { AgentPanel } from './AgentPanel'
 import { useChatStore } from '../store/chat'
-import { msgPinApi } from '../services/api'
 import { X } from 'lucide-react'
 
 export function ChatPanels({
@@ -19,6 +18,10 @@ export function ChatPanels({
   showGroupInfo,
   showSettings,
   showNotifications,
+  showSaved,
+  showContacts,
+  showCalls,
+  showStatus,
   showPolls,
   showPinned,
   showEvents,
@@ -39,20 +42,36 @@ export function ChatPanels({
   const { currentConversationId } = useChatStore() as any
   const currentConv = useChatStore(s => s.conversations.find((c: any) => c.id === currentConversationId))
 
-  if (!currentConv && !showProfile && !showSettings && !showNotifications) return null
+  const anyPanelOpen = showProfile || showGroupInfo || showSettings || showNotifications ||
+    showSaved || showContacts || showCalls || showStatus || showPolls || showPinned ||
+    showEvents || showSchedule || showInsights || showAgentPanel
+
+  if (!anyPanelOpen) return null
 
   return (
-    <aside className="absolute inset-y-0 right-0 w-full sm:w-[360px] border-l border-border z-30 flex flex-col overflow-hidden min-h-0 bg-background modal-entrance">
+    <div className="fixed inset-0 z-50 flex flex-col bg-background animate-slide-up">
       {showProfile && <ProfilePanel onClose={onClose} />}
       {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={() => {}} />}
       {showSettings && <SettingsPanel onClose={onClose} />}
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
+      {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}
+      {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} />}
+      {showCalls && <CallsPanel onClose={onClose} />}
+      {showStatus && <div className="flex flex-col h-full bg-background">
+        <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
+          <h3 className="font-semibold text-sm">Status</h3>
+          <button onClick={onClose} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto">
+          {/* StatusPanel will be imported if needed */}
+        </div>
+      </div>}
       {showPolls && currentConv && <PollPanel conversationId={currentConv.id} onClose={() => setShowPolls(false)} />}
       {showPinned && (
         <div className="flex flex-col h-full bg-background">
-          <div className="flex items-center justify-between p-3 border-b border-border">
+          <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
             <h3 className="font-semibold text-sm">Pinned Messages</h3>
-            <button onClick={() => setShowPinned(false)} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+            <button onClick={() => setShowPinned(false)} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {pinnedMessages.length === 0 ? (
@@ -68,9 +87,9 @@ export function ChatPanels({
       )}
       {showEvents && currentConv && (
         <div className="flex flex-col h-full bg-background">
-          <div className="flex items-center justify-between p-3 border-b border-border">
+          <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
             <h3 className="font-semibold text-sm">Events</h3>
-            <button onClick={() => setShowEvents(false)} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+            <button onClick={() => setShowEvents(false)} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto">
             <EventPanel convId={currentConv.id} userId={0} />
@@ -79,9 +98,9 @@ export function ChatPanels({
       )}
       {showSchedule && currentConv && (
         <div className="flex flex-col h-full bg-background">
-          <div className="flex items-center justify-between p-3 border-b border-border">
+          <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
             <h3 className="font-semibold text-sm">Scheduled</h3>
-            <button onClick={() => setShowSchedule(false)} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+            <button onClick={() => setShowSchedule(false)} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto">
             <ScheduleMessage convId={currentConv.id} />
@@ -90,9 +109,9 @@ export function ChatPanels({
       )}
       {showInsights && currentConv && (
         <div className="flex flex-col h-full bg-background">
-          <div className="flex items-center justify-between p-3 border-b border-border">
+          <div className="flex items-center justify-between p-3 border-b border-border shrink-0">
             <h3 className="font-semibold text-sm">Insights</h3>
-            <button onClick={() => setShowInsights(false)} className="p-1.5 rounded-lg hover:bg-muted transition-colors"><X className="w-4 h-4" /></button>
+            <button onClick={() => setShowInsights(false)} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto">
             <ChatInsights convId={currentConv.id} />
@@ -104,6 +123,6 @@ export function ChatPanels({
           <AgentPanel onClose={onClose} onMinimize={onClose} />
         </div>
       )}
-    </aside>
+    </div>
   )
 }

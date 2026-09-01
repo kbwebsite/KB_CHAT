@@ -8,8 +8,8 @@ import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
 import { Message } from '../types'
 
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Cloud, Globe, ChevronRight } from 'lucide-react'
-import { Bell, Search as SearchIcon, Moon, Sun, LayoutGrid } from 'lucide-react'
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight } from 'lucide-react'
+import { Bell, Search as SearchIcon, Moon, Sun } from 'lucide-react'
 
 export function ChatView({
   onBack, onMobileViewChange, onCall, onProfile, onGroupInfo,
@@ -149,10 +149,6 @@ export function ChatView({
             </div>
           </div>
           <div className="flex items-center gap-1">
-            <div className="flex items-center gap-1.5 text-xs text-emerald-400 mr-2 hidden sm:flex">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-              Server: Online
-            </div>
             <button onClick={onThemeToggle} className="icon-btn" title="Toggle theme">
               {settings.theme === 'dark' ? <Sun className="w-[18px] h-[18px]" /> : <Moon className="w-[18px] h-[18px]" />}
             </button>
@@ -164,9 +160,6 @@ export function ChatView({
             </button>
             <button onClick={onSearch} className="icon-btn" title="Search">
               <SearchIcon className="w-[18px] h-[18px]" />
-            </button>
-            <button className="icon-btn" title="Grid">
-              <LayoutGrid className="w-[18px] h-[18px]" />
             </button>
             <button onClick={onProfile} className="ml-1 cursor-pointer">
               {user?.avatar_url ? (
@@ -181,31 +174,30 @@ export function ChatView({
         </div>
 
         <div className="flex-1 flex flex-col items-center justify-center p-6 min-h-0 overflow-y-auto">
-          <div className="max-w-2xl w-full text-center">
-            <div className="welcome-logo mx-auto mb-6 animate-float">
+          <div className="max-w-lg w-full text-center">
+            <div className="welcome-logo mx-auto mb-4 animate-float">
               <span className="text-4xl font-bold text-white">K</span>
             </div>
-            <h1 className="text-3xl font-bold mb-2">
+            <h1 className="text-2xl sm:text-3xl font-bold mb-2">
               Welcome to <span className="gradient-text">Kryzen</span>
             </h1>
-            <p className="text-muted-foreground mb-8 text-sm">
+            <p className="text-muted-foreground mb-6 text-sm">
               Start a conversation, share ideas, and stay connected.
             </p>
-            <button onClick={onNewChat} className="btn-gradient px-8 py-3 rounded-2xl text-sm font-semibold text-white mb-10">
+            <button onClick={onNewChat} className="btn-gradient px-8 py-3 rounded-2xl text-sm font-semibold text-white mb-8">
               Start New Chat +
             </button>
-            <div className="flex items-center gap-4 mb-8">
+            <div className="flex items-center gap-4 mb-6">
               <div className="flex-1 h-px bg-border/50" />
-              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Everything in one place</span>
+              <span className="text-xs text-muted-foreground font-medium uppercase tracking-wide">Features</span>
               <div className="flex-1 h-px bg-border/50" />
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 gap-3">
               {[
-                { icon: MessageSquare, label: 'Real-time Messaging', desc: 'Message anyone instantly, anytime.', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(199 89% 48%))' },
-                { icon: Users, label: 'Group Chats', desc: 'Create groups and chat with your team.', gradient: 'linear-gradient(135deg, hsl(142 76% 36%), hsl(199 89% 48%))' },
-                { icon: Phone, label: 'Voice & Calls', desc: 'High quality voice & video calls.', gradient: 'linear-gradient(135deg, hsl(38 92% 50%), hsl(0 84% 60%))' },
-                { icon: Shield, label: 'Secure & Private', desc: 'End-to-end encryption for complete privacy.', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(330 81% 60%))' },
-                { icon: Cloud, label: 'Cloud Sync', desc: 'Access your chats from anywhere, any device.', gradient: 'linear-gradient(135deg, hsl(199 89% 48%), hsl(173 80% 40%))' },
+                { icon: MessageSquare, label: 'Messaging', desc: 'Real-time chats', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(199 89% 48%))' },
+                { icon: Users, label: 'Groups', desc: 'Team conversations', gradient: 'linear-gradient(135deg, hsl(142 76% 36%), hsl(199 89% 48%))' },
+                { icon: Phone, label: 'Calls', desc: 'Voice & video', gradient: 'linear-gradient(135deg, hsl(38 92% 50%), hsl(0 84% 60%))' },
+                { icon: Shield, label: 'Secure', desc: 'Private & encrypted', gradient: 'linear-gradient(135deg, hsl(262 83% 58%), hsl(330 81% 60%))' },
               ].map(({ icon: Icon, label, desc, gradient }, i) => (
                 <div key={i} className="feature-card animate-slide-up" style={{ animationDelay: `${i * 0.08}s` }}>
                   <div className="feature-card-icon" style={{ background: gradient }}>

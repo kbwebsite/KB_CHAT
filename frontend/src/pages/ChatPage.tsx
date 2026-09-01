@@ -331,20 +331,17 @@ export default function ChatPage() {
   // ─── Nav panel tab change ───
   const handleNavTabChange = (tab: typeof mobileNavTab) => {
     setMobileNavTab(tab)
+    closeAllPanels()
     if (tab === 'chats') {
       setMobileView('list')
-      closeAllPanels()
     } else if (tab === 'status') {
       setMobileView('list')
-      closeAllPanels()
       setShowStatus(true)
     } else if (tab === 'calls') {
       setMobileView('list')
-      closeAllPanels()
       setShowCalls(true)
     } else if (tab === 'contacts') {
       setMobileView('list')
-      closeAllPanels()
       setShowContacts(true)
     } else if (tab === 'ai') {
       nav('/ai')
@@ -464,6 +461,10 @@ export default function ChatPage() {
               showGroupInfo={showGroupInfo}
               showSettings={showSettings}
               showNotifications={showNotifications}
+              showSaved={showSaved}
+              showContacts={showContacts}
+              showCalls={showCalls}
+              showStatus={showStatus}
               showPolls={showPolls}
               showPinned={showPinned}
               showEvents={showEvents}

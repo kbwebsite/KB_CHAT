@@ -479,6 +479,25 @@ class ServiceProvider(AIProvider):
         ]
         return any(k in query.lower() for k in keywords)
 
+    async def code_action(
+        self, code: str, language: str, action: str, instruction: str = ""
+    ) -> str:
+        prompts = {
+            "explain": f"Explain what this {language} code does, step by step:\n\n```{language}\n{code}\n```",
+            "fix": f"Find bugs and fix this {language} code. Return only the fixed code:\n\n```{language}\n{code}\n```",
+            "improve": f"Suggest improvements for this {language} code. Return improved code with brief explanation:\n\n```{language}\n{code}\n```",
+            "tests": f"Write unit tests for this {language} code:\n\n```{language}\n{code}\n```",
+            "translate": f"Translate this code to {instruction or 'Python'}. Return only the translated code:\n\n```{language}\n{code}\n```",
+            "rewrite": f"Rewrite this {language} code to be cleaner and more idiomatic:\n\n```{language}\n{code}\n```",
+            "reply": f"Generate a helpful reply for this message:\n\n{code}",
+            "extract-tasks": f"Extract actionable tasks from this text:\n\n{code}",
+            "unread-summary": f"Summarize these unread messages concisely:\n\n{code}",
+        }
+        prompt = prompts.get(
+            action, f"Analyze this {language} code:\n\n```{language}\n{code}\n```"
+        )
+        return await self.chat([{"role": "user", "content": prompt}])
+
     async def chat(
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
     ) -> str:
@@ -550,6 +569,25 @@ class OpenAICompatibleProvider(AIProvider):
             r.raise_for_status()
             data = r.json()
             return data["choices"][0]["message"]["content"]
+
+    async def code_action(
+        self, code: str, language: str, action: str, instruction: str = ""
+    ) -> str:
+        prompts = {
+            "explain": f"Explain what this {language} code does:\n\n```{language}\n{code}\n```",
+            "fix": f"Find bugs and fix this {language} code. Return only the fixed code:\n\n```{language}\n{code}\n```",
+            "improve": f"Suggest improvements for this {language} code. Return improved code:\n\n```{language}\n{code}\n```",
+            "tests": f"Write unit tests for this {language} code:\n\n```{language}\n{code}\n```",
+            "translate": f"Translate this code to {instruction or 'Python'}:\n\n```{language}\n{code}\n```",
+            "rewrite": f"Rewrite this {language} code to be cleaner:\n\n```{language}\n{code}\n```",
+            "reply": f"Generate a reply for this message:\n\n{code}",
+            "extract-tasks": f"Extract tasks from this text:\n\n{code}",
+            "unread-summary": f"Summarize these unread messages:\n\n{code}",
+        }
+        prompt = prompts.get(
+            action, f"Analyze this {language} code:\n\n```{language}\n{code}\n```"
+        )
+        return await self.chat([{"role": "user", "content": prompt}])
 
     async def chat(
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
