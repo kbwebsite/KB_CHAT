@@ -61,15 +61,15 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const handleSend = () => {
     if (!text.trim()) return
     setSending(true)
-    onSend(text.trim(), undefined, 'text').then(() => {
-      setSending(false)
-    })
     setText('')
     onCancelReply()
     lastTyping.current = false
     onTyping(false)
     wsService.sendTyping(conversationId, false)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
+    // Call onSend and reset sending state after a delay (onSend is void, not async)
+    onSend(text.trim(), undefined, 'text')
+    setTimeout(() => setSending(false), 1500)
   }
 
   const handleEmoji = (e: EmojiClickData) => {
