@@ -21,6 +21,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
+  const [sending, setSending] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const typingTimeout = useRef<any>(null)
@@ -59,7 +60,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 
   const handleSend = () => {
     if (!text.trim()) return
-    onSend(text.trim(), undefined, 'text')
+    setSending(true)
+    onSend(text.trim(), undefined, 'text').then(() => {
+      setSending(false)
+    })
     setText('')
     onCancelReply()
     lastTyping.current = false
@@ -205,12 +209,15 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         {text.trim() ? (
           <button
             onClick={handleSend}
-            disabled={uploading}
+            disabled={uploading || sending}
             className="composer-send-btn"
             style={{ background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', boxShadow: '0 4px 20px rgba(124,92,252,0.5), 0 0 0 1px rgba(124,92,252,0.2)' }}
             aria-label="Send message"
           >
             <Send className="w-5 h-5" />
+            {sending && (
+              <span className="w-1 h-1 absolute -top-1 -left-1 rounded-full bg-[7c5cfc] animate-spin text-[1px]"></span>
+            )}
           </button>
         ) : (
           <VoiceRecorder onSend={handleVoiceSend} />

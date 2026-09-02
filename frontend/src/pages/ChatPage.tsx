@@ -332,9 +332,9 @@ export default function ChatPage() {
   // ─── Nav panel tab change ───
   const handleNavTabChange = (tab: typeof mobileNavTab) => {
     setMobileNavTab(tab)
-    closeAllPanels()
     if (tab === 'chats') {
       setMobileView('list')
+      setShowStatus(false)
     } else if (tab === 'status') {
       setMobileView('list')
       setShowStatus(true)

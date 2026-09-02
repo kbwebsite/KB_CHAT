@@ -130,6 +130,7 @@ html {
 body {
   min-height: 100dvh;
   overflow-x: hidden;
+  overscroll-behavior: contain;
   background: var(--bg-primary);
 }
 
