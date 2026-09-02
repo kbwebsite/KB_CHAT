@@ -6,7 +6,6 @@ from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import success_response
-from app.schemas.user import UserUpdate
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -34,7 +33,6 @@ def search_users(
                 "username": u.username,
                 "display_name": u.display_name,
                 "avatar_url": u.avatar_url,
-                "about": u.about,
                 "is_online": u.is_online,
                 "last_seen": u.last_seen.isoformat() if u.last_seen else None,
             }
@@ -59,7 +57,7 @@ def get_user_by_username(
             "avatar_url": user.avatar_url,
             "about": user.about,
             "is_online": user.is_online,
-            "last_seen": user.last_seen.isoformat() if user.last_seen else None,
+            "last_seen": u.last_seen.isoformat() if u.last_seen else None,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
     )
@@ -124,28 +122,44 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
 def get_leaderboard(
     limit: int = 50,
     scope: str = Query("global", description="global or friends"),
+    period: str = Query("all", description="weekly, monthly, all"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     from app.models.message import Message
     from app.models.conversation import ConversationMember
-    from sqlalchemy import func
+    from sqlalchemy import func, true, false
     from datetime import datetime, timedelta, timezone
 
-    # Get start of current week (Monday 00:00 UTC)
+    # Determine time range based on period
     now = datetime.now(timezone.utc)
-    days_since_monday = now.weekday()
-    week_start = (now - timedelta(days=days_since_monday)).replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
-    week_end = week_start + timedelta(days=7)
 
-    # Base query: messages from this week
+    if period == "weekly":
+        days_since_monday = now.weekday()
+        week_start = (now - timedelta(days=days_since_monday)).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+        week_end = week_start + timedelta(days=7)
+        time_filter = (Message.created_at >= week_start) & (
+            Message.created_at < week_end
+        )
+    elif period == "monthly":
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 12:
+            month_end = now.replace(year=now.year + 1, month=1, day=1)
+        else:
+            month_end = now.replace(month=now.month + 1, day=1)
+        time_filter = (Message.created_at >= month_start) & (
+            Message.created_at < month_end
+        )
+    else:  # all-time
+        time_filter = true()
+
+    # Base query: messages from this period
     base_q = db.query(Message).filter(
         Message.is_deleted == False,
         Message.sender_id.isnot(None),
-        Message.created_at >= week_start,
-        Message.created_at < week_end,
+        time_filter if period != "all" else Message.id.isnot(None),
     )
 
     # If friends scope, filter to only users in same conversations
@@ -168,7 +182,6 @@ def get_leaderboard(
                 .all()
             )
         )
-        # Add current user
         friend_ids.append(current_user.id)
         base_q = base_q.filter(Message.sender_id.in_(friend_ids))
 
@@ -206,7 +219,28 @@ def get_leaderboard(
     return success_response(
         {
             "users": result,
-            "week_start": week_start.isoformat(),
-            "week_end": week_end.isoformat(),
+            "period": period,
+            "scope": scope,
+        }
+    )
+
+
+@router.get("/me/profile")
+def get_my_profile(current_user: User = Depends(get_current_user)):
+    return success_response(
+        {
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "display_name": current_user.display_name,
+            "avatar_url": current_user.avatar_url,
+            "about": current_user.about,
+            "is_online": current_user.is_online,
+            "last_seen": current_user.last_seen.isoformat()
+            if current_user.last_seen
+            else None,
+            "created_at": current_user.created_at.isoformat()
+            if current_user.created_at
+            else None,
         }
     )

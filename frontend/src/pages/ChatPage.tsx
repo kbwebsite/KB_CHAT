@@ -357,6 +357,8 @@ export default function ChatPage() {
     setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
     setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false)
     setShowAgentPanel(false)
+    setShowLeaderboard(false)
+    setShowTheme(false)
   }
 
   const totalUnread = conversations.reduce((a: number, b: any) => a + b.unread_count, 0)
