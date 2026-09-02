@@ -122,17 +122,61 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
 
 @router.get("/leaderboard")
 def get_leaderboard(
-    limit: int = 20,
+    limit: int = 50,
+    scope: str = Query("global", description="global or friends"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     from app.models.message import Message
+    from app.models.conversation import ConversationMember
     from sqlalchemy import func
+    from datetime import datetime, timedelta, timezone
+
+    # Get start of current week (Monday 00:00 UTC)
+    now = datetime.now(timezone.utc)
+    days_since_monday = now.weekday()
+    week_start = (now - timedelta(days=days_since_monday)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    week_end = week_start + timedelta(days=7)
+
+    # Base query: messages from this week
+    base_q = db.query(Message).filter(
+        Message.is_deleted == False,
+        Message.sender_id.isnot(None),
+        Message.created_at >= week_start,
+        Message.created_at < week_end,
+    )
+
+    # If friends scope, filter to only users in same conversations
+    friend_ids = None
+    if scope == "friends":
+        my_conv_ids = [
+            m.conversation_id
+            for m in db.query(ConversationMember)
+            .filter_by(user_id=current_user.id)
+            .all()
+        ]
+        friend_ids = list(
+            set(
+                m.user_id
+                for m in db.query(ConversationMember)
+                .filter(
+                    ConversationMember.conversation_id.in_(my_conv_ids),
+                    ConversationMember.user_id != current_user.id,
+                )
+                .all()
+            )
+        )
+        # Add current user
+        friend_ids.append(current_user.id)
+        base_q = base_q.filter(Message.sender_id.in_(friend_ids))
 
     # Count messages per user
     message_counts = (
-        db.query(Message.sender_id, func.count(Message.id).label("message_count"))
-        .filter(Message.is_deleted == False, Message.sender_id.isnot(None))
+        base_q.with_entities(
+            Message.sender_id, func.count(Message.id).label("message_count")
+        )
         .group_by(Message.sender_id)
         .order_by(func.count(Message.id).desc())
         .limit(limit)
@@ -159,4 +203,10 @@ def get_leaderboard(
         )
         rank += 1
 
-    return success_response(result)
+    return success_response(
+        {
+            "users": result,
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+        }
+    )
