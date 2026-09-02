@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     model_config = ConfigDict(env_file=".env", extra="allow")
 
     DATABASE_URL: str = f"sqlite:///{_DEFAULT_DB_PATH}"
+    # PostgreSQL connection pool settings (used when DATABASE_URL is postgresql)
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 20
+    DB_POOL_TIMEOUT: int = 30
+    DB_POOL_RECYCLE: int = 3600
     JWT_SECRET: str = "dev-secret-change-in-production-please-use-strong-random"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
@@ -36,6 +41,10 @@ class Settings(BaseSettings):
     TURN_CREDENTIAL: str = ""
     CLOUDFLARE_TURN_KEY_ID: str = ""
     CLOUDFLARE_TURN_API_TOKEN: str = ""
+    # Cloudinary settings for file/avatar storage (ephemeral filesystem fix)
+    CLOUDINARY_CLOUD_NAME: str = ""
+    CLOUDINARY_API_KEY: str = ""
+    CLOUDINARY_API_SECRET: str = ""
     # AI Agent settings
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     VECTOR_STORE_PATH: str = "./vector_store"

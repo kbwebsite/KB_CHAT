@@ -31,11 +31,11 @@ class Message(Base):
     message_type = Column(
         String(20), default="text", nullable=False
     )  # text, image, file, system
-    reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True)
-    is_deleted = Column(Boolean, default=False, nullable=False)
+    reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
+    is_deleted = Column(Boolean, default=False, nullable=False, index=True)
     is_edited = Column(Boolean, default=False, nullable=False)
-    is_pinned = Column(Boolean, default=False, nullable=False)
-    pinned_at = Column(DateTime(timezone=True), nullable=True)
+    is_pinned = Column(Boolean, default=False, nullable=False, index=True)
+    pinned_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
@@ -44,6 +44,7 @@ class Message(Base):
 
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
+    reply_to = relationship("Message", remote_side=[id], foreign_keys=[reply_to_id])
     reactions = relationship(
         "MessageReaction", back_populates="message", cascade="all, delete-orphan"
     )
@@ -53,7 +54,9 @@ class Message(Base):
 
     __table_args__ = (
         Index("ix_messages_conv_created", "conversation_id", "created_at"),
+        Index("ix_messages_conv_id", "conversation_id", "id"),
         Index("ix_messages_sender", "sender_id"),
+        Index("ix_messages_pinned_conv", "conversation_id", "is_pinned", "pinned_at"),
     )
 
 
@@ -102,6 +105,7 @@ class Attachment(Base):
     file_path = Column(String(500), nullable=False)
     file_size = Column(Integer, nullable=False)
     mime_type = Column(String(100), nullable=False)
+    cloudinary_url = Column(String(500), nullable=True)  # Persistent Cloudinary URL
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
     message = relationship("Message", back_populates="attachments")

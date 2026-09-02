@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
-from sqlalchemy import desc, asc, or_
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import desc, asc, or_, func
 from typing import Optional
 from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
@@ -13,19 +13,31 @@ from app.websocket.manager import manager
 
 router = APIRouter(prefix="/api", tags=["messages"])
 
+
 def _is_member(db: Session, conv_id: int, user_id: int) -> bool:
-    return db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=user_id).first() is not None
+    return (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv_id, user_id=user_id)
+        .first()
+        is not None
+    )
+
 
 def _member_ids(db: Session, conv_id: int):
-    return [m.user_id for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()]
+    return [
+        m.user_id
+        for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()
+    ]
 
-def _message_to_dict(db: Session, msg: Message):
-    sender = db.query(User).filter_by(id=msg.sender_id).first() if msg.sender_id else None
-    atts = db.query(Attachment).filter_by(message_id=msg.id).all()
-    reacts = db.query(MessageReaction).filter_by(message_id=msg.id).all()
+
+def _message_to_dict(msg: Message):
+    """Convert message to dict - relationships already loaded via eager loading"""
+    sender = msg.sender
+    atts = msg.attachments
+    reacts = msg.reactions
     reply_content = None
     if msg.reply_to_id:
-        replied = db.query(Message).filter_by(id=msg.reply_to_id).first()
+        replied = msg.reply_to
         if replied and not replied.is_deleted:
             reply_content = replied.content
         elif replied and replied.is_deleted:
@@ -58,63 +70,106 @@ def _message_to_dict(db: Session, msg: Message):
                 "file_path": a.file_path,
                 "file_size": a.file_size,
                 "mime_type": a.mime_type,
-            } for a in atts
+                "cloudinary_url": a.cloudinary_url,
+            }
+            for a in atts
         ],
         "reactions": [
             {
                 "id": r.id,
                 "user_id": r.user_id,
-                "username": db.query(User).filter_by(id=r.user_id).first().username if db.query(User).filter_by(id=r.user_id).first() else None,
+                "username": r.user.username if r.user else None,
                 "emoji": r.emoji,
-            } for r in reacts
+            }
+            for r in reacts
         ],
         "status": "sent",
     }
+
+
+def _get_messages_query(db: Session, conv_id: int):
+    """Build query with eager loading to avoid N+1"""
+    return (
+        db.query(Message)
+        .options(
+            joinedload(Message.sender),
+            joinedload(Message.attachments),
+            joinedload(Message.reactions).joinedload(MessageReaction.user),
+            joinedload(Message.reply_to).joinedload(Message.sender),
+        )
+        .filter(Message.conversation_id == conv_id)
+    )
+
 
 @router.get("/conversations/{conv_id}/messages")
 def list_messages(
     conv_id: int,
     limit: int = Query(50, ge=1, le=100),
-    before: Optional[int] = Query(None, description="cursor: message id before which to fetch"),
+    before: Optional[int] = Query(
+        None, description="cursor: message id before which to fetch"
+    ),
     search: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     if not _is_member(db, conv_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
-    q = db.query(Message).filter(Message.conversation_id == conv_id)
+
+    q = _get_messages_query(db, conv_id)
     if search:
         q = q.filter(Message.content.ilike(f"%{search}%"))
     if before:
         q = q.filter(Message.id < before)
+
+    # Use unique() to handle joinedload collections
     msgs = q.order_by(desc(Message.id)).limit(limit).all()
     msgs.reverse()  # oldest first
-    result = [_message_to_dict(db, m) for m in msgs]
+    result = [_message_to_dict(m) for m in msgs]
+
     # has_more?
     has_more = False
     if len(msgs) == limit:
         oldest_id = msgs[0].id if msgs else None
         if oldest_id:
-            remaining = db.query(Message).filter(Message.conversation_id==conv_id, Message.id < oldest_id).count()
+            remaining = (
+                db.query(Message)
+                .filter(Message.conversation_id == conv_id, Message.id < oldest_id)
+                .count()
+            )
             has_more = remaining > 0
     return success_response({"messages": result, "has_more": has_more})
 
+
 @router.post("/conversations/{conv_id}/messages")
-async def create_message(conv_id: int, payload: MessageCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def create_message(
+    conv_id: int,
+    payload: MessageCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     if not _is_member(db, conv_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
     if not payload.content and not payload.attachment_ids:
-        raise HTTPException(status_code=400, detail="Message content or attachment required")
+        raise HTTPException(
+            status_code=400, detail="Message content or attachment required"
+        )
     if payload.reply_to_id:
-        replied = db.query(Message).filter_by(id=payload.reply_to_id, conversation_id=conv_id).first()
+        replied = (
+            db.query(Message)
+            .filter_by(id=payload.reply_to_id, conversation_id=conv_id)
+            .first()
+        )
         if not replied:
             raise HTTPException(status_code=404, detail="Replied message not found")
+
     content = payload.content or ""
     if len(content) > 5000:
         raise HTTPException(status_code=400, detail="Message too long")
+
     msg_type = payload.message_type or "text"
     if msg_type not in ("text", "image", "file", "system"):
         msg_type = "text"
+
     msg = Message(
         conversation_id=conv_id,
         sender_id=current_user.id,
@@ -124,30 +179,48 @@ async def create_message(conv_id: int, payload: MessageCreate, db: Session = Dep
     )
     db.add(msg)
     db.flush()
+
     # attach attachments if any
     if payload.attachment_ids:
         for aid in payload.attachment_ids:
-            att = db.query(Attachment).filter_by(id=aid, uploader_id=current_user.id).first()
+            att = (
+                db.query(Attachment)
+                .filter_by(id=aid, uploader_id=current_user.id)
+                .first()
+            )
             if att:
                 att.message_id = msg.id
-    db.commit()
-    db.refresh(msg)
-    # update conversation updated_at
+
+    # Single commit for message + attachments + conversation updated_at
     from app.models.conversation import Conversation
+    from datetime import datetime, timezone
+
     conv = db.query(Conversation).filter_by(id=conv_id).first()
     if conv:
-        from datetime import datetime, timezone
         conv.updated_at = datetime.now(timezone.utc)
-        db.commit()
-    msg_dict = _message_to_dict(db, msg)
+
+    db.commit()
+    db.refresh(msg)
+
+    # Load relationships for broadcast
+    msg = _get_messages_query(db, conv_id).filter(Message.id == msg.id).first()
+    msg_dict = _message_to_dict(msg)
+
     # broadcast via websocket
     member_ids = _member_ids(db, conv_id)
-    await manager.broadcast_to_conversation(conv_id, {"type": "message.new", "payload": msg_dict}, member_ids=member_ids)
-    # also send delivery event? simple
+    await manager.broadcast_to_conversation(
+        conv_id, {"type": "message.new", "payload": msg_dict}, member_ids=member_ids
+    )
     return success_response(msg_dict, "Message sent")
 
+
 @router.patch("/messages/{message_id}")
-async def edit_message(message_id: int, payload: MessageUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def edit_message(
+    message_id: int,
+    payload: MessageUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
@@ -159,13 +232,22 @@ async def edit_message(message_id: int, payload: MessageUpdate, db: Session = De
     msg.is_edited = True
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(db, msg)
+    msg_dict = _message_to_dict(msg)
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.updated", "payload": msg_dict}, member_ids=member_ids)
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {"type": "message.updated", "payload": msg_dict},
+        member_ids=member_ids,
+    )
     return success_response(msg_dict, "Message updated")
 
+
 @router.delete("/messages/{message_id}")
-async def delete_message(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def delete_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
@@ -174,99 +256,211 @@ async def delete_message(message_id: int, db: Session = Depends(get_db), current
     msg.is_deleted = True
     msg.content = "Message deleted"
     from datetime import datetime, timezone
+
     msg.deleted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(db, msg)
+    msg_dict = _message_to_dict(msg)
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.deleted", "payload": {"id": msg.id, "conversation_id": msg.conversation_id, "is_deleted": True, "content": "Message deleted"}}, member_ids=member_ids)
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {
+            "type": "message.deleted",
+            "payload": {
+                "id": msg.id,
+                "conversation_id": msg.conversation_id,
+                "is_deleted": True,
+                "content": "Message deleted",
+            },
+        },
+        member_ids=member_ids,
+    )
     return success_response(msg_dict, "Message deleted")
 
+
 @router.post("/messages/{message_id}/reactions")
-async def add_reaction(message_id: int, payload: ReactionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def add_reaction(
+    message_id: int,
+    payload: ReactionCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
     if not _is_member(db, msg.conversation_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
-    # check existing
-    existing = db.query(MessageReaction).filter_by(message_id=message_id, user_id=current_user.id, emoji=payload.emoji).first()
+    existing = (
+        db.query(MessageReaction)
+        .filter_by(message_id=message_id, user_id=current_user.id, emoji=payload.emoji)
+        .first()
+    )
     if existing:
-        return success_response({"message_id": message_id, "emoji": payload.emoji}, "Already reacted")
-    react = MessageReaction(message_id=message_id, user_id=current_user.id, emoji=payload.emoji)
+        return success_response(
+            {"message_id": message_id, "emoji": payload.emoji}, "Already reacted"
+        )
+    react = MessageReaction(
+        message_id=message_id, user_id=current_user.id, emoji=payload.emoji
+    )
     db.add(react)
     db.commit()
     db.refresh(react)
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "reaction.added", "payload": {"message_id": message_id, "user_id": current_user.id, "emoji": payload.emoji, "id": react.id}}, member_ids=member_ids)
-    return success_response({"id": react.id, "message_id": message_id, "emoji": payload.emoji}, "Reaction added")
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {
+            "type": "reaction.added",
+            "payload": {
+                "message_id": message_id,
+                "user_id": current_user.id,
+                "emoji": payload.emoji,
+                "id": react.id,
+            },
+        },
+        member_ids=member_ids,
+    )
+    return success_response(
+        {"id": react.id, "message_id": message_id, "emoji": payload.emoji},
+        "Reaction added",
+    )
+
 
 @router.delete("/messages/{message_id}/reactions")
-async def remove_reaction(message_id: int, emoji: str = Query(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def remove_reaction(
+    message_id: int,
+    emoji: str = Query(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
-    react = db.query(MessageReaction).filter_by(message_id=message_id, user_id=current_user.id, emoji=emoji).first()
+    react = (
+        db.query(MessageReaction)
+        .filter_by(message_id=message_id, user_id=current_user.id, emoji=emoji)
+        .first()
+    )
     if not react:
         raise HTTPException(status_code=404, detail="Reaction not found")
     db.delete(react)
     db.commit()
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "reaction.removed", "payload": {"message_id": message_id, "user_id": current_user.id, "emoji": emoji}}, member_ids=member_ids)
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {
+            "type": "reaction.removed",
+            "payload": {
+                "message_id": message_id,
+                "user_id": current_user.id,
+                "emoji": emoji,
+            },
+        },
+        member_ids=member_ids,
+    )
     return success_response(None, "Reaction removed")
 
+
 @router.post("/messages/{message_id}/read")
-async def mark_message_read(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def mark_message_read(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
     if not _is_member(db, msg.conversation_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
-    # update last_read
     from app.models.conversation import ConversationMember
-    membership = db.query(ConversationMember).filter_by(conversation_id=msg.conversation_id, user_id=current_user.id).first()
+
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=msg.conversation_id, user_id=current_user.id)
+        .first()
+    )
     if membership:
-        if membership.last_read_message_id is None or message_id > membership.last_read_message_id:
+        if (
+            membership.last_read_message_id is None
+            or message_id > membership.last_read_message_id
+        ):
             membership.last_read_message_id = message_id
             db.commit()
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.read", "payload": {"message_id": message_id, "conversation_id": msg.conversation_id, "user_id": current_user.id}}, member_ids=member_ids)
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {
+            "type": "message.read",
+            "payload": {
+                "message_id": message_id,
+                "conversation_id": msg.conversation_id,
+                "user_id": current_user.id,
+            },
+        },
+        member_ids=member_ids,
+    )
     return success_response(None, "Marked read")
 
+
 @router.get("/messages/search")
-def search_messages(q: str = Query(..., min_length=1), conversation_id: Optional[int] = Query(None), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    # search across user's conversations
-    member_convs = [m.conversation_id for m in db.query(ConversationMember).filter_by(user_id=current_user.id).all()]
+def search_messages(
+    q: str = Query(..., min_length=1),
+    conversation_id: Optional[int] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    member_convs = [
+        m.conversation_id
+        for m in db.query(ConversationMember).filter_by(user_id=current_user.id).all()
+    ]
     if not member_convs:
         return success_response([])
-    query = db.query(Message).filter(Message.conversation_id.in_(member_convs), Message.is_deleted==False, Message.content.ilike(f"%{q}%"))
+    query = db.query(Message).filter(
+        Message.conversation_id.in_(member_convs),
+        Message.is_deleted == False,
+        Message.content.ilike(f"%{q}%"),
+    )
     if conversation_id:
         if conversation_id not in member_convs:
             raise HTTPException(status_code=403, detail="Not a member")
-        query = query.filter(Message.conversation_id==conversation_id)
+        query = query.filter(Message.conversation_id == conversation_id)
     msgs = query.order_by(desc(Message.created_at)).limit(50).all()
-    result = [_message_to_dict(db, m) for m in msgs]
+    result = [_message_to_dict(m) for m in msgs]
     return success_response(result)
 
+
 @router.post("/messages/{message_id}/pin")
-async def pin_message(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def pin_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
     if not _is_member(db, msg.conversation_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
     from datetime import datetime, timezone
+
     msg.is_pinned = True
     msg.pinned_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(db, msg)
+    msg_dict = _message_to_dict(msg)
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.pinned", "payload": msg_dict}, member_ids=member_ids)
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {"type": "message.pinned", "payload": msg_dict},
+        member_ids=member_ids,
+    )
     return success_response(msg_dict, "Message pinned")
 
+
 @router.post("/messages/{message_id}/unpin")
-async def unpin_message(message_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def unpin_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Message not found")
@@ -276,14 +470,29 @@ async def unpin_message(message_id: int, db: Session = Depends(get_db), current_
     msg.pinned_at = None
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(db, msg)
+    msg_dict = _message_to_dict(msg)
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(msg.conversation_id, {"type": "message.unpinned", "payload": msg_dict}, member_ids=member_ids)
+    await manager.broadcast_to_conversation(
+        msg.conversation_id,
+        {"type": "message.unpinned", "payload": msg_dict},
+        member_ids=member_ids,
+    )
     return success_response(msg_dict, "Message unpinned")
 
+
 @router.get("/conversations/{conv_id}/pinned")
-def list_pinned_messages(conv_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def list_pinned_messages(
+    conv_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     if not _is_member(db, conv_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
-    msgs = db.query(Message).filter_by(conversation_id=conv_id, is_pinned=True).order_by(desc(Message.pinned_at)).limit(50).all()
-    return success_response([_message_to_dict(db, m) for m in msgs])
+    msgs = (
+        _get_messages_query(db, conv_id)
+        .filter(Message.is_pinned == True)
+        .order_by(desc(Message.pinned_at))
+        .limit(50)
+        .all()
+    )
+    return success_response([_message_to_dict(m) for m in msgs])

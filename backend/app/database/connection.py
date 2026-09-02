@@ -7,12 +7,14 @@ is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 if is_sqlite:
     connect_args = {"check_same_thread": False}
 
-# Postgres pool sizing: Supabase free tier is small; use modest pool
+# PostgreSQL connection pool settings
 engine_kwargs = dict(pool_pre_ping=True)
 if not is_sqlite:
-    # for Supabase / Postgres with pgbouncer, disable statement cache issues
     engine_kwargs.update(
-        pool_size=5, max_overflow=10, pool_recycle=300, pool_timeout=30
+        pool_size=settings.DB_POOL_SIZE,
+        max_overflow=settings.DB_MAX_OVERFLOW,
+        pool_recycle=settings.DB_POOL_RECYCLE,
+        pool_timeout=settings.DB_POOL_TIMEOUT,
     )
 
 engine = create_engine(
