@@ -37,10 +37,12 @@ try:
         print("[uploads] Cloudinary configured for persistent file storage")
     else:
         print(
-            "[uploads] Cloudinary not configured, using local storage (ephemeral on Render)"
+            "[uploads] Cloudinary not configured - avatars will use default placeholder"
         )
 except ImportError:
-    print("[uploads] cloudinary package not installed, using local storage")
+    print(
+        "[uploads] cloudinary package not installed - avatars will use default placeholder"
+    )
 except Exception as e:
     print(f"[uploads] Cloudinary config failed: {e}")
 
@@ -87,8 +89,6 @@ async def upload_file(
     if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
         if size < 10:
             raise HTTPException(status_code=400, detail="Invalid image file")
-        if content[:2] == b"MZ":
-            raise HTTPException(status_code=400, detail="Executable files not allowed")
     if content[:2] == b"MZ":
         raise HTTPException(status_code=400, detail="Executable files not allowed")
 
@@ -97,16 +97,20 @@ async def upload_file(
     if not os.path.abspath(file_path).startswith(os.path.abspath(UPLOAD_DIR)):
         raise HTTPException(status_code=400, detail="Invalid file path")
 
-    # Try Cloudinary first for persistent storage
+    # Try Cloudinary first for persistent storage (works across deploys)
     cloudinary_url = None
     if cloudinary_configured:
         cloudinary_url = await upload_to_cloudinary(content, safe_name, "uploads")
 
-    # Always save locally as backup (for development)
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(content)
+    # Always save locally for download functionality (may be lost on Render restart)
+    # but don't rely on it for avatar persistence
+    try:
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
+    except Exception as e:
+        print(f"[uploads] Local save failed (ephemeral fs): {e}")
 
-    # Create DB record
+    # Create DB record - cloudinary_url may be None if not configured
     att = Attachment(
         message_id=None,
         uploader_id=current_user.id,
@@ -121,8 +125,8 @@ async def upload_file(
     db.commit()
     db.refresh(att)
 
-    # Return Cloudinary URL if available, else local path
-    return_url = cloudinary_url or f"/api/uploads/file/{stored}"
+    # Return URL: Cloudinary URL if available, else null (frontend will use default)
+    return_url = cloudinary_url or None
     return success_response(
         {
             "id": att.id,
@@ -143,7 +147,8 @@ async def get_file(filename: str, token: str = None):
     safe = sanitize_filename(filename)
     file_path = os.path.join(UPLOAD_DIR, safe)
     if not os.path.exists(file_path):
-        raise HTTPException(status_code=404, detail="File not found")
+        # File not found on local fs (ephemeral on Render) - return 404 gracefully
+        raise HTTPException(status_code=404, detail="File not available")
     if not os.path.abspath(file_path).startswith(os.path.abspath(UPLOAD_DIR)):
         raise HTTPException(status_code=403, detail="Forbidden")
     if token:
@@ -186,17 +191,20 @@ async def upload_avatar(
     stored = generate_stored_filename(safe_name)
     file_path = os.path.join(UPLOAD_DIR, stored)
 
-    # Try Cloudinary first for persistent avatar storage
+    # Try Cloudinary first for persistent avatar storage (survives deploys)
     cloudinary_url = None
     if cloudinary_configured:
         cloudinary_url = await upload_to_cloudinary(content, safe_name, "avatars")
 
-    # Always save locally as backup
-    async with aiofiles.open(file_path, "wb") as f:
-        await f.write(content)
+    # Save locally as backup (may be lost on Render restart, but try anyway)
+    try:
+        async with aiofiles.open(file_path, "wb") as f:
+            await f.write(content)
+    except Exception as e:
+        print(f"[uploads] Local save failed (ephemeral fs): {e}")
 
-    # Update user avatar_url - use Cloudinary URL if available
-    avatar_url = cloudinary_url or f"/api/uploads/file/{stored}"
+    # Update user avatar_url - use Cloudinary URL if available, else null
+    avatar_url = cloudinary_url or None
     current_user.avatar_url = avatar_url
     db.commit()
     return success_response(

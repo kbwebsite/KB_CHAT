@@ -10,7 +10,7 @@ import { CallsPanel } from './CallsPanel'
 import { convApi } from '../services/api'
 import { Plus, Search, Settings, UserPlus, Trophy } from 'lucide-react'
 
-type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
+type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
 
 export function ChatSidebar({
   onSelect,
@@ -39,7 +39,6 @@ export function ChatSidebar({
 
   const [search, setSearch] = useState('')
   const [showUserSearch, setShowUserSearch] = useState(false)
-  const [showStatus, setShowStatus] = useState(false)
   const [showContacts, setShowContacts] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [showCalls, setShowCalls] = useState(false)
@@ -64,7 +63,6 @@ export function ChatSidebar({
 
   const handleSelect = async (id: number) => {
     onSelect(id)
-    setShowStatus(false)
     setShowContacts(false)
     setShowSaved(false)
     setShowCalls(false)
@@ -157,7 +155,7 @@ export function ChatSidebar({
       </div>
 
       {/* Search */}
-      {!showStatus && !showContacts && !showSaved && !showCalls && (
+      {!showContacts && !showSaved && !showCalls && (
         <div className="search-bar" style={{ background: 'rgba(20,20,42,0.6)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)' }}>
           <Search className="w-4 h-4 text-tertiary" />
           <input
@@ -171,9 +169,7 @@ export function ChatSidebar({
 
       {/* Content */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {showStatus ? (
-          <StatusPanel onClose={() => setShowStatus(false)} onViewer={(s: any, all: any[]) => onStatusViewer(all, all.findIndex((x: any) => x.id === s.id))} />
-        ) : showContacts ? (
+        {showContacts ? (
           <ContactsPanel onClose={() => setShowContacts(false)} onChat={handleStartChat} />
         ) : showSaved ? (
           <SavedMessagesPanel onClose={() => setShowSaved(false)} onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowSaved(false); onMobileViewChange('chat') }} />
