@@ -8,7 +8,7 @@ import { ContactsPanel } from './ContactsPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { CallsPanel } from './CallsPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Trophy } from 'lucide-react'
 
 type SidebarTab = 'chats' | 'groups' | 'status' | 'calls' | 'contacts' | 'saved'
 
@@ -20,6 +20,7 @@ export function ChatSidebar({
   activeTab,
   onTabChange,
   onProfile,
+  onLeaderboard,
 }: {
   onSelect: (id: number) => void
   onStatusViewer: (statuses: any[], idx: number) => void
@@ -28,6 +29,7 @@ export function ChatSidebar({
   activeTab: SidebarTab
   onTabChange: (tab: SidebarTab) => void
   onProfile?: () => void
+  onLeaderboard?: () => void
 }) {
   const { user } = useAuthStore()
   const {
@@ -121,6 +123,13 @@ export function ChatSidebar({
       {/* Mobile Header */}
       <div className="mobile-header" style={{ background: 'rgba(6,6,14,0.92)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderBottom: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 24px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
         <h1 className="mobile-header-title gradient-text" style={{ fontWeight: 800 }}>Kryzen</h1>
+        <button
+          onClick={onLeaderboard}
+          className="btn-icon"
+          aria-label="Leaderboard"
+        >
+          <Trophy className="w-5 h-5" />
+        </button>
         <button
           onClick={() => setShowUserSearch(!showUserSearch)}
           className="btn-icon"

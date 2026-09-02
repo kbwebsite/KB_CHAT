@@ -41,6 +41,7 @@ export const usersApi = {
   search: (q:string) => api.get(`/api/users/search?q=${encodeURIComponent(q)}`).then(r=>r.data),
   getByUsername: (u:string) => api.get(`/api/users/${u}`).then(r=>r.data),
   updateMe: (data:any) => api.patch('/api/users/me', data).then(r=>r.data),
+  leaderboard: () => api.get('/api/users/leaderboard').then(r=>r.data),
 }
 
 export const convApi = {

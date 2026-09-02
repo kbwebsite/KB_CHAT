@@ -45,6 +45,7 @@ export default function ChatPage() {
   const [showEvents, setShowEvents] = useState(false)
   const [showSchedule, setShowSchedule] = useState(false)
   const [showInsights, setShowInsights] = useState(false)
+  const [showLeaderboard, setShowLeaderboard] = useState(false)
   const [showMessageSearch, setShowMessageSearch] = useState(false)
   const [messageSearch, setMessageSearch] = useState('')
   const [replyTo, setReplyTo] = useState<{ id: number; content: string; sender: string } | null>(null)
@@ -383,6 +384,7 @@ export default function ChatPage() {
             activeTab="chats"
             onTabChange={() => {}}
             onProfile={() => { closeAllPanels(); setShowProfile(true) }}
+            onLeaderboard={() => { closeAllPanels(); setShowLeaderboard(true) }}
           />
         )}
 
@@ -482,6 +484,7 @@ export default function ChatPage() {
           showSchedule={showSchedule}
           showInsights={showInsights}
           showAgentPanel={showAgentPanel}
+          showLeaderboard={showLeaderboard}
           onClose={closeAllPanels}
           onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
           onStatusViewer={(statuses: any[], idx: number) => { closeAllPanels(); setStatusViewer({ statuses, idx }) }}
