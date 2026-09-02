@@ -46,6 +46,7 @@ export default function ChatPage() {
   const [showSchedule, setShowSchedule] = useState(false)
   const [showInsights, setShowInsights] = useState(false)
   const [showLeaderboard, setShowLeaderboard] = useState(false)
+  const [showTheme, setShowTheme] = useState(false)
   const [showMessageSearch, setShowMessageSearch] = useState(false)
   const [messageSearch, setMessageSearch] = useState('')
   const [replyTo, setReplyTo] = useState<{ id: number; content: string; sender: string } | null>(null)
@@ -425,6 +426,7 @@ export default function ChatPage() {
                 onSave={handleSave}
                 onAIAction={handleAIAction}
                 onPin={handlePin}
+                onTheme={() => { closeAllPanels(); setShowTheme(true) }}
                 pinnedMessages={pinnedMessages}
                 setPinnedMessages={setPinnedMessages}
                 aiPanelOpen={aiPanelOpen}
@@ -485,6 +487,7 @@ export default function ChatPage() {
           showInsights={showInsights}
           showAgentPanel={showAgentPanel}
           showLeaderboard={showLeaderboard}
+          showTheme={showTheme}
           onClose={closeAllPanels}
           onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
           onStatusViewer={(statuses: any[], idx: number) => { closeAllPanels(); setStatusViewer({ statuses, idx }) }}

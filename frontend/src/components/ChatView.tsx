@@ -24,6 +24,7 @@ export function ChatView({
   activeRightTab, handleMessageSearch, onNewChat,
   totalUnread, onNotifications, onSearch, onSaved, onSettings, onThemeToggle, onLogout,
   onAgent,
+  onTheme,
   // Language selector (from ChatPage)
   showLanguageSelector, languages, languagesLoading, handleLanguageSelect, handleTranslateClick, onCloseLanguageSelector
 }: any) {
@@ -230,6 +231,7 @@ export function ChatView({
           handleRefresh={handleRefresh}
           onAi={() => setAiPanelOpen(!aiPanelOpen)}
           onAgent={onAgent}
+          onTheme={onTheme}
         />
 
         {typingNames && (

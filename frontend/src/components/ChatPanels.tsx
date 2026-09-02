@@ -12,6 +12,7 @@ import ScheduleMessage from './ScheduleMessage'
 import ChatInsights from './ChatInsights'
 import { AgentPanel } from './AgentPanel'
 import { Leaderboard } from './Leaderboard'
+import { ThemePicker } from './ThemePicker'
 import { useChatStore } from '../store/chat'
 import { X } from 'lucide-react'
 
@@ -31,6 +32,7 @@ export function ChatPanels({
   showInsights,
   showAgentPanel,
   showLeaderboard,
+  showTheme,
   onClose,
   onJump,
   onChat,
@@ -48,7 +50,7 @@ export function ChatPanels({
 
   const anyPanelOpen = showProfile || showGroupInfo || showSettings || showNotifications ||
     showSaved || showContacts || showCalls || showStatus || showPolls || showPinned ||
-    showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard
+    showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme
 
   if (!anyPanelOpen) return null
 
@@ -120,6 +122,7 @@ export function ChatPanels({
         </div>
       )}
       {showLeaderboard && <Leaderboard onClose={onClose} />}
+      {showTheme && <ThemePicker onClose={onClose} />}
     </div>
   )
 }
