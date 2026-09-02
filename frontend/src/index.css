@@ -2028,6 +2028,28 @@ body {
 .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 /* ═══════════════════════════════════════════════════════════════
+   MOBILE LAYOUT (base — applied everywhere)
+   ═══════════════════════════════════════════════════════════════ */
+
+.app-layout {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  overflow: hidden;
+  position: relative;
+}
+
+.chat-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════
    RESPONSIVE - Desktop still works
    ═══════════════════════════════════════════════════════════════ */
 
@@ -2037,9 +2059,7 @@ body {
   .chat-header-back { display: none; }
 
   .app-layout {
-    display: flex;
-    height: 100dvh;
-    overflow: hidden;
+    flex-direction: row;
   }
 
   .nav-panel {

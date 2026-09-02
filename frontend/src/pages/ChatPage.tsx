@@ -131,6 +131,7 @@ export default function ChatPage() {
     setSelectedIds(new Set())
     setShowMessageSearch(false)
     setMobileView('chat')
+    setMobileNavTab('chats')
     try { const res = await msgPinApi.list(id); if (res.success) setPinnedMessages(res.data) } catch {}
   }
 
@@ -371,7 +372,7 @@ export default function ChatPage() {
         <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,211,238,0.12), transparent 70%)', bottom: '12%', left: -80, filter: 'blur(80px)', animation: 'ambientDrift 18s ease-in-out infinite reverse' }} />
         <div style={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,114,182,0.10), transparent 70%)', bottom: -60, right: '28%', filter: 'blur(80px)', animation: 'ambientDrift 12s ease-in-out infinite' }} />
       </div>
-      <div className="app-layout" style={{ position: 'relative', zIndex: 1 }}>
+      <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', zIndex: 1 }}>
         {/* Sidebar - conversation list */}
         {showSidebar && (
           <ChatSidebar
@@ -494,12 +495,14 @@ export default function ChatPage() {
           onChat={handleStartChat}
         />
 
-        {/* Bottom navigation */}
-        <MobileNav
-          active={mobileNavTab}
-          onTabChange={handleNavTabChange}
-          unreadCounts={{ chats: totalUnread }}
-        />
+        {/* Bottom navigation - hidden when viewing a chat on mobile */}
+        {(!currentConversationId || mobileView === 'list' || isDesktop) && (
+          <MobileNav
+            active={mobileNavTab}
+            onTabChange={handleNavTabChange}
+            unreadCounts={{ chats: totalUnread }}
+          />
+        )}
 
         {/* Modals */}
         <ChatModals
