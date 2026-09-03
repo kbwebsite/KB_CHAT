@@ -9,6 +9,7 @@ import { ToastContainer } from './components/Toast'
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
+const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
 const KBAIPage = lazy(() => import('./pages/KBAIPage'))
 
@@ -38,6 +39,7 @@ export default function App() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
+            <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
             <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
             <Route path="/ai" element={<Protected><KBAIPage /></Protected>} />
             <Route path="*" element={<Navigate to="/" replace />} />

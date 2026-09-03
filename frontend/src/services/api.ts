@@ -35,6 +35,9 @@ export const authApi = {
   google: (credential:string) => api.post('/api/auth/google', { credential }).then(r=>r.data),
   me: () => api.get('/api/auth/me').then(r=>r.data),
   logout: () => api.post('/api/auth/logout').then(r=>r.data),
+  forgotPassword: (email:string) => api.post('/api/auth/forgot-password', { email }).then(r=>r.data),
+  resetPassword: (token:string, newPassword:string) => api.post('/api/auth/reset-password', { token, new_password: newPassword }).then(r=>r.data),
+  verifyEmail: (email:string, code:string) => api.post('/api/auth/verify-email', { email, code }).then(r=>r.data),
 }
 
 export const usersApi = {

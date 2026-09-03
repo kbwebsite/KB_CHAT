@@ -2,11 +2,19 @@ from fastapi import APIRouter, Depends, Query, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
+from pydantic import BaseModel
 from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
+from app.auth.security import verify_password, hash_password
 from app.models.user import User
 from app.schemas.user import UserUpdate
 from app.schemas.common import success_response
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str
+
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -117,6 +125,23 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
             else None,
         }
     )
+
+
+@router.patch("/me/password")
+def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if len(payload.new_password) < 6:
+        raise HTTPException(
+            status_code=400, detail="Password must be at least 6 characters"
+        )
+    if not verify_password(payload.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=400, detail="Current password is incorrect")
+    current_user.hashed_password = hash_password(payload.new_password)
+    db.commit()
+    return success_response(None, "Password changed successfully")
 
 
 @router.get("/leaderboard")

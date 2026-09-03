@@ -96,6 +96,9 @@ export default function LoginPage() {
           <button disabled={loading} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
+          <div className="text-right">
+            <Link to="/forgot-password" className="text-sm text-primary hover:underline">Forgot Password?</Link>
+          </div>
         </form>
 
         <div className="mt-4 auth-form-entrance">
