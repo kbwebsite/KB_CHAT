@@ -1,16 +1,33 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings } from 'lucide-react'
 
-export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute, onSearch, handleRefresh, onAi, onAgent, onTheme }: {
-  conv: Conversation | null, currentUserId?: number, onBack?: () => void, onInfo?: () => void,
-  onCall?: (type: 'voice' | 'video') => void,
-  onMute?: () => void,
-  onSearch?: () => void,
-  handleRefresh?: () => void,
-  onAi?: () => void,
-  onAgent?: () => void,
+export function ChatHeader({
+  conv,
+  currentUserId,
+  onBack,
+  onInfo,
+  onCall,
+  onMute,
+  onSearch,
+  handleRefresh,
+  onAi,
+  onAgent,
+  onTheme,
+  onSettings,
+}: {
+  conv: Conversation | null
+  currentUserId?: number
+  onBack?: () => void
+  onInfo?: () => void
+  onCall?: (type: 'voice' | 'video') => void
+  onMute?: () => void
+  onSearch?: () => void
+  handleRefresh?: () => void
+  onAi?: () => void
+  onAgent?: () => void
   onTheme?: () => void
+  onSettings?: () => void
 }) {
   const title = conv?.title || 'Unknown'
   const isOnline = conv && !conv.is_group && conv.members.some(m => m.user_id !== currentUserId && m.is_online)
@@ -82,6 +99,11 @@ export function ChatHeader({ conv, currentUserId, onBack, onInfo, onCall, onMute
           {onTheme && (
             <button onClick={onTheme} className="btn-icon" aria-label="Theme">
               <Palette className="w-[18px] h-[18px]" />
+            </button>
+          )}
+          {onSettings && (
+            <button onClick={onSettings} className="btn-icon" aria-label="Settings">
+              <Settings className="w-[18px] h-[18px]" />
             </button>
           )}
           {onInfo && (
