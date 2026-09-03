@@ -7,7 +7,6 @@ services:
     plan: starter
     healthCheckPath: /api/health
     autoDeploy: true
-    # rootDir: .  # repo root is Docker context
     envVars:
       - key: APP_ENV
         value: production
@@ -24,6 +23,12 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: CLOUDINARY_CLOUD_NAME
+        sync: false
+      - key: CLOUDINARY_API_KEY
+        sync: false
+      - key: CLOUDINARY_API_SECRET
         sync: false
       # TURN / WebRTC (optional)
       - key: TURN_SERVER_URL
