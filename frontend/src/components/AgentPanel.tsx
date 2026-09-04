@@ -1,7 +1,9 @@
 import { useState, useRef, useEffect } from 'react'
-import { Bot, Send, Sparkles, MessageCircle, Loader2 } from 'lucide-react'
+import { Bot, Send, Sparkles, MessageCircle, Loader2, Plus } from 'lucide-react'
 import { agentApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
+
+const AGENT_CONV_KEY = 'kb_agent_conv_id'
 
 interface AgentMessage {
   role: 'user' | 'assistant' | 'system'
@@ -20,6 +22,11 @@ export function AgentPanel({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  const [conversationId, setConversationId] = useState<number | null>(() => {
+    const raw = localStorage.getItem(AGENT_CONV_KEY)
+    const n = raw ? parseInt(raw, 10) : NaN
+    return Number.isFinite(n) ? n : null
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const user = useAuthStore(s => s.user)
@@ -27,6 +34,42 @@ export function AgentPanel({
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight)
   }, [messages])
+
+  // Restore persisted history for the active agent conversation.
+  useEffect(() => {
+    if (!conversationId) return
+    let cancelled = false
+    agentApi.history(conversationId).then((res: any) => {
+      if (cancelled || !res?.success) return
+      const rows = res.data?.messages || []
+      setMessages(rows.map((r: any) => ({
+        role: r.role === 'user' ? 'user' : 'assistant',
+        content: r.content,
+        timestamp: r.created_at ? new Date(r.created_at) : new Date(),
+      })))
+    }).catch(() => {
+      // Conversation was deleted elsewhere — start fresh.
+      if (!cancelled) {
+        localStorage.removeItem(AGENT_CONV_KEY)
+        setConversationId(null)
+      }
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  const persistConversation = (id: number | null | undefined) => {
+    if (id == null) return
+    setConversationId(id)
+    localStorage.setItem(AGENT_CONV_KEY, String(id))
+  }
+
+  const newChat = async () => {
+    setMessages([])
+    setConversationId(null)
+    localStorage.removeItem(AGENT_CONV_KEY)
+    inputRef.current?.focus()
+  }
 
   const send = async () => {
     if (!input.trim() || loading) return
@@ -51,7 +94,7 @@ export function AgentPanel({
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ message: currentInput })
+        body: JSON.stringify({ message: currentInput, conversation_id: conversationId })
       })
 
       if (!response.ok) throw new Error('Stream failed')
@@ -65,8 +108,12 @@ export function AgentPanel({
         content: '',
         timestamp: new Date(),
       }
-      let assistantIndex = messages.length
-      setMessages(prev => [...prev, assistantMsg])
+      let assistantIndex = -1
+      setMessages(prev => {
+        const next = [...prev, assistantMsg]
+        assistantIndex = next.length - 1
+        return next
+      })
 
       while (reader) {
         const { done, value } = await reader.read()
@@ -81,7 +128,9 @@ export function AgentPanel({
             if (data === '[DONE]') continue
             try {
               const event = JSON.parse(data)
-              if (event.type === 'final') {
+              if (event.type === 'conversation') {
+                persistConversation(event.conversation_id)
+              } else if (event.type === 'final') {
                 setMessages(prev => {
                   const next = [...prev]
                   if (next[assistantIndex]) {
@@ -100,7 +149,8 @@ export function AgentPanel({
       console.error('Stream error:', error)
       // Fallback to non-streaming
       try {
-        const res = await agentApi.chat(currentInput)
+        const res = await agentApi.chat(currentInput, conversationId)
+        persistConversation(res.data?.conversation_id)
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: res.data.response,
@@ -143,6 +193,9 @@ export function AgentPanel({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button onClick={newChat} className="icon-btn w-7 h-7" title="New chat">
+            <Plus className="w-4 h-4" />
+          </button>
           {onMinimize && (
             <button onClick={onMinimize} className="icon-btn w-7 h-7" title="Minimize">
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">

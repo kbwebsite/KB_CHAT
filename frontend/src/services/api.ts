@@ -258,8 +258,14 @@ export const aiApi = {
 }
 
 export const agentApi = {
-  chat: (message: string) =>
-    api.post('/api/ai/agent/chat', { message }).then(r=>r.data),
+  chat: (message: string, conversationId?: number | null) =>
+    api.post('/api/ai/agent/chat', { message, conversation_id: conversationId ?? null }).then(r=>r.data),
+  conversations: () =>
+    api.get('/api/ai/agent/conversations').then(r=>r.data),
+  history: (conversationId: number) =>
+    api.get(`/api/ai/agent/conversations/${conversationId}/messages`).then(r=>r.data),
+  removeConversation: (conversationId: number) =>
+    api.delete(`/api/ai/agent/conversations/${conversationId}`).then(r=>r.data),
   retrieve: (query: string, k: number = 10) =>
     api.post('/api/ai/agent/retrieve', { query, k }).then(r=>r.data),
   index: (incremental: boolean = false, files?: string[]) =>

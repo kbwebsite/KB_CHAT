@@ -62,6 +62,7 @@ from app.models.scheduled import ScheduledMessage
 from app.models.notification_setting import NotificationSetting
 from app.models.session import UserSession
 from app.models.sticker import StickerPack, Sticker, UserSticker
+from app.models.agent import AgentConversation, AgentMessage
 
 
 from app.api.auth import router as auth_router
@@ -85,6 +86,7 @@ from app.api.sessions import router as sessions_router
 from app.api.insights import router as insights_router
 from app.api.stickers import router as stickers_router
 from app.api.ai import router as ai_router
+from app.api.agent import router as agent_router
 from app.websocket.chat import router as ws_router
 
 create_tables()
@@ -122,6 +124,7 @@ app.include_router(sessions_router)
 app.include_router(insights_router)
 app.include_router(stickers_router)
 app.include_router(ai_router)
+app.include_router(agent_router)
 app.include_router(ws_router)
 
 

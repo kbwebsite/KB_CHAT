@@ -15,7 +15,7 @@ class AgentConversation(Base):
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
     )
 
-    user = relationship("User", back_populates="agent_conversations")
+    user = relationship("User")
     messages = relationship(
         "AgentMessage", back_populates="conversation", cascade="all, delete-orphan"
     )

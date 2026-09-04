@@ -39,6 +39,47 @@ def get_db():
 def create_tables():
     try:
         Base.metadata.create_all(bind=engine)
+        _ensure_missing_columns()
     except Exception as e:
         print(f"Database table creation failed: {e}")
         raise
+
+
+def _ensure_missing_columns():
+    """Add columns added to models after initial table creation.
+
+    create_all() never alters existing tables, so a column like
+    attachments.cloudinary_url would otherwise crash queries on old DBs
+    (local sqlite + Render postgres). This is intentionally minimal:
+    compare metadata vs inspector and ALTER TABLE ADD COLUMN for gaps.
+    """
+    try:
+        with engine.begin() as conn:
+            insp = inspect(conn)
+            existing_tables = set(insp.get_table_names())
+            for table_name, table in Base.metadata.tables.items():
+                if table_name not in existing_tables:
+                    continue
+                try:
+                    db_cols = {
+                        c["name"] for c in insp.get_columns(table_name)
+                    }
+                except Exception:
+                    continue
+                for col in table.columns:
+                    if col.name in db_cols:
+                        continue
+                    coltype = col.type.compile(dialect=engine.dialect)
+                    nullable = "" if col.nullable else " NOT NULL"
+                    default = ""
+                    if col.server_default is not None:
+                        try:
+                            default = f" DEFAULT {col.server_default.arg}"
+                        except Exception:
+                            default = ""
+                    conn.exec_driver_sql(
+                        f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {coltype}{nullable}{default}'
+                    )
+                    print(f"[migrate] added {table_name}.{col.name}")
+    except Exception as e:
+        print(f"[migrate] column check skipped: {e}")
