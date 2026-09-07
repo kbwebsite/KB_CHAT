@@ -23,13 +23,13 @@ services:
       - key: AI_API_KEY
         sync: false
       - key: GOOGLE_CLIENT_ID
-        sync: false
+        value: 947604684664-sbjfl0jmj332b81fmqeu7dd3tsct94l2.apps.googleusercontent.com
       - key: VITE_GOOGLE_CLIENT_ID
-        sync: false
+        value: 947604684664-sbjfl0jmj332b81fmqeu7dd3tsct94l2.apps.googleusercontent.com
       - key: CLOUDINARY_CLOUD_NAME
-        sync: false
+        value: yz20bqni
       - key: CLOUDINARY_API_KEY
-        sync: false
+        value: 358381591648362
       - key: CLOUDINARY_API_SECRET
         sync: false
       # TURN / WebRTC (optional)
