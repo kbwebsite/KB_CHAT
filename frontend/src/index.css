@@ -2111,6 +2111,138 @@ body {
 }
 
 /* ═══════════════════════════════════════════════════════════════
+   AUTH PAGES (sign in / sign up)
+   ═══════════════════════════════════════════════════════════════ */
+
+.auth-input {
+  background: rgba(20, 20, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  color: #f0f0ff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.auth-input::placeholder { color: rgba(240, 240, 255, 0.35); }
+.auth-input:focus {
+  border-color: rgba(124, 92, 252, 0.7);
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.18);
+  background: rgba(24, 24, 48, 0.92);
+}
+.auth-submit-btn {
+  background: linear-gradient(135deg, #7c5cfc, #a855f7);
+  box-shadow: 0 4px 20px rgba(124, 92, 252, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+  transition: transform 0.15s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+.auth-submit-btn:hover:not(:disabled) {
+  filter: brightness(1.08);
+  box-shadow: 0 6px 26px rgba(124, 92, 252, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+}
+.auth-submit-btn:active:not(:disabled) { transform: scale(0.98); }
+.auth-google-btn {
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.03);
+}
+.auth-form-entrance { animation: authRise 0.5s cubic-bezier(0.21, 0.9, 0.35, 1) both; }
+.auth-form-entrance:nth-child(2) { animation-delay: 0.05s; }
+.auth-form-entrance:nth-child(3) { animation-delay: 0.1s; }
+.auth-form-entrance:nth-child(4) { animation-delay: 0.15s; }
+.auth-form-entrance:nth-child(5) { animation-delay: 0.2s; }
+@keyframes authRise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: none; }
+}
+.auth-hero-panel { position: relative; }
+.auth-mesh-bg {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(255, 255, 255, 0.14), transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(34, 211, 238, 0.25), transparent 45%),
+    radial-gradient(circle at 60% 40%, rgba(244, 114, 182, 0.16), transparent 50%);
+}
+.auth-hero-quote {
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.landing-hero-title {
+  background: linear-gradient(135deg, #c4b5fd, #f0abfc);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.hero-entrance-delay { animation: authRise 0.6s 0.15s cubic-bezier(0.21, 0.9, 0.35, 1) both; }
+
+/* ═══════════════════════════════════════════════════════════════
+   PANELS (status / calls / contacts / polls / events)
+   ═══════════════════════════════════════════════════════════════ */
+
+.panel-head {
+  background:
+    linear-gradient(135deg, rgba(124, 92, 252, 0.12), rgba(34, 211, 238, 0.06)),
+    var(--bg-primary);
+  border-bottom: 1px solid rgba(124, 92, 252, 0.14);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.panel-title {
+  font-weight: 700;
+  font-size: 1.05rem;
+  letter-spacing: -0.01em;
+  background: linear-gradient(135deg, #c4b5fd, #67e8f9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.panel-row {
+  border: 1px solid transparent;
+  transition: transform 0.15s ease, background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+.panel-row:hover {
+  background: rgba(124, 92, 252, 0.07);
+  border-color: rgba(124, 92, 252, 0.18);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+.panel-row:active { transform: scale(0.99); }
+.avatar-ring {
+  padding: 2px;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #7c5cfc, #22d3ee);
+  box-shadow: 0 0 12px rgba(124, 92, 252, 0.35);
+}
+.avatar-ring-seen {
+  padding: 2px;
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.12);
+}
+.empty-art {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  padding: 2.5rem 1rem;
+  border: 1px dashed rgba(124, 92, 252, 0.25);
+  border-radius: 1.25rem;
+  background: rgba(124, 92, 252, 0.04);
+}
+.chip-active {
+  background: linear-gradient(135deg, #7c5cfc, #a855f7);
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(124, 92, 252, 0.45);
+}
+
+/* Sticker / media pop-in */
+.sticker-pop { animation: stickerPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1); transform-origin: bottom left; }
+@keyframes stickerPop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+/* ═══════════════════════════════════════════════════════════════
    REDUCED MOTION
    ═══════════════════════════════════════════════════════════════ */
 

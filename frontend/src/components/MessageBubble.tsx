@@ -113,6 +113,13 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
 
   const allImages = imgAtts.map(a=> ({ url: a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`, name: a.original_filename }))
 
+  // Stickers (and pasted single-image links) arrive as a lone image URL in
+  // the text body — render them as a sticker image, not as link text.
+  const trimmedContent = (content || '').trim()
+  const loneImageUrl = !msg.is_deleted && /^https?:\/\/[^\s]+\.(png|jpe?g|gif|webp)(\?[^\s]*)?$/i.test(trimmedContent)
+    ? trimmedContent
+    : null
+
   return (
     <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`}>
       <div className="flex items-center mr-1 shrink-0">
@@ -164,7 +171,17 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               ))}
             </div>
           )}
-          <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
+          {loneImageUrl ? (
+            <img
+              src={loneImageUrl}
+              alt="sticker"
+              loading="lazy"
+              className="rounded-xl max-h-44 w-auto max-w-full object-contain cursor-pointer sticker-pop"
+              onClick={() => safeImageClick(loneImageUrl, 'sticker', [{ url: loneImageUrl, name: 'sticker' }], 0)}
+            />
+          ) : (
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
+          )}
           {isVoice && !transcription && (
             <button onClick={async ()=>{
               setTranscribing(true)
@@ -189,7 +206,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <span className="font-medium">Transcription:</span> {transcription}
             </div>
           )}
-          {!msg.is_deleted && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
+          {!msg.is_deleted && !loneImageUrl && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
           {(msg as any).is_pinned && (
             <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>
           )}

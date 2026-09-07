@@ -38,12 +38,23 @@ export default function StickerPicker({ onSelect }: { onSelect: (url: string) =>
       <div className="grid grid-cols-4 gap-1 p-2 max-h-48 overflow-y-auto">
         {activeStickers.length === 0 && <p className="col-span-4 text-xs text-gray-400 text-center py-4">No stickers</p>}
         {activeStickers.map(s => (
-          <button key={s.id} onClick={() => handleSelect(s)}
-            className="w-14 h-14 rounded-lg hover:bg-[var(--bg-tertiary)] flex items-center justify-center p-1 transition-colors">
-            <img src={s.image_url} alt={s.emoji || 'sticker'} className="w-full h-full object-contain" />
-          </button>
+          <StickerButton key={s.id} s={s} onSelect={() => handleSelect(s)} />
         ))}
       </div>
     </div>
+  )
+}
+
+function StickerButton({ s, onSelect }: { s: Sticker; onSelect: () => void }) {
+  const [imgOk, setImgOk] = useState(true)
+  return (
+    <button onClick={onSelect}
+      className="w-14 h-14 rounded-lg hover:bg-[var(--bg-tertiary)] flex items-center justify-center p-1 transition-colors">
+      {imgOk && s.image_url ? (
+        <img src={s.image_url} alt={s.emoji || 'sticker'} className="w-full h-full object-contain" onError={() => setImgOk(false)} loading="lazy" />
+      ) : (
+        <span className="text-3xl leading-none">{s.emoji || '🙂'}</span>
+      )}
+    </button>
   )
 }

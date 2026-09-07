@@ -13,19 +13,19 @@ export function CallsPanel({ onClose }: { onClose:()=>void }) {
 
   return (
     <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="font-semibold flex items-center gap-2"><Phone className="w-4 h-4"/> Calls</h2>
+      <div className="panel-head flex items-center justify-between p-4">
+        <h2 className="panel-title"><Phone className="w-4 h-4"/> Calls</h2>
         <button onClick={onClose} className="p-2 hover:bg-muted rounded-full"><X className="w-4 h-4"/></button>
       </div>
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {loading ? <p className="text-sm text-muted-foreground p-4">Loading...</p> : calls.length===0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">
-            <Phone className="w-8 h-8 mx-auto mb-2 opacity-30"/>
-            <p>No call history</p>
-            <p className="text-xs">Voice and video calls will appear here.</p>
+          <div className="empty-art m-1">
+            <Phone className="w-8 h-8 mb-2 opacity-30"/>
+            <p className="text-sm">No call history</p>
+            <p className="text-xs text-muted-foreground">Voice and video calls will appear here.</p>
           </div>
         ) : calls.map(c=> (
-          <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl bg-muted border">
+          <div key={c.id} className="panel-row flex items-center gap-3 p-3 rounded-xl bg-muted border">
             <div className={`w-9 h-9 rounded-full flex items-center justify-center ${c.status==='missed'?'bg-red-500':'bg-emerald-500'} text-white`}>
               {c.status==='missed' ? <PhoneMissed className="w-4 h-4"/> : c.call_type==='video' ? <Video className="w-4 h-4"/> : <Phone className="w-4 h-4"/>}
             </div>

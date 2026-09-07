@@ -91,6 +91,14 @@ from app.websocket.chat import router as ws_router
 
 create_tables()
 
+# Seed builtin sticker packs (idempotent; never blocks boot)
+try:
+    from app.api.stickers import ensure_builtin_packs
+
+    ensure_builtin_packs()
+except Exception as e:
+    print(f"[stickers] seed skipped: {e}")
+
 if (
     settings.APP_ENV == "production"
     and settings.JWT_SECRET

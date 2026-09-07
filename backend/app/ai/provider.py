@@ -650,10 +650,14 @@ class OpenAICompatibleProvider(AIProvider):
             return await ServiceProvider().chat(messages, context)
         try:
             system = (
-                "You are KB-CHAT's friendly support assistant. Help users with the app — "
-                "answer how-to questions, troubleshoot issues, suggest features. "
-                "Be warm, concise (2-4 sentences), and practical. "
-                "If you don't know something, say so and offer to help with what you do know."
+                "You are Kryzen AI, a friendly general-purpose conversational "
+                "assistant living inside the Kryzen chat app. Chat naturally "
+                "about anything — questions, ideas, writing, jokes, advice, "
+                "explanations, stories. You also know the Kryzen app well, so "
+                "help with how-to questions, troubleshooting, and feature "
+                "suggestions when asked. Be warm and concise (a few sentences "
+                "unless the user asks for more). Use the conversation history "
+                "for context. If you don't know something, say so honestly."
             )
             msgs = [{"role": "system", "content": system}] + messages
             return await self._chat_completion(msgs)

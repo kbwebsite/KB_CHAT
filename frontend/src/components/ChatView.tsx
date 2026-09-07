@@ -12,7 +12,7 @@ import { pollApi, eventApi } from '../services/api'
 import wsService from '../services/websocket'
 import { Message } from '../types'
 
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight } from 'lucide-react'
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
 import { Bell, Search as SearchIcon, Moon, Sun } from 'lucide-react'
 
 export function ChatView({
@@ -262,6 +262,12 @@ export function ChatView({
             <button onClick={onSearch} className="icon-btn" title="Search">
               <SearchIcon className="w-[18px] h-[18px]" />
             </button>
+            <button onClick={onSaved} className="icon-btn" title="Saved messages">
+              <Bookmark className="w-[18px] h-[18px]" />
+            </button>
+            <button onClick={onSettings} className="icon-btn" title="Settings">
+              <SettingsIcon className="w-[18px] h-[18px]" />
+            </button>
             <button onClick={onProfile} className="ml-1 cursor-pointer">
               {user?.avatar_url ? (
                 <img src={user.avatar_url} alt="" className="w-9 h-9 rounded-full object-cover" />
@@ -332,6 +338,7 @@ export function ChatView({
           onAi={() => setAiPanelOpen(!aiPanelOpen)}
           onAgent={onAgent}
           onTheme={onTheme}
+          onSettings={onSettings}
           onExtras={(key: string) => {
             if (key === 'polls') setShowPolls(true)
             else if (key === 'events') setShowEvents(true)

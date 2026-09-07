@@ -26,15 +26,15 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
 
   return (
     <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center justify-between p-4 border-b">
-        <h2 className="font-semibold">Status</h2>
+      <div className="panel-head flex items-center justify-between p-4">
+        <h2 className="panel-title">Status</h2>
         <button onClick={onClose} className="p-2 hover:bg-muted rounded-full"><X className="w-4 h-4"/></button>
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-6">
         {/* My Status */}
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">My Status</h3>
-          <button onClick={()=> setShowComposer(!showComposer)} className="w-full flex items-center gap-3 p-3 rounded-2xl bg-muted hover:bg-accent border border-dashed">
+          <button onClick={()=> setShowComposer(!showComposer)} className="panel-row w-full flex items-center gap-3 p-3 rounded-2xl bg-muted hover:bg-accent border border-dashed">
             <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white"><Plus className="w-6 h-6"/></div>
             <div className="text-left">
               <p className="text-sm font-medium">Add Status</p>
@@ -66,11 +66,11 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
         {/* Recent */}
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Recent Updates</h3>
-          {loading ? <p className="text-xs text-muted-foreground">Loading...</p> : feed.recent.length===0 ? <p className="text-sm text-muted-foreground">No recent updates</p> : (
+          {loading ? <p className="text-xs text-muted-foreground">Loading...</p> : feed.recent.length===0 ? <div className="empty-art"><p className="text-2xl mb-1">📸</p><p className="text-sm text-muted-foreground">No recent updates</p></div> : (
             <div className="space-y-2">
               {feed.recent.map((s:any)=> (
-                <button key={s.id} onClick={()=> { statusApi.view(s.id); onViewer(s, feed.recent)}} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
-                  <div className="w-10 h-10 rounded-full p-0.5 bg-gradient-to-tr from-violet-600 to-indigo-600">
+                <button key={s.id} onClick={()=> { statusApi.view(s.id); onViewer(s, feed.recent)}} className="panel-row w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
+                  <div className="avatar-ring w-10 h-10">
                     <div className="w-full h-full rounded-full bg-card p-0.5">
                       <div className="w-full h-full rounded-full overflow-hidden bg-muted flex items-center justify-center">
                         {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover"/> : s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span className="text-xs">{s.display_name[0]}</span>}
