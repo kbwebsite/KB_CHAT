@@ -11,12 +11,9 @@ from app.models.agent import (
     AgentMessage as AgentMessageRow,
 )
 from app.schemas.common import success_response
-from app.ai.agent.core import get_agent
 from app.ai.agent.schemas import AgentState, AgentMessage as AgentStateMessage
-from app.ai.retriever import get_retriever
-from app.ai.indexer import CodeIndexer
-from app.ai.vector_store import get_vector_store
 from app.database.config import settings
+import importlib
 import os
 from pathlib import Path
 
@@ -25,6 +22,23 @@ router = APIRouter(prefix="/api/ai/agent", tags=["ai-agent"])
 
 # How many prior messages to feed the agent as context per request.
 HISTORY_LIMIT = 20
+
+
+def _lazy_ai_import(module: str, name: str):
+    """Resolve heavy AI modules on first use, not at import time.
+
+    app.ai.agent.core / retriever / indexer / vector_store pull in optional
+    third-party packages (numpy, tree-sitter). Importing them at module scope
+    would crash the entire API at boot if a dependency is missing, so resolve
+    them here and fail only the endpoint that needs them.
+    """
+    try:
+        return getattr(importlib.import_module(module), name)
+    except ImportError as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"AI feature unavailable (missing dependency: {getattr(e, 'name', None) or e})",
+        )
 
 
 class AgentChatRequest(BaseModel):
@@ -102,9 +116,7 @@ def _save_turn(
     db: Session, conversation: AgentConversation, user_text: str, assistant_text: str
 ) -> None:
     db.add(
-        AgentMessageRow(
-            conversation_id=conversation.id, role="user", content=user_text
-        )
+        AgentMessageRow(conversation_id=conversation.id, role="user", content=user_text)
     )
     db.add(
         AgentMessageRow(
@@ -141,6 +153,7 @@ async def agent_chat(
         raise HTTPException(status_code=422, detail="Message must not be empty")
     conv = _get_or_create_conversation(db, current_user, body.conversation_id, text)
     state = _load_state(db, conv.id)
+    get_agent = _lazy_ai_import("app.ai.agent.core", "get_agent")
     agent = get_agent()
     response = await agent.run(text, state)
 
@@ -171,6 +184,7 @@ async def agent_chat_stream(
         raise HTTPException(status_code=422, detail="Message must not be empty")
     conv = _get_or_create_conversation(db, current_user, body.conversation_id, text)
     state = _load_state(db, conv.id)
+    get_agent = _lazy_ai_import("app.ai.agent.core", "get_agent")
     agent = get_agent()
 
     async def event_generator():
@@ -219,9 +233,7 @@ def list_agent_conversations(
             .all()
         )
         counts = {cid: n for cid, n in rows}
-    return success_response(
-        [_conv_to_dict(c, counts.get(c.id, 0)) for c in convs]
-    )
+    return success_response([_conv_to_dict(c, counts.get(c.id, 0)) for c in convs])
 
 
 @router.get("/conversations/{conversation_id}/messages", response_model=None)
@@ -271,6 +283,7 @@ async def agent_retrieve(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    get_retriever = _lazy_ai_import("app.ai.retriever", "get_retriever")
     retriever = get_retriever()
     results = retriever.retrieve(body.query, k=body.k)
 
@@ -309,6 +322,8 @@ async def agent_index(
         )
 
     project_root = Path(__file__).resolve().parents[4]
+    CodeIndexer = _lazy_ai_import("app.ai.indexer", "CodeIndexer")
+    get_vector_store = _lazy_ai_import("app.ai.vector_store", "get_vector_store")
     indexer = CodeIndexer(str(project_root))
     vector_store = get_vector_store()
 
@@ -340,6 +355,7 @@ async def index_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    get_vector_store = _lazy_ai_import("app.ai.vector_store", "get_vector_store")
     vector_store = get_vector_store()
     return success_response(
         {
