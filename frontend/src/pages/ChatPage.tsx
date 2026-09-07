@@ -30,6 +30,20 @@ export default function ChatPage() {
 
   // Mobile-first navigation: 'list' shows conversation list, 'chat' shows active chat
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
+  // Reactive viewport width so the desktop multi-column shell adapts live
+  // (rotate/resize/dock) instead of only on first render.
+  const [winWidth, setWinWidth] = useState(
+    typeof window !== 'undefined' ? window.innerWidth : 1024
+  )
+  useEffect(() => {
+    const onResize = () => setWinWidth(window.innerWidth)
+    window.addEventListener('resize', onResize)
+    window.addEventListener('orientationchange', onResize)
+    return () => {
+      window.removeEventListener('resize', onResize)
+      window.removeEventListener('orientationchange', onResize)
+    }
+  }, [])
   const [mobileNavTab, setMobileNavTab] = useState<'chats' | 'status' | 'calls' | 'contacts' | 'ai'>('chats')
   const [showProfile, setShowProfile] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
@@ -364,7 +378,7 @@ export default function ChatPage() {
   const totalUnread = conversations.reduce((a: number, b: any) => a + b.unread_count, 0)
 
   // Determine if we should show chat view
-  const isDesktop = typeof window !== 'undefined' && window.innerWidth >= 1024
+  const isDesktop = winWidth >= 1024
   const showChatView = isDesktop || mobileView === 'chat'
   const showSidebar = isDesktop || mobileView === 'list'
 
@@ -376,7 +390,9 @@ export default function ChatPage() {
         <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,211,238,0.12), transparent 70%)', bottom: '12%', left: -80, filter: 'blur(80px)', animation: 'ambientDrift 18s ease-in-out infinite reverse' }} />
         <div style={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,114,182,0.10), transparent 70%)', bottom: -60, right: '28%', filter: 'blur(80px)', animation: 'ambientDrift 12s ease-in-out infinite' }} />
       </div>
-      <div className="flex flex-col flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', zIndex: 1 }}>
+      {/* Bootstrap row shell: single col-12 child on mobile (unchanged look),
+          side-by-side columns on desktop (fixes stacked-half-height bug). */}
+      <div className="flex-1 min-h-0 overflow-hidden row g-0" style={{ position: 'relative', zIndex: 1 }}>
         {/* Sidebar - conversation list */}
         {showSidebar && (
           <ChatSidebar
@@ -393,7 +409,7 @@ export default function ChatPage() {
 
         {/* Chat panel */}
         {showChatView && (
-          <div className="chat-panel" style={{ background: 'var(--bg-primary)' }}>
+          <div className="chat-panel col-12 col-lg-8 col-xl-9" style={{ background: 'var(--bg-primary)' }}>
             <ErrorBoundary fallback={
               <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
@@ -441,6 +457,7 @@ export default function ChatPage() {
                 isMuted={isMuted}
                 onMute={handleMute}
                 showPolls={showPolls}
+                setShowPolls={setShowPolls}
                 showPinned={showPinned}
                 setShowPinned={setShowPinned}
                 showEvents={showEvents}

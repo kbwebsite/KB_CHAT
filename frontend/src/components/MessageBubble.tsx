@@ -194,7 +194,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             {msg.is_edited && !msg.is_deleted && <span className="italic">• edited</span>}
             {isOwn && !msg.is_deleted && (
               <span className="ml-1">
-                {msg.status==='read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-200"/> : msg.status==='delivered' ? <CheckCheck className="w-3.5 h-3.5 opacity-70"/> : <Check className="w-3.5 h-3.5 opacity-70"/>}
+                {msg.status==='read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" style={{ filter: 'drop-shadow(0 0 3px rgba(125,211,252,0.8))' }}/> : msg.status==='delivered' ? <CheckCheck className="w-3.5 h-3.5 opacity-70"/> : <Check className="w-3.5 h-3.5 opacity-70"/>}
               </span>
             )}
           </div>

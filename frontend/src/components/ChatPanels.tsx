@@ -14,6 +14,7 @@ import { AgentPanel } from './AgentPanel'
 import { Leaderboard } from './Leaderboard'
 import { ThemePicker } from './ThemePicker'
 import { useChatStore } from '../store/chat'
+import { useAuthStore } from '../store/auth'
 import { X } from 'lucide-react'
 
 export function ChatPanels({
@@ -47,6 +48,7 @@ export function ChatPanels({
 }: any) {
   const { currentConversationId } = useChatStore() as any
   const currentConv = useChatStore(s => s.conversations.find((c: any) => c.id === currentConversationId))
+  const currentUserId = useAuthStore(s => s.user?.id) ?? 0
 
   const anyPanelOpen = showProfile || showGroupInfo || showSettings || showNotifications ||
     showSaved || showContacts || showCalls || showStatus || showPolls || showPinned ||
@@ -90,7 +92,7 @@ export function ChatPanels({
             <button onClick={() => setShowEvents(false)} className="p-2 rounded-lg hover:bg-muted transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-5 h-5" /></button>
           </div>
           <div className="flex-1 overflow-y-auto">
-            <EventPanel convId={currentConv.id} userId={0} />
+            <EventPanel convId={currentConv.id} userId={currentUserId} />
           </div>
         </div>
       )}

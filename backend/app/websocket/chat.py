@@ -12,6 +12,7 @@ from app.websocket.manager import manager
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+
 def _get_user(token: str):
     payload = decode_token(token)
     if not payload or "sub" not in payload:
@@ -26,13 +27,18 @@ def _get_user(token: str):
     finally:
         db.close()
 
+
 @router.websocket("/ws/chat")
 async def websocket_endpoint(websocket: WebSocket, token: str = Query(None)):
     await _handle_ws(websocket, token)
 
+
 @router.websocket("/ws/chat/{conversation_id}")
-async def websocket_endpoint_conversation(websocket: WebSocket, conversation_id: int, token: str = Query(None)):
+async def websocket_endpoint_conversation(
+    websocket: WebSocket, conversation_id: int, token: str = Query(None)
+):
     await _handle_ws(websocket, token)
+
 
 async def _handle_ws(websocket: WebSocket, token: str | None):
     if not token:
@@ -71,7 +77,11 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
             try:
                 msg = json.loads(data)
             except (json.JSONDecodeError, ValueError):
-                await websocket.send_text(json.dumps({"type": "error", "payload": {"message": "Invalid JSON"}}))
+                await websocket.send_text(
+                    json.dumps(
+                        {"type": "error", "payload": {"message": "Invalid JSON"}}
+                    )
+                )
                 continue
 
             mtype = msg.get("type")
@@ -88,7 +98,14 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
             elif mtype in ("call.offer", "call.answer", "call.ice_candidate"):
                 await _handle_call_signaling(user.id, mtype, payload)
             else:
-                await websocket.send_text(json.dumps({"type": "error", "payload": {"message": f"Unknown type {mtype}"}}))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "payload": {"message": f"Unknown type {mtype}"},
+                        }
+                    )
+                )
 
     except WebSocketDisconnect:
         pass
@@ -109,21 +126,32 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
         finally:
             db.close()
 
+
 async def _handle_typing(user_id: int, payload: dict, is_typing: bool):
     conv_id = payload.get("conversation_id")
     if not conv_id:
         return
     db = SessionLocal()
     try:
-        member = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=user_id).first()
+        member = (
+            db.query(ConversationMember)
+            .filter_by(conversation_id=conv_id, user_id=user_id)
+            .first()
+        )
         if not member:
             return
-        member_ids = [m.user_id for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()]
+        member_ids = [
+            m.user_id
+            for m in db.query(ConversationMember)
+            .filter_by(conversation_id=conv_id)
+            .all()
+        ]
         await manager.send_typing(conv_id, user_id, is_typing, member_ids)
     except Exception as e:
         logger.error(f"Failed to handle typing: {e}")
     finally:
         db.close()
+
 
 async def _handle_read_receipt(user_id: int, payload: dict):
     conv_id = payload.get("conversation_id")
@@ -132,41 +160,82 @@ async def _handle_read_receipt(user_id: int, payload: dict):
         return
     db = SessionLocal()
     try:
-        member = db.query(ConversationMember).filter_by(conversation_id=conv_id, user_id=user_id).first()
+        member = (
+            db.query(ConversationMember)
+            .filter_by(conversation_id=conv_id, user_id=user_id)
+            .first()
+        )
         if member:
-            if member.last_read_message_id is None or message_id > member.last_read_message_id:
+            old_read = member.last_read_message_id
+            if old_read is None or message_id > old_read:
                 member.last_read_message_id = message_id
-                db.commit()
-            member_ids = [m.user_id for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()]
-            await manager.broadcast_to_conversation(conv_id, {
-                "type": "message.read",
-                "payload": {"conversation_id": conv_id, "message_id": message_id, "user_id": user_id}
-            }, member_ids=member_ids)
+            # Seeing a message implies it reached this device.
+            if (member.last_delivered_message_id or 0) < message_id:
+                member.last_delivered_message_id = message_id
+            db.commit()
+            member_ids = [
+                m.user_id
+                for m in db.query(ConversationMember)
+                .filter_by(conversation_id=conv_id)
+                .all()
+            ]
+            await manager.broadcast_to_conversation(
+                conv_id,
+                {
+                    "type": "message.read",
+                    "payload": {
+                        "conversation_id": conv_id,
+                        "message_id": message_id,
+                        "user_id": user_id,
+                    },
+                },
+                member_ids=member_ids,
+            )
+            from app.utils.receipts import broadcast_status_upgrades
+
+            await broadcast_status_upgrades(
+                db, conv_id, user_id, old_read, message_id, member_ids
+            )
     except Exception as e:
         logger.error(f"Failed to handle read receipt: {e}")
     finally:
         db.close()
 
+
 async def _handle_call_signaling(user_id: int, mtype: str, payload: dict):
-    to_user = payload.get("to_user_id") or payload.get("to") or payload.get("callee_id") or payload.get("caller_id")
+    to_user = (
+        payload.get("to_user_id")
+        or payload.get("to")
+        or payload.get("callee_id")
+        or payload.get("caller_id")
+    )
     if not to_user and payload.get("callId"):
         db = SessionLocal()
         try:
             from app.models.call import CallHistory
-            call = db.query(CallHistory).filter_by(id=int(payload.get("callId"))).first()
+
+            call = (
+                db.query(CallHistory).filter_by(id=int(payload.get("callId"))).first()
+            )
             if call:
-                to_user = call.callee_id if user_id == call.caller_id else call.caller_id
+                to_user = (
+                    call.callee_id if user_id == call.caller_id else call.caller_id
+                )
         except Exception as e:
             logger.error(f"Failed to resolve call target: {e}")
         finally:
             db.close()
 
     if to_user:
-        await manager.send_to_user(int(to_user), {"type": mtype, "payload": {**payload, "from_user_id": user_id}})
+        await manager.send_to_user(
+            int(to_user),
+            {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
+        )
     else:
         conv_id = payload.get("conversation_id")
         if conv_id:
-            await manager.broadcast_to_conversation(conv_id, {
-                "type": mtype,
-                "payload": {**payload, "from_user_id": user_id}
-            }, exclude_user=user_id)
+            await manager.broadcast_to_conversation(
+                conv_id,
+                {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
+                exclude_user=user_id,
+            )

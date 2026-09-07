@@ -10,6 +10,11 @@ from app.models.message import Message, MessageReaction, Attachment
 from app.schemas.message import MessageCreate, MessageUpdate, ReactionCreate
 from app.schemas.common import success_response
 from app.websocket.manager import manager
+from app.utils.receipts import (
+    receipt_map,
+    compute_status,
+    broadcast_status_upgrades,
+)
 
 router = APIRouter(prefix="/api", tags=["messages"])
 
@@ -30,8 +35,12 @@ def _member_ids(db: Session, conv_id: int):
     ]
 
 
-def _message_to_dict(msg: Message):
-    """Convert message to dict - relationships already loaded via eager loading"""
+def _message_to_dict(msg: Message, receipts: dict = None):
+    """Convert message to dict - relationships already loaded via eager loading.
+
+    Pass a receipts map ({user_id: (delivered_id, read_id)}) to compute the
+    real tick status; without it the status falls back to "sent".
+    """
     sender = msg.sender
     atts = msg.attachments
     reacts = msg.reactions
@@ -92,7 +101,9 @@ def _message_to_dict(msg: Message):
             }
             for r in reacts
         ],
-        "status": "sent",
+        "status": compute_status(msg.id, msg.sender_id, receipts)
+        if receipts is not None
+        else "sent",
         "voice_cloudinary_url": voice_cloudinary_url,
     }
 
@@ -112,7 +123,7 @@ def _get_messages_query(db: Session, conv_id: int):
 
 
 @router.get("/conversations/{conv_id}/messages")
-def list_messages(
+async def list_messages(
     conv_id: int,
     limit: int = Query(50, ge=1, le=100),
     before: Optional[int] = Query(
@@ -134,7 +145,31 @@ def list_messages(
     # Use unique() to handle joinedload collections
     msgs = q.order_by(desc(Message.id)).limit(limit).all()
     msgs.reverse()  # oldest first
-    result = [_message_to_dict(m) for m in msgs]
+
+    member_ids = _member_ids(db, conv_id)
+
+    # Fetching = arrival on this device: advance our delivered cursor so the
+    # sender's ticks upgrade from single to double even after offline gaps.
+    upgraded_from = None
+    newest_id = msgs[-1].id if msgs else None
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv_id, user_id=current_user.id)
+        .first()
+    )
+    if membership is not None and newest_id is not None:
+        if (membership.last_delivered_message_id or 0) < newest_id:
+            upgraded_from = membership.last_delivered_message_id or 0
+            membership.last_delivered_message_id = newest_id
+            db.commit()
+
+    receipts = receipt_map(db, conv_id)
+    result = [_message_to_dict(m, receipts) for m in msgs]
+
+    if upgraded_from is not None:
+        await broadcast_status_upgrades(
+            db, conv_id, current_user.id, upgraded_from, newest_id, member_ids
+        )
 
     # has_more?
     has_more = False
@@ -231,10 +266,10 @@ async def create_message(
 
     # Load relationships for broadcast
     msg = _get_messages_query(db, conv_id).filter(Message.id == msg.id).first()
-    msg_dict = _message_to_dict(msg)
+    member_ids = _member_ids(db, conv_id)
+    msg_dict = _message_to_dict(msg, receipt_map(db, conv_id))
 
     # broadcast via websocket
-    member_ids = _member_ids(db, conv_id)
     await manager.broadcast_to_conversation(
         conv_id, {"type": "message.new", "payload": msg_dict}, member_ids=member_ids
     )
@@ -272,7 +307,7 @@ async def edit_message(
     msg.is_edited = True
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg)
+    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
     await manager.broadcast_to_conversation(
         msg.conversation_id,
@@ -300,7 +335,7 @@ async def delete_message(
     msg.deleted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg)
+    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
     await manager.broadcast_to_conversation(
         msg.conversation_id,
@@ -418,13 +453,15 @@ async def mark_message_read(
         .filter_by(conversation_id=msg.conversation_id, user_id=current_user.id)
         .first()
     )
+    old_read = None
     if membership:
-        if (
-            membership.last_read_message_id is None
-            or message_id > membership.last_read_message_id
-        ):
+        old_read = membership.last_read_message_id
+        if old_read is None or message_id > old_read:
             membership.last_read_message_id = message_id
-            db.commit()
+        # Seeing a message implies it reached this device.
+        if (membership.last_delivered_message_id or 0) < message_id:
+            membership.last_delivered_message_id = message_id
+        db.commit()
     member_ids = _member_ids(db, msg.conversation_id)
     await manager.broadcast_to_conversation(
         msg.conversation_id,
@@ -438,7 +475,47 @@ async def mark_message_read(
         },
         member_ids=member_ids,
     )
+    await broadcast_status_upgrades(
+        db, msg.conversation_id, current_user.id, old_read, message_id, member_ids
+    )
     return success_response(None, "Marked read")
+
+
+@router.post("/messages/{message_id}/delivered")
+async def mark_message_delivered(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Device-arrival ack: message reached the recipient's device (2nd tick)."""
+    msg = db.query(Message).filter_by(id=message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not _is_member(db, msg.conversation_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    from app.models.conversation import ConversationMember
+
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=msg.conversation_id, user_id=current_user.id)
+        .first()
+    )
+    old_delivered = None
+    if membership:
+        old_delivered = membership.last_delivered_message_id
+        if (old_delivered or 0) < message_id:
+            membership.last_delivered_message_id = message_id
+            db.commit()
+    member_ids = _member_ids(db, msg.conversation_id)
+    await broadcast_status_upgrades(
+        db,
+        msg.conversation_id,
+        current_user.id,
+        old_delivered,
+        message_id,
+        member_ids,
+    )
+    return success_response(None, "Marked delivered")
 
 
 @router.get("/messages/search")
@@ -464,7 +541,14 @@ def search_messages(
             raise HTTPException(status_code=403, detail="Not a member")
         query = query.filter(Message.conversation_id == conversation_id)
     msgs = query.order_by(desc(Message.created_at)).limit(50).all()
-    result = [_message_to_dict(m) for m in msgs]
+    receipts_cache: dict = {}
+
+    def _receipts_for(conv_id: int):
+        if conv_id not in receipts_cache:
+            receipts_cache[conv_id] = receipt_map(db, conv_id)
+        return receipts_cache[conv_id]
+
+    result = [_message_to_dict(m, _receipts_for(m.conversation_id)) for m in msgs]
     return success_response(result)
 
 
@@ -485,7 +569,7 @@ async def pin_message(
     msg.pinned_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg)
+    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
     await manager.broadcast_to_conversation(
         msg.conversation_id,
@@ -510,7 +594,7 @@ async def unpin_message(
     msg.pinned_at = None
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg)
+    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
     await manager.broadcast_to_conversation(
         msg.conversation_id,
@@ -535,4 +619,5 @@ def list_pinned_messages(
         .limit(50)
         .all()
     )
-    return success_response([_message_to_dict(m) for m in msgs])
+    receipts = receipt_map(db, conv_id)
+    return success_response([_message_to_dict(m, receipts) for m in msgs])

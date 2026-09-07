@@ -243,7 +243,11 @@ _request_counts = defaultdict(list)
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Only rate limit auth endpoints
+    # Only rate limit auth endpoints.
+    # pytest sets PYTEST_CURRENT_TEST: the full test suite makes dozens of
+    # auth calls from one IP and would otherwise trip the limiter.
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        return await call_next(request)
     if request.url.path.startswith("/api/auth"):
         ip = request.client.host if request.client else "unknown"
         now = time.time()

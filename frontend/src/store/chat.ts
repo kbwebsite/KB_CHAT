@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { Conversation, Message } from '../types'
 import { convApi, msgApi } from '../services/api'
+import { useAuthStore } from './auth'
 import wsService from '../services/websocket'
 
 interface ChatState {
@@ -28,6 +29,7 @@ interface ChatState {
   setOnline: (userId:number, isOnline:boolean)=>void
   searchMessages: (q:string, convId?:number)=>Promise<Message[]>
   markRead: (convId:number, lastId:number)=>void
+  setMessageStatus: (convId:number, msgId:number, status:string)=>void
 }
 
 export const useChatStore = create<ChatState>((set, get)=> ({
@@ -179,7 +181,23 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       return { conversations: convs }
     })
     wsService.markRead(convId, lastId)
-  }
+  },
+  setMessageStatus: (convId, msgId, status)=>{
+    const order: Record<string, number> = { sent: 0, delivered: 1, read: 2 }
+    if (!(status in order)) return
+    set(state=>{
+      const list = state.messages[convId] || []
+      let changed = false
+      const next = list.map(m=>{
+        if (m.id !== msgId) return m
+        const cur = order[m.status || 'sent'] ?? 0
+        if (order[status] > cur) { changed = true; return { ...m, status } }
+        return m
+      })
+      if (!changed) return state
+      return { messages: { ...state.messages, [convId]: next } }
+    })
+  },
 }))
 
 // setup ws listeners - call once
@@ -189,9 +207,18 @@ export function initChatWS() {
   initialized=true
   wsService.on('message.new', (payload)=>{
     // payload is Message
-    useChatStore.getState().addMessage(payload as Message)
+    const msg = payload as Message
+    useChatStore.getState().addMessage(msg)
+    // Device-arrival ack: message reached us -> sender upgrades to double tick.
+    // Fire-and-forget; the server also backfills on history fetch.
+    try {
+      const me = useAuthStore.getState().user?.id
+      if (me != null && msg.sender_id !== me) {
+        msgApi.delivered(msg.id).catch(()=>{})
+      }
+    } catch {}
     // notify if not focused
-    if (document.hidden || useChatStore.getState().currentConversationId !== (payload as Message).conversation_id) {
+    if (document.hidden || useChatStore.getState().currentConversationId !== msg.conversation_id) {
       if ('Notification' in window && Notification.permission==='granted') {
         new Notification('Kryzen', { body: `New message from ${(payload as any).sender_display_name || 'someone'}` })
       }
@@ -230,6 +257,25 @@ export function initChatWS() {
   wsService.on('presence.online', (p)=> useChatStore.getState().setOnline(p.user_id, true))
   wsService.on('presence.offline', (p)=> useChatStore.getState().setOnline(p.user_id, false))
   wsService.on('message.read', (p)=>{
-    // can update read status UI if needed
+    // Legacy event kept for compatibility; authoritative upgrades arrive
+    // via message.status. Upgrade optimistically for 1-1 chats only when
+    // the payload targets our own message.
+    try {
+      const me = useAuthStore.getState().user?.id
+      const st = useChatStore.getState()
+      const list = st.messages[p.conversation_id] || []
+      const target = list.find(m=> m.id === p.message_id)
+      if (target && target.sender_id === me && p.user_id !== me) {
+        // Only trust it outright in 1-1 chats; group quorums come via status.
+        const conv = st.conversations.find(c=> c.id === p.conversation_id)
+        if (conv && !conv.is_group) st.setMessageStatus(p.conversation_id, p.message_id, 'read')
+      }
+    } catch {}
+  })
+  wsService.on('message.status', (p)=>{
+    // Authoritative tick upgrade from the server (quorum-aware for groups).
+    if (p && p.message_id && p.conversation_id && p.status) {
+      useChatStore.getState().setMessageStatus(p.conversation_id, p.message_id, p.status)
+    }
   })
 }

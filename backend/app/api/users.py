@@ -49,6 +49,114 @@ def search_users(
     return success_response(result)
 
 
+@router.get("/leaderboard")
+def get_leaderboard(
+    limit: int = 50,
+    scope: str = Query("global", description="global or friends"),
+    period: str = Query("all", description="weekly, monthly, all"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.message import Message
+    from app.models.conversation import ConversationMember
+    from sqlalchemy import func
+    from datetime import datetime, timedelta, timezone
+
+    now = datetime.now(timezone.utc)
+
+    # Current-week bounds are always returned — the frontend countdown and
+    # "messages this week" labels depend on them.
+    days_since_monday = now.weekday()
+    week_start = (now - timedelta(days=days_since_monday)).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    week_end = week_start + timedelta(days=7)
+
+    if period == "weekly":
+        time_filter = (Message.created_at >= week_start) & (
+            Message.created_at < week_end
+        )
+    elif period == "monthly":
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        if now.month == 12:
+            month_end = now.replace(year=now.year + 1, month=1, day=1)
+        else:
+            month_end = now.replace(month=now.month + 1, day=1)
+        time_filter = (Message.created_at >= month_start) & (
+            Message.created_at < month_end
+        )
+    else:  # all-time
+        time_filter = Message.id.isnot(None)
+
+    base_q = db.query(Message).filter(
+        Message.is_deleted == False,
+        Message.sender_id.isnot(None),
+        time_filter,
+    )
+
+    friend_ids = None
+    if scope == "friends":
+        my_conv_ids = [
+            m.conversation_id
+            for m in db.query(ConversationMember)
+            .filter_by(user_id=current_user.id)
+            .all()
+        ]
+        friend_ids = list(
+            set(
+                m.user_id
+                for m in db.query(ConversationMember)
+                .filter(
+                    ConversationMember.conversation_id.in_(my_conv_ids),
+                    ConversationMember.user_id != current_user.id,
+                )
+                .all()
+            )
+        )
+        friend_ids.append(current_user.id)
+        base_q = base_q.filter(Message.sender_id.in_(friend_ids))
+
+    message_counts = (
+        base_q.with_entities(
+            Message.sender_id, func.count(Message.id).label("message_count")
+        )
+        .group_by(Message.sender_id)
+        .order_by(func.count(Message.id).desc())
+        .limit(limit)
+        .all()
+    )
+
+    result = []
+    rank = 1
+    for sender_id, count in message_counts:
+        u = db.query(User).filter_by(id=sender_id).first()
+        if not u:
+            continue
+        result.append(
+            {
+                "rank": rank,
+                "user_id": u.id,
+                "username": u.username,
+                "display_name": u.display_name,
+                "avatar_url": u.avatar_url,
+                "is_online": u.is_online,
+                "message_count": count,
+                "is_current_user": u.id == current_user.id,
+            }
+        )
+        rank += 1
+
+    return success_response(
+        {
+            "users": result,
+            "period": period,
+            "scope": scope,
+            "week_start": week_start.isoformat(),
+            "week_end": week_end.isoformat(),
+        }
+    )
+
+
 @router.get("/{username}")
 def get_user_by_username(
     username: str,
@@ -144,104 +252,3 @@ def change_password(
     return success_response(None, "Password changed successfully")
 
 
-@router.get("/leaderboard")
-def get_leaderboard(
-    limit: int = 50,
-    scope: str = Query("global", description="global or friends"),
-    period: str = Query("all", description="weekly, monthly, all"),
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    from app.models.message import Message
-    from app.models.conversation import ConversationMember
-    from sqlalchemy import func
-    from datetime import datetime, timedelta, timezone
-
-    now = datetime.now(timezone.utc)
-
-    if period == "weekly":
-        days_since_monday = now.weekday()
-        week_start = (now - timedelta(days=days_since_monday)).replace(
-            hour=0, minute=0, second=0, microsecond=0
-        )
-        week_end = week_start + timedelta(days=7)
-        time_filter = (Message.created_at >= week_start) & (
-            Message.created_at < week_end
-        )
-    elif period == "monthly":
-        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
-        if now.month == 12:
-            month_end = now.replace(year=now.year + 1, month=1, day=1)
-        else:
-            month_end = now.replace(month=now.month + 1, day=1)
-        time_filter = (Message.created_at >= month_start) & (
-            Message.created_at < month_end
-        )
-    else:  # all-time
-        time_filter = True
-
-    base_q = db.query(Message).filter(
-        Message.is_deleted == False,
-        Message.sender_id.isnot(None),
-        time_filter if period != "all" else Message.id.isnot(None),
-    )
-
-    friend_ids = None
-    if scope == "friends":
-        my_conv_ids = [
-            m.conversation_id
-            for m in db.query(ConversationMember)
-            .filter_by(user_id=current_user.id)
-            .all()
-        ]
-        friend_ids = list(
-            set(
-                m.user_id
-                for m in db.query(ConversationMember)
-                .filter(
-                    ConversationMember.conversation_id.in_(my_conv_ids),
-                    ConversationMember.user_id != current_user.id,
-                )
-                .all()
-            )
-        )
-        friend_ids.append(current_user.id)
-        base_q = base_q.filter(Message.sender_id.in_(friend_ids))
-
-    message_counts = (
-        base_q.with_entities(
-            Message.sender_id, func.count(Message.id).label("message_count")
-        )
-        .group_by(Message.sender_id)
-        .order_by(func.count(Message.id).desc())
-        .limit(limit)
-        .all()
-    )
-
-    result = []
-    rank = 1
-    for sender_id, count in message_counts:
-        u = db.query(User).filter_by(id=sender_id).first()
-        if not u:
-            continue
-        result.append(
-            {
-                "rank": rank,
-                "user_id": u.id,
-                "username": u.username,
-                "display_name": u.display_name,
-                "avatar_url": u.avatar_url,
-                "is_online": u.is_online,
-                "message_count": count,
-                "is_current_user": u.id == current_user.id,
-            }
-        )
-        rank += 1
-
-    return success_response(
-        {
-            "users": result,
-            "period": period,
-            "scope": scope,
-        }
-    )

@@ -19,7 +19,7 @@ export function ChatView({
   onMobileMore, onReact, onSave, onAIAction, onPin,
   pinnedMessages, setPinnedMessages,
   aiPanelOpen, setAiPanelOpen, aiLoading, aiError, aiResult, setAiResult, handleAiPanelAction,
-  isMuted, onMute, showPolls, showPinned, setShowPinned, showEvents, setShowEvents,
+  isMuted, onMute, showPolls, setShowPolls, showPinned, setShowPinned, showEvents, setShowEvents,
   showSchedule, setShowSchedule, showInsights, setShowInsights,
   activeRightTab, handleMessageSearch, onNewChat,
   totalUnread, onNotifications, onSearch, onSaved, onSettings, onThemeToggle, onLogout,
@@ -232,6 +232,13 @@ export function ChatView({
           onAi={() => setAiPanelOpen(!aiPanelOpen)}
           onAgent={onAgent}
           onTheme={onTheme}
+          onExtras={(key: string) => {
+            if (key === 'polls') setShowPolls(true)
+            else if (key === 'events') setShowEvents(true)
+            else if (key === 'pinned') setShowPinned(true)
+            else if (key === 'schedule') setShowSchedule(true)
+            else if (key === 'insights') setShowInsights(true)
+          }}
         />
 
         {typingNames && (

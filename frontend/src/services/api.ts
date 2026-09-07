@@ -44,7 +44,7 @@ export const usersApi = {
   search: (q:string) => api.get(`/api/users/search?q=${encodeURIComponent(q)}`).then(r=>r.data),
   getByUsername: (u:string) => api.get(`/api/users/${u}`).then(r=>r.data),
   updateMe: (data:any) => api.patch('/api/users/me', data).then(r=>r.data),
-  leaderboard: (scope: 'global' | 'friends' = 'global') => api.get(`/api/users/leaderboard?scope=${scope}`).then(r=>r.data),
+  leaderboard: (scope: 'global' | 'friends' = 'global', period: 'weekly' | 'monthly' | 'all' = 'weekly') => api.get(`/api/users/leaderboard?scope=${scope}&period=${period}`).then(r=>r.data),
 }
 
 export const convApi = {
@@ -79,6 +79,8 @@ export const msgApi = {
   send: (cid:number, data:any) => api.post(`/api/conversations/${cid}/messages`, data).then(r=>r.data),
   edit: (mid:number, content:string) => api.patch(`/api/messages/${mid}`, { content }).then(r=>r.data),
   delete: (mid:number) => api.delete(`/api/messages/${mid}`).then(r=>r.data),
+  delivered: (mid:number) => api.post(`/api/messages/${mid}/delivered`).then(r=>r.data),
+  markRead: (mid:number) => api.post(`/api/messages/${mid}/read`).then(r=>r.data),
   react: (mid:number, emoji:string) => api.post(`/api/messages/${mid}/reactions`, { emoji }).then(r=>r.data),
   removeReaction: (mid:number, emoji:string) => api.delete(`/api/messages/${mid}/reactions?emoji=${encodeURIComponent(emoji)}`).then(r=>r.data),
   search: (q:string, cid?:number) => api.get(`/api/messages/search?q=${encodeURIComponent(q)}${cid?`&conversation_id=${cid}`:''}`).then(r=>r.data),
