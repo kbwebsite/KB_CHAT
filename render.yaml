@@ -22,6 +22,10 @@ services:
         sync: false
       - key: AI_API_KEY
         sync: false
+      - key: AI_MODEL
+        sync: false
+      - key: AI_BASE_URL
+        sync: false
       - key: GOOGLE_CLIENT_ID
         value: 947604684664-sbjfl0jmj332b81fmqeu7dd3tsct94l2.apps.googleusercontent.com
       - key: VITE_GOOGLE_CLIENT_ID
