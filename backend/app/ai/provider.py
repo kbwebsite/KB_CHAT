@@ -496,7 +496,10 @@ class ServiceProvider(AIProvider):
         prompt = prompts.get(
             action, f"Analyze this {language} code:\n\n```{language}\n{code}\n```"
         )
-        return await self.chat([{"role": "user", "content": prompt}])
+        try:
+            return await self.chat([{"role": "user", "content": prompt}])
+        except Exception as e:
+            return self._handle_ai_error(str(e))
 
     async def chat(
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
@@ -538,6 +541,29 @@ class ServiceProvider(AIProvider):
             + self._get_proactive_tip()
         )
 
+    @staticmethod
+    def _handle_ai_error(error: str) -> str:
+        """Handle AI provider errors, including recursive JSON schema errors."""
+        error_lower = error.lower()
+
+        if (
+            "recursive json schema" in error_lower
+            or "recursive json_schema" in error_lower
+            or "invalid_request_error" in error_lower
+        ):
+            return (
+                "I'm having trouble processing your request right now. "
+                "This might be a temporary issue with the AI service. "
+                "Please try again in a moment, or ask me about:\n\n"
+                "• **'How do I create a group?'**\n"
+                "• **'How do video calls work?'**\n"
+                "• **'How do I mute notifications?'**\n"
+                "• **'Troubleshoot issues'**\n"
+                "• **'Tips and tricks'**"
+            )
+
+        return f"Sorry, I encountered an error: {error[:100]}..."
+
 
 class OpenAICompatibleProvider(AIProvider):
     """Calls any OpenAI-compatible /v1/chat/completions endpoint for service agent."""
@@ -566,9 +592,34 @@ class OpenAICompatibleProvider(AIProvider):
         }
         async with httpx.AsyncClient(timeout=60) as client:
             r = await client.post(url, headers=self._headers(), json=payload)
-            r.raise_for_status()
+            if r.status_code != 200:
+                error_text = r.text
+                raise Exception(error_text)
             data = r.json()
             return data["choices"][0]["message"]["content"]
+
+    @staticmethod
+    def _handle_ai_error(error: str) -> str:
+        """Handle AI provider errors, including recursive JSON schema errors."""
+        error_lower = error.lower()
+
+        if (
+            "recursive json schema" in error_lower
+            or "recursive json_schema" in error_lower
+            or "invalid_request_error" in error_lower
+        ):
+            return (
+                "I'm having trouble processing your request right now. "
+                "This might be a temporary issue with the AI service. "
+                "Please try again in a moment, or ask me about:\n\n"
+                "• **'How do I create a group?'**\n"
+                "• **'How do video calls work?'**\n"
+                "• **'How do I mute notifications?'**\n"
+                "• **'Troubleshoot issues'**\n"
+                "• **'Tips and tricks'**"
+            )
+
+        return f"Sorry, I encountered an error: {error[:100]}..."
 
     async def code_action(
         self, code: str, language: str, action: str, instruction: str = ""
@@ -587,7 +638,10 @@ class OpenAICompatibleProvider(AIProvider):
         prompt = prompts.get(
             action, f"Analyze this {language} code:\n\n```{language}\n{code}\n```"
         )
-        return await self.chat([{"role": "user", "content": prompt}])
+        try:
+            return await self.chat([{"role": "user", "content": prompt}])
+        except Exception as e:
+            return self._handle_ai_error(str(e))
 
     async def chat(
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
@@ -604,7 +658,16 @@ class OpenAICompatibleProvider(AIProvider):
             msgs = [{"role": "system", "content": system}] + messages
             return await self._chat_completion(msgs)
         except Exception as e:
-            print(f"[ai] chat fallback: {e}")
+            error_str = str(e).lower()
+            if (
+                "recursive json schema" in error_str
+                or "invalid_request_error" in error_str
+            ):
+                print(
+                    f"[ai] recursive schema error, falling back to mock provider: {e}"
+                )
+            else:
+                print(f"[ai] provider error, falling back to mock provider: {e}")
             return await ServiceProvider().chat(messages, context)
 
 

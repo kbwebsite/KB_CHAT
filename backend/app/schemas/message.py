@@ -8,10 +8,19 @@ class MessageCreate(BaseModel):
     message_type: str = Field(default="text")
     reply_to_id: Optional[int] = None
     attachment_ids: Optional[List[int]] = None
+    voice_duration: Optional[int] = Field(
+        None, ge=0, le=300, description="Voice message duration in seconds (max 5min)"
+    )
+    voice_file_id: Optional[int] = Field(
+        None, description="Attachment ID of the recorded audio file"
+    )
 
 
 class MessageUpdate(BaseModel):
-    content: str = Field(..., min_length=1, max_length=5000)
+    content: Optional[str] = Field(None, max_length=5000)
+    voice_duration: Optional[int] = Field(
+        None, ge=0, le=300, description="Voice message duration in seconds"
+    )
 
 
 class ReactionCreate(BaseModel):

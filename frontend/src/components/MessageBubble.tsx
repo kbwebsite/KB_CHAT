@@ -1,11 +1,74 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic } from 'lucide-react'
-import { useState } from 'react'
+import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause } from 'lucide-react'
+import { useState, useRef } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi } from '../services/api'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
+
+const fmtDur = (s: number) => {
+  if (!Number.isFinite(s) || s < 0) return '0:00'
+  return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
+}
+
+function VoicePlayer({ src, duration, isOwn }: { src: string; duration?: number | null; isOwn: boolean }) {
+  const audioRef = useRef<HTMLAudioElement>(null)
+  const [playing, setPlaying] = useState(false)
+  const [current, setCurrent] = useState(0)
+  const [total, setTotal] = useState(duration ?? 0)
+
+  const toggle = () => {
+    const el = audioRef.current
+    if (!el) return
+    if (playing) el.pause()
+    else el.play().catch(() => setPlaying(false))
+  }
+
+  return (
+    <div className="flex items-center gap-2 py-1 min-w-[200px] max-w-[260px]" onClick={(e) => e.stopPropagation()}>
+      <button
+        onClick={toggle}
+        aria-label={playing ? 'Pause voice message' : 'Play voice message'}
+        className={`w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform active:scale-95 ${isOwn ? 'bg-white/25 hover:bg-white/35 text-white' : 'bg-violet-500/20 hover:bg-violet-500/30 text-violet-300'}`}
+      >
+        {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
+      </button>
+      <div className="flex-1 min-w-0">
+        <input
+          type="range"
+          min={0}
+          max={Math.max(total, 0.1)}
+          step={0.1}
+          value={Math.min(current, total || 0)}
+          onChange={(e) => {
+            const el = audioRef.current
+            const v = Number(e.target.value)
+            if (el && Number.isFinite(v)) { el.currentTime = v; setCurrent(v) }
+          }}
+          aria-label="Seek voice message"
+          className="w-full h-1 cursor-pointer accent-violet-400"
+        />
+        <div className={`text-[11px] tabular-nums ${isOwn ? 'text-white/80' : 'text-muted-foreground'}`}>
+          {fmtDur(current)} / {fmtDur(total)}
+        </div>
+      </div>
+      <audio
+        ref={audioRef}
+        src={src}
+        preload="metadata"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCurrent(0) }}
+        onTimeUpdate={(e) => setCurrent(e.currentTarget.currentTime)}
+        onLoadedMetadata={(e) => {
+          const d = e.currentTarget.duration
+          if (Number.isFinite(d) && d > 0) setTotal(d)
+        }}
+      />
+    </div>
+  )
+}
 
 export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
@@ -19,7 +82,11 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
-  const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/'))
+  const audioAtts = msg.attachments.filter(a=> a.mime_type.startsWith('audio/'))
+  const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/'))
+
+  const resolveAttUrl = (a: { filename: string; file_path: string; cloudinary_url?: string | null; url?: string }) =>
+    a.cloudinary_url || a.url || (a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`)
   const isSaved = savedIds?.has(msg.id)
   const [showMenu, setShowMenu]=useState(false)
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))
@@ -71,6 +138,18 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               </a>
             )
           })}
+          {!msg.is_deleted && audioAtts.length > 0 && (
+            <div className="flex flex-col gap-1 mb-1 -mx-1">
+              {audioAtts.map(a => (
+                <VoicePlayer
+                  key={a.id}
+                  src={a.cloudinary_url || (msg as any).voice_cloudinary_url || resolveAttUrl(a)}
+                  duration={(msg as any).voice_duration}
+                  isOwn={isOwn}
+                />
+              ))}
+            </div>
+          )}
           <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
           {isVoice && !transcription && (
             <button onClick={async ()=>{
@@ -78,7 +157,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               try {
                 const att = msg.attachments[0]
                 if (att) {
-                  const url = att.file_path.startsWith('/api') ? att.file_path : `/api/uploads/file/${att.filename}`
+                  const url = resolveAttUrl(att)
                   const blob = await fetch(url).then(r=> r.blob())
                   const file = new File([blob], att.filename, { type: att.mime_type })
                   const res = await aiApi.transcribe(file)

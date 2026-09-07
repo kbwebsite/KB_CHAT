@@ -45,6 +45,14 @@ def _message_to_dict(msg: Message):
     content = msg.content
     if msg.is_deleted:
         content = "Message deleted"
+    voice_dur = msg.voice_duration
+    # Find voice attachment (first attachment with audio mime type)
+    voice_att = None
+    for a in atts:
+        if a.mime_type and a.mime_type.startswith("audio/"):
+            voice_att = a
+            break
+    voice_cloudinary_url = voice_att.cloudinary_url if voice_att else None
     return {
         "id": msg.id,
         "conversation_id": msg.conversation_id,
@@ -54,6 +62,7 @@ def _message_to_dict(msg: Message):
         "sender_avatar": sender.avatar_url if sender else None,
         "content": content,
         "message_type": msg.message_type,
+        "voice_duration": voice_dur,
         "reply_to_id": msg.reply_to_id,
         "reply_to_content": reply_content,
         "is_deleted": msg.is_deleted,
@@ -84,6 +93,7 @@ def _message_to_dict(msg: Message):
             for r in reacts
         ],
         "status": "sent",
+        "voice_cloudinary_url": voice_cloudinary_url,
     }
 
 
@@ -167,8 +177,10 @@ async def create_message(
         raise HTTPException(status_code=400, detail="Message too long")
 
     msg_type = payload.message_type or "text"
-    if msg_type not in ("text", "image", "file", "system"):
+    if msg_type not in ("text", "image", "file", "voice", "system"):
         msg_type = "text"
+
+    voice_duration = payload.voice_duration
 
     msg = Message(
         conversation_id=conv_id,
@@ -176,6 +188,7 @@ async def create_message(
         content=content,
         message_type=msg_type,
         reply_to_id=payload.reply_to_id,
+        voice_duration=voice_duration,
     )
     db.add(msg)
     db.flush()
@@ -190,6 +203,20 @@ async def create_message(
             )
             if att:
                 att.message_id = msg.id
+
+    # Voice messages may reference the audio attachment via voice_file_id
+    # instead of (or in addition to) attachment_ids — link it if not already.
+    if msg_type == "voice" and payload.voice_file_id:
+        if not payload.attachment_ids or payload.voice_file_id not in (
+            payload.attachment_ids or []
+        ):
+            voice_att = (
+                db.query(Attachment)
+                .filter_by(id=payload.voice_file_id, uploader_id=current_user.id)
+                .first()
+            )
+            if voice_att:
+                voice_att.message_id = msg.id
 
     # Single commit for message + attachments + conversation updated_at
     from app.models.conversation import Conversation
@@ -228,7 +255,20 @@ async def edit_message(
         raise HTTPException(status_code=403, detail="Can only edit own messages")
     if msg.is_deleted:
         raise HTTPException(status_code=400, detail="Cannot edit deleted message")
-    msg.content = payload.content
+    if payload.content is not None:
+        if not payload.content.strip():
+            raise HTTPException(status_code=400, detail="Message content required")
+        if len(payload.content) > 5000:
+            raise HTTPException(status_code=400, detail="Message too long")
+        msg.content = payload.content
+    if payload.voice_duration is not None:
+        if msg.message_type != "voice":
+            raise HTTPException(
+                status_code=400, detail="voice_duration only applies to voice messages"
+            )
+        msg.voice_duration = payload.voice_duration
+    if payload.content is None and payload.voice_duration is None:
+        raise HTTPException(status_code=400, detail="Nothing to update")
     msg.is_edited = True
     db.commit()
     db.refresh(msg)

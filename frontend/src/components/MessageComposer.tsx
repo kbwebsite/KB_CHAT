@@ -8,7 +8,7 @@ import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
 
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
-  onSend: (content: string, attachmentIds?: number[], type?: string) => void,
+  onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number) => void,
   onTyping: (isTyping: boolean) => void,
   conversationId: number,
   replyTo?: { id: number; content: string; sender: string } | null,
@@ -96,8 +96,13 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           const isImage = att.mime_type.startsWith('image/')
           const isVoice = att.mime_type.startsWith('audio/')
           const type = isImage ? 'image' : isVoice ? 'voice' : 'file'
-          const fallback = isImage ? (text || 'Image') : isVoice ? `Voice ${Math.round(att.file_size / 1024)}KB` : `File: ${att.original_filename}`
-          onSend(fallback, [att.id], type as any)
+          let voiceDur: number | undefined
+          if (isVoice) {
+            voiceDur = await probeAudioDuration(file)
+            if (voiceDur != null) voiceDur = Math.min(voiceDur, 300)
+          }
+          const fallback = isImage ? (text || 'Image') : isVoice ? `Voice${voiceDur != null ? ` ${Math.floor(voiceDur / 60)}:${String(voiceDur % 60).padStart(2, '0')}` : ` ${Math.round(att.file_size / 1024)}KB`}` : `File: ${att.original_filename}`
+          onSend(fallback, [att.id], type as any, voiceDur)
           setText('')
         }
       } catch (err: any) {
@@ -111,15 +116,36 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     }
   }
 
+  const probeAudioDuration = (file: File): Promise<number | undefined> => {
+    return new Promise((resolve) => {
+      try {
+        const url = URL.createObjectURL(file)
+        const el = document.createElement('audio')
+        el.preload = 'metadata'
+        el.onloadedmetadata = () => {
+          const d = Number.isFinite(el.duration) ? Math.round(el.duration) : undefined
+          URL.revokeObjectURL(url)
+          resolve(d)
+        }
+        el.onerror = () => { URL.revokeObjectURL(url); resolve(undefined) }
+        el.src = url
+        // Safety timeout in case metadata never loads
+        setTimeout(() => resolve(undefined), 4000)
+      } catch { resolve(undefined) }
+    })
+  }
+
   const handleVoiceSend = async (blob: Blob, duration: number) => {
-    const file = new File([blob], `voice_${Date.now()}.webm`, { type: 'audio/webm' })
+    const type = blob.type || 'audio/webm'
+    const ext = type.includes('mp4') ? 'm4a' : type.includes('wav') ? 'wav' : type.includes('ogg') ? 'ogg' : 'webm'
+    const file = new File([blob], `voice_${Date.now()}.${ext}`, { type })
     setUploading(true)
     setProgress(0)
     try {
       const res = await uploadApi.upload(file, (p) => setProgress(p))
       if (res.success) {
         const att = res.data
-        onSend(`Voice ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`, [att.id], 'voice' as any)
+        onSend(`Voice ${Math.floor(duration / 60)}:${String(duration % 60).padStart(2, '0')}`, [att.id], 'voice' as any, Math.min(Math.round(duration), 300))
       }
     } catch {
       setUploadError('Voice upload failed')
@@ -182,7 +208,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         >
           <Paperclip className="w-5 h-5" />
         </button>
-        <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm" multiple />
+        <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm,.m4a,.wav,.ogg,.aac,.amr" multiple />
 
         {/* Textarea */}
         <textarea

@@ -1,6 +1,16 @@
 import { useRef, useState } from 'react'
 import { Mic, Square, Trash2 } from 'lucide-react'
 
+const MAX_VOICE_SECONDS = 300 // matches backend voice_duration cap
+
+function pickMimeType(): string | undefined {
+  if (typeof MediaRecorder === 'undefined' || !MediaRecorder.isTypeSupported) return undefined
+  for (const t of ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg;codecs=opus']) {
+    try { if (MediaRecorder.isTypeSupported(t)) return t } catch { /* ignore */ }
+  }
+  return undefined
+}
+
 export function VoiceRecorder({ onSend }: { onSend: (blob: Blob, duration:number)=>void }) {
   const [recording, setRecording]=useState(false)
   const [duration, setDuration]=useState(0)
@@ -9,27 +19,43 @@ export function VoiceRecorder({ onSend }: { onSend: (blob: Blob, duration:number
   const chunksRef=useRef<Blob[]>([])
   const timerRef=useRef<any>(null)
   const streamRef=useRef<MediaStream|null>(null)
+  const durationRef=useRef(0)
 
   const start=async ()=>{
     try {
+      if (!navigator.mediaDevices?.getUserMedia) {
+        setPermissionError('Microphone not supported in this browser')
+        return
+      }
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
       streamRef.current = stream
-      const mr = new MediaRecorder(stream)
+      const mimeType = pickMimeType()
+      const mr = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream)
       mediaRef.current = mr
       chunksRef.current = []
+      durationRef.current = 0
       mr.ondataavailable = e=> { if (e.data.size>0) chunksRef.current.push(e.data) }
       mr.onstop = ()=>{
-        const blob = new Blob(chunksRef.current, { type: 'audio/webm' })
-        if (blob.size>0) onSend(blob, duration)
+        const type = mr.mimeType || 'audio/webm'
+        const blob = new Blob(chunksRef.current, { type })
+        const finalDuration = durationRef.current
+        if (blob.size>0 && finalDuration>0) onSend(blob, finalDuration)
         setRecording(false)
         setDuration(0)
+        durationRef.current = 0
         clearInterval(timerRef.current)
         stream.getTracks().forEach(t=> t.stop())
       }
       mr.start()
       setRecording(true)
       setPermissionError(null)
-      timerRef.current = setInterval(()=> setDuration(d=> d+1), 1000)
+      timerRef.current = setInterval(()=> {
+        durationRef.current += 1
+        setDuration(durationRef.current)
+        if (durationRef.current >= MAX_VOICE_SECONDS) {
+          try { mr.state !== 'inactive' && mr.stop() } catch { /* ignore */ }
+        }
+      }, 1000)
     } catch (e:any) {
       setPermissionError(e.message || 'Microphone permission denied')
     }
@@ -39,13 +65,14 @@ export function VoiceRecorder({ onSend }: { onSend: (blob: Blob, duration:number
     mediaRef.current?.stop()
   }
   const cancel=()=>{
-    mediaRef.current?.state !== 'inactive' && mediaRef.current?.stop()
+    if (mediaRef.current) mediaRef.current.onstop = null as any
+    try { mediaRef.current?.state !== 'inactive' && mediaRef.current?.stop() } catch { /* ignore */ }
     chunksRef.current = []
     setRecording(false)
     setDuration(0)
+    durationRef.current = 0
     clearInterval(timerRef.current)
     streamRef.current?.getTracks().forEach(t=> t.stop())
-    if (mediaRef.current) mediaRef.current.onstop = null as any
   }
 
   const fmt=(s:number)=> `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`

@@ -30,7 +30,8 @@ class Message(Base):
     content = Column(Text, nullable=True)
     message_type = Column(
         String(20), default="text", nullable=False
-    )  # text, image, file, system
+    )  # text, image, file, voice, system
+    voice_duration = Column(Integer, nullable=True)
     reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
     is_deleted = Column(Boolean, default=False, nullable=False, index=True)
     is_edited = Column(Boolean, default=False, nullable=False)

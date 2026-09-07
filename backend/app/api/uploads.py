@@ -89,6 +89,11 @@ async def upload_file(
     if ext in (".jpg", ".jpeg", ".png", ".gif", ".webp"):
         if size < 10:
             raise HTTPException(status_code=400, detail="Invalid image file")
+    if ext in (".m4a", ".mp3", ".wav", ".ogg", ".amr", ".aac"):
+        if size > 5 * 1024 * 1024:
+            raise HTTPException(
+                status_code=400, detail="Voice message too large (max 5MB)"
+            )
     if content[:2] == b"MZ":
         raise HTTPException(status_code=400, detail="Executable files not allowed")
 

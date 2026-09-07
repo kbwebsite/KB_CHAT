@@ -56,6 +56,7 @@ export interface Attachment {
   file_size: number;
   mime_type: string;
   url?: string;
+  cloudinary_url?: string | null;
 }
 
 export interface Reaction {
@@ -74,6 +75,8 @@ export interface Message {
   sender_avatar?: string | null;
   content?: string | null;
   message_type: string;
+  voice_duration?: number | null;
+  voice_cloudinary_url?: string | null;
   reply_to_id?: number | null;
   reply_to_content?: string | null;
   is_deleted: boolean;

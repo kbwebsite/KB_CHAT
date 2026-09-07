@@ -17,7 +17,7 @@ interface ChatState {
   fetchConversations: (search?:string)=>Promise<void>
   setCurrent: (id:number|null)=>void
   fetchMessages: (convId:number, before?:number)=>Promise<void>
-  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string)=>Promise<void>
+  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number})=>Promise<void>
   addMessage: (msg:Message)=>void
   updateMessage: (msg:Message)=>void
   deleteMessagePlaceholder: (payload:any)=>void
@@ -74,8 +74,8 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       }
     } finally { set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } })) }
   },
-  sendMessage: async (convId, content, replyTo, attachmentIds, type='text')=>{
-    const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type })
+  sendMessage: async (convId, content, replyTo, attachmentIds, type='text', extra)=>{
+    const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}) })
     if (res.success) {
       get().addMessage(res.data)
     }

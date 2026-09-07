@@ -101,10 +101,10 @@ export function ChatView({
     setIsAtBottom(true); setShowNewIndicator(false); setTimeout(() => scrollToBottom(false), 100)
   }, [currentConversationId])
 
-  const handleSend = async (content: string, attachmentIds?: number[], type?: string) => {
+  const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number) => {
     if (!currentConversationId) return
     if (editTarget) { await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return }
-    try { await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type) }
+    try { await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type, voiceDuration != null ? { voice_duration: voiceDuration } : undefined) }
     catch (e: any) { console.error('Send failed:', e) }
   }
 

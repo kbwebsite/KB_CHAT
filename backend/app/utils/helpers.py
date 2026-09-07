@@ -5,19 +5,58 @@ import mimetypes
 from typing import Tuple
 
 ALLOWED_MIME_TYPES = {
-    "image/jpeg", "image/png", "image/gif", "image/webp",
+    "image/jpeg",
+    "image/png",
+    "image/gif",
+    "image/webp",
     "application/pdf",
-    "text/plain", "text/csv",
+    "text/plain",
+    "text/csv",
     "application/msword",
     "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     "application/vnd.ms-excel",
     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-    "application/zip", "application/x-zip-compressed",
-    "video/mp4", "audio/mpeg", "audio/ogg"
+    "application/zip",
+    "application/x-zip-compressed",
+    "video/mp4",
+    "video/webm",
+    "audio/mpeg",
+    "audio/ogg",
+    "audio/webm",
+    "audio/wav",
+    "audio/x-wav",
+    "audio/mp4",
+    "audio/x-m4a",
+    "audio/aac",
+    "audio/amr",
+    "audio/3gpp",
 }
-ALLOWED_EXTENSIONS = {".jpg", ".jpeg", ".png", ".gif", ".webp", ".pdf", ".txt", ".csv", ".doc", ".docx", ".xls", ".xlsx", ".zip", ".mp4", ".mp3", ".ogg"}
+ALLOWED_EXTENSIONS = {
+    ".jpg",
+    ".jpeg",
+    ".png",
+    ".gif",
+    ".webp",
+    ".pdf",
+    ".txt",
+    ".csv",
+    ".doc",
+    ".docx",
+    ".xls",
+    ".xlsx",
+    ".zip",
+    ".mp4",
+    ".webm",
+    ".mp3",
+    ".ogg",
+    ".m4a",
+    ".wav",
+    ".aac",
+    ".amr",
+}
 
 MAX_FILENAME_LENGTH = 255
+
 
 def sanitize_filename(filename: str) -> str:
     # remove path traversal
@@ -29,7 +68,10 @@ def sanitize_filename(filename: str) -> str:
         filename = name[: MAX_FILENAME_LENGTH - len(ext)] + ext
     return filename
 
-def validate_file(filename: str, mime_type: str, size: int, max_size_mb: int) -> Tuple[bool, str]:
+
+def validate_file(
+    filename: str, mime_type: str, size: int, max_size_mb: int
+) -> Tuple[bool, str]:
     if size > max_size_mb * 1024 * 1024:
         return False, f"File too large. Max {max_size_mb}MB"
     ext = os.path.splitext(filename.lower())[1]
@@ -43,9 +85,11 @@ def validate_file(filename: str, mime_type: str, size: int, max_size_mb: int) ->
             return False, f"MIME type {mime_type} not allowed"
     return True, "ok"
 
+
 def generate_stored_filename(original: str) -> str:
     ext = os.path.splitext(original)[1]
     return f"{uuid.uuid4().hex}{ext.lower()}"
+
 
 def get_conversation_display(conv, current_user_id: int, members):
     """For 1-1 chats, return other user's info as title/avatar"""
