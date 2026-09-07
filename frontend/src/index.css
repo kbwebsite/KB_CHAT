@@ -2048,6 +2048,11 @@ body {
   position: relative;
   overflow: hidden;
   min-height: 0;
+  /* Clamp to the shell: without an explicit height the column can resolve
+     taller than the viewport (Bootstrap row/col cascade), pushing the
+     message composer below the fold — worse with every new message. */
+  height: 100%;
+  max-height: 100%;
 }
 
 .conv-panel {
@@ -2058,6 +2063,9 @@ body {
   min-height: 0;
   overflow: hidden;
   background: var(--bg-primary);
+  /* Same clamp as .chat-panel so the list scrolls instead of growing. */
+  height: 100%;
+  max-height: 100%;
 }
 
 /* ═══════════════════════════════════════════════════════════════
