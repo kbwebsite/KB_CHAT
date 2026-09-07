@@ -12,17 +12,29 @@ const fmtDur = (s: number) => {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 }
 
-function VoicePlayer({ src, duration, isOwn }: { src: string; duration?: number | null; isOwn: boolean }) {
+function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration?: number | null; isOwn: boolean; fileName?: string }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
   const [current, setCurrent] = useState(0)
   const [total, setTotal] = useState(duration ?? 0)
+  const [loadError, setLoadError] = useState(false)
 
   const toggle = () => {
     const el = audioRef.current
-    if (!el) return
+    if (!el || loadError) return
     if (playing) el.pause()
-    else el.play().catch(() => setPlaying(false))
+    else el.play().catch(() => setLoadError(true))
+  }
+
+  if (loadError) {
+    return (
+      <div className="flex items-center gap-2 py-1 min-w-[200px] max-w-[260px]">
+        <span className="text-xs opacity-70">Couldn't load audio.</span>
+        <a href={src} target="_blank" rel="noreferrer" className="text-xs underline font-medium" onClick={(e) => e.stopPropagation()}>
+          Download{fileName ? ` ${fileName}` : ''}
+        </a>
+      </div>
+    )
   }
 
   return (
@@ -57,6 +69,7 @@ function VoicePlayer({ src, duration, isOwn }: { src: string; duration?: number 
         ref={audioRef}
         src={src}
         preload="metadata"
+        onError={() => { setLoadError(true); setPlaying(false) }}
         onPlay={() => setPlaying(true)}
         onPause={() => setPlaying(false)}
         onEnded={() => { setPlaying(false); setCurrent(0) }}
@@ -146,6 +159,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                   src={a.cloudinary_url || (msg as any).voice_cloudinary_url || resolveAttUrl(a)}
                   duration={(msg as any).voice_duration}
                   isOwn={isOwn}
+                  fileName={a.original_filename}
                 />
               ))}
             </div>

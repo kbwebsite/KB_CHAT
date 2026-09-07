@@ -34,6 +34,16 @@ def test_health():
     assert r.json()["success"] == True
 
 
+def test_csp_allows_cloudinary_media():
+    # Voice clips are served from Cloudinary; if media-src doesn't allow it
+    # the browser blocks playback and messages silently won't play.
+    r = client.get("/api/health")
+    csp = r.headers.get("content-security-policy", "")
+    assert "media-src" in csp, csp
+    media = [p for p in csp.split(";") if "media-src" in p][0]
+    assert "res.cloudinary.com" in media, csp
+
+
 def test_signup_and_login():
     # unique suffix
     import time
