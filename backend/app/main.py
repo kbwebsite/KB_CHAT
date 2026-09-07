@@ -140,6 +140,22 @@ def health():
     }
 
 
+@app.get("/api/config")
+def public_config():
+    """Public runtime config for the SPA.
+
+    Values like the Google OAuth client ID must be known by the frontend but
+    cannot be baked in at Docker build time (Render does not forward service
+    env vars as build args), so the client fetches them here at runtime with
+    the build-time value as fallback.
+    """
+    return {
+        "success": True,
+        "data": {"googleClientId": settings.GOOGLE_CLIENT_ID or None},
+        "message": None,
+    }
+
+
 @app.get("/api")
 def api_root():
     import os

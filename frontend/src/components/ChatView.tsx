@@ -6,6 +6,10 @@ import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
 import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
+import { PollCard } from './PollPanel'
+import { EventCard } from './EventPanel'
+import { pollApi, eventApi } from '../services/api'
+import wsService from '../services/websocket'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight } from 'lucide-react'
@@ -43,6 +47,63 @@ export function ChatView({
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
+  // Polls & events rendered inline in the message flow (not just the panels)
+  const [convPolls, setConvPolls] = useState<any[]>([])
+  const [convEvents, setConvEvents] = useState<any[]>([])
+
+  useEffect(() => {
+    setConvPolls([])
+    setConvEvents([])
+    if (!currentConversationId) return
+    const cid = currentConversationId
+    pollApi.list(cid).then((r: any) => {
+      if (r?.success && currentConversationId === cid) setConvPolls(r.data || [])
+    }).catch(() => {})
+    eventApi.list(cid).then((r: any) => {
+      if (r?.success && currentConversationId === cid) {
+        const list = Array.isArray(r.data) ? r.data : (r.data?.events || [])
+        setConvEvents(list)
+      }
+    }).catch(() => {})
+  }, [currentConversationId])
+
+  // Live poll/event updates over the socket, scoped to the open conversation
+  useEffect(() => {
+    const sameConv = (p: any) => !!p && p.conversation_id === useChatStore.getState().currentConversationId
+    const onPollUpsert = (p: any) => {
+      if (!sameConv(p)) return
+      setConvPolls(ps => {
+        const i = ps.findIndex(x => x.id === p.id)
+        if (i < 0) return [...ps, p]
+        const n = [...ps]; n[i] = p; return n
+      })
+    }
+    const onPollDel = (p: any) => {
+      if (!sameConv(p)) return
+      setConvPolls(ps => ps.filter(x => x.id !== p.id))
+    }
+    const onEventUpsert = (p: any) => {
+      if (!sameConv(p)) return
+      setConvEvents(es => {
+        const i = es.findIndex(x => x.id === p.id)
+        if (i < 0) return [...es, p]
+        const n = [...es]; n[i] = p; return n
+      })
+    }
+    const onEventDel = (p: any) => {
+      if (!sameConv(p)) return
+      setConvEvents(es => es.filter(x => x.id !== p.id))
+    }
+    const offs = [
+      wsService.on('poll.created', onPollUpsert),
+      wsService.on('poll.updated', onPollUpsert),
+      wsService.on('poll.deleted', onPollDel),
+      wsService.on('event.created', onEventUpsert),
+      wsService.on('event.updated', onEventUpsert),
+      wsService.on('event.deleted', onEventDel),
+    ]
+    return () => { offs.forEach(off => off && off()) }
+  }, [])
 
   const listRef = useRef<HTMLDivElement>(null)
   const isLoadingMoreRef = useRef(false)
@@ -91,7 +152,11 @@ export function ChatView({
   useEffect(() => {
     const len = currentMsgs.length
     if (len > prevMsgLenRef.current) {
-      if (isAtBottom) setTimeout(() => scrollToBottom(true), 50)
+      // Instant (non-animated) follow while pinned to the bottom: smooth
+      // scrolling on every arrival visibly shoves the composer around,
+      // especially as the list grows. The ↓ pill keeps smooth scrolling
+      // for user-initiated jumps.
+      if (isAtBottom) setTimeout(() => scrollToBottom(false), 30)
       else setShowNewIndicator(true)
     }
     prevMsgLenRef.current = len
@@ -100,6 +165,41 @@ export function ChatView({
   useEffect(() => {
     setIsAtBottom(true); setShowNewIndicator(false); setTimeout(() => scrollToBottom(false), 100)
   }, [currentConversationId])
+
+  const handlePollVote = async (pollId: number, opts: number[]) => {
+    try {
+      const res = await pollApi.vote(pollId, opts)
+      if (res?.success && res.data) setConvPolls(ps => ps.map(p => p.id === pollId ? res.data : p))
+    } catch {}
+  }
+  const handlePollDelete = async (pollId: number) => {
+    if (!confirm('Delete this poll?')) return
+    try { await pollApi.delete(pollId); setConvPolls(ps => ps.filter(p => p.id !== pollId)) } catch {}
+  }
+  const handleEventRespond = async (eid: number, r: string) => {
+    try {
+      const res = await eventApi.respond(eid, r)
+      const updated = res?.data && res.data.id ? res.data : null
+      if (updated) {
+        setConvEvents(es => es.map(e => e.id === eid ? updated : e))
+      } else if (currentConversationId) {
+        const rl = await eventApi.list(currentConversationId)
+        const list = Array.isArray(rl?.data) ? rl.data : (rl?.data?.events || [])
+        setConvEvents(list)
+      }
+    } catch {}
+  }
+
+  // Chronological flow: messages + polls + events interleaved so extras live
+  // in the chat itself, not only in the Extras panels.
+  const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = [
+    ...currentMsgs.map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
+    ...convPolls.map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
+    ...convEvents.map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
+  ].sort((a, b) => {
+    const t = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
+    return t !== 0 ? t : (a.key < b.key ? -1 : 1)
+  })
 
   const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number) => {
     if (!currentConversationId) return
@@ -277,24 +377,52 @@ export function ChatView({
             </div>
           )}
           <div className="py-2 px-2 sm:px-4">
-            {currentMsgs.map((msg: any, idx: number) => {
-              const prev = currentMsgs[idx - 1]
-              const next = currentMsgs[idx + 1]
-              const isOwn = msg.sender_id === user?.id
-              const showAvatar = !!currentConv?.is_group && (!prev || prev.sender_id !== msg.sender_id)
-              const prevDate = prev ? new Date(prev.created_at).toDateString() : null
-              const msgDate = new Date(msg.created_at).toDateString()
-              const showDateSep = prevDate !== msgDate
-              const isLastInGroup = !next || next.sender_id !== msg.sender_id || (next && new Date(next.created_at).getTime() - new Date(msg.created_at).getTime() > 300000)
-              return (
-                <div key={msg.id}>
-                  {showDateSep && (
-                    <div className="flex items-center gap-3 my-4">
-                      <div className="flex-1 h-px bg-border/50" />
-                      <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded-full bg-surface-2/50">{new Date(msg.created_at).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
-                      <div className="flex-1 h-px bg-border/50" />
+            {flowItems.map((item, idx) => {
+              const prev = flowItems[idx - 1]
+              const prevDate = prev?.created_at ? new Date(prev.created_at).toDateString() : null
+              const itemDate = item.created_at ? new Date(item.created_at).toDateString() : null
+              const showDateSep = prevDate !== itemDate
+              const dateSep = showDateSep && itemDate ? (
+                <div className="flex items-center gap-3 my-4">
+                  <div className="flex-1 h-px bg-border/50" />
+                  <span className="text-[11px] text-muted-foreground font-medium px-2 py-0.5 rounded-full bg-surface-2/50">{new Date(item.created_at as string).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}</span>
+                  <div className="flex-1 h-px bg-border/50" />
+                </div>
+              ) : null
+              if (item.kind === 'poll' && item.poll) {
+                const poll = item.poll
+                return (
+                  <div key={item.key}>
+                    {dateSep}
+                    <div className="mb-3 px-2 sm:px-4">
+                      <p className="text-[11px] font-semibold text-primary mb-1">📊 Poll • {poll.creator_name || 'Unknown'}</p>
+                      <PollCard poll={poll} userId={user?.id} onVote={handlePollVote} onDelete={handlePollDelete} />
                     </div>
-                  )}
+                  </div>
+                )
+              }
+              if (item.kind === 'event' && item.event) {
+                const ev = item.event
+                return (
+                  <div key={item.key}>
+                    {dateSep}
+                    <div className="mb-3 px-2 sm:px-4">
+                      <p className="text-[11px] font-semibold text-primary mb-1">📅 Event • {ev.creator_name || 'Unknown'}</p>
+                      <EventCard ev={ev} userId={user?.id ?? 0} onRespond={handleEventRespond} />
+                    </div>
+                  </div>
+                )
+              }
+              const msg = item.msg
+              const prevMsg = prev?.kind === 'msg' ? prev.msg : undefined
+              const next = flowItems[idx + 1]
+              const nextMsg = next?.kind === 'msg' ? next.msg : undefined
+              const isOwn = msg.sender_id === user?.id
+              const showAvatar = !!currentConv?.is_group && (!prevMsg || prevMsg.sender_id !== msg.sender_id)
+              const isLastInGroup = !nextMsg || nextMsg.sender_id !== msg.sender_id || (nextMsg && new Date(nextMsg.created_at).getTime() - new Date(msg.created_at).getTime() > 300000)
+              return (
+                <div key={item.key}>
+                  {dateSep}
                   <div className={isLastInGroup ? 'mb-3' : 'mb-0.5'}>
                     <MessageBubble
                       msg={msg}

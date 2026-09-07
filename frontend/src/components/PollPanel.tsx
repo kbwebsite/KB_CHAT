@@ -99,7 +99,7 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
   )
 }
 
-function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userId?: number, onVote: (id: number, opts: number[]) => void, onDelete: (id: number) => void }) {
+export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userId?: number, onVote: (id: number, opts: number[]) => void, onDelete: (id: number) => void }) {
   const myVotes = poll.options.filter(o => o.voter_ids.includes(userId!)).map(o => o.id)
   const [selected, setSelected] = useState<number[]>(myVotes)
   const hasVoted = myVotes.length > 0

@@ -269,10 +269,21 @@ async def create_message(
     member_ids = _member_ids(db, conv_id)
     msg_dict = _message_to_dict(msg, receipt_map(db, conv_id))
 
-    # broadcast via websocket
-    await manager.broadcast_to_conversation(
-        conv_id, {"type": "message.new", "payload": msg_dict}, member_ids=member_ids
-    )
+    # Fan-out AFTER responding: slow/offline recipients must not delay the
+    # sender's HTTP round-trip (this was adding seconds on production).
+    async def _fanout():
+        try:
+            await manager.broadcast_to_conversation(
+                conv_id,
+                {"type": "message.new", "payload": msg_dict},
+                member_ids=member_ids,
+            )
+        except Exception as e:
+            print(f"[messages] message.new fan-out failed: {e}")
+
+    import asyncio
+
+    asyncio.create_task(_fanout())
     return success_response(msg_dict, "Message sent")
 
 

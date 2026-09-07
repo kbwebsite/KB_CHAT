@@ -77,30 +77,36 @@ export default function EventPanel({ convId, userId }: { convId: number; userId:
       <div className="flex-1 overflow-y-auto p-3 space-y-2">
         {events.length === 0 && <p className="text-sm text-gray-400 text-center py-8">No events yet</p>}
         {events.map(ev => (
-          <div key={ev.id} className="p-3 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
-            <div className="font-medium text-sm">{ev.title}</div>
-            {ev.description && <div className="text-xs text-gray-400 mt-1">{ev.description}</div>}
-            <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-400">
-              {ev.event_date && <span>📅 {new Date(ev.event_date).toLocaleString()}</span>}
-              {ev.location && <span>📍 {ev.location}</span>}
-            </div>
-            <div className="text-xs text-gray-400 mt-1">Created by {ev.creator_name}</div>
-            <div className="flex gap-1 mt-2">
-              {(['going', 'maybe', 'cant_go'] as const).map(r => {
-                const labels = { going: '✅ Going', maybe: '🤔 Maybe', cant_go: '❌ Can\'t' }
-                const count = r === 'going' ? ev.going_count : r === 'maybe' ? ev.maybe_count : ev.cant_go_count
-                const selected = r === 'going' ? ev.going : r === 'maybe' ? ev.maybe : ev.cant_go
-                const isMe = selected.includes(userId)
-                return (
-                  <button key={r} onClick={() => handleRespond(ev.id, r)}
-                    className={`text-xs px-2 py-1 rounded-full border transition-colors ${isMe ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'border-[var(--border)] hover:border-[var(--primary)]'}`}>
-                    {labels[r]} {count > 0 && `(${count})`}
-                  </button>
-                )
-              })}
-            </div>
-          </div>
+          <EventCard key={ev.id} ev={ev} userId={userId} onRespond={handleRespond} />
         ))}
+      </div>
+    </div>
+  )
+}
+
+export function EventCard({ ev, userId, onRespond }: { ev: Event; userId: number; onRespond: (id: number, response: string) => void }) {
+  return (
+    <div className="p-3 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+      <div className="font-medium text-sm">{ev.title}</div>
+      {ev.description && <div className="text-xs text-gray-400 mt-1">{ev.description}</div>}
+      <div className="flex flex-wrap gap-2 mt-2 text-xs text-gray-400">
+        {ev.event_date && <span>📅 {new Date(ev.event_date).toLocaleString()}</span>}
+        {ev.location && <span>📍 {ev.location}</span>}
+      </div>
+      <div className="text-xs text-gray-400 mt-1">Created by {ev.creator_name}</div>
+      <div className="flex gap-1 mt-2">
+        {(['going', 'maybe', 'cant_go'] as const).map(r => {
+          const labels = { going: '✅ Going', maybe: '🤔 Maybe', cant_go: '❌ Can\'t' }
+          const count = r === 'going' ? ev.going_count : r === 'maybe' ? ev.maybe_count : ev.cant_go_count
+          const selected = r === 'going' ? ev.going : r === 'maybe' ? ev.maybe : ev.cant_go
+          const isMe = (selected || []).includes(userId)
+          return (
+            <button key={r} onClick={() => onRespond(ev.id, r)}
+              className={`text-xs px-2 py-1 rounded-full border transition-colors ${isMe ? 'bg-[var(--primary)] text-white border-[var(--primary)]' : 'border-[var(--border)] hover:border-[var(--primary)]'}`}>
+              {labels[r]} {count > 0 && `(${count})`}
+            </button>
+          )
+        })}
       </div>
     </div>
   )

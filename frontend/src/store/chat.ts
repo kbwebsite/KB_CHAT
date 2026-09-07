@@ -20,6 +20,8 @@ interface ChatState {
   fetchMessages: (convId:number, before?:number)=>Promise<void>
   sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number})=>Promise<void>
   addMessage: (msg:Message)=>void
+  replaceMessage: (tempId:number, real:Message)=>void
+  removeMessage: (convId:number, msgId:number)=>void
   updateMessage: (msg:Message)=>void
   deleteMessagePlaceholder: (payload:any)=>void
   editMessage: (id:number, content:string)=>Promise<void>
@@ -77,18 +79,76 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     } finally { set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } })) }
   },
   sendMessage: async (convId, content, replyTo, attachmentIds, type='text', extra)=>{
-    const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}) })
-    if (res.success) {
-      get().addMessage(res.data)
+    // Optimistic UI: show the message instantly (server round-trips can take
+    // seconds on cold production instances), then reconcile with the real row.
+    const me = useAuthStore.getState().user
+    const tempId = -Date.now()
+    const temp: Message = {
+      id: tempId, conversation_id: convId,
+      sender_id: me?.id ?? null, sender_username: me?.username ?? null,
+      sender_display_name: me?.display_name ?? null, sender_avatar: me?.avatar_url ?? null,
+      content, message_type: type, reply_to_id: replyTo ?? null,
+      is_deleted: false, is_edited: false,
+      created_at: new Date().toISOString(),
+      attachments: [], reactions: [], status: 'sending' as any,
+    }
+    get().addMessage(temp)
+    try {
+      const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}) })
+      if (res.success) {
+        get().replaceMessage(tempId, res.data)
+      } else {
+        get().removeMessage(convId, tempId)
+        throw new Error(res.message || 'Send failed')
+      }
+    } catch (e) {
+      get().removeMessage(convId, tempId)
+      throw e
     }
   },
+  replaceMessage: (tempId, real)=>{
+    set(state=>{
+      const list = state.messages[real.conversation_id] || []
+      // Drop the optimistic placeholder; add real unless WS already delivered it.
+      const withoutTemp = list.filter(m=> m.id !== tempId)
+      if (withoutTemp.some(m=> m.id === real.id)) {
+        return { messages: { ...state.messages, [real.conversation_id]: withoutTemp } }
+      }
+      return { messages: { ...state.messages, [real.conversation_id]: [...withoutTemp, real] } }
+    })
+    // refresh the conversation preview with the authoritative message
+    set(state=>{
+      const convs = state.conversations.map(c=>{
+        if (c.id===real.conversation_id) {
+          return { ...c, last_message: { id: real.id, content: real.content||'', sender_id: real.sender_id, sender_username: real.sender_username, created_at: real.created_at, message_type: real.message_type } as any }
+        }
+        return c
+      })
+      return { conversations: convs }
+    })
+  },
+  removeMessage: (convId, msgId)=>{
+    set(state=>{
+      const list = state.messages[convId] || []
+      return { messages: { ...state.messages, [convId]: list.filter(m=> m.id !== msgId) } }
+    })
+  },
   addMessage: (msg)=>{
+    // Ignore our own optimistic echoes arriving back over the socket before
+    // the HTTP response reconciles them (matched by content+type proximity
+    // is unreliable, so the replace step handles the temp row instead).
+    if (msg.id < 0) return
     set(state=>{
       const list = state.messages[msg.conversation_id] || []
       // dedup
       if (list.some(m=>m.id===msg.id)) return state
       return { messages: {...state.messages, [msg.conversation_id]: [...list, msg]} }
     })
+    // Message from a conversation we don't list yet (e.g. a new contact
+    // messaged us first) — pull the conversation list so it appears.
+    if (!get().conversations.some(c=> c.id === msg.conversation_id)) {
+      get().fetchConversations().catch(()=>{})
+    }
     // update conversation last_message preview
     set(state=>{
       const convs = state.conversations.map(c=>{
@@ -108,9 +168,10 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       })
       return { conversations: convs }
     })
-    // if message is in current conv, auto mark read
+    // if message is in current conv, auto mark read (never for optimistic
+    // placeholders — negative temp ids would corrupt the read cursor)
     const cur = get().currentConversationId
-    if (cur===msg.conversation_id) {
+    if (cur===msg.conversation_id && msg.id > 0) {
       get().markRead(cur, msg.id)
     }
   },

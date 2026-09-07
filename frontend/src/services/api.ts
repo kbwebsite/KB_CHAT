@@ -28,6 +28,12 @@ api.interceptors.response.use(
 
 export default api
 
+// Public runtime config (no auth needed). Values that can't be baked into
+// the Docker-built bundle are fetched here at runtime.
+export const configApi = {
+  get: () => api.get('/api/config').then(r=>r.data),
+}
+
 // helpers
 export const authApi = {
   signup: (data:any) => api.post('/api/auth/signup', data).then(r=>r.data),

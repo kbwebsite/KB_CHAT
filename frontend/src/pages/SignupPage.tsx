@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
-import { authApi } from '../services/api'
+import { authApi, configApi } from '../services/api'
 import { Eye, EyeOff } from 'lucide-react'
 
 declare global { interface Window { google?: any } }
@@ -49,19 +49,34 @@ export default function SignupPage() {
     setGoogleLoading(false)
   }
 
+  // Google client ID: build-time value first, else runtime /api/config.
+  const [googleClientId, setGoogleClientId]=useState<string|null>(
+    import.meta.env.VITE_GOOGLE_CLIENT_ID || null
+  )
   useEffect(()=>{
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID
-    if (!clientId) return
+    if (googleClientId) return
+    let cancelled = false
+    configApi.get()
+      .then((res:any)=> { if (!cancelled && res?.success && res?.data?.googleClientId) setGoogleClientId(res.data.googleClientId) })
+      .catch(()=>{})
+    return ()=> { cancelled = true }
+  }, [])
+
+  useEffect(()=>{
+    if (!googleClientId) return
     const script = document.createElement('script')
     script.src = 'https://accounts.google.com/gsi/client'
     script.async = true
     script.onload = ()=>{
       if (window.google?.accounts?.id) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: (response:any)=> handleGoogleLogin(response.credential),
-        })
+        try {
+          window.google.accounts.id.initialize({
+            client_id: googleClientId,
+            callback: (response:any)=> handleGoogleLogin(response.credential),
+          })
+        } catch { return }
         if (googleBtnRef.current) {
+          googleBtnRef.current.innerHTML = ''
           window.google.accounts.id.renderButton(googleBtnRef.current, {
             theme: 'outline', size: 'large', width: '100%', text: 'continue_with',
           })
@@ -69,8 +84,8 @@ export default function SignupPage() {
       }
     }
     document.head.appendChild(script)
-    return ()=> { document.head.removeChild(script) }
-  }, [])
+    return ()=> { if (script.parentNode) script.parentNode.removeChild(script) }
+  }, [googleClientId])
 
   return (
     <div className="min-h-screen flex relative overflow-hidden">
@@ -119,7 +134,7 @@ export default function SignupPage() {
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
           </div>
           <div className="mt-4">
-            {import.meta.env.VITE_GOOGLE_CLIENT_ID ? (
+            {googleClientId ? (
               <div ref={googleBtnRef} className="w-full flex justify-center"/>
             ) : (
               <button disabled className="auth-google-btn w-full py-3 rounded-xl text-sm text-muted-foreground cursor-not-allowed">
