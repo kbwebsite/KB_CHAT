@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
-import { authApi, configApi } from '../services/api'
+import { authApi, configApi, isNativeApp } from '../services/api'
 import { MessageCircle, Eye, EyeOff } from 'lucide-react'
 
 declare global { interface Window { google?: any } }
@@ -124,7 +124,7 @@ export default function LoginPage() {
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
           </div>
           <div className="mt-4">
-            {googleClientId ? (
+            {googleClientId && !isNativeApp() ? (
               <div ref={googleBtnRef} className="w-full flex justify-center"/>
             ) : (
               <button disabled className="auth-google-btn w-full py-3 rounded-xl text-sm text-muted-foreground cursor-not-allowed">

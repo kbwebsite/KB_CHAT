@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Kryzen</string>
+    <string name="title_activity_main">Kryzen</string>
+    <string name="package_name">com.kryzen.chat</string>
+    <string name="custom_url_scheme">com.kryzen.chat</string>
+</resources>

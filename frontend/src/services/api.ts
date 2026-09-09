@@ -1,7 +1,23 @@
 import axios from 'axios'
 
+// Production backend origin. The native Android shell (Capacitor) serves the
+// SPA from a local origin, so relative API URLs would resolve to the device
+// itself — in the app we must talk to production over absolute URLs.
+export const PROD_ORIGIN = 'https://kb-chat-jqdk.onrender.com'
+
+export function isNativeApp(): boolean {
+  try {
+    const cap = (window as any)?.Capacitor
+    return !!cap?.isNativePlatform?.()
+  } catch {
+    return false
+  }
+}
+
 const api = axios.create({
-  baseURL: '',
+  baseURL: isNativeApp()
+    ? (import.meta.env.VITE_API_URL || PROD_ORIGIN)
+    : (import.meta.env.VITE_API_URL || ''),
   headers: { 'Content-Type': 'application/json' },
 })
 

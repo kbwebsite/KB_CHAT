@@ -11,6 +11,12 @@ uploads/*
 node_modules/
 frontend/dist/
 frontend/build/
+# Capacitor Android: keep sources, ignore machine-local + build outputs
+frontend/android/local.properties
+frontend/android/.gradle/
+frontend/android/app/build/
+frontend/android/app/release/
+frontend/android/capacitor-cordova-android-plugins/build/
 .DS_Store
 *.log
 .pytest_cache/

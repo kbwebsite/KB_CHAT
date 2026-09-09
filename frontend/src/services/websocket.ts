@@ -12,6 +12,17 @@ class WSService {
   connect(token: string) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
     if (this.ws) { this.ws.close(); this.ws = null }
+    // Native shell has a local (capacitor://) origin — dial production directly.
+    try {
+      const cap = (window as any)?.Capacitor
+      if (cap?.isNativePlatform?.()) {
+        const wsBase = (import.meta.env.VITE_WS_URL || 'wss://kb-chat-jqdk.onrender.com').replace(/\/$/, '')
+        this.url = `${wsBase}/ws/chat?token=${encodeURIComponent(token)}`
+        this.shouldReconnect = true
+        this._connect()
+        return
+      }
+    } catch { /* fall through to web logic */ }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
     const host = window.location.host
     let wsHost = host

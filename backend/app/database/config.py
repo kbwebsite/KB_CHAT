@@ -73,7 +73,19 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
-        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+        # Native Android/iOS shells (Capacitor) run the SPA from a local
+        # origin, not the web domain. Always allow them so the APK works
+        # regardless of the dashboard CORS_ORIGINS value.
+        for native in (
+            "https://localhost",
+            "http://localhost",
+            "capacitor://localhost",
+            "ionic://localhost",
+        ):
+            if native not in origins:
+                origins.append(native)
+        return origins
 
     @property
     def upload_dir_abs(self) -> str:
