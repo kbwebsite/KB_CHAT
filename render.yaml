@@ -36,6 +36,20 @@ services:
         value: 358381591648362
       - key: CLOUDINARY_API_SECRET
         sync: false
+      # Push notifications via Firebase (fill in dashboard after creating the
+      # Firebase project; empty = push stays disabled, app unaffected)
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: FIREBASE_API_KEY
+        sync: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_SENDER_ID
+        sync: false
+      - key: FIREBASE_APP_ID
+        sync: false
+      - key: FIREBASE_VAPID_KEY
+        sync: false
       # TURN / WebRTC (optional)
       - key: TURN_SERVER_URL
         sync: false

@@ -69,6 +69,7 @@ from app.models.notification_setting import NotificationSetting
 from app.models.session import UserSession
 from app.models.sticker import StickerPack, Sticker, UserSticker
 from app.models.agent import AgentConversation, AgentMessage
+from app.models.push_token import DeviceToken  # noqa: F401 (register table)
 
 
 from app.api.auth import router as auth_router
@@ -93,6 +94,7 @@ from app.api.insights import router as insights_router
 from app.api.stickers import router as stickers_router
 from app.api.ai import router as ai_router
 from app.api.agent import router as agent_router
+from app.api.push import router as push_router
 from app.websocket.chat import router as ws_router
 
 create_tables()
@@ -139,6 +141,7 @@ app.include_router(insights_router)
 app.include_router(stickers_router)
 app.include_router(ai_router)
 app.include_router(agent_router)
+app.include_router(push_router)
 app.include_router(ws_router)
 
 
@@ -163,9 +166,21 @@ def public_config():
     env vars as build args), so the client fetches them here at runtime with
     the build-time value as fallback.
     """
+    firebase = None
+    if settings.FIREBASE_PROJECT_ID:
+        firebase = {
+            "apiKey": settings.FIREBASE_API_KEY or None,
+            "projectId": settings.FIREBASE_PROJECT_ID or None,
+            "messagingSenderId": settings.FIREBASE_SENDER_ID or None,
+            "appId": settings.FIREBASE_APP_ID or None,
+        }
     return {
         "success": True,
-        "data": {"googleClientId": settings.GOOGLE_CLIENT_ID or None},
+        "data": {
+            "googleClientId": settings.GOOGLE_CLIENT_ID or None,
+            "vapidKey": settings.FIREBASE_VAPID_KEY or None,
+            "firebase": firebase,
+        },
         "message": None,
     }
 

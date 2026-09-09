@@ -77,6 +77,10 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
     } finally { set({loading:false}) }
   },
   logout: async ()=>{
+    try {
+      const { unregisterWebPush } = await import('../utils/push')
+      await unregisterWebPush()
+    } catch {}
     try { await authApi.logout() } catch {}
     localStorage.removeItem('kb_token')
     localStorage.removeItem('kb_user')

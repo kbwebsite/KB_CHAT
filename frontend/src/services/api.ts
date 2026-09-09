@@ -281,6 +281,14 @@ export const aiApi = {
     api.post('/api/ai/smart-search', { message: query }).then(r=>r.data),
 }
 
+export const pushApi = {
+  register: (data: { token: string; platform?: string; device_id?: string }) =>
+    api.post('/api/push/tokens', data).then(r=>r.data),
+  unregister: (data: { token: string }) =>
+    api.post('/api/push/tokens/unregister', data).then(r=>r.data),
+  status: () => api.get('/api/push/status').then(r=>r.data),
+}
+
 export const agentApi = {
   chat: (message: string, conversationId?: number | null) =>
     api.post('/api/ai/agent/chat', { message, conversation_id: conversationId ?? null }).then(r=>r.data),

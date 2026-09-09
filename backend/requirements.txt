@@ -18,6 +18,9 @@ pytest==8.0.1
 pytest-asyncio==0.23.5
 anyio==4.3.0
 cloudinary==1.36.0
+# Push notifications via FCM HTTP v1 (OAuth2 service-account minting)
+google-auth
+requests
 # AI agent / code-index subsystem (imported lazily; pinned to cp311-compatible
 # wheels for python:3.11-slim — numpy 2.5.x has no cp311 wheel)
 numpy==2.2.6

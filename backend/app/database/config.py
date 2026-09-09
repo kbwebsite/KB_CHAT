@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     AI_BASE_URL: str = "https://api.openai.com/v1"
     AI_PROVIDER: str = "mock"
     GOOGLE_CLIENT_ID: str = ""
+    # Firebase Cloud Messaging (push). Service-account JSON goes in
+    # FIREBASE_CREDENTIALS_JSON (secret — never exposed). The rest are public
+    # web-config values served to the SPA via /api/config.
+    FIREBASE_CREDENTIALS_JSON: str = ""
+    FIREBASE_API_KEY: str = ""
+    FIREBASE_PROJECT_ID: str = ""
+    FIREBASE_SENDER_ID: str = ""
+    FIREBASE_APP_ID: str = ""
+    FIREBASE_VAPID_KEY: str = ""
     TURN_SERVER_URL: str = ""
     TURN_USERNAME: str = ""
     TURN_CREDENTIAL: str = ""

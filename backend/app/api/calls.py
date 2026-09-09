@@ -108,6 +108,33 @@ async def start_call(
             },
         },
     )
+    # Callee has no live socket: high-priority push so the phone still rings.
+    try:
+        from app.utils.fcm import notify_user_tokens
+
+        online = False
+        try:
+            online = manager.is_online(callee_id)
+        except Exception:
+            pass
+        if not online:
+            kind = "video" if call.call_type == "video" else "voice"
+            await notify_user_tokens(
+                db,
+                callee_id,
+                f"Incoming {kind} call",
+                current_user.display_name or current_user.username,
+                data={
+                    "type": "call",
+                    "call_id": call.id,
+                    "call_type": call.call_type,
+                    "conversation_id": conversation_id or "",
+                    "caller_id": current_user.id,
+                },
+                high_priority=True,
+            )
+    except Exception as e:
+        print(f"[calls] incoming-call push failed: {e}")
     return success_response(
         {"id": call.id, "status": "ongoing", "call_type": call.call_type},
         "Call started",
