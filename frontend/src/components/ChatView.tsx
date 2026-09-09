@@ -333,6 +333,7 @@ export function ChatView({
           onInfo={onGroupInfo}
           onCall={onCall}
           onMute={onMute}
+          muted={isMuted}
           onSearch={handleMessageSearch}
           handleRefresh={handleRefresh}
           onAi={() => setAiPanelOpen(!aiPanelOpen)}

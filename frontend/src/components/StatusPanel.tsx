@@ -3,7 +3,7 @@ import { statusApi } from '../services/api'
 import { X, Plus, Eye, Trash2, Image as ImageIcon, Video, Type, Send } from 'lucide-react'
 import { useAuthStore } from '../store/auth'
 
-export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:(status:any, all:any[])=>void }) {
+export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:(statuses:any[], idx:number)=>void }) {
   const [feed, setFeed]=useState<{my_status:any[], recent:any[], viewed:any[]}>({my_status:[], recent:[], viewed:[]})
   const [loading, setLoading]=useState(true)
   const [showComposer, setShowComposer]=useState(false)
@@ -44,9 +44,9 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
           {showComposer && <StatusComposer onCreated={()=>{ setShowComposer(false); load() }} onClose={()=> setShowComposer(false)} />}
           {feed.my_status.length>0 && (
             <div className="mt-3 space-y-2">
-              {feed.my_status.map((s:any)=> (
+              {feed.my_status.map((s:any, i:number)=> (
                 <div key={s.id} className="flex items-center gap-3 p-2 rounded-xl bg-card border hover:bg-muted group">
-                  <button onClick={()=> onViewer(s, feed.my_status)} className="flex items-center gap-3 flex-1 text-left">
+                  <button onClick={()=> onViewer(feed.my_status, i)} className="flex items-center gap-3 flex-1 text-left">
                     <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm">
                       {s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span>{(s.content||'?')[0]}</span>}
                     </div>
@@ -68,8 +68,8 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Recent Updates</h3>
           {loading ? <p className="text-xs text-muted-foreground">Loading...</p> : feed.recent.length===0 ? <div className="empty-art"><p className="text-2xl mb-1">📸</p><p className="text-sm text-muted-foreground">No recent updates</p></div> : (
             <div className="space-y-2">
-              {feed.recent.map((s:any)=> (
-                <button key={s.id} onClick={()=> { statusApi.view(s.id); onViewer(s, feed.recent)}} className="panel-row w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
+              {feed.recent.map((s:any, i:number)=> (
+                <button key={s.id} onClick={()=> { statusApi.view(s.id); onViewer(feed.recent, i)}} className="panel-row w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
                   <div className="avatar-ring w-10 h-10">
                     <div className="w-full h-full rounded-full bg-card p-0.5">
                       <div className="w-full h-full rounded-full overflow-hidden bg-muted flex items-center justify-center">
@@ -92,8 +92,8 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
           <div>
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">Viewed</h3>
             <div className="space-y-2 opacity-60">
-              {feed.viewed.map((s:any)=> (
-                <button key={s.id} onClick={()=> onViewer(s, feed.viewed)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
+              {feed.viewed.map((s:any, i:number)=> (
+                <button key={s.id} onClick={()=> onViewer(feed.viewed, i)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex items-center justify-center">
                     {s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span>{s.display_name[0]}</span>}
                   </div>

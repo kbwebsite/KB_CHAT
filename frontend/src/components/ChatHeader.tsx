@@ -1,17 +1,9 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, LayoutGrid, BarChart3, CalendarDays, Pin, Clock3, Lightbulb } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info } from 'lucide-react'
 import { useState } from 'react'
 
 export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights'
-
-const EXTRAS_ITEMS: { key: ExtrasKey; label: string; icon: any }[] = [
-  { key: 'polls', label: 'Polls', icon: BarChart3 },
-  { key: 'events', label: 'Events', icon: CalendarDays },
-  { key: 'pinned', label: 'Pinned', icon: Pin },
-  { key: 'schedule', label: 'Scheduled', icon: Clock3 },
-  { key: 'insights', label: 'Insights', icon: Lightbulb },
-]
 
 export function ChatHeader({
   conv,
@@ -20,6 +12,7 @@ export function ChatHeader({
   onInfo,
   onCall,
   onMute,
+  muted,
   onSearch,
   handleRefresh,
   onAi,
@@ -34,6 +27,7 @@ export function ChatHeader({
   onInfo?: () => void
   onCall?: (type: 'voice' | 'video') => void
   onMute?: () => void
+  muted?: boolean
   onSearch?: () => void
   handleRefresh?: () => void
   onAi?: () => void
@@ -42,7 +36,23 @@ export function ChatHeader({
   onSettings?: () => void
   onExtras?: (key: ExtrasKey) => void
 }) {
-  const [showExtras, setShowExtras] = useState(false)
+  const [showMenu, setShowMenu] = useState(false)
+  const close = () => setShowMenu(false)
+  const fire = (fn?: () => void) => () => { close(); fn?.() }
+
+  const menuItems: { label: string; icon: any; run?: () => void; danger?: boolean }[] = [
+    ...(onAi ? [{ label: 'AI Assistant', icon: Sparkles, run: onAi }] : []),
+    ...(onTheme ? [{ label: 'Theme', icon: Palette, run: onTheme }] : []),
+    ...(onSettings ? [{ label: 'Settings', icon: Settings, run: onSettings }] : []),
+    ...(onMute ? [{ label: muted ? 'Unmute chat' : 'Mute chat', icon: muted ? Bell : BellOff, run: onMute }] : []),
+  ]
+  const extrasItems: { key: ExtrasKey; label: string; icon: any }[] = onExtras ? [
+    { key: 'polls', label: 'Polls', icon: BarChart3 },
+    { key: 'events', label: 'Events', icon: CalendarDays },
+    { key: 'pinned', label: 'Pinned messages', icon: Pin },
+    { key: 'schedule', label: 'Scheduled', icon: Clock3 },
+    { key: 'insights', label: 'Insights', icon: Lightbulb },
+  ] : []
   const title = conv?.title || 'Unknown'
   const isOnline = conv && !conv.is_group && conv.members.some(m => m.user_id !== currentUserId && m.is_online)
   const subtitle = conv?.is_group
@@ -88,7 +98,8 @@ export function ChatHeader({
         </div>
       </div>
 
-      {/* Action buttons */}
+      {/* Action buttons: core actions inline, everything else in one menu
+          so narrow (phone) headers never crush the title. */}
       <div className="flex items-center gap-1 flex-shrink-0">
         {onSearch && (
           <button onClick={onSearch} className="btn-icon" aria-label="Search messages">
@@ -105,51 +116,40 @@ export function ChatHeader({
             <Video className="w-[18px] h-[18px]" />
           </button>
         )}
-{onAi && (
-            <button onClick={onAi} className="btn-icon" aria-label="AI Assistant">
-              <Sparkles className="w-[18px] h-[18px]" />
-            </button>
-          )}
-          {onTheme && (
-            <button onClick={onTheme} className="btn-icon" aria-label="Theme">
-              <Palette className="w-[18px] h-[18px]" />
-            </button>
-          )}
-          {onSettings && (
-            <button onClick={onSettings} className="btn-icon" aria-label="Settings">
-              <Settings className="w-[18px] h-[18px]" />
-            </button>
-          )}
-          {onExtras && (
-            <div className="relative">
-              <button onClick={() => setShowExtras(v => !v)} className="btn-icon" aria-label="More features" aria-haspopup="menu" aria-expanded={showExtras}>
-                <LayoutGrid className="w-[18px] h-[18px]" />
-              </button>
-              {showExtras && (
-                <>
-                  <div className="fixed inset-0 z-10" onClick={() => setShowExtras(false)} />
-                  <div className="absolute right-0 top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm" role="menu">
-                    {EXTRAS_ITEMS.map(({ key, label, icon: Icon }) => (
-                      <button
-                        key={key}
-                        role="menuitem"
-                        onClick={() => { onExtras(key); setShowExtras(false) }}
-                        className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5"
-                      >
-                        <Icon className="w-4 h-4 text-primary" />
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-            </div>
-          )}
-          {onInfo && (
-          <button onClick={onInfo} className="btn-icon" aria-label="More options">
+        <div className="relative">
+          <button onClick={() => setShowMenu(v => !v)} className="btn-icon" aria-label="More options" aria-haspopup="menu" aria-expanded={showMenu}>
             <MoreVertical className="w-[18px] h-[18px]" />
           </button>
-        )}
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={close} />
+              <div className="absolute right-0 top-full mt-2 w-52 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm max-h-[70vh] overflow-y-auto" role="menu">
+                {menuItems.map(({ label, icon: Icon, run }) => (
+                  <button key={label} role="menuitem" onClick={fire(run)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Icon className="w-4 h-4 text-primary" />
+                    {label}
+                  </button>
+                ))}
+                {menuItems.length > 0 && extrasItems.length > 0 && <div className="border-t my-1" />}
+                {extrasItems.map(({ key, label, icon: Icon }) => (
+                  <button key={key} role="menuitem" onClick={fire(() => onExtras?.(key))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Icon className="w-4 h-4 text-primary" />
+                    {label}
+                  </button>
+                ))}
+                {onInfo && (
+                  <>
+                    <div className="border-t my-1" />
+                    <button role="menuitem" onClick={fire(onInfo)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                      <Info className="w-4 h-4 text-primary" />
+                      {conv?.is_group ? 'Group info' : 'Contact info'}
+                    </button>
+                  </>
+                )}
+              </div>
+            </>
+          )}
+        </div>
       </div>
     </div>
   )
