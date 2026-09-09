@@ -14,6 +14,12 @@ class MessageCreate(BaseModel):
     voice_file_id: Optional[int] = Field(
         None, description="Attachment ID of the recorded audio file"
     )
+    is_encrypted: bool = Field(
+        default=False, description="NaCl-box ciphertext in content (E2EE v1)"
+    )
+    nonce: Optional[str] = Field(
+        default=None, max_length=64, description="base64 24-byte box nonce"
+    )
 
 
 class MessageUpdate(BaseModel):

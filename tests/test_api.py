@@ -299,3 +299,78 @@ def test_delivered_endpoint_acks_without_read():
     hc = _login(c)
     r_forbidden = client.post(f"/api/messages/{mid}/delivered", headers=hc)
     assert r_forbidden.status_code == 403
+
+
+def test_e2ee_envelope_and_keys():
+    import base64
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a = f"ea{s}"
+    b = f"eb{s}"
+    signup_user(a, f"{a}@ex.com", "E2E A")
+    signup_user(b, f"{b}@ex.com", "E2E B")
+    ha, hb = _login(a), _login(b)
+    # publish a device key
+    pub = base64.b64encode(b"A" * 32).decode()
+    r = client.patch("/api/users/me/keys", json={"identity_pubkey": pub}, headers=ha)
+    assert r.status_code == 200, r.text
+    # malformed key rejected
+    r_bad = client.patch(
+        "/api/users/me/keys", json={"identity_pubkey": "nope"}, headers=ha
+    )
+    assert r_bad.status_code == 400
+    # peer can fetch it; unknown key -> 404
+    me = client.get("/api/auth/me", headers=ha).json()["data"]
+    rk = client.get(f"/api/users/keys/{me['id']}", headers=hb)
+    assert rk.status_code == 200 and rk.json()["data"]["identity_pubkey"] == pub
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    assert client.get(f"/api/users/keys/{me_b['id']}", headers=ha).status_code == 404
+    # 1-1 conversation + valid encrypted envelope
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    box = base64.b64encode(b"C" * 48).decode()
+    nonce = base64.b64encode(b"N" * 24).decode()
+    rm = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={
+            "content": box,
+            "message_type": "text",
+            "is_encrypted": True,
+            "nonce": nonce,
+        },
+        headers=ha,
+    )
+    assert rm.status_code == 200, rm.text
+    assert rm.json()["data"]["is_encrypted"] is True
+    assert rm.json()["data"]["nonce"] == nonce
+    # bad nonce rejected
+    rb = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={
+            "content": box,
+            "message_type": "text",
+            "is_encrypted": True,
+            "nonce": "short",
+        },
+        headers=ha,
+    )
+    assert rb.status_code == 400
+    # groups reject encrypted
+    rg = client.post(
+        "/api/conversations",
+        json={"is_group": True, "title": "Enc Group", "member_usernames": [b]},
+        headers=ha,
+    )
+    gid = rg.json()["data"]["id"]
+    rgg = client.post(
+        f"/api/conversations/{gid}/messages",
+        json={
+            "content": box,
+            "message_type": "text",
+            "is_encrypted": True,
+            "nonce": nonce,
+        },
+        headers=ha,
+    )
+    assert rgg.status_code == 400

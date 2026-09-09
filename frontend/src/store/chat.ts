@@ -18,7 +18,7 @@ interface ChatState {
   fetchConversations: (search?:string)=>Promise<void>
   setCurrent: (id:number|null)=>void
   fetchMessages: (convId:number, before?:number)=>Promise<void>
-  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number})=>Promise<void>
+  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string})=>Promise<void>
   addMessage: (msg:Message)=>void
   replaceMessage: (tempId:number, real:Message)=>void
   removeMessage: (convId:number, msgId:number)=>void
@@ -87,14 +87,14 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       id: tempId, conversation_id: convId,
       sender_id: me?.id ?? null, sender_username: me?.username ?? null,
       sender_display_name: me?.display_name ?? null, sender_avatar: me?.avatar_url ?? null,
-      content, message_type: type, reply_to_id: replyTo ?? null,
+      content: extra?.displayContent ?? content, message_type: type, reply_to_id: replyTo ?? null,
       is_deleted: false, is_edited: false,
       created_at: new Date().toISOString(),
       attachments: [], reactions: [], status: 'sending' as any,
     }
     get().addMessage(temp)
     try {
-      const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}) })
+      const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}) })
       if (res.success) {
         get().replaceMessage(tempId, res.data)
       } else {

@@ -11,34 +11,55 @@ from app.schemas.common import success_response
 
 router = APIRouter(prefix="/api/calls", tags=["calls"])
 
+
 @router.get("/history")
-def call_history(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    calls = db.query(CallHistory).filter(
-        (CallHistory.caller_id == current_user.id) | (CallHistory.callee_id == current_user.id)
-    ).order_by(desc(CallHistory.started_at)).limit(50).all()
-    result=[]
+def call_history(
+    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+):
+    calls = (
+        db.query(CallHistory)
+        .filter(
+            (CallHistory.caller_id == current_user.id)
+            | (CallHistory.callee_id == current_user.id)
+        )
+        .order_by(desc(CallHistory.started_at))
+        .limit(50)
+        .all()
+    )
+    result = []
     for c in calls:
-        caller = db.query(User).filter_by(id=c.caller_id).first() if c.caller_id else None
-        callee = db.query(User).filter_by(id=c.callee_id).first() if c.callee_id else None
-        result.append({
-            "id": c.id,
-            "caller_id": c.caller_id,
-            "caller_username": caller.username if caller else None,
-            "callee_id": c.callee_id,
-            "callee_username": callee.username if callee else None,
-            "caller_display": caller.display_name if caller else "Unknown",
-            "callee_display": callee.display_name if callee else "Unknown",
-            "call_type": c.call_type,
-            "status": c.status,
-            "started_at": c.started_at.isoformat() if c.started_at else None,
-            "ended_at": c.ended_at.isoformat() if c.ended_at else None,
-            "duration_seconds": c.duration_seconds,
-            "conversation_id": c.conversation_id,
-        })
+        caller = (
+            db.query(User).filter_by(id=c.caller_id).first() if c.caller_id else None
+        )
+        callee = (
+            db.query(User).filter_by(id=c.callee_id).first() if c.callee_id else None
+        )
+        result.append(
+            {
+                "id": c.id,
+                "caller_id": c.caller_id,
+                "caller_username": caller.username if caller else None,
+                "callee_id": c.callee_id,
+                "callee_username": callee.username if callee else None,
+                "caller_display": caller.display_name if caller else "Unknown",
+                "callee_display": callee.display_name if callee else "Unknown",
+                "call_type": c.call_type,
+                "status": c.status,
+                "started_at": c.started_at.isoformat() if c.started_at else None,
+                "ended_at": c.ended_at.isoformat() if c.ended_at else None,
+                "duration_seconds": c.duration_seconds,
+                "conversation_id": c.conversation_id,
+            }
+        )
     return success_response(result)
 
+
 @router.post("/start")
-async def start_call(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def start_call(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     callee_id = payload.get("callee_id")
     callee_username = payload.get("callee_username")
     conversation_id = payload.get("conversation_id")
@@ -53,13 +74,17 @@ async def start_call(payload: dict, db: Session = Depends(get_db), current_user:
         raise HTTPException(status_code=400, detail="Cannot call yourself")
     # verify conversation if provided
     if conversation_id:
-        if not db.query(ConversationMember).filter_by(conversation_id=conversation_id, user_id=current_user.id).first():
+        if (
+            not db.query(ConversationMember)
+            .filter_by(conversation_id=conversation_id, user_id=current_user.id)
+            .first()
+        ):
             raise HTTPException(status_code=403, detail="Not in conversation")
     call = CallHistory(
         caller_id=current_user.id,
         callee_id=callee_id,
         conversation_id=conversation_id,
-        call_type=call_type if call_type in ("voice","video") else "voice",
+        call_type=call_type if call_type in ("voice", "video") else "voice",
         status="ongoing",
         started_at=datetime.now(timezone.utc),
     )
@@ -68,28 +93,41 @@ async def start_call(payload: dict, db: Session = Depends(get_db), current_user:
     db.refresh(call)
     # broadcast via websocket to callee
     from app.websocket.manager import manager
-    await manager.send_to_user(callee_id, {
-        "type": "call.incoming",
-        "payload": {
-            "id": call.id,
-            "caller_id": current_user.id,
-            "caller_username": current_user.username,
-            "caller_display": current_user.display_name,
-            "call_type": call.call_type,
-            "conversation_id": conversation_id,
-        }
-    })
-    return success_response({"id": call.id, "status": "ongoing", "call_type": call.call_type}, "Call started")
+
+    await manager.send_to_user(
+        callee_id,
+        {
+            "type": "call.incoming",
+            "payload": {
+                "id": call.id,
+                "caller_id": current_user.id,
+                "caller_username": current_user.username,
+                "caller_display": current_user.display_name,
+                "call_type": call.call_type,
+                "conversation_id": conversation_id,
+            },
+        },
+    )
+    return success_response(
+        {"id": call.id, "status": "ongoing", "call_type": call.call_type},
+        "Call started",
+    )
+
 
 @router.post("/{call_id}/end")
-async def end_call(call_id: int, payload: dict = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def end_call(
+    call_id: int,
+    payload: dict = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     call = db.query(CallHistory).filter_by(id=call_id).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     if call.caller_id != current_user.id and call.callee_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not participant")
     status = (payload or {}).get("status", "ended")
-    if status not in ("ended","rejected","missed"):
+    if status not in ("ended", "rejected", "missed"):
         status = "ended"
     call.status = status
     call.ended_at = datetime.now(timezone.utc)
@@ -98,29 +136,110 @@ async def end_call(call_id: int, payload: dict = None, db: Session = Depends(get
     db.commit()
     # notify other party
     from app.websocket.manager import manager
+
     other = call.callee_id if current_user.id == call.caller_id else call.caller_id
     if other:
-        await manager.send_to_user(other, {"type": "call.ended", "payload": {"id": call.id, "status": status}})
-    return success_response({"id": call.id, "status": status, "duration": call.duration_seconds}, "Call ended")
+        await manager.send_to_user(
+            other, {"type": "call.ended", "payload": {"id": call.id, "status": status}}
+        )
+    # Leave a visible note in the chat for declined/missed calls.
+    if status in ("rejected", "missed") and call.conversation_id:
+        try:
+            from app.models.message import Message
+            from app.models.conversation import ConversationMember as _CM
+
+            kind = "video" if call.call_type == "video" else "voice"
+            text = (
+                f"📵 {kind.capitalize()} call declined"
+                if status == "rejected"
+                else f"📞 Missed {kind} call"
+            )
+            note = Message(
+                conversation_id=call.conversation_id,
+                sender_id=None,
+                content=text,
+                message_type="system",
+            )
+            db.add(note)
+            db.commit()
+            db.refresh(note)
+            member_ids = [
+                m.user_id
+                for m in db.query(_CM)
+                .filter_by(conversation_id=call.conversation_id)
+                .all()
+            ]
+            await manager.broadcast_to_conversation(
+                call.conversation_id,
+                {
+                    "type": "message.new",
+                    "payload": {
+                        "id": note.id,
+                        "conversation_id": note.conversation_id,
+                        "sender_id": None,
+                        "sender_username": None,
+                        "sender_display_name": None,
+                        "sender_avatar": None,
+                        "content": text,
+                        "message_type": "system",
+                        "reply_to_id": None,
+                        "reply_to_content": None,
+                        "is_deleted": False,
+                        "is_edited": False,
+                        "is_pinned": False,
+                        "pinned_at": None,
+                        "created_at": note.created_at.isoformat()
+                        if note.created_at
+                        else None,
+                        "updated_at": None,
+                        "attachments": [],
+                        "reactions": [],
+                        "status": "sent",
+                    },
+                },
+                member_ids=member_ids,
+            )
+        except Exception as e:
+            print(f"[calls] missed-call note failed: {e}")
+    return success_response(
+        {"id": call.id, "status": status, "duration": call.duration_seconds},
+        "Call ended",
+    )
+
 
 @router.post("/{call_id}/accept")
-async def accept_call(call_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def accept_call(
+    call_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     call = db.query(CallHistory).filter_by(id=call_id).first()
     if not call:
         raise HTTPException(status_code=404, detail="Call not found")
     if call.callee_id != current_user.id:
         raise HTTPException(status_code=403, detail="Only callee can accept")
     if call.status != "ongoing":
-        raise HTTPException(status_code=400, detail=f"Call cannot be accepted (status: {call.status})")
+        raise HTTPException(
+            status_code=400, detail=f"Call cannot be accepted (status: {call.status})"
+        )
     call.status = "ongoing"
     db.commit()
     from app.websocket.manager import manager
-    await manager.send_to_user(call.caller_id, {"type": "call.accepted", "payload": {"id": call.id}})
+
+    await manager.send_to_user(
+        call.caller_id, {"type": "call.accepted", "payload": {"id": call.id}}
+    )
     return success_response({"id": call.id}, "Accepted")
 
+
 @router.post("/{call_id}/reject")
-async def reject_call(call_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+async def reject_call(
+    call_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     return await end_call(call_id, {"status": "rejected"}, db, current_user)
+
 
 @router.get("/turn")
 async def get_turn_credentials(current_user: User = Depends(get_current_user)):
@@ -156,14 +275,16 @@ async def get_turn_credentials(current_user: User = Depends(get_current_user)):
 
     # Fallback: static TURN from env vars
     if settings.TURN_SERVER_URL:
-        return success_response([
-            {"urls": "stun:stun.cloudflare.com:3478"},
-            {
-                "urls": settings.TURN_SERVER_URL,
-                "username": settings.TURN_USERNAME,
-                "credential": settings.TURN_CREDENTIAL,
-            },
-        ])
+        return success_response(
+            [
+                {"urls": "stun:stun.cloudflare.com:3478"},
+                {
+                    "urls": settings.TURN_SERVER_URL,
+                    "username": settings.TURN_USERNAME,
+                    "credential": settings.TURN_CREDENTIAL,
+                },
+            ]
+        )
 
     # No TURN configured - STUN only
     return success_response(None)

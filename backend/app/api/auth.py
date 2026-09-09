@@ -164,16 +164,33 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Google credential required")
 
         # Verify token with Google
-        google_client_id = settings.GOOGLE_CLIENT_ID
+        google_client_id = (settings.GOOGLE_CLIENT_ID or "").strip()
         if not google_client_id:
             raise HTTPException(status_code=500, detail="Google Sign-In not configured")
 
         # Call Google's tokeninfo endpoint to verify
-        resp = httpx.get(
-            f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}", timeout=10
-        )
+        try:
+            resp = httpx.get(
+                f"https://oauth2.googleapis.com/tokeninfo?id_token={credential}",
+                timeout=10,
+            )
+        except Exception:
+            raise HTTPException(
+                status_code=502, detail="Could not reach Google to verify token"
+            )
         if resp.status_code != 200:
-            raise HTTPException(status_code=401, detail="Invalid Google token")
+            # Surface Google's reason (e.g. invalid_token, expired) so the
+            # login screen can show something actionable.
+            try:
+                reason = resp.json().get("error_description") or resp.json().get(
+                    "error"
+                )
+            except Exception:
+                reason = None
+            raise HTTPException(
+                status_code=401,
+                detail=f"Google rejected the token{': ' + reason if reason else ''}",
+            )
 
         google_data = resp.json()
         google_email = google_data.get("email")
@@ -185,10 +202,12 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
             raise HTTPException(status_code=401, detail="No email in Google token")
 
         # Verify the token was issued for our client ID
-        aud = google_data.get("aud")
+        aud = (google_data.get("aud") or "").strip()
         if aud != google_client_id:
             raise HTTPException(
-                status_code=401, detail="Token was not issued for this application"
+                status_code=401,
+                detail="Token was not issued for this app (client ID mismatch). "
+                "Check GOOGLE_CLIENT_ID on the server and the authorized origins in Google Cloud Console.",
             )
 
         # Find existing user by email

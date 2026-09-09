@@ -167,7 +167,10 @@ async def get_file(filename: str, token: str = None):
 
     mime, _ = mimetypes.guess_type(file_path)
     return FileResponse(
-        file_path, media_type=mime or "application/octet-stream", filename=safe
+        file_path,
+        media_type=mime or "application/octet-stream",
+        filename=safe,
+        headers={"Cache-Control": "public, max-age=86400"},
     )
 
 

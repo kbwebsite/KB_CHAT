@@ -20,6 +20,9 @@ class User(Base):
     last_seen = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
     auth_provider = Column(String(20), nullable=True, default="local")  # local, google
+    # X25519 device identity public key (base64, 32 bytes) for E2EE v1.
+    # The private half never leaves the device.
+    identity_pubkey = Column(String(64), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

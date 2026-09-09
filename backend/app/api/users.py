@@ -157,6 +157,48 @@ def get_leaderboard(
     )
 
 
+class PubkeyUpdate(BaseModel):
+    identity_pubkey: str
+
+
+@router.patch("/me/keys")
+def update_my_keys(
+    payload: PubkeyUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Publish this device's X25519 identity public key (E2EE v1)."""
+    import base64 as _b64
+
+    try:
+        raw = _b64.b64decode(payload.identity_pubkey, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="identity_pubkey must be base64")
+    if len(raw) != 32:
+        raise HTTPException(
+            status_code=400, detail="identity_pubkey must decode to 32 bytes"
+        )
+    current_user.identity_pubkey = payload.identity_pubkey
+    db.commit()
+    return success_response(
+        {"identity_pubkey": payload.identity_pubkey}, "Key published"
+    )
+
+
+@router.get("/keys/{user_id}")
+def get_user_pubkey(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Fetch a user's device identity public key (E2EE v1). Public key
+    material only — safe to expose to any authenticated user."""
+    u = db.query(User).filter_by(id=user_id).first()
+    if not u or not u.identity_pubkey:
+        raise HTTPException(status_code=404, detail="No encryption key for user")
+    return success_response({"user_id": u.id, "identity_pubkey": u.identity_pubkey})
+
+
 @router.get("/{username}")
 def get_user_by_username(
     username: str,
@@ -250,5 +292,3 @@ def change_password(
     current_user.hashed_password = hash_password(payload.new_password)
     db.commit()
     return success_response(None, "Password changed successfully")
-
-

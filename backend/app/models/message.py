@@ -32,6 +32,11 @@ class Message(Base):
         String(20), default="text", nullable=False
     )  # text, image, file, voice, system
     voice_duration = Column(Integer, nullable=True)
+    # E2EE v1 envelope: content holds base64 NaCl box ciphertext for 1-1 text.
+    # Nullable (not NOT NULL) so online ALTER TABLE works on tables that
+    # already hold rows; NULL is treated as False everywhere.
+    is_encrypted = Column(Boolean, default=False, nullable=True)
+    nonce = Column(String(64), nullable=True)  # base64 24-byte nonce
     reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
     is_deleted = Column(Boolean, default=False, nullable=False, index=True)
     is_edited = Column(Boolean, default=False, nullable=False)

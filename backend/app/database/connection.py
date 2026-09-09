@@ -61,25 +61,28 @@ def _ensure_missing_columns():
                 if table_name not in existing_tables:
                     continue
                 try:
-                    db_cols = {
-                        c["name"] for c in insp.get_columns(table_name)
-                    }
+                    db_cols = {c["name"] for c in insp.get_columns(table_name)}
                 except Exception:
                     continue
                 for col in table.columns:
                     if col.name in db_cols:
                         continue
-                    coltype = col.type.compile(dialect=engine.dialect)
-                    nullable = "" if col.nullable else " NOT NULL"
-                    default = ""
-                    if col.server_default is not None:
-                        try:
-                            default = f" DEFAULT {col.server_default.arg}"
-                        except Exception:
-                            default = ""
-                    conn.exec_driver_sql(
-                        f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {coltype}{nullable}{default}'
-                    )
-                    print(f"[migrate] added {table_name}.{col.name}")
+                    try:
+                        coltype = col.type.compile(dialect=engine.dialect)
+                        # Never add a bare NOT NULL column: it fails on tables
+                        # that already hold rows (SQLite and Postgres alike).
+                        # Nullable + app-level default covers it.
+                        default = ""
+                        if col.server_default is not None:
+                            try:
+                                default = f" DEFAULT {col.server_default.arg}"
+                            except Exception:
+                                default = ""
+                        conn.exec_driver_sql(
+                            f'ALTER TABLE "{table_name}" ADD COLUMN "{col.name}" {coltype}{default}'
+                        )
+                        print(f"[migrate] added {table_name}.{col.name}")
+                    except Exception as col_e:
+                        print(f"[migrate] skipped {table_name}.{col.name}: {col_e}")
     except Exception as e:
         print(f"[migrate] column check skipped: {e}")

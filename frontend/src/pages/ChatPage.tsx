@@ -303,6 +303,7 @@ export default function ChatPage() {
   // ─── Call ───
   const handleCall = (type: 'voice' | 'video') => {
     if (!currentConv) return
+    if (currentConv.is_group) return toast('Voice/video calls work in direct chats for now', 'error')
     const other = currentConv.members.find((m: any) => m.user_id !== user?.id)
     if (!other) return toast('No peer to call', 'error')
     callsApi.start({ callee_id: other.user_id, conversation_id: currentConv.id, call_type: type })

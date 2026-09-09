@@ -10,6 +10,7 @@ import { PollCard } from './PollPanel'
 import { EventCard } from './EventPanel'
 import { pollApi, eventApi } from '../services/api'
 import wsService from '../services/websocket'
+import { sealForConversation, fetchPeerKey, ensurePublished } from '../utils/e2ee'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
@@ -50,6 +51,19 @@ export function ChatView({
   // Polls & events rendered inline in the message flow (not just the panels)
   const [convPolls, setConvPolls] = useState<any[]>([])
   const [convEvents, setConvEvents] = useState<any[]>([])
+  // E2EE v1: publish this device's key once per login; track whether the
+  // open 1-1 chat has the peer's key (then sends are sealed).
+  const [secure, setSecure] = useState(false)
+  useEffect(() => { if (user?.id) ensurePublished(user.id) }, [user?.id])
+  useEffect(() => {
+    setSecure(false)
+    if (!currentConversationId || !currentConv || (currentConv as any).is_group || !user?.id) return
+    const other = (currentConv as any).members?.find((m: any) => m.user_id !== user.id)
+    if (!other) return
+    let live = true
+    fetchPeerKey(other.user_id).then(k => { if (live) setSecure(!!k) })
+    return () => { live = false }
+  }, [currentConversationId])
 
   useEffect(() => {
     setConvPolls([])
@@ -204,7 +218,23 @@ export function ChatView({
   const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number) => {
     if (!currentConversationId) return
     if (editTarget) { await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return }
-    try { await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type, voiceDuration != null ? { voice_duration: voiceDuration } : undefined) }
+    try {
+      let body = content
+      const extra: { voice_duration?: number; is_encrypted?: boolean; nonce?: string; displayContent?: string } =
+        voiceDuration != null ? { voice_duration: voiceDuration } : {}
+      // Seal 1-1 text with the peer's key when available; groups and media
+      // stay transport-encrypted in v1.
+      if (!attachmentIds?.length && (type || 'text') === 'text' && user?.id) {
+        const sealed = await sealForConversation(currentConv ?? null, user.id, content)
+        if (sealed) {
+          body = sealed.content
+          extra.is_encrypted = true
+          extra.nonce = sealed.nonce
+          extra.displayContent = content
+        }
+      }
+      await sendMessage(currentConversationId, body, replyTo?.id, attachmentIds, type, extra)
+    }
     catch (e: any) { console.error('Send failed:', e) }
   }
 
@@ -437,7 +467,7 @@ export function ChatView({
                       isOwn={!!isOwn}
                       isGroup={!!currentConv?.is_group}
                       showAvatar={showAvatar}
-                      onReply={(m: any) => setReplyTo({ id: m.id, content: m.content || '', sender: m.sender_display_name || 'Unknown' })}
+                      onReply={(m: any) => setReplyTo({ id: m.id, content: m.is_encrypted ? '🔒 Encrypted message' : (m.content || ''), sender: m.sender_display_name || 'Unknown' })}
                       onEdit={(m: any) => { setEditTarget(m); setEditText(m.content || '') }}
                       onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
                       onReact={onReact}
@@ -564,6 +594,7 @@ export function ChatView({
           conversationId={currentConv.id}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          secure={secure}
         />
       </div>
     </DragDropZone>

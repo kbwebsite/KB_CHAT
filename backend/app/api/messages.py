@@ -1,3 +1,4 @@
+import base64
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, or_, func
@@ -48,7 +49,10 @@ def _message_to_dict(msg: Message, receipts: dict = None):
     if msg.reply_to_id:
         replied = msg.reply_to
         if replied and not replied.is_deleted:
-            reply_content = replied.content
+            # Never leak ciphertext into quoted previews.
+            reply_content = (
+                "🔒 Encrypted message" if replied.is_encrypted else replied.content
+            )
         elif replied and replied.is_deleted:
             reply_content = "Message deleted"
     content = msg.content
@@ -71,6 +75,8 @@ def _message_to_dict(msg: Message, receipts: dict = None):
         "sender_avatar": sender.avatar_url if sender else None,
         "content": content,
         "message_type": msg.message_type,
+        "is_encrypted": bool(msg.is_encrypted),
+        "nonce": msg.nonce,
         "voice_duration": voice_dur,
         "reply_to_id": msg.reply_to_id,
         "reply_to_content": reply_content,
@@ -217,6 +223,35 @@ async def create_message(
 
     voice_duration = payload.voice_duration
 
+    # E2EE v1 envelope validation (transport only — crypto happens on devices).
+    is_encrypted = bool(payload.is_encrypted)
+    nonce = payload.nonce
+    if is_encrypted:
+        if msg_type != "text" or payload.attachment_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="Only plain text messages can be encrypted (v1)",
+            )
+        from app.models.conversation import Conversation as _Conv
+
+        _conv = db.query(_Conv).filter_by(id=conv_id).first()
+        if _conv is not None and _conv.is_group:
+            raise HTTPException(
+                status_code=400,
+                detail="Encrypted messages are 1-1 only in v1",
+            )
+        if not nonce or not content:
+            raise HTTPException(
+                status_code=400, detail="Encrypted messages need content + nonce"
+            )
+        try:
+            raw_box = base64.b64decode(content, validate=True)
+            raw_nonce = base64.b64decode(nonce, validate=True)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid encrypted envelope")
+        if len(raw_nonce) != 24 or len(raw_box) < 17 or len(content) > 12000:
+            raise HTTPException(status_code=400, detail="Invalid encrypted envelope")
+
     msg = Message(
         conversation_id=conv_id,
         sender_id=current_user.id,
@@ -224,6 +259,8 @@ async def create_message(
         message_type=msg_type,
         reply_to_id=payload.reply_to_id,
         voice_duration=voice_duration,
+        is_encrypted=is_encrypted,
+        nonce=nonce,
     )
     db.add(msg)
     db.flush()

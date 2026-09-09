@@ -1,11 +1,33 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
 import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause } from 'lucide-react'
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi } from '../services/api'
+import { useAuthStore } from '../store/auth'
+import { openMessage } from '../utils/e2ee'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
+
+type DecState = { s: 'plain' } | { s: 'loading' } | { s: 'failed' } | { s: 'open'; text: string }
+
+/** Resolve displayable text for E2EE v1 messages (async device-side open). */
+function useDecrypted(msg: Message): DecState {
+  const meId = useAuthStore(s => s.user?.id)
+  const [st, setSt] = useState<DecState>(msg.is_encrypted ? { s: 'loading' } : { s: 'plain' })
+  useEffect(() => {
+    if (!msg.is_encrypted || msg.message_type !== 'text') { setSt({ s: 'plain' }); return }
+    if (meId == null) { setSt({ s: 'failed' }); return }
+    let live = true
+    setSt({ s: 'loading' })
+    openMessage(msg, meId).then(t => {
+      if (!live) return
+      setSt(t == null ? { s: 'failed' } : { s: 'open', text: t })
+    })
+    return () => { live = false }
+  }, [msg.id, (msg as any).nonce, meId])
+  return st
+}
 
 const fmtDur = (s: number) => {
   if (!Number.isFinite(s) || s < 0) return '0:00'
@@ -94,6 +116,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onMobileMore?:(msg:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
+  const dec = useDecrypted(msg)
+  const locked = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
+  const shownText = locked ? (dec.s === 'open' ? dec.text : null) : content
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
   const audioAtts = msg.attachments.filter(a=> a.mime_type.startsWith('audio/'))
   const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/'))
@@ -115,7 +140,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
 
   // Stickers (and pasted single-image links) arrive as a lone image URL in
   // the text body — render them as a sticker image, not as link text.
-  const trimmedContent = (content || '').trim()
+  // Encrypted bodies are ciphertext: never treat them as links/images.
+  const trimmedContent = (!locked ? (content || '') : '').trim()
   const loneImageUrl = !msg.is_deleted && /^https?:\/\/[^\s]+\.(png|jpe?g|gif|webp)(\?[^\s]*)?$/i.test(trimmedContent)
     ? trimmedContent
     : null
@@ -171,7 +197,15 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               ))}
             </div>
           )}
-          {loneImageUrl ? (
+          {locked ? (
+            dec.s === 'open' ? (
+              <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable"><span aria-label="End-to-end encrypted">🔒</span> {dec.text}</p>
+            ) : dec.s === 'failed' ? (
+              <p className="italic opacity-70 text-xs">🔒 Encrypted message — can't decrypt on this device</p>
+            ) : (
+              <p className="opacity-60 text-xs">🔒 Decrypting…</p>
+            )
+          ) : loneImageUrl ? (
             <img
               src={loneImageUrl}
               alt="sticker"
@@ -243,7 +277,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           </div>
           {showMenu && (
             <div className={`absolute ${isOwn?'left-0' : 'right-0'} top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm`}>
-              <button onClick={()=>{ safeCopy(content||''); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
+              <button onClick={()=>{ safeCopy((locked && dec.s === 'open' ? dec.text : content) || ''); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
               <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}

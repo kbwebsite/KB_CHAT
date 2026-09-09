@@ -61,28 +61,37 @@ export default function LoginPage() {
     return ()=> { cancelled = true }
   }, [])
 
-  // Initialize Google Identity Services
+  // Initialize Google Identity Services (failures surfaced, never silent —
+  // typical causes: authorized-origin missing in Google Cloud Console,
+  // content blockers, or third-party-cookie blocking)
+  const [googleError, setGoogleError]=useState<string|null>(null)
   useEffect(()=>{
     if (!googleClientId) return
     const script = document.createElement('script')
     script.src = 'https://accounts.google.com/gsi/client'
     script.async = true
+    script.defer = true
     script.onload = ()=>{
-      if (window.google?.accounts?.id) {
-        try {
-          window.google.accounts.id.initialize({
-            client_id: googleClientId,
-            callback: (response:any)=> handleGoogleLogin(response.credential),
-          })
-        } catch { return }
+      try {
+        if (!window.google?.accounts?.id) {
+          setGoogleError('Google library loaded but did not initialize. Check your connection or content blocker and reload.')
+          return
+        }
+        window.google.accounts.id.initialize({
+          client_id: googleClientId,
+          callback: (response:any)=> handleGoogleLogin(response.credential),
+        })
         if (googleBtnRef.current) {
           googleBtnRef.current.innerHTML = ''
           window.google.accounts.id.renderButton(googleBtnRef.current, {
             theme: 'outline', size: 'large', width: '100%', text: 'continue_with',
           })
         }
+      } catch (e:any) {
+        setGoogleError('Google Sign-In failed to start. If a popup mentioned redirect_uri or origin, add this site under Authorized JavaScript origins in Google Cloud Console.')
       }
     }
+    script.onerror = ()=> setGoogleError('Could not load Google Sign-In (accounts.google.com blocked?). Check connection, ad-blocker, or Content-Security-Policy, then reload.')
     document.head.appendChild(script)
     return ()=> { if (script.parentNode) script.parentNode.removeChild(script) }
   }, [googleClientId])
@@ -132,6 +141,7 @@ export default function LoginPage() {
               </button>
             )}
             {googleLoading && <p className="text-xs text-center text-muted-foreground mt-2">Signing in with Google...</p>}
+            {googleError && <p className="text-xs text-center text-destructive mt-2">{googleError}</p>}
           </div>
         </div>
 

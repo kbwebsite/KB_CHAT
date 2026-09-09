@@ -45,6 +45,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Compress JSON API payloads (chat lists/messages) — big win on slow mobile
+# networks; Render's Docker path does not compress for us.
+from fastapi.middleware.gzip import GZipMiddleware
+
+app.add_middleware(GZipMiddleware, minimum_size=1000)
+
 from app.database.connection import create_tables
 
 # Import all models to register them with Base.metadata before create_all()
