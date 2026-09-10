@@ -374,3 +374,55 @@ def test_e2ee_envelope_and_keys():
         headers=ha,
     )
     assert rgg.status_code == 400
+
+
+def test_google_auth_new_existing_and_reject(monkeypatch):
+    import app.api.auth as authmod
+    from app.database.config import settings
+
+    payload = {
+        "email": "GNew@Example.com",
+        "name": "G New",
+        "picture": "http://x/p.png",
+        "sub": "g123",
+        "aud": "test-client-id",
+    }
+
+    class FakeResp:
+        status_code = 200
+
+        def json(self):
+            return payload
+
+    class BadResp:
+        status_code = 400
+
+        def json(self):
+            return {"error": "invalid_token"}
+
+    old = settings.GOOGLE_CLIENT_ID
+    settings.GOOGLE_CLIENT_ID = "test-client-id"
+    monkeypatch.setattr(authmod.httpx, "get", lambda *a, **k: FakeResp())
+    try:
+        # NEW google user -> account created + session
+        r = client.post("/api/auth/google", json={"credential": "tok"})
+        assert r.status_code == 200, r.text
+        uid = r.json()["data"]["user"]["id"]
+        assert r.json()["data"]["access_token"]
+        # EXISTING google user -> same account, no duplicate
+        r2 = client.post("/api/auth/google", json={"credential": "tok"})
+        assert r2.status_code == 200, r2.text
+        assert r2.json()["data"]["user"]["id"] == uid
+        # session works like password login
+        me = client.get(
+            "/api/auth/me",
+            headers={"Authorization": f"Bearer {r2.json()['data']['access_token']}"},
+        )
+        assert me.status_code == 200
+        assert me.json()["data"]["id"] == uid
+        # bad token -> clean 401 with reason
+        monkeypatch.setattr(authmod.httpx, "get", lambda *a, **k: BadResp())
+        r3 = client.post("/api/auth/google", json={"credential": "bad"})
+        assert r3.status_code == 401, r3.text
+    finally:
+        settings.GOOGLE_CLIENT_ID = old

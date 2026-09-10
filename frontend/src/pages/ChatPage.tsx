@@ -25,7 +25,7 @@ export default function ChatPage() {
   const nav = useNavigate()
   const {
     conversations, currentConversationId, messages, hasMore, loadingMessages, loadingConvs,
-    fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react
+    fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react, updateMessage
   } = useChatStore() as any
 
   // Mobile-first navigation: 'list' shows conversation list, 'chat' shows active chat
@@ -351,11 +351,29 @@ export default function ChatPage() {
 
   // ─── Pin ───
   const handlePin = async (m: any) => {
+    // Local-first pin toggle: no full message reload (that refetch was the
+    // visible lag on every pin click). Server response reconciles.
+    const pinning = !(m as any).is_pinned
     try {
-      if ((m as any).is_pinned) { await msgPinApi.unpin(m.id) } else { await msgPinApi.pin(m.id) }
-      if (currentConversationId) { const res = await msgPinApi.list(currentConversationId); if (res.success) setPinnedMessages(res.data) }
-      fetchMessages(currentConversationId!)
-    } catch {}
+      updateMessage({ ...m, is_pinned: pinning })
+      setPinnedMessages((s: any[]) => pinning
+        ? [...s.filter((x: any) => x.id !== m.id), { ...m, is_pinned: true }]
+        : s.filter((x: any) => x.id !== m.id))
+      const res = pinning ? await msgPinApi.pin(m.id) : await msgPinApi.unpin(m.id)
+      if (res?.success && res.data) {
+        updateMessage(res.data)
+        setPinnedMessages((s: any[]) => pinning
+          ? [...s.filter((x: any) => x.id !== m.id), res.data]
+          : s.filter((x: any) => x.id !== m.id))
+      }
+    } catch {
+      updateMessage(m)
+      if (currentConversationId) {
+        msgPinApi.list(currentConversationId)
+          .then((r: any) => { if (r.success) setPinnedMessages(r.data) })
+          .catch(() => {})
+      }
+    }
   }
 
   // ─── Nav panel tab change ───

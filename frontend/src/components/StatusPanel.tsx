@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { statusApi } from '../services/api'
+import { formatTime } from '../utils/format'
 import { X, Plus, Eye, Trash2, Image as ImageIcon, Video, Type, Send } from 'lucide-react'
 import { useAuthStore } from '../store/auth'
 
@@ -52,7 +53,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
                     </div>
                     <div>
                       <p className="text-sm font-medium">{s.caption || s.content?.slice(0,20) || 'Status'}</p>
-                      <p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleTimeString()} • {s.view_count} views</p>
+                      <p className="text-xs text-muted-foreground">{formatTime(s.created_at)} • {s.view_count} views</p>
                     </div>
                   </button>
                   <button onClick={()=> handleDelete(s.id)} className="p-2 opacity-60 active:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-background rounded-full"><Trash2 className="w-4 h-4 text-destructive"/></button>
@@ -79,7 +80,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
                   </div>
                   <div>
                     <p className="text-sm font-medium">{s.display_name}</p>
-                    <p className="text-xs text-muted-foreground">{new Date(s.created_at).toLocaleTimeString()}</p>
+                    <p className="text-xs text-muted-foreground">{formatTime(s.created_at)}</p>
                   </div>
                 </button>
               ))}
@@ -99,7 +100,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
                   </div>
                   <div>
                     <p className="text-sm font-medium">{s.display_name}</p>
-                    <p className="text-xs text-muted-foreground">Yesterday</p>
+                    <p className="text-xs text-muted-foreground">{formatTime(s.created_at)}</p>
                   </div>
                 </button>
               ))}

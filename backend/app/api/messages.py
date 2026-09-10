@@ -36,6 +36,28 @@ def _member_ids(db: Session, conv_id: int):
     ]
 
 
+def _broadcast_soon(conv_id: int, event: dict, member_ids: list) -> None:
+    """Fan out a WS event without delaying the HTTP response.
+
+    All callers commit first and pass plain-data payloads, so backgrounding
+    only changes timing, never content.
+    """
+    import asyncio
+
+    async def _run():
+        try:
+            await manager.broadcast_to_conversation(
+                conv_id, event, member_ids=member_ids
+            )
+        except Exception as e:
+            print(f"[messages] fan-out failed ({event.get('type')}): {e}")
+
+    try:
+        asyncio.create_task(_run())
+    except Exception as e:
+        print(f"[messages] fan-out schedule failed: {e}")
+
+
 def _message_to_dict(msg: Message, receipts: dict = None):
     """Convert message to dict - relationships already loaded via eager loading.
 
@@ -317,6 +339,19 @@ async def create_message(
             )
         except Exception as e:
             print(f"[messages] message.new fan-out failed: {e}")
+        # Push members with no live socket (fresh session: the request's db
+        # may already be closed once we respond).
+        try:
+            from app.database.connection import SessionLocal
+            from app.utils.fcm import notify_new_message
+
+            pdb = SessionLocal()
+            try:
+                await notify_new_message(pdb, conv_id, msg_dict, current_user.id)
+            finally:
+                pdb.close()
+        except Exception as e:
+            print(f"[messages] push fan-out failed: {e}")
 
     import asyncio
 
@@ -357,7 +392,7 @@ async def edit_message(
     db.refresh(msg)
     msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {"type": "message.updated", "payload": msg_dict},
         member_ids=member_ids,
@@ -385,7 +420,7 @@ async def delete_message(
     db.refresh(msg)
     msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {
             "type": "message.deleted",
@@ -429,7 +464,7 @@ async def add_reaction(
     db.commit()
     db.refresh(react)
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {
             "type": "reaction.added",
@@ -468,7 +503,7 @@ async def remove_reaction(
     db.delete(react)
     db.commit()
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {
             "type": "reaction.removed",
@@ -511,7 +546,7 @@ async def mark_message_read(
             membership.last_delivered_message_id = message_id
         db.commit()
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {
             "type": "message.read",
@@ -619,7 +654,7 @@ async def pin_message(
     db.refresh(msg)
     msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {"type": "message.pinned", "payload": msg_dict},
         member_ids=member_ids,
@@ -644,7 +679,7 @@ async def unpin_message(
     db.refresh(msg)
     msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
     member_ids = _member_ids(db, msg.conversation_id)
-    await manager.broadcast_to_conversation(
+    _broadcast_soon(
         msg.conversation_id,
         {"type": "message.unpinned", "payload": msg_dict},
         member_ids=member_ids,

@@ -189,8 +189,21 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     })
   },
   editMessage: async (id, content)=>{
-    const res = await msgApi.edit(id, content)
-    if (res.success) get().updateMessage(res.data)
+    // Optimistic content swap with rollback — the server round-trip (and its
+    // fan-out) no longer gates the UI.
+    let prev: Message | undefined
+    for (const msgs of Object.values(get().messages)) {
+      const found = (msgs as Message[]).find(m=> m.id === id)
+      if (found) { prev = found; break }
+    }
+    if (prev) get().updateMessage({ ...prev, content, is_edited: true })
+    try {
+      const res = await msgApi.edit(id, content)
+      if (res.success) get().updateMessage(res.data)
+      else if (prev) get().updateMessage(prev)
+    } catch {
+      if (prev) get().updateMessage(prev)
+    }
   },
   deleteMessage: async (id)=>{
     const res = await msgApi.delete(id)
@@ -203,8 +216,34 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     }
   },
   react: async (mid, emoji)=>{
-    // optimistic toggle? Just call API, ws will broadcast
-    try { await msgApi.react(mid, emoji) } catch {}
+    // Optimistic add with rollback; the authoritative WS event dedups.
+    const me = useAuthStore.getState().user?.id
+    const apply = (add: boolean) => set(state=>{
+      const messages: Record<number, Message[]> = { ...state.messages }
+      let changed = false
+      for (const cid of Object.keys(messages)) {
+        const list = messages[Number(cid)]
+        const idx = list.findIndex(m=> m.id === mid)
+        if (idx < 0) continue
+        const msg = list[idx]
+        if (add) {
+          if (msg.reactions.some(r=> r.user_id === me && r.emoji === emoji)) continue
+          const next = [...list]
+          next[idx] = { ...msg, reactions: [...msg.reactions, { id: -Date.now(), user_id: me as number, emoji }] }
+          messages[Number(cid)] = next
+          changed = true
+        } else {
+          const next = [...list]
+          next[idx] = { ...msg, reactions: msg.reactions.filter(r=> !(r.user_id === me && r.emoji === emoji)) }
+          messages[Number(cid)] = next
+          changed = true
+        }
+      }
+      if (!changed) return state
+      return { messages }
+    })
+    apply(true)
+    try { await msgApi.react(mid, emoji) } catch { apply(false) }
   },
   setTyping: (convId, userId, isTyping)=>{
     set(state=>{
