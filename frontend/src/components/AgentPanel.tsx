@@ -22,6 +22,9 @@ export function AgentPanel({
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [streaming, setStreaming] = useState(false)
+  // Which brain answered last: a real model ('live') or built-in tips ('mock').
+  const [provider, setProvider] = useState<string | null>(null)
+  const live = !!provider && provider.toLowerCase() !== 'mock'
   const [conversationId, setConversationId] = useState<number | null>(() => {
     const raw = localStorage.getItem(AGENT_CONV_KEY)
     const n = raw ? parseInt(raw, 10) : NaN
@@ -130,6 +133,7 @@ export function AgentPanel({
               const event = JSON.parse(data)
               if (event.type === 'conversation') {
                 persistConversation(event.conversation_id)
+                if (event.provider) setProvider(event.provider)
               } else if (event.type === 'final') {
                 setMessages(prev => {
                   const next = [...prev]
@@ -151,6 +155,7 @@ export function AgentPanel({
       try {
         const res = await agentApi.chat(currentInput, conversationId)
         persistConversation(res.data?.conversation_id)
+        if (res.data?.provider) setProvider(res.data.provider)
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: res.data.response,
@@ -189,7 +194,13 @@ export function AgentPanel({
           </div>
           <div>
             <h2 className="text-sm font-semibold">KB-CHAT Assistant</h2>
-            <p className="text-[10px] text-muted-foreground">Your KB-CHAT helper</p>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1">
+              <span
+                title={live ? 'Connected to a live AI model' : 'Answering from built-in tips (set AI_PROVIDER + key on the server for live AI)'}
+                className={`inline-block w-1.5 h-1.5 rounded-full ${live ? 'bg-emerald-400' : 'bg-amber-400'}`}
+              />
+              {live ? 'Live AI' : 'Offline tips'}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-1">

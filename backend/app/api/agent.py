@@ -190,7 +190,7 @@ async def agent_chat_stream(
     async def event_generator():
         # Tell the client which conversation this turn belongs to.
         # Older clients ignore unknown event types safely.
-        yield f"data: {json.dumps({'type': 'conversation', 'conversation_id': conv.id})}\n\n"
+        yield f"data: {json.dumps({'type': 'conversation', 'conversation_id': conv.id, 'provider': settings.AI_PROVIDER})}\n\n"
         full_text = ""
         async for event in agent.stream(text, state):
             if event.get("type") == "final":

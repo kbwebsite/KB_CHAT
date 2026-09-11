@@ -15,7 +15,7 @@ export function ChatModals({
   onNewChat, onNewGroup, onNewStatus,
   onSettings, onSaved, onCalls, onNotifications,
   onToggleTheme, onLogout,
-  onCallAccept, onCallRejectOrEnd
+  onCallAccept, onCallRejectOrEnd, onCallMissed
 }: any) {
   const toast = useToastStore(s => s.push)
 
@@ -34,6 +34,7 @@ export function ChatModals({
           onAccept={onCallAccept}
           onReject={onCallRejectOrEnd}
           onEnd={onCallRejectOrEnd}
+          onMissed={onCallMissed}
         />
       )}
       {statusViewer && (

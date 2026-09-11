@@ -376,6 +376,41 @@ def test_e2ee_envelope_and_keys():
     assert rgg.status_code == 400
 
 
+def test_call_missed_posts_system_note():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a = f"ca{s}"
+    b = f"cb{s}"
+    signup_user(a, f"{a}@ex.com", "Call A")
+    signup_user(b, f"{b}@ex.com", "Call B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rs = client.post(
+        "/api/calls/start",
+        json={"callee_id": me_b["id"], "conversation_id": cid, "call_type": "voice"},
+        headers=ha,
+    )
+    assert rs.status_code == 200, rs.text
+    call_id = rs.json()["data"]["id"]
+    # callee never answers; caller hangs up as missed
+    re_ = client.post(
+        f"/api/calls/{call_id}/end", json={"status": "missed"}, headers=ha
+    )
+    assert re_.status_code == 200, re_.text
+    assert re_.json()["data"]["status"] == "missed"
+    # a visible system note lands in the chat
+    rl = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    notes = [
+        m
+        for m in rl.json()["data"]["messages"]
+        if m.get("message_type") == "system" and "Missed" in (m.get("content") or "")
+    ]
+    assert len(notes) == 1, rl.text
+
+
 def test_google_auth_new_existing_and_reject(monkeypatch):
     import app.api.auth as authmod
     from app.database.config import settings

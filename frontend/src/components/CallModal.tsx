@@ -5,7 +5,7 @@ import { callsApi } from '../services/api'
 
 type CallType = 'voice' | 'video'
 
-export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId, peerId, onAccept, onReject, onEnd }: {
+export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId, peerId, onAccept, onReject, onEnd, onMissed }: {
   open: boolean,
   type: CallType,
   peerName: string,
@@ -15,7 +15,8 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   peerId?: number,
   onAccept?: ()=>void,
   onReject?: ()=>void,
-  onEnd: ()=>void
+  onEnd: ()=>void,
+  onMissed?: ()=>void
 }) {
   const [micOn, setMicOn]=useState(true)
   const [camOn, setCamOn]=useState(type==='video')
@@ -40,6 +41,94 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
 
   const iceServersRef = useRef<RTCIceServer[]>([{ urls: 'stun:stun.l.google.com:19302' }])
   const refreshIntervalRef = useRef<ReturnType<typeof setInterval>|null>(null)
+  const ringCtlRef = useRef<{ stop: () => void } | null>(null)
+  const connectedRef = useRef(false)
+  const onMissedRef = useRef(onMissed)
+  onMissedRef.current = onMissed
+
+  // Dual-tone (440+480Hz) ring, generated — no audio assets needed.
+  // Callee hears full-volume 2s-on/4s-off rings; caller hears softer ringback.
+  const startRinging = (pattern: 'ring' | 'ringback') => {
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext
+      if (!Ctx) return null
+      const ctx = new Ctx()
+      const master = ctx.createGain()
+      master.gain.value = pattern === 'ring' ? 0.4 : 0.18
+      master.connect(ctx.destination)
+      let stopped = false
+      let timer: ReturnType<typeof setTimeout> | null = null
+      const burst = () => {
+        if (stopped) return
+        try {
+          const t0 = ctx.currentTime + 0.02
+          ;[440, 480].forEach(f => {
+            const o = ctx.createOscillator()
+            const g = ctx.createGain()
+            o.type = 'sine'
+            o.frequency.value = f
+            g.gain.setValueAtTime(0, t0)
+            g.gain.linearRampToValueAtTime(1, t0 + 0.05)
+            g.gain.setValueAtTime(1, t0 + 1.8)
+            g.gain.linearRampToValueAtTime(0, t0 + 2.0)
+            o.connect(g); g.connect(master)
+            o.start(t0); o.stop(t0 + 2.1)
+          })
+        } catch {}
+        timer = setTimeout(burst, 4000)
+      }
+      // Incoming rings arrive without a user gesture: resume on first tap.
+      const unlock = () => { ctx.resume().catch(() => {}) }
+      window.addEventListener('pointerdown', unlock)
+      ctx.resume().catch(() => {})
+      burst()
+      return {
+        stop: () => {
+          stopped = true
+          if (timer) clearTimeout(timer)
+          window.removeEventListener('pointerdown', unlock)
+          ctx.close().catch(() => {})
+        },
+      }
+    } catch { return null }
+  }
+
+  // Ring management: callee rings until accept, caller hears ringback until
+  // connect; everything stops the moment media is up or the modal closes.
+  useEffect(() => {
+    if (!open) {
+      ringCtlRef.current?.stop()
+      ringCtlRef.current = null
+      return
+    }
+    const wantRing = !isCallerRef.current && !hasAccepted
+    const wantRingback = isCallerRef.current && !connected
+    if (!wantRing && !wantRingback) {
+      ringCtlRef.current?.stop()
+      ringCtlRef.current = null
+      return
+    }
+    if (ringCtlRef.current) return
+    const ctl = startRinging(wantRing ? 'ring' : 'ringback')
+    ringCtlRef.current = ctl
+    return () => {
+      ctl?.stop()
+      if (ringCtlRef.current === ctl) ringCtlRef.current = null
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, hasAccepted, connected])
+
+  // Unanswered ringing becomes a missed call after 45s (backend posts the
+  // chat note + push on the 'missed' status).
+  useEffect(() => {
+    if (!open) return
+    const t = setTimeout(() => {
+      if (!connectedRef.current) onMissedRef.current?.()
+    }, 45000)
+    return () => clearTimeout(t)
+  }, [open])
+
+  useEffect(() => { connectedRef.current = connected }, [connected])
 
   // timer - runs after accepted (caller immediately, callee after accept)
   useEffect(()=>{

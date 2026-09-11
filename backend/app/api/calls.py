@@ -158,8 +158,12 @@ async def end_call(
         status = "ended"
     call.status = status
     call.ended_at = datetime.now(timezone.utc)
-    if call.started_at:
-        call.duration_seconds = int((call.ended_at - call.started_at).total_seconds())
+    started_at = call.started_at
+    if started_at is not None and started_at.tzinfo is None:
+        # SQLite returns naive datetimes even for timezone-aware columns.
+        started_at = started_at.replace(tzinfo=timezone.utc)
+    if started_at:
+        call.duration_seconds = int((call.ended_at - started_at).total_seconds())
     db.commit()
     # notify other party
     from app.websocket.manager import manager

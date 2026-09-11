@@ -330,6 +330,12 @@ export default function ChatPage() {
     setCallModal(null)
     if (cid) { try { await callsApi.end(cid, wasIncoming ? 'rejected' : 'ended') } catch {} }
   }
+  const handleCallMissed = async () => {
+    const cid = callModal?.callId
+    if (!cid) { setCallModal(null); return }
+    setCallModal(null)
+    try { await callsApi.end(cid, 'missed') } catch {}
+  }
 
   // ─── Mute ───
   const handleMute = async () => {
@@ -585,6 +591,7 @@ export default function ChatPage() {
           onLogout={() => { logout(); nav('/login') }}
           onCallAccept={handleCallAccept}
           onCallRejectOrEnd={handleCallRejectOrEnd}
+          onCallMissed={handleCallMissed}
         />
 
         {/* Mobile action sheet */}
