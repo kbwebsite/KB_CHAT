@@ -499,7 +499,12 @@ export function ChatView({
           <div className="mx-2 mb-2 p-3 rounded-xl glass-subtle flex items-start gap-3 animate-slide-up shrink-0">
             <div className="shrink-0 w-8 h-8 rounded-lg gradient-primary flex items-center justify-center"><Bot className="w-4 h-4 text-white" /></div>
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] gradient-text font-semibold mb-1 uppercase tracking-wide">Kryzen AI · {aiResult.action}</p>
+              <p className="text-[11px] gradient-text font-semibold mb-1 uppercase tracking-wide">
+                Kryzen AI · {aiResult.action}
+                {aiResult.provider === 'mock' && (
+                  <span className="ml-1.5 normal-case font-medium text-amber-400/90" title="Answering from built-in tips. Set a live AI model on the server for real answers.">• offline tips</span>
+                )}
+              </p>
               <p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>
             </div>
             <button onClick={() => setAiResult(null)} className="shrink-0 icon-btn w-7 h-7"><X className="w-3.5 h-3.5" /></button>

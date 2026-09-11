@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { statusApi } from '../services/api'
+import { statusApi, extendedApi } from '../services/api'
 import { formatTime } from '../utils/format'
 import { X, Plus, Eye, Trash2, Image as ImageIcon, Video, Type, Send } from 'lucide-react'
 import { useAuthStore } from '../store/auth'
@@ -8,6 +8,9 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
   const [feed, setFeed]=useState<{my_status:any[], recent:any[], viewed:any[]}>({my_status:[], recent:[], viewed:[]})
   const [loading, setLoading]=useState(true)
   const [showComposer, setShowComposer]=useState(false)
+  const [expandedViews, setExpandedViews]=useState<number|null>(null)
+  // Own statuses with full viewer lists (/my includes viewers with names).
+  const [myFull, setMyFull]=useState<any[]>([])
   const { user } = useAuthStore()
 
   const load=async ()=>{
@@ -16,7 +19,12 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
       const r=await statusApi.feed()
       if (r.success) setFeed(r.data)
     } finally { setLoading(false) }
+    try {
+      const m=await statusApi.my()
+      if (m.success) setMyFull(m.data || [])
+    } catch {}
   }
+  const myList = myFull.length > 0 || !loading ? myFull : feed.my_status
   useEffect(()=>{ load() }, [])
 
   const handleDelete=async (id:number)=>{
@@ -43,21 +51,40 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
             </div>
           </button>
           {showComposer && <StatusComposer onCreated={()=>{ setShowComposer(false); load() }} onClose={()=> setShowComposer(false)} />}
-          {feed.my_status.length>0 && (
+          {myList.length>0 && (
             <div className="mt-3 space-y-2">
-              {feed.my_status.map((s:any, i:number)=> (
-                <div key={s.id} className="flex items-center gap-3 p-2 rounded-xl bg-card border hover:bg-muted group">
-                  <button onClick={()=> onViewer(feed.my_status, i)} className="flex items-center gap-3 flex-1 text-left">
-                    <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm">
-                      {s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span>{(s.content||'?')[0]}</span>}
+              {myList.map((s:any)=> (
+                <div key={s.id} className="p-2 rounded-xl bg-card border hover:bg-muted">
+                  <div className="flex items-center gap-3 group">
+                    <button onClick={()=> onViewer(myList, myList.findIndex((x:any)=> x.id===s.id))} className="flex items-center gap-3 flex-1 text-left">
+                      <div className="w-10 h-10 rounded-full overflow-hidden bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-sm">
+                        {s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span>{(s.content||'?')[0]}</span>}
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{s.caption || s.content?.slice(0,20) || 'Status'}</p>
+                        <p className="text-xs text-muted-foreground">{formatTime(s.created_at)} • {s.view_count ?? (s.viewers?.length || 0)} views</p>
+                      </div>
+                    </button>
+                    <button onClick={()=> handleDelete(s.id)} className="p-2 opacity-60 active:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-background rounded-full"><Trash2 className="w-4 h-4 text-destructive"/></button>
+                    <button onClick={()=> setExpandedViews(v=> v===s.id ? null : s.id)} className="p-2 hover:bg-background rounded-full" title="Who viewed">
+                      <Eye className="w-4 h-4 text-muted-foreground"/>
+                    </button>
+                  </div>
+                  {expandedViews===s.id && (
+                    <div className="mt-2 ml-1 pl-3 border-l space-y-1.5">
+                      {(!s.viewers || s.viewers.length===0) ? (
+                        <p className="text-xs text-muted-foreground py-1">No views yet</p>
+                      ) : s.viewers.map((v:any)=> (
+                        <div key={v.viewer_id} className="flex items-center gap-2 text-xs">
+                          <div className="w-6 h-6 rounded-full overflow-hidden bg-muted flex items-center justify-center font-medium">
+                            {v.avatar_url ? <img src={v.avatar_url} alt="" className="w-full h-full object-cover"/> : <span>{(v.display_name || v.username || '?')[0]}</span>}
+                          </div>
+                          <span className="font-medium">{v.display_name || v.username || 'Someone'}</span>
+                          {v.viewed_at && <span className="text-muted-foreground">{formatTime(v.viewed_at)}</span>}
+                        </div>
+                      ))}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{s.caption || s.content?.slice(0,20) || 'Status'}</p>
-                      <p className="text-xs text-muted-foreground">{formatTime(s.created_at)} • {s.view_count} views</p>
-                    </div>
-                  </button>
-                  <button onClick={()=> handleDelete(s.id)} className="p-2 opacity-60 active:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 hover:bg-background rounded-full"><Trash2 className="w-4 h-4 text-destructive"/></button>
-                  <Eye className="w-3 h-3 text-muted-foreground" />
+                  )}
                 </div>
               ))}
             </div>
@@ -120,6 +147,19 @@ function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()
   const [file, setFile]=useState<File|null>(null)
   const [privacy, setPrivacy]=useState('contacts')
   const [saving, setSaving]=useState(false)
+  // "Selected" audience picker (lazy-loaded contacts).
+  const [contacts, setContacts]=useState<any[]>([])
+  const [selectedIds, setSelectedIds]=useState<number[]>([])
+  const [contactsLoading, setContactsLoading]=useState(false)
+  useEffect(()=>{
+    if (privacy !== 'selected' || contacts.length > 0 || contactsLoading) return
+    setContactsLoading(true)
+    extendedApi.contacts()
+      .then((r:any)=> { if (r?.success) setContacts(r.data || []) })
+      .catch(()=>{})
+      .finally(()=> setContactsLoading(false))
+  }, [privacy])
+  const toggleSelected = (id:number)=> setSelectedIds(s=> s.includes(id) ? s.filter(x=> x!==id) : [...s, id])
 
   const bgs=[
     'bg-gradient-to-br from-violet-600 to-indigo-600',
@@ -130,14 +170,17 @@ function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()
   ]
 
   const handleCreate=async ()=>{
+    if (privacy==='selected' && selectedIds.length===0) { alert('Pick at least one person who can see this status'); return }
     setSaving(true)
     try {
+      const allowed = privacy==='selected' ? JSON.stringify(selectedIds) : ''
       if (tab==='text') {
         const fd=new FormData()
         fd.append('content', content)
         fd.append('media_type','text')
         fd.append('background', bg)
         fd.append('privacy', privacy)
+        if (allowed) fd.append('allowed_ids', allowed)
         const r=await statusApi.create(fd)
         if (r.success) onCreated()
       } else {
@@ -147,6 +190,7 @@ function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()
         fd.append('media_type', tab)
         fd.append('caption', caption)
         fd.append('privacy', privacy)
+        if (allowed) fd.append('allowed_ids', allowed)
         const r=await statusApi.createMedia(fd)
         if (r.success) onCreated()
       }
@@ -190,6 +234,22 @@ function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()
           <option value="selected">Selected</option>
           <option value="nobody">Nobody</option>
         </select>
+        {privacy==='selected' && (
+          <div className="mt-2 max-h-36 overflow-y-auto rounded-lg border bg-muted/50 p-1.5 space-y-0.5">
+            {contactsLoading && <p className="text-xs text-muted-foreground p-2">Loading contacts...</p>}
+            {!contactsLoading && contacts.length===0 && <p className="text-xs text-muted-foreground p-2">No contacts yet — chat with someone first.</p>}
+            {contacts.map((c:any)=> (
+              <label key={c.id} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-muted cursor-pointer text-xs">
+                <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={()=> toggleSelected(c.id)} className="rounded" />
+                <span className="font-medium truncate">{c.display_name || c.username}</span>
+                <span className="text-muted-foreground truncate">@{c.username}</span>
+              </label>
+            ))}
+          </div>
+        )}
+        {privacy==='selected' && selectedIds.length>0 && (
+          <p className="text-[11px] text-muted-foreground mt-1">{selectedIds.length} selected</p>
+        )}
       </div>
 
       <div className="flex gap-2">

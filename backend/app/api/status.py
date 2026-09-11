@@ -37,6 +37,62 @@ def is_expired(s: Status):
     return False
 
 
+def _parse_allowed_ids(raw) -> list:
+    """Parse the allowed-ids form field (JSON list or comma string)."""
+    if not raw:
+        return []
+    import json as _json
+
+    try:
+        if isinstance(raw, str) and raw.strip().startswith("["):
+            vals = _json.loads(raw)
+        else:
+            vals = str(raw).split(",")
+        out = []
+        for v in vals:
+            try:
+                out.append(int(v))
+            except (TypeError, ValueError):
+                continue
+        return out
+    except Exception:
+        return []
+
+
+def _contact_ids(db: Session, user_id: int) -> set:
+    """All users sharing at least one conversation with the viewer."""
+    from app.models.conversation import ConversationMember
+
+    my_conv_ids = [
+        m.conversation_id
+        for m in db.query(ConversationMember).filter_by(user_id=user_id).all()
+    ]
+    if not my_conv_ids:
+        return set()
+    rows = (
+        db.query(ConversationMember.user_id)
+        .filter(
+            ConversationMember.conversation_id.in_(my_conv_ids),
+            ConversationMember.user_id != user_id,
+        )
+        .distinct()
+        .all()
+    )
+    return {r[0] for r in rows}
+
+
+def can_view_status(s: Status, viewer_id: int, viewer_contacts: set) -> bool:
+    """Enforce the three privacy options. Owner always sees own statuses."""
+    if s.user_id == viewer_id:
+        return True
+    if (s.privacy or "contacts") == "nobody":
+        return False
+    if s.privacy == "selected":
+        return viewer_id in (s.allowed_user_ids or [])
+    # "contacts" (default): only conversation partners.
+    return s.user_id in viewer_contacts
+
+
 def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers=False):
     user = db.query(User).filter_by(id=s.user_id).first()
     viewers = []
@@ -44,6 +100,9 @@ def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers
         viewers = [
             {
                 "viewer_id": v.viewer_id,
+                "display_name": v.viewer.display_name if v.viewer else None,
+                "username": v.viewer.username if v.viewer else None,
+                "avatar_url": v.viewer.avatar_url if v.viewer else None,
                 "viewed_at": v.viewed_at.isoformat() if v.viewed_at else None,
             }
             for v in s.viewers
@@ -66,6 +125,7 @@ def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers
         "background": s.background,
         "caption": s.caption,
         "privacy": s.privacy,
+        "allowed_user_ids": s.allowed_user_ids or [],
         "created_at": s.created_at.isoformat() if s.created_at else None,
         "expires_at": s.expires_at.isoformat() if s.expires_at else None,
         "viewed": viewed,
@@ -82,6 +142,7 @@ def create_status(
     background: Optional[str] = Form(None),
     caption: Optional[str] = Form(None),
     privacy: str = Form("contacts"),
+    allowed_ids: Optional[str] = Form(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -90,6 +151,7 @@ def create_status(
     # privacy validation
     if privacy not in ("contacts", "selected", "nobody"):
         privacy = "contacts"
+    allowed = _parse_allowed_ids(allowed_ids) if privacy == "selected" else []
     s = Status(
         user_id=current_user.id,
         content=content,
@@ -97,6 +159,7 @@ def create_status(
         background=background,
         caption=caption,
         privacy=privacy,
+        allowed_user_ids=allowed,
         expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
     )
     db.add(s)
@@ -110,6 +173,7 @@ async def create_status_with_media(
     media_type: str = Form(...),
     caption: Optional[str] = Form(None),
     privacy: str = Form("contacts"),
+    allowed_ids: Optional[str] = Form(None),
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -157,6 +221,9 @@ async def create_status_with_media(
         privacy=privacy
         if privacy in ("contacts", "selected", "nobody")
         else "contacts",
+        allowed_user_ids=_parse_allowed_ids(allowed_ids)
+        if privacy == "selected"
+        else [],
         expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
     )
     db.add(s)
@@ -178,15 +245,15 @@ def get_feed(
     )
     # filter expired and privacy
     my_id = current_user.id
+    viewer_contacts = _contact_ids(db, my_id)
     recent = []
     viewed = []
     my_statuses = []
     for s in all_statuses:
         if is_expired(s):
             continue
-        if s.privacy == "nobody" and s.user_id != my_id:
+        if not can_view_status(s, my_id, viewer_contacts):
             continue
-        # For now, selected/nobody not fully enforced; treat contacts as all authenticated
         d = status_to_dict(s, db, my_id)
         if s.user_id == my_id:
             my_statuses.append(d)

@@ -20,8 +20,24 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
 }) {
   const [micOn, setMicOn]=useState(true)
   const [camOn, setCamOn]=useState(type==='video')
+  const [videoLive, setVideoLive]=useState(type==='video')
   const [elapsed, setElapsed]=useState(0)
   const [permissionError, setPermissionError]=useState<string|null>(null)
+  const [notice, setNotice]=useState<string|null>(null)
+
+  const describeMediaError = (err: any): string => {
+    const name = err?.name || ''
+    if (name === 'NotAllowedError' || name === 'SecurityError') {
+      return 'Camera/microphone blocked. Allow access in the browser site settings (phone: App info → Permissions → Camera/Microphone) and rejoin.'
+    }
+    if (name === 'NotFoundError' || name === 'OverconstrainedError') {
+      return 'No usable camera found on this device.'
+    }
+    if (name === 'NotReadableError') {
+      return 'Camera/microphone is busy in another app. Close it and rejoin.'
+    }
+    return err?.message || 'Could not access camera/microphone.'
+  }
   const [connected, setConnected]=useState(false)
   const [statusText, setStatusText]=useState(isIncoming ? `Incoming ${type} call...` : 'Calling...')
   const localRef=useRef<HTMLVideoElement>(null)
@@ -154,7 +170,27 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         } catch {}
 
         const wantVideo = type==='video'
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo })
+        let stream: MediaStream
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: wantVideo })
+        } catch (err: any) {
+          // Video calls survive a missing/busy camera by downgrading to
+          // audio instead of dying. Audio failure is still fatal.
+          if (wantVideo && err?.name !== 'NotAllowedError' && err?.name !== 'SecurityError') {
+            try {
+              stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false })
+            } catch (err2: any) {
+              setPermissionError(describeMediaError(err2))
+              return
+            }
+            setCamOn(false)
+            setVideoLive(false)
+            setNotice('Camera unavailable — continuing with audio only.')
+          } else {
+            setPermissionError(describeMediaError(err))
+            return
+          }
+        }
         if (cancelled) { stream.getTracks().forEach(t=>t.stop()); return }
         streamRef.current = stream
         if (localRef.current) localRef.current.srcObject = stream
@@ -215,7 +251,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         }
 
       } catch (err:any) {
-        setPermissionError(err.message?.includes('Permission') ? 'Camera/Microphone permission is required for calls.' : err.message || 'Could not access camera/microphone')
+        setPermissionError(describeMediaError(err))
       }
     }
     setup()
@@ -317,7 +353,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       <div className="absolute inset-0 bg-black/40 pointer-events-none"/>
 
       {/* local preview */}
-      <video ref={localRef} autoPlay muted playsInline className={`absolute ${type==='video' ? 'top-4 right-4 w-32 h-24 call-local-video' : 'hidden'} bg-black object-cover z-10`} />
+      <video ref={localRef} autoPlay muted playsInline className={`absolute ${type==='video' && videoLive ? 'top-4 right-4 w-32 h-24 call-local-video' : 'hidden'} bg-black object-cover z-10`} />
 
       <div className="relative z-10 flex flex-col items-center gap-4">
         {!connected && (
@@ -338,12 +374,13 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
           </>
         )}
         {permissionError && <p className="text-xs bg-red-500/15 border border-red-500/25 px-3 py-1.5 rounded-full max-w-sm text-center">{permissionError}</p>}
+        {!permissionError && notice && <p className="text-xs bg-amber-500/15 border border-amber-500/25 px-3 py-1.5 rounded-full max-w-sm text-center">{notice}</p>}
         {!permissionError && type==='video' && !connected && <p className="text-xs text-white/40">Waiting for answer...</p>}
       </div>
 
       <div className="relative z-10 mt-10 flex items-center gap-4">
         <button onClick={()=> setMicOn(!micOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${micOn ? '' : 'muted'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
-        {type==='video' && <button onClick={()=> setCamOn(!camOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${camOn ? '' : 'muted'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
+        {type==='video' && videoLive && <button onClick={()=> setCamOn(!camOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${camOn ? '' : 'muted'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
         {hasAccepted ? (
           <button onClick={onEnd} className="call-btn-end w-16 h-16 rounded-full flex items-center justify-center"><PhoneOff className="w-7 h-7"/></button>
         ) : (

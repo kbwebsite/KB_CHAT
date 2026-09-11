@@ -73,7 +73,7 @@ export default function ChatPage() {
   const [callModal, setCallModal] = useState<{ open: boolean; type: 'voice' | 'video'; peerName: string; peerAvatar?: string | null; incoming?: boolean; callId?: number; peerId?: number } | null>(null)
   const [statusViewer, setStatusViewer] = useState<{ statuses: any[]; idx: number } | null>(null)
   const [isMuted, setIsMuted] = useState(false)
-  const [aiResult, setAiResult] = useState<{ text: string; action: string } | null>(null)
+  const [aiResult, setAiResult] = useState<{ text: string; action: string; provider?: string } | null>(null)
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
   const [mobileActionSheet, setMobileActionSheet] = useState<{ open: boolean; msg?: Message }>({ open: false })
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
@@ -256,7 +256,7 @@ export default function ChatPage() {
       if (action === 'summarize') res = await aiApi.summarize(text)
       else res = await aiApi.action(text, 'text', action)
       const resultText = res.data?.reply || res.data?.summary || res.data?.result || 'No result'
-      setAiResult({ text: resultText, action })
+      setAiResult({ text: resultText, action, provider: res.data?.provider })
     } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
   }
 
@@ -278,7 +278,7 @@ export default function ChatPage() {
         setAiLoading(true)
         const res = await aiApi.translate(pendingTranslateMsg.content || '', langName)
         const resultText = res.data?.translation || res.data?.result || 'No result'
-        setAiResult({ text: resultText, action: 'translate' })
+        setAiResult({ text: resultText, action: 'translate', provider: res.data?.provider })
       } catch { setAiResult({ text: 'AI action failed. Please try again.', action: 'translate' }) }
       setAiLoading(false)
       setPendingTranslateMsg(null)
@@ -307,7 +307,7 @@ export default function ChatPage() {
       else if (action === 'unread-summary') res = await aiApi.summarize(contextText)
       else res = await aiApi.action(contextText, 'text', action)
       const resultText = res.data?.reply || res.data?.summary || res.data?.translation || res.data?.result || 'No result'
-      setAiResult({ text: resultText, action })
+      setAiResult({ text: resultText, action, provider: res.data?.provider })
     } catch { setAiResult({ text: 'AI action failed. Please try again.', action }) }
     setAiLoading(false)
   }

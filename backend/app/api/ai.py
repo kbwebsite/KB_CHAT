@@ -95,7 +95,9 @@ async def ai_code_action(
     result = await provider.code_action(
         body.code, body.language, body.action, body.instruction or ""
     )
-    return success_response({"result": result, "action": body.action})
+    return success_response(
+        {"result": result, "action": body.action, "provider": settings.AI_PROVIDER}
+    )
 
 
 @router.post("/summarize")
@@ -112,7 +114,7 @@ async def ai_summarize(
         }
     ]
     reply = await provider.chat(messages)
-    return success_response({"summary": reply})
+    return success_response({"summary": reply, "provider": settings.AI_PROVIDER})
 
 
 @router.post("/translate")
@@ -130,7 +132,11 @@ async def ai_translate(
     ]
     reply = await provider.chat(messages)
     return success_response(
-        {"translation": reply, "target_language": body.target_language}
+        {
+            "translation": reply,
+            "target_language": body.target_language,
+            "provider": settings.AI_PROVIDER,
+        }
     )
 
 

@@ -301,6 +301,81 @@ def test_delivered_endpoint_acks_without_read():
     assert r_forbidden.status_code == 403
 
 
+def test_status_privacy_matrix():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b, c = f"pa{s}", f"pb{s}", f"pc{s}"
+    for u in (a, b, c):
+        signup_user(u, f"{u}@ex.com", u.upper())
+    ha, hb, hc = _login(a), _login(b), _login(c)
+    # A and B share a conversation; C is a stranger to A
+    r = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    assert r.status_code == 200, r.text
+    id_b = client.get("/api/auth/me", headers=hb).json()["data"]["id"]
+
+    def mk(privacy, allowed=""):
+        fd = {
+            "content": f"priv-{privacy}-{s}",
+            "media_type": "text",
+            "privacy": privacy,
+        }
+        if allowed:
+            fd["allowed_ids"] = allowed
+        r = client.post("/api/status", data=fd, headers=ha)
+        assert r.status_code == 200, r.text
+        return r.json()["data"]["id"]
+
+    mk("contacts")
+    mk("nobody")
+    mk("selected", allowed_ids := f"[{id_b}]")
+
+    def visible(h):
+        d = client.get("/api/status/feed", headers=h).json()["data"]
+        return (
+            {x["content"] for x in d["recent"]},
+            {x["content"] for x in d["viewed"]},
+            {x["content"] for x in d["my_status"]},
+        )
+
+    # stranger sees nothing of A's
+    recent_c, viewed_c, _ = visible(hc)
+    assert f"priv-contacts-{s}" not in recent_c | viewed_c
+    assert f"priv-selected-{s}" not in recent_c | viewed_c
+    assert f"priv-nobody-{s}" not in recent_c | viewed_c
+    # contact sees contacts + selected, not nobody
+    recent_b, _, _ = visible(hb)
+    assert f"priv-contacts-{s}" in recent_b
+    assert f"priv-selected-{s}" in recent_b
+    assert f"priv-nobody-{s}" not in recent_b
+    # owner sees everything
+    _, _, mine_a = visible(ha)
+    assert {f"priv-contacts-{s}", f"priv-nobody-{s}", f"priv-selected-{s}"} <= mine_a
+
+
+def test_ai_action_shapes_carry_provider():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    u = f"aix{s}"
+    signup_user(u, f"{u}@ex.com", "AIX")
+    h = _login(u)
+    r1 = client.post("/api/ai/summarize", json={"message": "hello world"}, headers=h)
+    assert r1.status_code == 200 and "provider" in r1.json()["data"], r1.text
+    r2 = client.post(
+        "/api/ai/translate",
+        json={"message": "hello", "target_language": "Spanish"},
+        headers=h,
+    )
+    assert r2.status_code == 200 and "provider" in r2.json()["data"], r2.text
+    r3 = client.post(
+        "/api/ai/action",
+        json={"code": "x=1", "language": "python", "action": "explain"},
+        headers=h,
+    )
+    assert r3.status_code == 200 and "provider" in r3.json()["data"], r3.text
+
+
 def test_e2ee_envelope_and_keys():
     import base64
     import time
