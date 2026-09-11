@@ -5,7 +5,8 @@ import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { openMessage } from '../utils/e2ee'
+import { useChatStore } from '../store/chat'
+import { openMessage, fetchPeerKey } from '../utils/e2ee'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -14,18 +15,32 @@ type DecState = { s: 'plain' } | { s: 'loading' } | { s: 'failed' } | { s: 'open
 /** Resolve displayable text for E2EE v1 messages (async device-side open). */
 function useDecrypted(msg: Message): DecState {
   const meId = useAuthStore(s => s.user?.id)
+  const conv = useChatStore(s => s.conversations.find((c: any) => c.id === msg.conversation_id))
   const [st, setSt] = useState<DecState>(msg.is_encrypted ? { s: 'loading' } : { s: 'plain' })
   useEffect(() => {
     if (!msg.is_encrypted || msg.message_type !== 'text') { setSt({ s: 'plain' }); return }
     if (meId == null) { setSt({ s: 'failed' }); return }
     let live = true
     setSt({ s: 'loading' })
-    openMessage(msg, meId).then(t => {
-      if (!live) return
-      setSt(t == null ? { s: 'failed' } : { s: 'open', text: t })
-    })
+    ;(async () => {
+      try {
+        // The other party's key opens the box in both directions: it is the
+        // sender for received messages and the recipient for my own.
+        const members = (conv as any)?.members || []
+        let otherId = members.find((m: any) => m.user_id !== meId)?.user_id
+        if (otherId == null && msg.sender_id !== meId) otherId = msg.sender_id
+        if (otherId == null) { if (live) setSt({ s: 'failed' }); return }
+        const peerB64 = await fetchPeerKey(otherId)
+        if (!live) return
+        if (!peerB64) { setSt({ s: 'failed' }); return }
+        const t = await openMessage(msg, meId, peerB64)
+        if (live) setSt(t == null ? { s: 'failed' } : { s: 'open', text: t })
+      } catch {
+        if (live) setSt({ s: 'failed' })
+      }
+    })()
     return () => { live = false }
-  }, [msg.id, (msg as any).nonce, meId])
+  }, [msg.id, (msg as any).nonce, meId, (conv as any)?.id])
   return st
 }
 

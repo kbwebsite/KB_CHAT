@@ -133,26 +133,24 @@ export async function sealForConversation(
 }
 
 /**
- * Open an encrypted message. Returns the plaintext, or null when it cannot
- * be decrypted on this device (wrong/new device, corrupt envelope).
+ * Open an encrypted message with the OTHER party's public key + my private
+ * key. The other party is the peer in both directions (sender for received
+ * mail, recipient for my own sent mail) — using my own key for own messages
+ * derives a different secret and can never open them.
  */
 export async function openMessage(
-  msg: { content?: string | null; nonce?: string | null; sender_id?: number | null },
+  msg: { content?: string | null; nonce?: string | null },
   meId: number,
+  otherPubB64: string | null,
 ): Promise<string | null> {
   try {
-    if (!msg.content || !msg.nonce || msg.sender_id == null) return null
+    if (!msg.content || !msg.nonce || !otherPubB64) return null
     const keys = loadDeviceKeys(meId)
-    let senderPub: Uint8Array
-    if (msg.sender_id === meId) {
-      senderPub = keys.publicKey
-    } else {
-      const b64 = await fetchPeerKey(msg.sender_id)
-      if (!b64) return null
-      senderPub = b64ToU8(b64)
-    }
     const plain = nacl.box.open(
-      b64ToU8(msg.content), b64ToU8(msg.nonce), senderPub, keys.secretKey,
+      b64ToU8(msg.content),
+      b64ToU8(msg.nonce),
+      b64ToU8(otherPubB64),
+      keys.secretKey,
     )
     if (!plain) return null
     return td.decode(plain)
