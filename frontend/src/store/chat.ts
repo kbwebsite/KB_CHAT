@@ -2,6 +2,7 @@ import { create } from 'zustand'
 import { Conversation, Message } from '../types'
 import { convApi, msgApi } from '../services/api'
 import { useAuthStore } from './auth'
+import { useSettingsStore } from './settings'
 import wsService from '../services/websocket'
 
 interface ChatState {
@@ -317,11 +318,18 @@ export function initChatWS() {
         msgApi.delivered(msg.id).catch(()=>{})
       }
     } catch {}
-    // notify if not focused
+    // notify if not focused (honors the in-app notification prefs)
     if (document.hidden || useChatStore.getState().currentConversationId !== msg.conversation_id) {
-      if ('Notification' in window && Notification.permission==='granted') {
-        new Notification('Kryzen', { body: `New message from ${(payload as any).sender_display_name || 'someone'}` })
-      }
+      try {
+        const prefs = useSettingsStore.getState()
+        if (prefs.sound_enabled) {
+          import('../utils/push').then(m => m.playPing()).catch(() => {})
+        }
+        if (prefs.message_notifications && prefs.desktop_notifications
+            && 'Notification' in window && Notification.permission==='granted') {
+          new Notification('Kryzen', { body: `New message from ${(payload as any).sender_display_name || 'someone'}` })
+        }
+      } catch {}
     }
   })
   wsService.on('message.updated', (p)=> useChatStore.getState().updateMessage(p as Message))

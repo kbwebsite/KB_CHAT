@@ -87,10 +87,25 @@ export default function ChatPage() {
 
   const currentConv = conversations.find((c: any) => c.id === currentConversationId) || null
 
+  const desktopPref = useSettingsStore(s => s.desktop_notifications)
+  // Re-run push registration when the user flips desktop notifications on.
+  useEffect(() => {
+    if (!desktopPref) return
+    import('../utils/push').then(m => m.initWebPush({ desktop: true })).catch(() => {})
+  }, [desktopPref])
+
   // ─── Init: WS, token, saved IDs ───
   useEffect(() => {
     initChatWS()
-    settings.init()
+    settings.init().catch(() => {}).finally(() => {
+      // Register this client for background push only if the user opted in
+      // (no-op unless Firebase is configured; native path covers the APK).
+      const wantPush = useSettingsStore.getState().desktop_notifications
+      import('../utils/push').then(m => {
+        m.initWebPush({ desktop: wantPush })
+        m.initNativePush()
+      }).catch(() => {})
+    })
     const token = localStorage.getItem('kb_token')
     if (token) wsService.connect(token)
     fetchConversations()

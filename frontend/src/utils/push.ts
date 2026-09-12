@@ -8,12 +8,43 @@ import { configApi, pushApi, isNativeApp } from '../services/api'
  */
 
 let started = false
+let inflight: Promise<void> | null = null
 
-export async function initWebPush(): Promise<void> {
-  if (started) return
-  started = true
+/** Short, dependency-free new-message blip (no audio asset needed). */
+export function playPing(): void {
+  try {
+    const Ctx = window.AudioContext || (window as any).webkitAudioContext
+    if (!Ctx) return
+    const ctx = new Ctx()
+    const osc = ctx.createOscillator()
+    const gain = ctx.createGain()
+    osc.type = 'sine'
+    osc.frequency.value = 880
+    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
+    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02)
+    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18)
+    osc.connect(gain)
+    gain.connect(ctx.destination)
+    osc.start()
+    osc.stop(ctx.currentTime + 0.2)
+    osc.onended = () => ctx.close().catch(() => {})
+  } catch {}
+}
+
+export function initWebPush(opts?: { desktop?: boolean }): Promise<void> {
+  if (started) return Promise.resolve()
+  if (inflight) return inflight
+  inflight = runWebPush(opts).finally(() => {
+    inflight = null
+  })
+  return inflight
+}
+
+async function runWebPush(opts?: { desktop?: boolean }): Promise<void> {
   try {
     if (isNativeApp()) return
+    // Honor the user's in-app preference; a later toggle-on retries.
+    if (opts?.desktop === false) return
     if (
       typeof window === 'undefined' ||
       !('serviceWorker' in navigator) ||
@@ -77,6 +108,7 @@ export async function initWebPush(): Promise<void> {
         }
       } catch {}
     })
+    started = true
   } catch {}
 }
 

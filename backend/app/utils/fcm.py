@@ -180,6 +180,8 @@ async def notify_user_tokens(
     from app.models.push_token import DeviceToken
 
     tokens = db.query(DeviceToken).filter_by(user_id=user_id).all()
+    if tokens:
+        print(f"[fcm] user {user_id}: {len(tokens)} device(s), title={title[:60]!r}")
     sent = 0
     for t in tokens:
         ok = await send_to_token(
@@ -189,4 +191,6 @@ async def notify_user_tokens(
             sent += 1
         # else: keep the token; FCM UNREGISTERED handling would prune here
         # (v1 returns the error inside details — log-only for now).
+    if tokens:
+        print(f"[fcm] user {user_id}: accepted {sent}/{len(tokens)}")
     return sent

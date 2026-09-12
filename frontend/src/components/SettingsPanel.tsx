@@ -148,7 +148,18 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
             ].map(item=> (
               <label key={item.key} className="settings-section flex items-center justify-between cursor-pointer">
                 <div><p className="text-sm font-medium">{item.label}</p><p className="text-xs text-muted-foreground">{item.desc}</p></div>
-                <input type="checkbox" checked={(settings as any)[item.key]} onChange={e=> settings.update({[item.key]: e.target.checked} as any)} className="settings-toggle"/>
+                <input type="checkbox" checked={(settings as any)[item.key]} onChange={e=> {
+                  const checked = e.target.checked
+                  settings.update({[item.key]: checked} as any)
+                  // Push lifecycle follows the desktop-notifications toggle:
+                  // opting out removes this device token server-side.
+                  if (item.key === 'desktop_notifications') {
+                    import('../utils/push').then(m => {
+                      if (checked) m.initWebPush({ desktop: true })
+                      else m.unregisterWebPush()
+                    }).catch(() => {})
+                  }
+                }} className="settings-toggle"/>
               </label>
             ))}
             <button onClick={()=>{

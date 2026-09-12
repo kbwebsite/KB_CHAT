@@ -36,18 +36,21 @@ services:
         value: 358381591648362
       - key: CLOUDINARY_API_SECRET
         sync: false
-      # Push notifications via Firebase (fill in dashboard after creating the
-      # Firebase project; empty = push stays disabled, app unaffected)
+      # Push notifications via Firebase. The web values below are PUBLIC
+      # (they ship in the client bundle by design), same convention as
+      # GOOGLE_CLIENT_ID above. Only the service-account JSON and the VAPID
+      # key stay dashboard-managed (sync: false); without them push stays
+      # disabled and the app is unaffected.
       - key: FIREBASE_CREDENTIALS_JSON
         sync: false
       - key: FIREBASE_API_KEY
-        sync: false
+        value: AIzaSyC1Nize-muh1wm3sp0sA25THF9jL-X-iLI
       - key: FIREBASE_PROJECT_ID
-        sync: false
+        value: kbwebsite-s
       - key: FIREBASE_SENDER_ID
-        sync: false
+        value: "91256422447"
       - key: FIREBASE_APP_ID
-        sync: false
+        value: 1:91256422447:web:7a6dfd0ee79f4c276d86da
       - key: FIREBASE_VAPID_KEY
         sync: false
       # TURN / WebRTC (optional)
