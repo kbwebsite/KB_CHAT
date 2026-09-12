@@ -97,6 +97,17 @@ def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers
     user = db.query(User).filter_by(id=s.user_id).first()
     viewers = []
     if include_viewers:
+        # Dedupe by viewer (one row per person, latest first): concurrent
+        # view-records could historically insert twice for the same viewer.
+        seen: dict = {}
+        for v in s.viewers:
+            prev = seen.get(v.viewer_id)
+            if prev is None:
+                seen[v.viewer_id] = v
+            elif v.viewed_at is not None and (
+                prev.viewed_at is None or v.viewed_at > prev.viewed_at
+            ):
+                seen[v.viewer_id] = v
         viewers = [
             {
                 "viewer_id": v.viewer_id,
@@ -105,7 +116,11 @@ def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers
                 "avatar_url": v.viewer.avatar_url if v.viewer else None,
                 "viewed_at": v.viewed_at.isoformat() if v.viewed_at else None,
             }
-            for v in s.viewers
+            for v in sorted(
+                seen.values(),
+                key=lambda v: v.id or 0,
+                reverse=True,
+            )
         ]
     viewed = (
         db.query(StatusViewer)
@@ -130,7 +145,8 @@ def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers
         "expires_at": s.expires_at.isoformat() if s.expires_at else None,
         "viewed": viewed,
         "is_own": s.user_id == current_user_id,
-        "view_count": len(s.viewers),
+        # Distinct people, not raw rows (see dedupe above).
+        "view_count": len({v.viewer_id for v in s.viewers}),
         "viewers": viewers if include_viewers else None,
     }
 
