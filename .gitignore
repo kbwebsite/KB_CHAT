@@ -3,6 +3,8 @@ __pycache__/
 .venv/
 venv/
 .env
+.env*.local
+frontend/.env
 *.db
 *.sqlite
 *.sqlite3
@@ -13,6 +15,8 @@ frontend/dist/
 frontend/build/
 # Capacitor Android: keep sources, ignore machine-local + build outputs
 frontend/android/local.properties
+# Firebase Android config (per-developer; CI injects it as a secret)
+**/google-services.json
 frontend/android/.gradle/
 frontend/android/app/build/
 frontend/android/app/release/

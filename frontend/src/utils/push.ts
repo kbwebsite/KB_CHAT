@@ -88,4 +88,51 @@ export async function unregisterWebPush(): Promise<void> {
       localStorage.removeItem('kb_push_token')
     }
   } catch {}
+  try {
+    if (isNativeApp()) {
+      const { PushNotifications } = await import('@capacitor/push-notifications')
+      await PushNotifications.removeAllListeners().catch(() => {})
+      await PushNotifications.unregister().catch(() => {})
+    }
+  } catch {}
+}
+
+/**
+ * Native (APK) push via FCM. Registers the device token with the backend as
+ * platform android; taps deep-link into the conversation. Foreground
+ * messages are already covered live by the websocket, so only taps + token
+ * lifecycle are handled here. No-ops entirely off-device.
+ */
+let nativeStarted = false
+
+export async function initNativePush(): Promise<void> {
+  if (nativeStarted) return
+  nativeStarted = true
+  try {
+    if (!isNativeApp()) return
+    const { PushNotifications } = await import('@capacitor/push-notifications')
+    let perm: any = await PushNotifications.checkPermissions().catch(() => ({ receive: 'prompt' }))
+    if (perm?.receive === 'prompt') {
+      perm = await PushNotifications.requestPermissions().catch(() => perm)
+    }
+    if (perm?.receive !== 'granted') return
+    await PushNotifications.register().catch(() => {})
+    await PushNotifications.addListener('registration', async (t: any) => {
+      try {
+        if (t?.value) {
+          try {
+            localStorage.setItem('kb_push_token', t.value)
+          } catch {}
+          await pushApi.register({ token: t.value, platform: 'android' }).catch(() => {})
+        }
+      } catch {}
+    })
+    await PushNotifications.addListener('registrationError', () => {})
+    await PushNotifications.addListener('pushNotificationActionPerformed', (a: any) => {
+      try {
+        const cid = a?.notification?.data?.conversation_id
+        window.location.href = cid ? `/chat?conv=${cid}` : '/chat'
+      } catch {}
+    })
+  } catch {}
 }

@@ -104,8 +104,12 @@ export default function ChatPage() {
         window.history.replaceState({}, '', '/chat')
       }
     } catch {}
-    // Register this browser for background push (no-op unless configured).
-    import('../utils/push').then(m => m.initWebPush()).catch(() => {})
+    // Register this client for background push (no-op unless configured;
+    // native path covers the APK, web path covers browsers).
+    import('../utils/push').then(m => {
+      m.initWebPush()
+      m.initNativePush()
+    }).catch(() => {})
     savedApi.list().then((r: any) => { if (r.success) setSavedIds(new Set(r.data.map((x: any) => x.message_id))) })
     const off1 = wsService.on('call.incoming', (p: any) => {
       setCallModal({ open: true, type: p.call_type || 'voice', peerName: p.caller_display || p.caller_username || 'Unknown', peerAvatar: null, incoming: true, callId: p.id, peerId: p.caller_id })
