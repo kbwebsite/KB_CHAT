@@ -76,7 +76,15 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
     try {
       await onSession(idToken)
     } catch (err: any) {
-      setError(err?.response?.data?.detail || err?.message || 'Could not start your session.')
+      const detail = err?.response?.data?.detail
+      // Backend returns 503 when Firebase credentials are missing; surface it
+      // precisely instead of a generic “session failed”. The one place this
+      // still hits is an emulator-only local backend without a service account.
+      if (err?.response?.status === 503) {
+        setError('The server is not yet configured for Firebase logins — try again in a minute, or use another sign-in method.')
+      } else {
+        setError(detail || err?.message || 'Could not start your session.')
+      }
     } finally {
       setBusy(false)
     }
@@ -104,7 +112,12 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       }
       await finish(await cred.user.getIdToken())
     } catch (err: any) {
-      setError(friendlyAuthError(err))
+      const msg = friendlyAuthError(err)
+      if (err?.code === 'auth/email-already-in-use' && tab !== 'google') {
+        setError(msg + ' — switch to Email tab and sign in.')
+      } else {
+        setError(msg)
+      }
     } finally {
       setBusy(false)
     }
@@ -118,7 +131,11 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       const cred = await signInWithPopup(auth, new GoogleAuthProvider())
       await finish(await cred.user.getIdToken())
     } catch (err: any) {
-      setError(friendlyAuthError(err))
+      if (err?.code === 'auth/invalid-credential') {
+        setError('Google sign-in failed — the app is not authorized for this domain. Add it under: Firebase Console → Authentication → Settings → Authorized domains.')
+      } else {
+        setError(friendlyAuthError(err))
+      }
     } finally {
       setBusy(false)
     }

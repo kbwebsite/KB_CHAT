@@ -6,7 +6,12 @@
       "kb-chat-jqdk.onrender.com"
     ],
     "providers": {
-      "emailPassword": true
+      "emailPassword": true,
+      "phoneAuth": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "Kryzen",
+        "supportEmail": "krish21022008@gmail.com"
+      }
     }
   },
   "firestore": {
