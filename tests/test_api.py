@@ -376,6 +376,41 @@ def test_ai_action_shapes_carry_provider():
     assert r3.status_code == 200 and "provider" in r3.json()["data"], r3.text
 
 
+def test_ai_provider_mapping_and_endpoint_fallback():
+    from app.ai.provider import (
+        get_ai_provider,
+        OpenAICompatibleProvider,
+        ServiceProvider,
+    )
+    from app.database.config import settings
+
+    old_provider, old_base = settings.AI_PROVIDER, settings.AI_BASE_URL
+    try:
+        for name, cls in [
+            ("mock", ServiceProvider),
+            ("", ServiceProvider),
+            ("off", ServiceProvider),
+            ("openai", OpenAICompatibleProvider),
+            ("openai-compatible", OpenAICompatibleProvider),
+            ("ollama", OpenAICompatibleProvider),
+            ("custom", OpenAICompatibleProvider),
+        ]:
+            settings.AI_PROVIDER = name
+            assert isinstance(get_ai_provider(), cls), name
+        # endpoint candidates adapt to the configured base
+        settings.AI_BASE_URL = "https://api.openai.com/v1"
+        assert OpenAICompatibleProvider()._candidate_urls() == [
+            "https://api.openai.com/v1/chat/completions"
+        ]
+        settings.AI_BASE_URL = "https://ollama.com"
+        assert OpenAICompatibleProvider()._candidate_urls() == [
+            "https://ollama.com/chat/completions",
+            "https://ollama.com/v1/chat/completions",
+        ]
+    finally:
+        settings.AI_PROVIDER, settings.AI_BASE_URL = old_provider, old_base
+
+
 def test_e2ee_envelope_and_keys():
     import base64
     import time

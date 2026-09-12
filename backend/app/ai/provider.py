@@ -579,24 +579,38 @@ class OpenAICompatibleProvider(AIProvider):
             "Content-Type": "application/json",
         }
 
+    def _candidate_urls(self) -> List[str]:
+        # Providers disagree on where the OpenAI-compatible route lives
+        # (e.g. https://api.openai.com/v1 vs https://ollama.com). Try the
+        # base as given first, then with /v1 appended.
+        urls = [f"{self.base_url}/chat/completions"]
+        if not self.base_url.rstrip("/").endswith("/v1"):
+            urls.append(f"{self.base_url}/v1/chat/completions")
+        return urls
+
     async def _chat_completion(
         self,
         messages: List[Dict[str, Any]],
         temperature: float = 0.6,
     ) -> str:
-        url = f"{self.base_url}/chat/completions"
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": messages,
             "temperature": temperature,
         }
+        last_error = "AI endpoint not found"
         async with httpx.AsyncClient(timeout=60) as client:
-            r = await client.post(url, headers=self._headers(), json=payload)
-            if r.status_code != 200:
-                error_text = r.text
-                raise Exception(error_text)
-            data = r.json()
-            return data["choices"][0]["message"]["content"]
+            urls = self._candidate_urls()
+            for url in urls:
+                r = await client.post(url, headers=self._headers(), json=payload)
+                if r.status_code == 404 and url != urls[-1]:
+                    last_error = r.text
+                    continue
+                if r.status_code != 200:
+                    raise Exception(r.text)
+                data = r.json()
+                return data["choices"][0]["message"]["content"]
+        raise Exception(last_error)
 
     @staticmethod
     def _handle_ai_error(error: str) -> str:
@@ -676,7 +690,11 @@ class OpenAICompatibleProvider(AIProvider):
 
 
 def get_ai_provider() -> AIProvider:
-    name = (settings.AI_PROVIDER or "mock").lower()
-    if name in ("openai", "openai-compatible", "openai_compatible"):
-        return OpenAICompatibleProvider()
-    return ServiceProvider()
+    # Anything that names a real backend (openai, ollama, custom, ...) uses
+    # the OpenAI-compatible client; only explicit offline values stay mock.
+    # The client still falls back to mock per-request when no key is set or
+    # the endpoint errors, so a misconfigured name can never break the app.
+    name = (settings.AI_PROVIDER or "mock").strip().lower()
+    if name in ("", "mock", "none", "off", "disabled"):
+        return ServiceProvider()
+    return OpenAICompatibleProvider()
