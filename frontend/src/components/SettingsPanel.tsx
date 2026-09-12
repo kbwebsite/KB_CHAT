@@ -1,8 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSettingsStore } from '../store/settings'
 import { useAuthStore } from '../store/auth'
 import { extendedApi, settingsApi, sessionsApi, storageApi } from '../services/api'
-import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Bell, Shield, Lock, MessageSquare, HardDrive } from 'lucide-react'
+import { WALLPAPERS, CUSTOM_WALLPAPER_KEY, customWallpaperUrl, imageFileToWallpaper } from '../utils/wallpapers'
+import { blockApi } from '../services/api'
+import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Upload, Trash2, Bell, Shield, Lock, MessageSquare, HardDrive, Ban } from 'lucide-react'
 import PrivacyCenter from './PrivacyCenter'
 
 export function SettingsPanel({ onClose }: { onClose:()=>void }) {
@@ -14,8 +16,21 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
   const [sessions, setSessions]=useState<any[]>([])
   const [storage, setStorage]=useState<any>(null)
   const [showPrivacy, setShowPrivacy]=useState(false)
+  const [blocked, setBlocked]=useState<any[]|null>(null)
+  const loadBlocked=()=>{
+    blockApi.list()
+      .then((r:any)=>{ if (r?.success) setBlocked(r.data || []) })
+      .catch(()=> setBlocked([]))
+  }
+  const handleUnblock=async (userId:number)=>{
+    try {
+      await blockApi.unblock(userId)
+      setBlocked(b=> (b || []).filter((x:any)=> x.user_id !== userId))
+    } catch {}
+  }
 
   useEffect(()=>{ sessionsApi.list().then(r=>{ if(r.success) setSessions(r.data)}).catch(()=>{}) }, [])
+  useEffect(()=>{ loadBlocked() }, [])
   useEffect(()=>{ storageApi.dashboard().then(r=>{ if(r.success) setStorage(r.data)}).catch(()=>{}) }, [])
 
   const handleChangePwd=async ()=>{
@@ -35,11 +50,30 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
     {id:'indigo', color:'bg-indigo-600'},
   ]
 
-  const wallpapers = [
-    {id:'default', label:'Default', preview:'bg-muted'},
-    {id:'dots', label:'Dots', preview:'bg-[radial-gradient(circle_at_1px_1px,rgba(0,0,0,0.06)_1px,transparent_0)] bg-[size:20px_20px]'},
-    {id:'gradient', label:'Gradient', preview:'bg-gradient-to-br from-violet-500/10 to-indigo-500/10'},
-  ]
+  const fileRef = useRef<HTMLInputElement>(null)
+  const [wallpaperMsg, setWallpaperMsg] = useState<string | null>(null)
+  const [, bumpWallpaper] = useState(0)
+  const hasCustom = customWallpaperUrl() !== null
+
+  const handleWallpaperFile = async (f: File | undefined) => {
+    if (!f) return
+    setWallpaperMsg(null)
+    try {
+      const dataUrl = await imageFileToWallpaper(f)
+      localStorage.setItem(CUSTOM_WALLPAPER_KEY, dataUrl)
+      settings.update({ chat_wallpaper: 'custom' })
+      bumpWallpaper(n => n + 1)
+    } catch (e: any) {
+      setWallpaperMsg(e?.message || 'Could not use image')
+    }
+    if (fileRef.current) fileRef.current.value = ''
+  }
+
+  const removeCustomWallpaper = () => {
+    try { localStorage.removeItem(CUSTOM_WALLPAPER_KEY) } catch {}
+    if (settings.chat_wallpaper === 'custom') settings.update({ chat_wallpaper: 'default' })
+    bumpWallpaper(n => n + 1)
+  }
 
   return (
     <div className="h-full flex flex-col bg-card">
@@ -80,11 +114,26 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
           </div>
           <p className="text-xs font-medium mb-2 flex items-center gap-1"><Wallpaper className="w-3 h-3"/> Wallpaper</p>
           <div className="grid grid-cols-3 gap-2">
-            {wallpapers.map(w=> (
-              <button key={w.id} onClick={()=> settings.update({chat_wallpaper: w.id})} className={`settings-wallpaper-btn h-16 p-2 ${w.preview} ${settings.chat_wallpaper===w.id ? 'active' : ''}`}>
+            {WALLPAPERS.map(w=> (
+              <button key={w.id} onClick={()=> settings.update({chat_wallpaper: w.id})} className={`settings-wallpaper-btn h-16 p-2 ${settings.chat_wallpaper===w.id ? 'active' : ''}`} style={w.css}>
                 <span className="text-xs bg-card/80 px-1.5 py-0.5 rounded">{w.label}</span>
               </button>
             ))}
+            <button
+              onClick={()=> fileRef.current?.click()}
+              className={`settings-wallpaper-btn h-16 p-2 overflow-hidden ${settings.chat_wallpaper==='custom' ? 'active' : ''}`}
+              style={hasCustom && customWallpaperUrl() ? { backgroundImage: `url(${customWallpaperUrl()})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+              title="Upload a custom wallpaper"
+            >
+              <span className="text-xs bg-card/80 px-1.5 py-0.5 rounded flex items-center gap-1"><Upload className="w-3 h-3"/> Custom</span>
+            </button>
+          </div>
+          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e=> handleWallpaperFile(e.target.files?.[0])} />
+          <div className="flex items-center gap-2 mt-1.5">
+            {hasCustom && (
+              <button onClick={removeCustomWallpaper} className="text-[11px] text-muted-foreground hover:text-destructive flex items-center gap-1"><Trash2 className="w-3 h-3"/> Remove custom</button>
+            )}
+            {wallpaperMsg && <span className="text-[11px] text-destructive">{wallpaperMsg}</span>}
           </div>
         </section>
 
@@ -130,6 +179,29 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
               <p className="text-xs text-muted-foreground">Manage who can see your info</p>
             </button>
           )}
+        </section>
+
+        {/* Blocked contacts */}
+        <section>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Ban className="w-3 h-3"/> Blocked contacts</h3>
+          <div className="settings-section">
+            {blocked === null ? (
+              <p className="text-xs text-muted-foreground">Loading...</p>
+            ) : blocked.length === 0 ? (
+              <p className="text-xs text-muted-foreground">Nobody blocked. Block someone from their contact info to stop exchanging messages.</p>
+            ) : blocked.map((b: any) => (
+              <div key={b.user_id} className="flex items-center gap-2.5 py-1.5 border-b border-[var(--k-border)]/40 last:border-0">
+                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center overflow-hidden text-xs font-bold shrink-0">
+                  {b.avatar_url ? <img src={b.avatar_url} alt="" className="w-full h-full object-cover"/> : (b.display_name || b.username || '?')[0]}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{b.display_name || b.username}</p>
+                  <p className="text-xs text-muted-foreground truncate">@{b.username}</p>
+                </div>
+                <button onClick={() => handleUnblock(b.user_id)} className="text-xs px-2.5 py-1 rounded-lg bg-background border border-[var(--k-border)] hover:bg-muted transition-colors shrink-0">Unblock</button>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Security */}

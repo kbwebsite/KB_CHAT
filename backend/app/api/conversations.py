@@ -4,7 +4,7 @@ from sqlalchemy import or_, and_, desc, func
 from typing import List, Optional
 from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
-from app.models.user import User
+from app.models.user import User, BlockedUser
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message
 from app.models.poll import Poll
@@ -50,10 +50,16 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
                 "is_online": manager.is_online(u.id) if manager else u.is_online,
             }
         )
-    # last message
+    my_membership = next((m for m in members if m.user_id == current_user_id), None)
+    _cleared = my_membership.cleared_before_id or 0 if my_membership else 0
+    # last message (visible to me: above my clear-chat marker)
     last_msg = (
         db.query(Message)
-        .filter_by(conversation_id=conv.id, is_deleted=False)
+        .filter(
+            Message.conversation_id == conv.id,
+            Message.is_deleted == False,
+            Message.id > _cleared,
+        )
         .order_by(desc(Message.created_at))
         .first()
     )
@@ -74,15 +80,15 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
             else None,
             "message_type": last_msg.message_type,
         }
-    # unread count: messages after last_read_message_id
+    # unread count: messages after last_read_message_id and clear marker
     unread = 0
-    my_membership = next((m for m in members if m.user_id == current_user_id), None)
     if my_membership and my_membership.last_read_message_id is not None:
         unread = (
             db.query(Message)
             .filter(
                 Message.conversation_id == conv.id,
                 Message.id > my_membership.last_read_message_id,
+                Message.id > _cleared,
                 Message.sender_id != current_user_id,
                 Message.is_deleted == False,
             )
@@ -95,6 +101,7 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
                 Message.conversation_id == conv.id,
                 Message.sender_id != current_user_id,
                 Message.is_deleted == False,
+                Message.id > _cleared,
             )
             .count()
         )
@@ -193,13 +200,22 @@ def list_conversations(
         else {}
     )
 
-    # Latest message per conversation via index-backed max(id).
+    # Latest VISIBLE message per conversation via index-backed max(id),
+    # honoring each member's clear-chat marker.
     last_msg_map = {}
     last_ids = (
         db.query(Message.conversation_id, func.max(Message.id).label("mid"))
+        .join(
+            ConversationMember,
+            and_(
+                ConversationMember.conversation_id == Message.conversation_id,
+                ConversationMember.user_id == current_user.id,
+            ),
+        )
         .filter(
             Message.conversation_id.in_(conv_ids),
             Message.is_deleted == False,  # noqa: E712
+            Message.id > func.coalesce(ConversationMember.cleared_before_id, 0),
         )
         .group_by(Message.conversation_id)
         .all()
@@ -220,6 +236,7 @@ def list_conversations(
             and_(
                 Message.conversation_id == ConversationMember.conversation_id,
                 Message.id > func.coalesce(ConversationMember.last_read_message_id, 0),
+                Message.id > func.coalesce(ConversationMember.cleared_before_id, 0),
                 Message.sender_id != current_user.id,
                 Message.is_deleted == False,  # noqa: E712
             ),
@@ -302,8 +319,33 @@ def list_conversations(
             "is_favorite": my_membership.is_favorite if my_membership else False,
         }
 
+    # Hide 1-1 chats with blocked users (either direction) from the list.
+    blocked_ids: set = set()
+    for b in (
+        db.query(BlockedUser)
+        .filter(
+            (BlockedUser.blocker_id == current_user.id)
+            | (BlockedUser.blocked_id == current_user.id)
+        )
+        .all()
+    ):
+        blocked_ids.add(
+            b.blocked_id if b.blocker_id == current_user.id else b.blocker_id
+        )
+
     result = []
     for c in convs:
+        if not c.is_group and blocked_ids:
+            other = next(
+                (
+                    m.user_id
+                    for m in members_by_conv.get(c.id, [])
+                    if m.user_id != current_user.id
+                ),
+                None,
+            )
+            if other in blocked_ids:
+                continue
         d = _batched_dict(c)
         if search:
             s = search.lower()
@@ -391,6 +433,24 @@ async def create_conversation(
         if target_user.id == current_user.id:
             raise HTTPException(
                 status_code=400, detail="Cannot create conversation with yourself"
+            )
+        blocked = (
+            db.query(BlockedUser)
+            .filter(
+                (
+                    (BlockedUser.blocker_id == current_user.id)
+                    & (BlockedUser.blocked_id == target_user.id)
+                )
+                | (
+                    (BlockedUser.blocker_id == target_user.id)
+                    & (BlockedUser.blocked_id == current_user.id)
+                )
+            )
+            .first()
+        )
+        if blocked:
+            raise HTTPException(
+                status_code=403, detail="You cannot start a chat with this user"
             )
         # check existing 1-1
         # find conversations where both are members and is_group False

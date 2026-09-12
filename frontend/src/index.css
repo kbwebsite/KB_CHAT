@@ -711,6 +711,19 @@ body {
   box-shadow: 0 0 8px rgba(34, 197, 94, 0.6);
 }
 
+.conv-avatar.offline::after {
+  content: '';
+  position: absolute;
+  bottom: 1px;
+  right: 1px;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ef4444;
+  border: 2.5px solid var(--bg-primary);
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.5);
+}
+
 .conv-content {
   flex: 1;
   min-width: 0;
@@ -2233,6 +2246,31 @@ body {
   background: linear-gradient(135deg, #7c5cfc, #a855f7);
   color: #fff;
   box-shadow: 0 2px 12px rgba(124, 92, 252, 0.45);
+}
+
+/* Generic form input used by panels (events, scheduled, polls).
+   These were unstyled browser defaults (white-on-white text). */
+.input {
+  background: rgba(20, 20, 42, 0.8);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 12px;
+  color: #f0f0ff;
+  padding: 0.5rem 0.75rem;
+  outline: none;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  color-scheme: dark;
+}
+.input::placeholder { color: rgba(240, 240, 255, 0.35); }
+.input:focus {
+  border-color: rgba(124, 92, 252, 0.7);
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.18);
+}
+
+/* Search jump highlight */
+.msg-flash { animation: msgFlash 1.8s ease; }
+@keyframes msgFlash {
+  0%, 100% { background: transparent; }
+  15%, 60% { background: rgba(124, 92, 252, 0.18); }
 }
 
 /* Sticker / media pop-in */

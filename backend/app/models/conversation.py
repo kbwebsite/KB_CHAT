@@ -55,6 +55,9 @@ class ConversationMember(Base):
     joined_at = Column(DateTime(timezone=True), server_default=func.now())
     last_read_message_id = Column(Integer, nullable=True)
     last_delivered_message_id = Column(Integer, nullable=True)
+    # Per-user "clear chat": messages at or below this id are hidden for this
+    # member only (nothing is deleted for anyone else).
+    cleared_before_id = Column(Integer, nullable=True)
     is_muted = Column(Boolean, default=False)
     muted_until = Column(DateTime(timezone=True), nullable=True)
     is_pinned = Column(Boolean, default=False)

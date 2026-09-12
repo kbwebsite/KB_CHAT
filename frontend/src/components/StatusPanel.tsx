@@ -97,7 +97,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
           {loading ? <p className="text-xs text-muted-foreground">Loading...</p> : feed.recent.length===0 ? <div className="empty-art"><p className="text-2xl mb-1">📸</p><p className="text-sm text-muted-foreground">No recent updates</p></div> : (
             <div className="space-y-2">
               {feed.recent.map((s:any, i:number)=> (
-                <button key={s.id} onClick={()=> { statusApi.view(s.id); onViewer(feed.recent, i)}} className="panel-row w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
+                <button key={s.id} onClick={()=> onViewer(feed.recent, i)} className="panel-row w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
                   <div className="avatar-ring w-10 h-10">
                     <div className="w-full h-full rounded-full bg-card p-0.5">
                       <div className="w-full h-full rounded-full overflow-hidden bg-muted flex items-center justify-center">

@@ -11,6 +11,8 @@ import { EventCard } from './EventPanel'
 import { pollApi, eventApi } from '../services/api'
 import wsService from '../services/websocket'
 import { sealForConversation, fetchPeerKey, ensurePublished } from '../utils/e2ee'
+import { formatTime } from '../utils/format'
+import { wallpaperStyle } from '../utils/wallpapers'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
@@ -28,6 +30,7 @@ export function ChatView({
   showSchedule, setShowSchedule, showInsights, setShowInsights,
   activeRightTab, handleMessageSearch, onNewChat,
   totalUnread, onNotifications, onSearch, onSaved, onSettings, onThemeToggle, onLogout,
+  showMessageSearch, messageSearch, setMessageSearch, onCloseSearch,
   onAgent,
   onTheme,
   // Language selector (from ChatPage)
@@ -48,6 +51,45 @@ export function ChatView({
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
+  // In-conversation message search.
+  const [searchResults, setSearchResults] = useState<any[]>([])
+  const [searchLoading, setSearchLoading] = useState(false)
+  const [searched, setSearched] = useState(false)
+  const [flashId, setFlashId] = useState<number | null>(null)
+
+  const runMessageSearch = async () => {
+    const q = (messageSearch || '').trim()
+    if (!q || !currentConversationId) return
+    setSearchLoading(true)
+    setSearched(false)
+    try {
+      const res = await useChatStore.getState().searchMessages(q, currentConversationId)
+      setSearchResults(Array.isArray(res) ? res : [])
+    } catch { setSearchResults([]) }
+    setSearchLoading(false)
+    setSearched(true)
+  }
+
+  const jumpToMessage = async (m: any) => {
+    if (m.conversation_id !== currentConversationId) {
+      const st = useChatStore.getState()
+      st.setCurrent(m.conversation_id)
+      await st.fetchMessages(m.conversation_id)
+      onMobileViewChange('chat')
+    }
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.getElementById(`msg-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setFlashId(m.id)
+        setTimeout(() => setFlashId(null), 1800)
+      }, 80)
+    })
+  }
+
+  useEffect(() => {
+    setSearchResults([])
+    setSearched(false)
+  }, [currentConversationId])
   // Polls & events rendered inline in the message flow (not just the panels)
   const [convPolls, setConvPolls] = useState<any[]>([])
   const [convEvents, setConvEvents] = useState<any[]>([])
@@ -364,7 +406,7 @@ export function ChatView({
           onCall={onCall}
           onMute={onMute}
           muted={isMuted}
-          onSearch={handleMessageSearch}
+          onSearch={onSearch}
           handleRefresh={handleRefresh}
           onAi={() => setAiPanelOpen(!aiPanelOpen)}
           onAgent={onAgent}
@@ -378,6 +420,49 @@ export function ChatView({
             else if (key === 'insights') setShowInsights(true)
           }}
         />
+
+        {showMessageSearch && (
+          <div className="px-3 py-2 border-b border-border shrink-0" style={{ background: 'rgba(124,92,252,0.06)' }}>
+            <div className="flex items-center gap-2">
+              <SearchIcon className="w-4 h-4 text-muted-foreground shrink-0" />
+              <input
+                autoFocus
+                value={messageSearch || ''}
+                onChange={e => setMessageSearch(e.target.value)}
+                onKeyDown={e => {
+                  if (e.key === 'Enter') runMessageSearch()
+                  if (e.key === 'Escape') onCloseSearch?.()
+                }}
+                placeholder="Search in this conversation..."
+                className="flex-1 min-w-0 px-3 py-1.5 rounded-lg bg-muted text-sm outline-none"
+              />
+              {!!messageSearch && (
+                <button onClick={() => { setMessageSearch(''); setSearchResults([]); setSearched(false) }} className="p-1.5 hover:bg-muted rounded-full" aria-label="Clear search">
+                  <X className="w-4 h-4" />
+                </button>
+              )}
+              <button onClick={() => onCloseSearch?.()} className="p-1.5 hover:bg-muted rounded-full" aria-label="Close search">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            {searchLoading && <p className="text-xs text-muted-foreground mt-2 px-1">Searching...</p>}
+            {!searchLoading && searched && searchResults.length === 0 && (
+              <p className="text-xs text-muted-foreground mt-2 px-1">No messages match “{messageSearch}”.</p>
+            )}
+            {searchResults.length > 0 && (
+              <div className="mt-2 space-y-1 max-h-52 overflow-y-auto">
+                <p className="text-[11px] text-muted-foreground px-1">{searchResults.length} result{searchResults.length === 1 ? '' : 's'} — tap to jump</p>
+                {searchResults.map((m: any) => (
+                  <button key={m.id} onClick={() => jumpToMessage(m)} className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-muted flex items-center gap-2 min-w-0">
+                    <span className="text-xs font-medium text-primary shrink-0 max-w-[90px] truncate">{m.sender_display_name || m.sender_username || 'Unknown'}</span>
+                    <span className="text-xs truncate flex-1">{m.is_encrypted ? '🔒 Encrypted message' : (m.content || '').slice(0, 80)}</span>
+                    <span className="text-[10px] text-muted-foreground shrink-0">{m.created_at ? formatTime(m.created_at) : ''}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
 
         {typingNames && (
           <div className="px-4 py-1.5 text-xs text-muted-foreground glass-subtle shrink-0">
@@ -403,7 +488,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll}>
+        <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
@@ -459,7 +544,7 @@ export function ChatView({
               const showAvatar = !!currentConv?.is_group && (!prevMsg || prevMsg.sender_id !== msg.sender_id)
               const isLastInGroup = !nextMsg || nextMsg.sender_id !== msg.sender_id || (nextMsg && new Date(nextMsg.created_at).getTime() - new Date(msg.created_at).getTime() > 300000)
               return (
-                <div key={item.key}>
+                <div key={item.key} id={`msg-${msg.id}`} className={flashId === msg.id ? 'msg-flash rounded-xl' : ''}>
                   {dateSep}
                   <div className={isLastInGroup ? 'mb-3' : 'mb-0.5'}>
                     <MessageBubble

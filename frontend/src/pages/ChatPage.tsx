@@ -14,7 +14,7 @@ import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
-import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot } from 'lucide-react'
+import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -505,6 +505,10 @@ export default function ChatPage() {
                 setShowInsights={setShowInsights}
                 activeRightTab="chat"
                 handleMessageSearch={handleMessageSearch}
+                showMessageSearch={showMessageSearch}
+                messageSearch={messageSearch}
+                setMessageSearch={setMessageSearch}
+                onCloseSearch={() => { setShowMessageSearch(false); setMessageSearch('') }}
                 onNewChat={handleStartChat}
                 totalUnread={totalUnread}
                 onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
@@ -547,6 +551,7 @@ export default function ChatPage() {
           onClose={closeAllPanels}
           onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
           onStatusViewer={(statuses: any[], idx: number) => { closeAllPanels(); setStatusViewer({ statuses, idx }) }}
+          onUpdated={() => { fetchConversations(); if (currentConversationId) fetchMessages(currentConversationId) }}
           pinnedMessages={pinnedMessages}
           setPinnedMessages={setPinnedMessages}
           setShowPinned={setShowPinned}
@@ -602,7 +607,10 @@ export default function ChatPage() {
               <BottomSheetAction icon={<Reply className="w-5 h-5" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Copy className="w-5 h-5" />} label="Copy" onClick={() => { if (mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({ open: false }) }} />
               <BottomSheetAction icon={<Forward className="w-5 h-5" />} label="Forward" onClick={() => { if (mobileActionSheet.msg) { setForwardMsg(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
-              <BottomSheetAction icon={<Bookmark className="w-5 h-5" />} label={savedIds.has(mobileActionSheet.msg.id) ? 'Unsave' : 'Save'} onClick={() => { if (mobileActionSheet.msg) { handleSave(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<Bookmark className="w-5 h-5" />}
+                label={savedIds.has(mobileActionSheet.msg.id) ? 'Unsave' : 'Save'} onClick={() => { if (mobileActionSheet.msg) { handleSave(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<Pin className="w-5 h-5" />}
+                label={pinnedMessages.some((p: any) => p.id === mobileActionSheet.msg?.id) ? 'Unpin' : 'Pin'} onClick={() => { if (mobileActionSheet.msg) { handlePin(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Sparkles className="w-5 h-5" />} label="Summarize" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
               {mobileActionSheet.msg.sender_id === user?.id && (

@@ -161,10 +161,17 @@ async def list_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if not _is_member(db, conv_id, current_user.id):
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv_id, user_id=current_user.id)
+        .first()
+    )
+    if not membership:
         raise HTTPException(status_code=403, detail="Not a member")
+    # Per-user clear-chat marker: hide everything at/below it for this member.
+    cleared = membership.cleared_before_id or 0
 
-    q = _get_messages_query(db, conv_id)
+    q = _get_messages_query(db, conv_id).filter(Message.id > cleared)
     if search:
         q = q.filter(Message.content.ilike(f"%{search}%"))
     if before:
@@ -180,12 +187,7 @@ async def list_messages(
     # sender's ticks upgrade from single to double even after offline gaps.
     upgraded_from = None
     newest_id = msgs[-1].id if msgs else None
-    membership = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=current_user.id)
-        .first()
-    )
-    if membership is not None and newest_id is not None:
+    if newest_id is not None:
         if (membership.last_delivered_message_id or 0) < newest_id:
             upgraded_from = membership.last_delivered_message_id or 0
             membership.last_delivered_message_id = newest_id
@@ -206,7 +208,11 @@ async def list_messages(
         if oldest_id:
             remaining = (
                 db.query(Message)
-                .filter(Message.conversation_id == conv_id, Message.id < oldest_id)
+                .filter(
+                    Message.conversation_id == conv_id,
+                    Message.id < oldest_id,
+                    Message.id > cleared,
+                )
                 .count()
             )
             has_more = remaining > 0
@@ -222,6 +228,22 @@ async def create_message(
 ):
     if not _is_member(db, conv_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
+    # Blocked users cannot exchange 1-1 messages in either direction.
+    from app.models.conversation import Conversation as _Conv
+    from app.api.extended import _blocked_pair as _is_blocked
+
+    _conv = db.query(_Conv).filter_by(id=conv_id).first()
+    if _conv is not None and not _conv.is_group:
+        _other = (
+            db.query(ConversationMember.user_id)
+            .filter(
+                ConversationMember.conversation_id == conv_id,
+                ConversationMember.user_id != current_user.id,
+            )
+            .first()
+        )
+        if _other and _is_blocked(db, current_user.id, _other[0]):
+            raise HTTPException(status_code=403, detail="You cannot message this user")
     if not payload.content and not payload.attachment_ids:
         raise HTTPException(
             status_code=400, detail="Message content or attachment required"
@@ -608,12 +630,15 @@ def search_messages(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    member_convs = [
-        m.conversation_id
-        for m in db.query(ConversationMember).filter_by(user_id=current_user.id).all()
-    ]
+    my_memberships = (
+        db.query(ConversationMember).filter_by(user_id=current_user.id).all()
+    )
+    member_convs = [m.conversation_id for m in my_memberships]
     if not member_convs:
         return success_response([])
+    cleared_by_conv = {
+        m.conversation_id: (m.cleared_before_id or 0) for m in my_memberships
+    }
     query = db.query(Message).filter(
         Message.conversation_id.in_(member_convs),
         Message.is_deleted == False,
@@ -623,7 +648,12 @@ def search_messages(
         if conversation_id not in member_convs:
             raise HTTPException(status_code=403, detail="Not a member")
         query = query.filter(Message.conversation_id == conversation_id)
-    msgs = query.order_by(desc(Message.created_at)).limit(50).all()
+    # Over-fetch: cleared messages are dropped after the query.
+    msgs = [
+        m
+        for m in query.order_by(desc(Message.created_at)).limit(100).all()
+        if m.id > cleared_by_conv.get(m.conversation_id, 0)
+    ][:50]
     receipts_cache: dict = {}
 
     def _receipts_for(conv_id: int):

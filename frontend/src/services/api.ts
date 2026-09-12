@@ -281,6 +281,12 @@ export const aiApi = {
     api.post('/api/ai/smart-search', { message: query }).then(r=>r.data),
 }
 
+export const blockApi = {
+  block: (userId: number) => api.post(`/api/contacts/${userId}/block`).then(r=>r.data),
+  unblock: (userId: number) => api.post(`/api/contacts/${userId}/unblock`).then(r=>r.data),
+  list: () => api.get('/api/contacts/blocked').then(r=>r.data),
+}
+
 export const pushApi = {
   register: (data: { token: string; platform?: string; device_id?: string }) =>
     api.post('/api/push/tokens', data).then(r=>r.data),

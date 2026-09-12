@@ -38,6 +38,7 @@ export function ChatPanels({
   onJump,
   onChat,
   onStatusViewer,
+  onUpdated,
   pinnedMessages,
   setPinnedMessages,
   setShowPinned,
@@ -59,7 +60,7 @@ export function ChatPanels({
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-background animate-slide-up">
       {showProfile && <ProfilePanel onClose={onClose} />}
-      {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={() => {}} />}
+      {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={onUpdated || (() => {})} />}
       {showSettings && <SettingsPanel onClose={onClose} />}
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
       {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}

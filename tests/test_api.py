@@ -423,6 +423,93 @@ def test_rate_limiter_uses_forwarded_ip_and_buckets():
     _request_counts.clear()
 
 
+def test_clear_chat_hides_for_me_only():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"cla{s}", f"clb{s}"
+    signup_user(a, f"{a}@ex.com", "Clear A")
+    signup_user(b, f"{b}@ex.com", "Clear B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "m1"}, headers=ha
+    )
+    client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "m2"}, headers=hb
+    )
+    # A clears: hidden for A, untouched for B, nothing deleted
+    r = client.post(f"/api/conversations/{cid}/clear", headers=ha)
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["cleared_before_id"] >= 2
+    ra = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    assert ra.json()["data"]["messages"] == []
+    rb = client.get(f"/api/conversations/{cid}/messages", headers=hb)
+    assert len(rb.json()["data"]["messages"]) == 2
+    # A's conversation preview shows no last message and no unread
+    ca = client.get("/api/conversations", headers=ha).json()["data"]
+    mine = [c for c in ca if c["id"] == cid][0]
+    assert mine["last_message"] is None
+    assert mine["unread_count"] == 0
+    # new messages after clear are visible to A again
+    client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "m3"}, headers=hb
+    )
+    ra2 = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    assert [m["content"] for m in ra2.json()["data"]["messages"]] == ["m3"]
+
+
+def test_block_flow():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b, c, d = f"ba{s}", f"bb{s}", f"bc{s}", f"bd{s}"
+    for u in (a, b, c, d):
+        signup_user(u, f"{u}@ex.com", u.upper())
+    ha, hb, hc, hd = _login(a), _login(b), _login(c), _login(d)
+    # self-block and unknown user
+    assert client.post("/api/contacts/999999/block", headers=ha).status_code == 404
+    me_a = client.get("/api/auth/me", headers=ha).json()["data"]
+    assert (
+        client.post(f"/api/contacts/{me_a['id']}/block", headers=ha).status_code == 400
+    )
+    # conv first, then block: sending is refused both directions
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rb = client.post(f"/api/contacts/{me_b['id']}/block", headers=ha)
+    assert rb.status_code == 200, rb.text
+    rl = client.get("/api/contacts/blocked", headers=ha).json()["data"]
+    assert any(x["user_id"] == me_b["id"] for x in rl)
+    r1 = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "x"}, headers=ha
+    )
+    assert r1.status_code == 403
+    r2 = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "y"}, headers=hb
+    )
+    assert r2.status_code == 403
+    # blocked chat hidden from blocker's list
+    ca = client.get("/api/conversations", headers=ha).json()["data"]
+    assert all(cc["id"] != cid for cc in ca)
+    # no new chats with blocked users
+    rn = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    assert rn.status_code == 403
+    # unblock restores everything
+    ru = client.post(f"/api/contacts/{me_b['id']}/unblock", headers=ha)
+    assert ru.status_code == 200
+    r3 = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "z"}, headers=ha
+    )
+    assert r3.status_code == 200, r3.text
+    # untouched pair can still chat
+    rc2 = client.post(
+        "/api/conversations", json={"participant_username": d}, headers=hc
+    )
+    assert rc2.status_code == 200, rc2.text
+
+
 def test_ai_provider_mapping_and_endpoint_fallback():
     from app.ai.provider import (
         get_ai_provider,

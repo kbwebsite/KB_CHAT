@@ -1,4 +1,14 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Text, Index
+from sqlalchemy import (
+    Column,
+    Integer,
+    String,
+    Boolean,
+    DateTime,
+    Text,
+    Index,
+    UniqueConstraint,
+    ForeignKey,
+)
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 from app.database.connection import Base
@@ -31,4 +41,28 @@ class User(Base):
     __table_args__ = (
         Index("ix_users_username_lower", username),
         Index("ix_users_email_lower", email),
+    )
+
+
+class BlockedUser(Base):
+    """One-way block: blocker_id will not receive from / send to blocked_id
+    in 1-1 chats. Group chats are unaffected in v1."""
+
+    __tablename__ = "blocked_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    blocker_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    blocked_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    blocker = relationship("User", foreign_keys=[blocker_id])
+    blocked = relationship("User", foreign_keys=[blocked_id])
+
+    __table_args__ = (
+        UniqueConstraint("blocker_id", "blocked_id", name="uq_block_pair"),
+        Index("ix_block_blocker", "blocker_id"),
     )

@@ -1,8 +1,8 @@
-import { useState } from 'react'
-import { convApi, extendedApi } from '../services/api'
+import { useEffect, useState } from 'react'
+import { convApi, extendedApi, blockApi } from '../services/api'
 import { Conversation } from '../types'
 import { useAuthStore } from '../store/auth'
-import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield } from 'lucide-react'
+import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban } from 'lucide-react'
 import { UserSearch } from './UserSearch'
 
 export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:Conversation, onClose:()=>void, onUpdated:()=>void }) {
@@ -12,6 +12,17 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   const [showAdd, setShowAdd]=useState(false)
   const [msg, setMsg]=useState<string|null>(null)
   const [muted, setMuted]=useState(false)
+  // 1-1 chats only: the other participant + block state.
+  const otherMember = !conversation.is_group
+    ? conversation.members.find(m=> m.user_id !== user?.id) ?? null
+    : null
+  const [blocked, setBlocked]=useState(false)
+  useEffect(()=>{
+    if (!otherMember) { setBlocked(false); return }
+    blockApi.list()
+      .then((r:any)=> { if (r?.success) setBlocked((r.data || []).some((b:any)=> b.user_id === otherMember.user_id)) })
+      .catch(()=>{})
+  }, [conversation.id])
 
   const myRole = conversation.members.find(m=> m.user_id===user?.id)?.role
   const canManage = myRole==='owner' || myRole==='admin'
@@ -77,12 +88,25 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   }
 
   const handleClear=async ()=>{
-    if (!confirm('Clear all messages? This deletes messages for everyone in this conversation.')) return
+    if (!confirm('Clear this chat for yourself? Messages disappear from your view only.')) return
     try {
       await extendedApi.clear(conversation.id)
-      setMsg('Chat cleared')
+      setMsg('Chat cleared for you')
       onUpdated()
     } catch (e:any) { setMsg('Clear failed') }
+  }
+
+  const handleBlockToggle=async ()=>{
+    if (!otherMember) return
+    const verb = blocked ? 'unblock' : 'block'
+    if (!blocked && !confirm(`Block ${otherMember.display_name || otherMember.username}? You won't exchange messages until unblocked.`)) return
+    try {
+      if (blocked) await blockApi.unblock(otherMember.user_id)
+      else await blockApi.block(otherMember.user_id)
+      setBlocked(!blocked)
+      setMsg(blocked ? 'Contact unblocked' : 'Contact blocked')
+      onUpdated()
+    } catch (e:any) { setMsg(e.response?.data?.detail || `Could not ${verb}`) }
   }
 
   return (
@@ -98,8 +122,13 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
           </div>
           <p className="font-semibold mt-2">{conversation.title}</p>
           <p className="text-xs text-muted-foreground">{conversation.members.length} members • {myRole} {myRole==='owner' && <Shield className="w-3 h-3 inline"/>}</p>
-          <div className="flex gap-2 mt-3">
+          <div className="flex gap-2 mt-3 flex-wrap justify-center">
             <button onClick={handleMute} className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1 ${muted ? 'bg-amber-500 text-white' : 'bg-muted'}`}>{muted ? <BellOff className="w-3 h-3"/> : <Bell className="w-3 h-3"/>}{muted? 'Muted':'Mute'}</button>
+            {otherMember && (
+              <button onClick={handleBlockToggle} className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1 ${blocked ? 'bg-muted' : 'bg-destructive/10 text-destructive'}`} title={blocked ? 'Unblock this contact' : 'Block this contact'}>
+                <Ban className="w-3 h-3"/>{blocked ? 'Unblock' : 'Block'}
+              </button>
+            )}
             <button onClick={handleLeave} className="px-3 py-1.5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center gap-1"><LogOut className="w-3 h-3"/>Leave</button>
           </div>
         </div>
