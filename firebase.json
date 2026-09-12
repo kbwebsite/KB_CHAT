@@ -1,4 +1,14 @@
 {
+  "auth": {
+    "authorizedDomains": [
+      "localhost",
+      "kb-chat-lemon.vercel.app",
+      "kb-chat-jqdk.onrender.com"
+    ],
+    "providers": {
+      "emailPassword": true
+    }
+  },
   "firestore": {
     "rules": "firestore.rules",
     "indexes": "firestore.indexes.json"

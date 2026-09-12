@@ -1,148 +1,492 @@
 rules_version = '2';
 
-// KB-CHAT realtime backend — project kbwebsite-s.
-// Mirrors the existing REST data model so clients can migrate collection by
-// collection. Server timestamps (request.time) are the source of truth.
+// ===============================================================
+// Assumed Data Model (prototype — review before public launch)
+// ===============================================================
+//
+// users/{uid} — PUBLIC profile only. NEVER email/phone here.
+//   Document ID: Firebase Auth uid (immutable, owner-written only)
+//   - username: string, 3..50 (required)
+//   - displayName: string, 1..100 (required)
+//   - avatarUrl: string url, 0..500 (optional)
+//   - about: string, 0..500 (optional)
+//   - isOnline: bool (optional)
+//   - lastSeen: timestamp (optional)
+//   - createdAt: timestamp, immutable (required)
+//
+// users_private/{uid} — PII vault, owner reads AND writes only.
+//   - email: string email (required)
+//   - phone: string, 1..20 (optional)
+//
+// conversations/{cid}
+//   - title: string 0..100 (optional), description: string 0..1000 (optional)
+//   - avatarUrl: string url 0..500 (optional)
+//   - isGroup: bool, immutable (required)
+//   - memberIds: list of uid strings (1..128 each), 1..500 (required;
+//     roster changes: creator only, see update rule)
+//   - roles: map uid->role in [owner,admin,member] (optional; creator-managed)
+//   - createdBy: string uid, immutable (required)
+//   - createdAt: timestamp, immutable (required)
+//   - updatedAt: timestamp (required)
+//   - lastMessage: map preview {id,senderId,content,messageType,createdAt} or null (optional)
+//
+// conversations/{cid}/messages/{mid}
+//   - senderId: string uid, immutable (required, == author)
+//   - content: string, 1..12000 (required; base64 ciphertext when isEncrypted)
+//   - messageType: string in [text,image,file,voice,poll,event,system] (required, immutable)
+//   - replyToId: string 0..100 (optional)
+//   - attachments: list, 0..10 (optional; elements client-validated)
+//   - isEdited/isDeleted/isEncrypted: bool (optional)
+//   - nonce: string 0..100 (optional)
+//   - voiceDuration: number 0..300 (optional)
+//   - createdAt: timestamp, immutable, not future-dated (required)
+//
+// conversations/{cid}/messages/{mid}/reactions/{rid}
+//   - userId: string uid == author (required, immutable)
+//   - emoji: string, 1..10 (required)
+//
+// conversations/{cid}/signals/{sid} — ephemeral WebRTC signaling.
+//   - from/to: string uid (required), type: string 1..30 (required)
+//   - sdp/candidate: strings 0..20000 (optional)
+//   - createdAt: timestamp, not future-dated (required)
+//
+// statuses/{sid}
+//   - userId: string uid, immutable (required)
+//   - username: string 0..50 (optional); displayName: string 0..100 (optional)
+//   - avatarUrl/mediaUrl: optional urls (500 max)
+//   - mediaType: string in [text,image,video] (required)
+//   - background: string 0..200 (optional); caption: string 0..500 (optional)
+//   - privacy: string in [contacts,selected,nobody] (required)
+//   - allowedUids: list of uid strings, 0..500 (required)
+//   - createdAt: timestamp, immutable, not future-dated (required)
+//   - expiresAt: timestamp (optional)
+//
+// statuses/{sid}/viewers/{uid} — {viewedAt: timestamp}; doc id == viewer uid.
+//
+// polls/{pid} — {conversationId, creatorId, question 1..500,
+//   options: list 2..10, allowMultiple/isAnonymous bool,
+//   closesAt?, createdAt immutable not future-dated}
+// polls/{pid}/votes/{uid} — {optionIds: list 1..10}
+//
+// events/{eid} — {conversationId, creatorId, title 1..200,
+//   description 0..2000?, eventDate?, location 0..200?,
+//   createdAt immutable}
+// events/{eid}/responses/{uid} — {response in [going,maybe,cant_go]}
+//
+// calls/{callId} — {callerId, calleeId (immutable, == parties),
+//   conversationId?, callType in [voice,video] (immutable),
+//   status ring/transition (ringing->ongoing|rejected|missed, ongoing->ended),
+//   startedAt immutable not future-dated, endedAt?}
+//
+// stickerPacks/{packId} (+stickers/{stickerId}) — read-only catalog.
+//
+// deviceTokens/{docId} — {userId==owner, token 1..500,
+//   platform in [web,android,ios], deviceId?}
+//
+// ===============================================================
+// Helper Functions
+// ===============================================================
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    function signedIn() {
+    function isAuthenticated() {
       return request.auth != null;
     }
 
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string
+        && request.resource.data[field].size() >= minLen
+        && request.resource.data[field].size() <= maxLen;
+    }
+
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && request.resource.data[field].size() >= minLen
+          && request.resource.data[field].size() <= maxLen);
+    }
+
+    function isValidOptionalUrl(field, maxLen) {
+      return !(field in request.resource.data)
+        || (request.resource.data[field] is string
+          && request.resource.data[field].size() <= maxLen
+          && (request.resource.data[field] == ''
+            || request.resource.data[field].matches('^https://.*')
+            || request.resource.data[field].matches('^http://.*')));
+    }
+
+    function isValidEmail(email) {
+      return email is string
+        && email.matches('^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$');
+    }
+
+    function isUidString(v) {
+      return v is string && v.size() >= 1 && v.size() <= 128;
+    }
+
+    function isUidList(v, maxSize) {
+      return v is list && v.size() <= maxSize;
+    }
+
+    // Timestamps must be real timestamps and never from the future
+    // (prevents sorting games with client clocks).
+    function isSaneTimestamp(field) {
+      return request.resource.data[field] is timestamp
+        && request.resource.data[field] <= request.time + duration.value(5, 'm');
+    }
+
+    function isValidLastMessage() {
+      return !(request.resource.data.lastMessage is map)
+        || (request.resource.data.lastMessage.keys().hasOnly(
+              ['id', 'senderId', 'content', 'messageType', 'createdAt'])
+          && isUidString(request.resource.data.lastMessage.senderId)
+          && request.resource.data.lastMessage.content is string
+          && request.resource.data.lastMessage.content.size() <= 12000
+          && request.resource.data.lastMessage.messageType in
+            ['text', 'image', 'file', 'voice', 'poll', 'event', 'system']);
+    }
+
+    // ---------- domain validators (create AND update) ----------
+
+    function isValidUserProfile() {
+      return hasOnlyAllowedFields(['username', 'displayName', 'avatarUrl', 'about', 'isOnline', 'lastSeen', 'createdAt'])
+        && hasRequiredFields(['username', 'displayName', 'createdAt'])
+        && validStringLength('username', 3, 50)
+        && validStringLength('displayName', 1, 100)
+        && isValidOptionalUrl('avatarUrl', 500)
+        && isValidOptionalString('about', 0, 500)
+        && isSaneTimestamp('createdAt');
+    }
+
+    function isValidUserPrivate() {
+      return hasOnlyAllowedFields(['email', 'phone'])
+        && hasRequiredFields(['email'])
+        && isValidEmail(request.resource.data.email)
+        && isValidOptionalString('phone', 0, 20);
+    }
+
+    function isValidConversation() {
+      return hasOnlyAllowedFields(['title', 'description', 'avatarUrl', 'isGroup', 'memberIds', 'roles', 'createdBy', 'createdAt', 'updatedAt', 'lastMessage'])
+        && hasRequiredFields(['isGroup', 'memberIds', 'createdBy', 'createdAt', 'updatedAt'])
+        && request.resource.data.isGroup is bool
+        && isUidList(request.resource.data.memberIds, 500)
+        && request.resource.data.memberIds.size() >= 1
+        && isValidOptionalString('title', 0, 100)
+        && isValidOptionalString('description', 0, 1000)
+        && isValidOptionalUrl('avatarUrl', 500)
+        && isUidString(request.resource.data.createdBy)
+        && isSaneTimestamp('createdAt')
+        && request.resource.data.updatedAt is timestamp
+        && isValidLastMessage();
+    }
+
+    function isValidMessage() {
+      return hasOnlyAllowedFields(['senderId', 'content', 'messageType', 'replyToId', 'attachments', 'isEdited', 'isDeleted', 'isEncrypted', 'nonce', 'voiceDuration', 'createdAt'])
+        && hasRequiredFields(['senderId', 'content', 'messageType', 'createdAt'])
+        && isUidString(request.resource.data.senderId)
+        && validStringLength('content', 1, 12000)
+        && request.resource.data.messageType in ['text', 'image', 'file', 'voice', 'poll', 'event', 'system']
+        && isValidOptionalString('replyToId', 0, 100)
+        && isValidOptionalString('nonce', 0, 100)
+        && (!(request.resource.data.keys().hasAny(['voiceDuration']))
+          || (request.resource.data.voiceDuration is number
+            && request.resource.data.voiceDuration >= 0
+            && request.resource.data.voiceDuration <= 300))
+        && (!(request.resource.data.keys().hasAny(['attachments']))
+          || (request.resource.data.attachments is list
+            && request.resource.data.attachments.size() <= 10))
+        && isSaneTimestamp('createdAt');
+    }
+
+    function isValidSignal() {
+      return hasOnlyAllowedFields(['from', 'to', 'type', 'sdp', 'candidate', 'createdAt'])
+        && hasRequiredFields(['from', 'to', 'type', 'createdAt'])
+        && isUidString(request.resource.data.from)
+        && isUidString(request.resource.data.to)
+        && validStringLength('type', 1, 30)
+        && isValidOptionalString('sdp', 0, 20000)
+        && isValidOptionalString('candidate', 0, 20000)
+        && isSaneTimestamp('createdAt');
+    }
+
+    function isValidStatus() {
+      return hasOnlyAllowedFields(['userId', 'username', 'displayName', 'avatarUrl', 'content', 'mediaUrl', 'mediaType', 'background', 'caption', 'privacy', 'allowedUids', 'createdAt', 'expiresAt'])
+        && hasRequiredFields(['userId', 'privacy', 'createdAt', 'allowedUids'])
+        && isUidString(request.resource.data.userId)
+        && request.resource.data.privacy in ['contacts', 'selected', 'nobody']
+        && isValidOptionalString('content', 0, 2000)
+        && isValidOptionalUrl('mediaUrl', 500)
+        && request.resource.data.mediaType in ['text', 'image', 'video']
+        && isValidOptionalString('background', 0, 200)
+        && isValidOptionalString('caption', 0, 500)
+        && isValidOptionalString('username', 0, 50)
+        && isValidOptionalString('displayName', 0, 100)
+        && isUidList(request.resource.data.allowedUids, 500)
+        && isSaneTimestamp('createdAt');
+    }
+
+    function isValidPoll() {
+      return hasOnlyAllowedFields(['conversationId', 'creatorId', 'question', 'options', 'allowMultiple', 'isAnonymous', 'closesAt', 'createdAt'])
+        && hasRequiredFields(['conversationId', 'creatorId', 'question', 'options', 'createdAt'])
+        && validStringLength('question', 1, 500)
+        && request.resource.data.options is list
+        && request.resource.data.options.size() >= 2
+        && request.resource.data.options.size() <= 10
+        && isUidString(request.resource.data.creatorId)
+        && isSaneTimestamp('createdAt');
+    }
+
+    function isValidEvent() {
+      return hasOnlyAllowedFields(['conversationId', 'creatorId', 'title', 'description', 'eventDate', 'location', 'createdAt'])
+        && hasRequiredFields(['conversationId', 'creatorId', 'title', 'createdAt'])
+        && validStringLength('title', 1, 200)
+        && isValidOptionalString('description', 0, 2000)
+        && isValidOptionalString('location', 0, 200)
+        && isUidString(request.resource.data.creatorId)
+        && isSaneTimestamp('createdAt');
+    }
+
+    function validCallTransition() {
+      return (resource.data.status == 'ringing'
+          && request.resource.data.status in ['ongoing', 'rejected', 'missed'])
+        || (resource.data.status == 'ongoing'
+          && request.resource.data.status == 'ended');
+    }
+
+    function isValidCall() {
+      return hasOnlyAllowedFields(['callerId', 'calleeId', 'conversationId', 'callType', 'status', 'startedAt', 'endedAt'])
+        && hasRequiredFields(['callerId', 'calleeId', 'callType', 'status', 'startedAt'])
+        && isUidString(request.resource.data.callerId)
+        && isUidString(request.resource.data.calleeId)
+        && request.resource.data.callType in ['voice', 'video']
+        && request.resource.data.status in ['ringing', 'ongoing', 'ended', 'rejected', 'missed']
+        && isSaneTimestamp('startedAt');
+    }
+
     function isConvMember(cid) {
-      return signedIn()
+      return isAuthenticated()
         && request.auth.uid in get(
           /databases/$(database)/documents/conversations/$(cid)
         ).data.memberIds;
     }
 
-    // ---------- users ----------
+    function isCallParty() {
+      return isAuthenticated()
+        && (request.auth.uid == resource.data.callerId
+          || request.auth.uid == resource.data.calleeId);
+    }
+
+    // ---------- users: PUBLIC profile only, owner-written ----------
     match /users/{uid} {
-      allow read: if signedIn();
-      allow create, update: if signedIn() && request.auth.uid == uid;
+      allow read: if isAuthenticated();
+      allow create: if isOwner(uid) && isValidUserProfile();
+      allow update: if isOwner(uid) && isValidUserProfile();
+      allow delete: if false;
+    }
+
+    // ---------- users_private: PII vault, owner only ----------
+    match /users_private/{uid} {
+      allow read, update: if isOwner(uid) && isValidUserPrivate();
+      allow create: if isOwner(uid) && isValidUserPrivate();
       allow delete: if false;
     }
 
     // ---------- conversations ----------
+    // Roster (memberIds/roles) is creator-managed; members may edit metadata.
     match /conversations/{cid} {
-      allow read: if signedIn()
+      allow read: if isAuthenticated()
         && request.auth.uid in resource.data.memberIds;
-      allow create: if signedIn()
-        && request.auth.uid in request.resource.data.memberIds;
-      allow update: if signedIn()
-        && request.auth.uid in resource.data.memberIds;
+      allow create: if isAuthenticated()
+        && request.auth.uid in request.resource.data.memberIds
+        && isValidConversation()
+        && request.resource.data.createdBy == request.auth.uid;
+      allow update: if isAuthenticated()
+        && request.auth.uid in resource.data.memberIds
+        && isValidConversation()
+        && areImmutableFieldsUnchanged(['createdBy', 'createdAt', 'isGroup'])
+        && (request.auth.uid == resource.data.createdBy
+          || areImmutableFieldsUnchanged(['memberIds', 'roles']));
       allow delete: if false;
 
-      // ---------- messages ----------
       match /messages/{mid} {
         allow read: if isConvMember(cid);
         allow create: if isConvMember(cid)
-          && request.resource.data.senderId == request.auth.uid
-          && request.resource.data.content is string
-          && request.resource.data.content.size() <= 12000;
+          && isValidMessage()
+          && request.resource.data.senderId == request.auth.uid;
         allow update: if isConvMember(cid)
-          && resource.data.senderId == request.auth.uid;
-        // soft-delete only: clients flip isDeleted, rows are never removed
+          && resource.data.senderId == request.auth.uid
+          && isValidMessage()
+          && request.resource.data.senderId == resource.data.senderId
+          && areImmutableFieldsUnchanged(['senderId', 'messageType', 'createdAt']);
+        // Soft-delete only: rows are never removed.
         allow delete: if false;
       }
 
-      // ---------- webrtc signaling (ephemeral, client-cleaned) ----------
+      match /messages/{mid}/reactions/{rid} {
+        allow read: if isConvMember(cid);
+        allow create, update: if isConvMember(cid)
+          && request.resource.data.keys().hasOnly(['userId', 'emoji'])
+          && request.resource.data.userId == request.auth.uid
+          && request.resource.data.emoji is string
+          && request.resource.data.emoji.size() >= 1
+          && request.resource.data.emoji.size() <= 10;
+        allow delete: if isConvMember(cid)
+          && resource.data.userId == request.auth.uid;
+      }
+
       match /signals/{sid} {
-        allow read, write: if isConvMember(cid);
+        allow read: if isConvMember(cid);
+        allow create, update: if isConvMember(cid) && isValidSignal();
+        // members prune their own stale signaling docs
+        allow delete: if isConvMember(cid);
       }
     }
 
-    // ---------- statuses (stories) ----------
+    // ---------- statuses ----------
     match /statuses/{sid} {
-      allow read: if signedIn() && (
+      allow read: if isAuthenticated() && (
         resource.data.userId == request.auth.uid
         || request.auth.uid in resource.data.get('allowedUids', [])
       );
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid;
-      allow update, delete: if signedIn()
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && isValidStatus();
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && isValidStatus()
+        && areImmutableFieldsUnchanged(['userId', 'createdAt']);
+      allow delete: if isAuthenticated()
         && resource.data.userId == request.auth.uid;
 
       match /viewers/{uid} {
-        // the status owner sees who watched; anyone signed-in may mark own view
-        allow read: if signedIn()
+        allow read: if isAuthenticated()
           && get(/databases/$(database)/documents/statuses/$(sid)).data.userId == request.auth.uid;
-        allow create, update: if signedIn() && request.auth.uid == uid;
+        allow create, update: if isAuthenticated()
+          && request.auth.uid == uid
+          && request.resource.data.keys().hasOnly(['viewedAt'])
+          && request.resource.data.viewedAt is timestamp;
         allow delete: if false;
       }
     }
 
     // ---------- polls ----------
     match /polls/{pid} {
-      allow read: if signedIn() && request.auth.uid in get(
+      allow read: if isAuthenticated() && request.auth.uid in get(
         /databases/$(database)/documents/conversations/$(resource.data.conversationId)
       ).data.memberIds;
-      allow create: if signedIn()
-        && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if signedIn()
-        && resource.data.creatorId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.creatorId == request.auth.uid
+        && isValidPoll();
+      allow update, delete: if isAuthenticated()
+        && resource.data.creatorId == request.auth.uid
+        && isValidPoll()
+        && areImmutableFieldsUnchanged(['conversationId', 'creatorId', 'createdAt']);
+    }
 
-      match /votes/{uid} {
-        allow read: if signedIn();
-        allow create, update: if signedIn() && request.auth.uid == uid;
-        allow delete: if signedIn()
-          && (request.auth.uid == uid || get(
-            /databases/$(database)/documents/polls/$(pid)
-          ).data.creatorId == request.auth.uid);
-      }
+    // Votes live in per-user docs; counts are derived client-side.
+    match /polls/{pid}/votes/{uid} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['optionIds'])
+        && request.resource.data.optionIds is list
+        && request.resource.data.optionIds.size() >= 1
+        && request.resource.data.optionIds.size() <= 10;
+      allow delete: if isAuthenticated()
+        && (request.auth.uid == uid || get(
+          /databases/$(database)/documents/polls/$(pid)
+        ).data.creatorId == request.auth.uid);
     }
 
     // ---------- events ----------
     match /events/{eid} {
-      allow read: if signedIn() && request.auth.uid in get(
+      allow read: if isAuthenticated() && request.auth.uid in get(
         /databases/$(database)/documents/conversations/$(resource.data.conversationId)
       ).data.memberIds;
-      allow create: if signedIn()
-        && request.resource.data.creatorId == request.auth.uid;
-      allow update, delete: if signedIn()
-        && resource.data.creatorId == request.auth.uid;
-
-      match /responses/{uid} {
-        allow read: if signedIn();
-        allow create, update: if signedIn() && request.auth.uid == uid;
-        allow delete: if false;
-      }
+      allow create: if isAuthenticated()
+        && request.resource.data.creatorId == request.auth.uid
+        && isValidEvent();
+      allow update, delete: if isAuthenticated()
+        && resource.data.creatorId == request.auth.uid
+        && isValidEvent()
+        && areImmutableFieldsUnchanged(['conversationId', 'creatorId', 'createdAt']);
     }
 
-    // ---------- calls (history + ringing state) ----------
-    match /calls/{callId} {
-      allow read: if signedIn() && (
-        request.auth.uid == resource.data.callerId
-        || request.auth.uid == resource.data.calleeId
-      );
-      allow create: if signedIn()
-        && request.resource.data.callerId == request.auth.uid;
-      allow update: if signedIn() && (
-        request.auth.uid == resource.data.callerId
-        || request.auth.uid == resource.data.calleeId
-      );
+    match /events/{eid}/responses/{uid} {
+      allow read: if isAuthenticated();
+      allow create, update: if isAuthenticated()
+        && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['response'])
+        && request.resource.data.response in ['going', 'maybe', 'cant_go'];
       allow delete: if false;
     }
 
-    // ---------- sticker packs (read-only catalog, seeded by admins) ----------
+    // ---------- calls ----------
+    match /calls/{callId} {
+      allow read: if isCallParty();
+      allow create: if isAuthenticated()
+        && request.resource.data.callerId == request.auth.uid
+        && isValidCall()
+        && request.resource.data.status == 'ringing';
+      allow update: if isCallParty()
+        && isValidCall()
+        && validCallTransition()
+        && request.resource.data.callerId == resource.data.callerId
+        && request.resource.data.calleeId == resource.data.calleeId
+        && areImmutableFieldsUnchanged(['callerId', 'calleeId', 'startedAt', 'conversationId']);
+      allow delete: if false;
+    }
+
+    // ---------- sticker catalog (read-only, admin-seeded) ----------
     match /stickerPacks/{packId} {
-      allow read: if signedIn();
+      allow read: if isAuthenticated();
       allow write: if false;
 
       match /stickers/{stickerId} {
-        allow read: if signedIn();
+        allow read: if isAuthenticated();
         allow write: if false;
       }
     }
 
     // ---------- device push tokens (owner only) ----------
     match /deviceTokens/{docId} {
-      allow read, write: if signedIn()
-        && request.auth.uid == resource.data.userId;
-      allow create: if signedIn()
-        && request.resource.data.userId == request.auth.uid;
+      allow read: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
+      allow create: if isAuthenticated()
+        && request.resource.data.userId == request.auth.uid
+        && request.resource.data.keys().hasOnly(['userId', 'token', 'platform', 'deviceId', 'createdAt'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() >= 1
+        && request.resource.data.token.size() <= 500
+        && request.resource.data.platform in ['web', 'android', 'ios']
+        && isValidOptionalString('deviceId', 0, 128);
+      allow update: if isAuthenticated()
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.keys().hasOnly(['userId', 'token', 'platform', 'deviceId', 'createdAt'])
+        && request.resource.data.token is string
+        && request.resource.data.token.size() >= 1
+        && request.resource.data.token.size() <= 500
+        && request.resource.data.platform in ['web', 'android', 'ios'];
+      allow delete: if isAuthenticated()
+        && resource.data.userId == request.auth.uid;
     }
   }
 }
