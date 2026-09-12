@@ -25,6 +25,7 @@ SUPPORTED_LANGUAGES = [
     {"code": "ko", "name": "Korean", "native": "한국어"},
     {"code": "ar", "name": "Arabic", "native": "العربية"},
     {"code": "hi", "name": "Hindi", "native": "हिन्दी"},
+    {"code": "ta", "name": "Tamil", "native": "தமிழ்"},
     {"code": "nl", "name": "Dutch", "native": "Nederlands"},
     {"code": "tr", "name": "Turkish", "native": "Türkçe"},
     {"code": "pl", "name": "Polish", "native": "Polski"},

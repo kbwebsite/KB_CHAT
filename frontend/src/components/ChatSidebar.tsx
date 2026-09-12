@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
+import { useSettingsStore } from '../store/settings'
 import { ConversationList } from './ConversationList'
 import { UserSearch } from './UserSearch'
 import { StatusPanel } from './StatusPanel'
@@ -8,7 +9,7 @@ import { ContactsPanel } from './ContactsPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { CallsPanel } from './CallsPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Trophy } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun } from 'lucide-react'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
 
@@ -21,6 +22,9 @@ export function ChatSidebar({
   onTabChange,
   onProfile,
   onLeaderboard,
+  onNotifications,
+  onSaved,
+  onSettings,
 }: {
   onSelect: (id: number) => void
   onStatusViewer: (statuses: any[], idx: number) => void
@@ -30,6 +34,9 @@ export function ChatSidebar({
   onTabChange: (tab: SidebarTab) => void
   onProfile?: () => void
   onLeaderboard?: () => void
+  onNotifications?: () => void
+  onSaved?: () => void
+  onSettings?: () => void
 }) {
   const { user } = useAuthStore()
   const {
@@ -45,6 +52,10 @@ export function ChatSidebar({
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [groupTitle, setGroupTitle] = useState('')
   const [groupMembers, setGroupMembers] = useState<any[]>([])
+  const [showMenu, setShowMenu] = useState(false)
+  const settings = useSettingsStore()
+  const closeMenu = () => setShowMenu(false)
+  const menuFire = (fn?: () => void) => () => { closeMenu(); fn?.() }
 
   const typingMap = typingUsers
 
@@ -135,6 +146,46 @@ export function ChatSidebar({
         >
           <UserPlus className="w-5 h-5" />
         </button>
+        <div className="relative">
+          <button
+            onClick={() => setShowMenu(v => !v)}
+            className="btn-icon"
+            aria-label="More options"
+            aria-haspopup="menu"
+            aria-expanded={showMenu}
+          >
+            <MoreVertical className="w-5 h-5" />
+          </button>
+          {showMenu && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={closeMenu} />
+              <div className="absolute right-0 top-full mt-2 w-52 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm max-h-[70vh] overflow-y-auto" role="menu">
+                <button role="menuitem" onClick={menuFire(() => settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' }))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-primary" /> : <Moon className="w-4 h-4 text-primary" />}
+                  {settings.theme === 'dark' ? 'Light mode' : 'Dark mode'}
+                </button>
+                {onNotifications && (
+                  <button role="menuitem" onClick={menuFire(onNotifications)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Bell className="w-4 h-4 text-primary" />
+                    Notifications
+                  </button>
+                )}
+                {onSaved && (
+                  <button role="menuitem" onClick={menuFire(onSaved)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Bookmark className="w-4 h-4 text-primary" />
+                    Saved messages
+                  </button>
+                )}
+                {onSettings && (
+                  <button role="menuitem" onClick={menuFire(onSettings)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Settings className="w-4 h-4 text-primary" />
+                    Settings
+                  </button>
+                )}
+              </div>
+            </>
+          )}
+        </div>
         <button
           onClick={onProfile}
           className="btn-icon"

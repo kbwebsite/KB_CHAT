@@ -441,6 +441,9 @@ export default function ChatPage() {
             onTabChange={() => {}}
             onProfile={() => { closeAllPanels(); setShowProfile(true) }}
             onLeaderboard={() => { closeAllPanels(); setShowLeaderboard(true) }}
+            onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
+            onSaved={() => { closeAllPanels(); setShowSaved(true) }}
+            onSettings={() => { closeAllPanels(); setShowSettings(true) }}
           />
         )}
 

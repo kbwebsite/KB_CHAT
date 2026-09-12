@@ -665,7 +665,7 @@ export function ChatView({
                       className="py-2.5 px-3 rounded-xl glass-subtle hover:bg-primary/10 text-sm text-left flex items-center justify-between border border-border/50 transition-all active:scale-[0.98]"
                     >
                       <span className="flex items-center gap-2">
-                        <span className="text-lg">{lang.code === 'en' ? '🇺🇸' : lang.code === 'es' ? '🇪🇸' : lang.code === 'fr' ? '🇫🇷' : lang.code === 'de' ? '🇩🇪' : lang.code === 'it' ? '🇮🇹' : lang.code === 'pt' ? '🇵🇹' : lang.code === 'ru' ? '🇷🇺' : lang.code === 'zh' ? '🇨🇳' : lang.code === 'ja' ? '🇯🇵' : lang.code === 'ko' ? '🇰🇷' : lang.code === 'ar' ? '🇸🇦' : lang.code === 'hi' ? '🇮🇳' : '🌐'}</span>
+                        <span className="text-lg">{lang.code === 'en' ? '🇺🇸' : lang.code === 'es' ? '🇪🇸' : lang.code === 'fr' ? '🇫🇷' : lang.code === 'de' ? '🇩🇪' : lang.code === 'it' ? '🇮🇹' : lang.code === 'pt' ? '🇵🇹' : lang.code === 'ru' ? '🇷🇺' : lang.code === 'zh' ? '🇨🇳' : lang.code === 'ja' ? '🇯🇵' : lang.code === 'ko' ? '🇰🇷' : lang.code === 'ar' ? '🇸🇦' : lang.code === 'hi' ? '🇮🇳' : lang.code === 'ta' ? '🇮🇳' : '🌐'}</span>
                         <span className="font-medium">{lang.name}</span>
                         {lang.native !== lang.name && <span className="text-xs text-muted-foreground">({lang.native})</span>}
                       </span>
