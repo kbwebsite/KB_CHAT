@@ -1,20 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
-import { authApi, configApi, isNativeApp } from '../services/api'
+import { authApi } from '../services/api'
+import { FirebaseAuth } from '../components/FirebaseAuth'
 import { MessageCircle, Eye, EyeOff } from 'lucide-react'
-
-declare global { interface Window { google?: any } }
 
 export default function LoginPage() {
   const [identifier, setIdentifier]=useState('')
   const [password, setPassword]=useState('')
   const [show, setShow]=useState(false)
   const [error, setError]=useState<string|null>(null)
-  const [googleLoading, setGoogleLoading]=useState(false)
   const { login, loading } = useAuthStore()
   const nav=useNavigate()
-  const googleBtnRef=useRef<HTMLDivElement>(null)
 
   const handleSubmit=async (e:React.FormEvent)=>{
     e.preventDefault()
@@ -28,73 +25,18 @@ export default function LoginPage() {
     }
   }
 
-  const handleGoogleLogin=async (credential:string)=>{
-    setGoogleLoading(true)
-    setError(null)
-    try {
-      const res = await authApi.google(credential)
-      if (res.success) {
-        localStorage.setItem('kb_token', res.data.access_token)
-        localStorage.setItem('kb_user', JSON.stringify(res.data.user))
-        nav('/chat')
-      } else {
-        setError(res.message || 'Google login failed')
-      }
-    } catch (err:any) {
-      setError(err.response?.data?.detail || 'Google login failed')
+  // Legacy GIS credential login is superseded by the Firebase tabs below.
+  // Exchanges a Firebase ID token for a regular app session.
+  const handleFirebaseSession=async (idToken:string)=>{
+    const res = await authApi.firebase(idToken)
+    if (res.success) {
+      localStorage.setItem('kb_token', res.data.access_token)
+      localStorage.setItem('kb_user', JSON.stringify(res.data.user))
+      nav('/chat')
+    } else {
+      throw new Error(res.message || 'Could not start your session.')
     }
-    setGoogleLoading(false)
   }
-
-  // Google client ID: build-time value first, else runtime /api/config
-  // (Render does not forward service env vars as Docker build args, so the
-  // baked-in value is empty in production builds).
-  const [googleClientId, setGoogleClientId]=useState<string|null>(
-    import.meta.env.VITE_GOOGLE_CLIENT_ID || null
-  )
-  useEffect(()=>{
-    if (googleClientId) return
-    let cancelled = false
-    configApi.get()
-      .then((res:any)=> { if (!cancelled && res?.success && res?.data?.googleClientId) setGoogleClientId(res.data.googleClientId) })
-      .catch(()=>{})
-    return ()=> { cancelled = true }
-  }, [])
-
-  // Initialize Google Identity Services (failures surfaced, never silent —
-  // typical causes: authorized-origin missing in Google Cloud Console,
-  // content blockers, or third-party-cookie blocking)
-  const [googleError, setGoogleError]=useState<string|null>(null)
-  useEffect(()=>{
-    if (!googleClientId) return
-    const script = document.createElement('script')
-    script.src = 'https://accounts.google.com/gsi/client'
-    script.async = true
-    script.defer = true
-    script.onload = ()=>{
-      try {
-        if (!window.google?.accounts?.id) {
-          setGoogleError('Google library loaded but did not initialize. Check your connection or content blocker and reload.')
-          return
-        }
-        window.google.accounts.id.initialize({
-          client_id: googleClientId,
-          callback: (response:any)=> handleGoogleLogin(response.credential),
-        })
-        if (googleBtnRef.current) {
-          googleBtnRef.current.innerHTML = ''
-          window.google.accounts.id.renderButton(googleBtnRef.current, {
-            theme: 'outline', size: 'large', width: '100%', text: 'continue_with',
-          })
-        }
-      } catch (e:any) {
-        setGoogleError('Google Sign-In failed to start. If a popup mentioned redirect_uri or origin, add this site under Authorized JavaScript origins in Google Cloud Console.')
-      }
-    }
-    script.onerror = ()=> setGoogleError('Could not load Google Sign-In (accounts.google.com blocked?). Check connection, ad-blocker, or Content-Security-Policy, then reload.')
-    document.head.appendChild(script)
-    return ()=> { if (script.parentNode) script.parentNode.removeChild(script) }
-  }, [googleClientId])
 
   return (
     <div className="min-h-screen flex relative overflow-hidden">
@@ -133,15 +75,7 @@ export default function LoginPage() {
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
           </div>
           <div className="mt-4">
-            {googleClientId && !isNativeApp() ? (
-              <div ref={googleBtnRef} className="w-full flex justify-center"/>
-            ) : (
-              <button disabled className="auth-google-btn w-full py-3 rounded-xl text-sm text-muted-foreground cursor-not-allowed">
-                Google Sign-In (not configured)
-              </button>
-            )}
-            {googleLoading && <p className="text-xs text-center text-muted-foreground mt-2">Signing in with Google...</p>}
-            {googleError && <p className="text-xs text-center text-destructive mt-2">{googleError}</p>}
+            <FirebaseAuth onSession={handleFirebaseSession} />
           </div>
         </div>
 

@@ -55,6 +55,7 @@ export const authApi = {
   signup: (data:any) => api.post('/api/auth/signup', data).then(r=>r.data),
   login: (data:any) => api.post('/api/auth/login', data).then(r=>r.data),
   google: (credential:string) => api.post('/api/auth/google', { credential }).then(r=>r.data),
+  firebase: (idToken:string) => api.post('/api/auth/firebase', { id_token: idToken }).then(r=>r.data),
   me: () => api.get('/api/auth/me').then(r=>r.data),
   logout: () => api.post('/api/auth/logout').then(r=>r.data),
   forgotPassword: (email:string) => api.post('/api/auth/forgot-password', { email }).then(r=>r.data),

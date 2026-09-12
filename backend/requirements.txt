@@ -18,6 +18,7 @@ pytest==8.0.1
 pytest-asyncio==0.23.5
 anyio==4.3.0
 cloudinary==1.36.0
+firebase-admin
 # Push notifications via FCM HTTP v1 (OAuth2 service-account minting)
 google-auth
 requests

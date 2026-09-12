@@ -154,6 +154,174 @@ def get_me(current_user: User = Depends(get_current_user)):
     )
 
 
+def _unique_username(db: Session, base: str) -> str:
+    base = re.sub(r"[^a-z0-9_-]", "", (base or "").lower()) or "user"
+    if len(base) < 3:
+        base = base + "user"
+    username, counter = base, 1
+    while db.query(User).filter_by(username=username).first():
+        username = f"{base}{counter}"
+        counter += 1
+    return username
+
+
+def _get_or_create_oauth_user(
+    db: Session, *, email: str, name=None, picture=None, provider: str, about: str
+):
+    """Shared find-or-create for OAuth/Firebase logins keyed by email.
+
+    Never duplicates by email and never overwrites an existing user's
+    identity fields (only backfills blanks).
+    """
+    user = db.query(User).filter_by(email=email.lower()).first()
+    if user:
+        if not user.avatar_url and picture:
+            user.avatar_url = picture
+        if user.display_name == "Hey there! I'm using KB Chat." and name:
+            user.display_name = name
+        db.commit()
+        db.refresh(user)
+        return user
+    username = _unique_username(db, email.split("@")[0])
+    user = User(
+        username=username,
+        email=email.lower(),
+        display_name=name or username,
+        hashed_password=hash_password(f"{provider}-oauth-no-password"),
+        avatar_url=picture,
+        about=about,
+        auth_provider=provider,
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def _get_or_create_phone_user(db: Session, *, fb_uid: str, phone=None, name=None):
+    """Phone-auth users have no email; the Firebase uid is the stable key."""
+    email = f"phone-{fb_uid}@phone.local".lower()
+    user = db.query(User).filter_by(email=email).first()
+    if user:
+        return user
+    digits = re.sub(r"\D", "", phone or "")
+    username = _unique_username(
+        db, digits[-10:] if len(digits) >= 4 else f"user{fb_uid[:8]}"
+    )
+    user = User(
+        username=username,
+        email=email,
+        display_name=name or (f"User {digits[-4:]}" if digits else username),
+        hashed_password=hash_password("firebase-phone-no-password"),
+        avatar_url=None,
+        about="Signed in with phone",
+        auth_provider="firebase",
+    )
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def _session_response(user, message: str):
+    token = create_access_token({"sub": str(user.id), "username": user.username})
+    return success_response(
+        {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "display_name": user.display_name,
+                "avatar_url": user.avatar_url,
+                "about": user.about,
+                "is_online": user.is_online,
+                "last_seen": user.last_seen.isoformat() if user.last_seen else None,
+                "created_at": user.created_at.isoformat() if user.created_at else None,
+            },
+        },
+        message,
+    )
+
+
+_firebase_app = None
+
+
+def _firebase_app_or_503():
+    """Lazy Admin SDK init; 503 (not 500) when the server has no credentials."""
+    global _firebase_app
+    if _firebase_app is not None:
+        return _firebase_app
+    try:
+        from app.database.config import settings
+
+        raw = (settings.FIREBASE_CREDENTIALS_JSON or "").strip()
+        if not raw:
+            raise ValueError("missing credentials")
+        import json as _json
+        from firebase_admin import credentials, initialize_app, get_app
+
+        try:
+            _firebase_app = initialize_app(credentials.Certificate(_json.loads(raw)))
+        except ValueError:
+            # Already initialized (tests, reloaders) — reuse it.
+            _firebase_app = get_app()
+        return _firebase_app
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[auth] firebase admin init failed: {e}")
+        raise HTTPException(
+            status_code=503, detail="Firebase login is not configured on the server"
+        )
+
+
+@router.post("/firebase")
+def firebase_auth(payload: dict, db: Session = Depends(get_db)):
+    """Exchange a Firebase ID token (email/Google/phone) for an app session.
+
+    Identity comes ONLY from the verified token — never from client fields.
+    """
+    id_token = (payload.get("id_token") or "").strip()
+    if not id_token:
+        raise HTTPException(status_code=400, detail="id_token required")
+    _firebase_app_or_503()
+    try:
+        from firebase_admin import auth as fb_auth
+
+        decoded = fb_auth.verify_id_token(id_token)
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid Firebase token")
+    provider = (decoded.get("firebase") or {}).get("sign_in_provider", "")
+    email = (decoded.get("email") or "").lower() or None
+    # Email/password accounts can claim any address until verified — refuse
+    # unverified ones so nobody can squat someone else's email.
+    if provider == "password" and not decoded.get("email_verified"):
+        raise HTTPException(
+            status_code=401, detail="Please verify your email address first"
+        )
+    name = decoded.get("name")
+    picture = decoded.get("picture")
+    phone = decoded.get("phone_number")
+    if email:
+        user = _get_or_create_oauth_user(
+            db,
+            email=email,
+            name=name,
+            picture=picture,
+            provider="firebase",
+            about="Signed in with Firebase",
+        )
+    elif phone:
+        user = _get_or_create_phone_user(
+            db, fb_uid=decoded.get("uid", ""), phone=phone, name=name
+        )
+    else:
+        raise HTTPException(status_code=400, detail="Token has neither email nor phone")
+    return _session_response(user, "Login successful")
+
+
 @router.post("/google")
 def google_auth(payload: dict, db: Session = Depends(get_db)):
     """Authenticate with Google. Accepts a Google ID token or credential.
@@ -210,64 +378,16 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
                 "Check GOOGLE_CLIENT_ID on the server and the authorized origins in Google Cloud Console.",
             )
 
-        # Find existing user by email
-        user = db.query(User).filter_by(email=google_email.lower()).first()
-
-        if user:
-            # Existing user - link Google info if needed
-            if not user.avatar_url and google_picture:
-                user.avatar_url = google_picture
-            if user.display_name == "Hey there! I'm using KB Chat." and google_name:
-                user.display_name = google_name
-            db.commit()
-            db.refresh(user)
-        else:
-            # Create new user from Google account
-            # Generate a username from email
-            base_username = google_email.split("@")[0]
-            base_username = re.sub(r"[^a-z0-9_-]", "", base_username.lower())
-            if len(base_username) < 3:
-                base_username = base_username + "user"
-            username = base_username
-            counter = 1
-            while db.query(User).filter_by(username=username).first():
-                username = f"{base_username}{counter}"
-                counter += 1
-
-            user = User(
-                username=username,
-                email=google_email.lower(),
-                display_name=google_name or username,
-                hashed_password=hash_password("google-oauth-no-password"),
-                avatar_url=google_picture,
-                about="Signed in with Google",
-                auth_provider="google",
-            )
-            db.add(user)
-            db.commit()
-            db.refresh(user)
-
-        token = create_access_token({"sub": str(user.id), "username": user.username})
-        return success_response(
-            {
-                "access_token": token,
-                "token_type": "bearer",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "display_name": user.display_name,
-                    "avatar_url": user.avatar_url,
-                    "about": user.about,
-                    "is_online": user.is_online,
-                    "last_seen": user.last_seen.isoformat() if user.last_seen else None,
-                    "created_at": user.created_at.isoformat()
-                    if user.created_at
-                    else None,
-                },
-            },
-            "Google login successful",
+        # Find existing user by email (shared helper — same behavior as before)
+        user = _get_or_create_oauth_user(
+            db,
+            email=google_email,
+            name=google_name,
+            picture=google_picture,
+            provider="google",
+            about="Signed in with Google",
         )
+        return _session_response(user, "Google login successful")
     except HTTPException:
         raise
     except Exception as e:

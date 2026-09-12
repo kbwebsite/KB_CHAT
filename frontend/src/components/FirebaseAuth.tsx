@@ -1,0 +1,284 @@
+import { useEffect, useRef, useState } from 'react'
+import {
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signInWithPhoneNumber,
+  signInWithPopup,
+  type ConfirmationResult,
+} from 'firebase/auth'
+import { getFirebaseAuth, ensureFirebaseAsync } from '../services/firebase'
+
+function friendlyAuthError(e: any): string {
+  const code = e?.code || ''
+  if (code === 'auth/operation-not-allowed') return 'This sign-in method is not enabled yet. Please use another method for now.'
+  if (code === 'auth/unauthorized-domain') return 'This site is not authorized for Firebase sign-in yet.'
+  if (code === 'auth/invalid-phone-number' || code === 'auth/missing-phone-number') return 'Enter a valid phone number with country code, e.g. +919876543210.'
+  if (code === 'auth/invalid-verification-code') return 'Wrong code. Check the SMS and try again.'
+  if (code === 'auth/code-expired') return 'That code expired. Request a new one.'
+  if (code === 'auth/too-many-requests') return 'Too many attempts. Wait a bit and try again.'
+  if (code === 'auth/popup-blocked') return 'Popup was blocked. Allow popups for this site and retry.'
+  if (code === 'auth/popup-closed-by-user') return 'Popup closed before finishing.'
+  if (code === 'auth/network-request-failed') return 'Network error. Check your connection and retry.'
+  if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') return 'Email or password is incorrect.'
+  if (code === 'auth/email-already-in-use') return 'An account with this email already exists. Try signing in.'
+  if (code === 'auth/weak-password') return 'Password must be at least 6 characters.'
+  if (code === 'auth/invalid-email') return 'Enter a valid email address.'
+  return e?.message || 'Sign-in failed. Please try again.'
+}
+
+/**
+ * Firebase sign-in: Email, Google, and Phone tabs. On success the Firebase
+ * ID token is handed to onSession(), which exchanges it with our backend for
+ * a regular app session (same kb_token flow as every other login method).
+ */
+export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Promise<void> }) {
+  const [tab, setTab] = useState<'email' | 'google' | 'phone'>('email')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [phone, setPhone] = useState('')
+  const [code, setCode] = useState('')
+  const [confirmRes, setConfirmRes] = useState<ConfirmationResult | null>(null)
+  const [codeSentTo, setCodeSentTo] = useState<string | null>(null)
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
+  const [unavailable, setUnavailable] = useState<string | null>(null)
+
+  const [ready, setReady] = useState(false)
+  useEffect(() => {
+    let cancelled = false
+    ensureFirebaseAsync()
+      .then(() => {
+        if (!cancelled) setReady(true)
+      })
+      .catch((e: any) => {
+        if (!cancelled) setUnavailable(e?.message || 'Firebase is not configured.')
+      })
+    return () => {
+      cancelled = true
+      try {
+        recaptchaRef.current?.clear()
+      } catch {}
+      recaptchaRef.current = null
+    }
+  }, [])
+
+  if (unavailable) return null
+  if (!ready) {
+    return <p className="text-xs text-center text-muted-foreground">Loading sign-in options...</p>
+  }
+
+  const finish = async (idToken: string) => {
+    setBusy(true)
+    setError(null)
+    try {
+      await onSession(idToken)
+    } catch (err: any) {
+      setError(err?.response?.data?.detail || err?.message || 'Could not start your session.')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleEmail = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!email.trim() || !password) {
+      setError('Enter your email and password.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const auth = getFirebaseAuth()
+      let cred
+      try {
+        cred = await signInWithEmailAndPassword(auth, email.trim(), password)
+      } catch (err: any) {
+        if (err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
+          cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
+        } else {
+          throw err
+        }
+      }
+      await finish(await cred.user.getIdToken())
+    } catch (err: any) {
+      setError(friendlyAuthError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleGoogle = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const auth = getFirebaseAuth()
+      const cred = await signInWithPopup(auth, new GoogleAuthProvider())
+      await finish(await cred.user.getIdToken())
+    } catch (err: any) {
+      setError(friendlyAuthError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const ensureRecaptcha = () => {
+    const auth = getFirebaseAuth()
+    if (!recaptchaRef.current) {
+      recaptchaRef.current = new RecaptchaVerifier(auth, 'kb-recaptcha', { size: 'invisible' })
+    }
+    return recaptchaRef.current
+  }
+
+  const handleSendCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    const digits = phone.replace(/[\s-]/g, '')
+    if (!/^\+\d{8,15}$/.test(digits)) {
+      setError('Enter a valid phone number with country code, e.g. +919876543210.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const auth = getFirebaseAuth()
+      const confirmation = await signInWithPhoneNumber(auth, digits, ensureRecaptcha())
+      setConfirmRes(confirmation)
+      setCodeSentTo(digits)
+    } catch (err: any) {
+      try {
+        recaptchaRef.current?.clear()
+      } catch {}
+      recaptchaRef.current = null
+      setError(friendlyAuthError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!confirmRes || code.trim().length < 4) {
+      setError('Enter the verification code from the SMS.')
+      return
+    }
+    setBusy(true)
+    setError(null)
+    try {
+      const cred = await confirmRes.confirm(code.trim())
+      await finish(await cred.user.getIdToken())
+    } catch (err: any) {
+      setError(friendlyAuthError(err))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const tabs = [
+    { id: 'email', label: 'Email' },
+    { id: 'google', label: 'Google' },
+    { id: 'phone', label: 'Phone' },
+  ] as const
+
+  return (
+    <div className="w-full">
+      <div id="kb-recaptcha" />
+      <div className="flex gap-1 p-1 rounded-xl bg-muted mb-3" role="tablist" aria-label="Sign-in methods">
+        {tabs.map(t => (
+          <button
+            key={t.id}
+            type="button"
+            role="tab"
+            aria-selected={tab === t.id}
+            onClick={() => { setTab(t.id); setError(null) }}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${tab === t.id ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {error && (
+        <div className="p-3 mb-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm" role="alert">
+          {error}
+        </div>
+      )}
+
+      {tab === 'email' && (
+        <form onSubmit={handleEmail} className="space-y-3">
+          <input
+            type="email"
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="Email address"
+            autoComplete="email"
+            className="auth-input w-full px-4 py-3 outline-none text-sm"
+          />
+          <input
+            type="password"
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="Password (min 6 chars for new accounts)"
+            autoComplete="current-password"
+            className="auth-input w-full px-4 py-3 outline-none text-sm"
+          />
+          <button disabled={busy} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
+            {busy ? 'Please wait...' : 'Continue with Email'}
+          </button>
+          <p className="text-[11px] text-muted-foreground text-center">New here? Entering a fresh email creates your account.</p>
+        </form>
+      )}
+
+      {tab === 'google' && (
+        <button disabled={busy} onClick={handleGoogle} className="auth-google-btn w-full py-3 rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+          <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
+            <path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.3H12v4.5h6.5c-.1 1.1-.8 2.7-2.4 3.8l-.1.1 3.5 2.7.2.1c2.2-2 3.8-5 3.8-8.9z" />
+            <path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.8-2.9c-1 .7-2.4 1.2-4.1 1.2-3.2 0-5.9-2.1-6.8-5.1l-.1.1-3.6 2.8v.1C3.5 21.3 7.5 24 12 24z" />
+            <path fill="#FBBC05" d="M5.2 14.3c-.2-.7-.4-1.5-.4-2.3s.1-1.6.4-2.3l-.1-.1-3.5-2.7-.1.1C.5 8.9 0 10.4 0 12s.5 3.1 1.5 4.4l3.7-2.1z" />
+            <path fill="#EA4335" d="M12 4.7c1.8 0 3 .8 3.7 1.4l3.3-3.2C17.9 1.1 15.2 0 12 0 7.5 0 3.5 2.7 1.5 6.7l3.7 2.9c.9-3 3.6-4.9 6.8-4.9z" />
+          </svg>
+          {busy ? 'Please wait...' : 'Continue with Google'}
+        </button>
+      )}
+
+      {tab === 'phone' && (
+        !confirmRes ? (
+          <form onSubmit={handleSendCode} className="space-y-3">
+            <input
+              type="tel"
+              value={phone}
+              onChange={e => setPhone(e.target.value)}
+              placeholder="+919876543210"
+              autoComplete="tel"
+              className="auth-input w-full px-4 py-3 outline-none text-sm"
+            />
+            <button disabled={busy} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
+              {busy ? 'Sending...' : 'Send verification code'}
+            </button>
+          </form>
+        ) : (
+          <form onSubmit={handleVerifyCode} className="space-y-3">
+            <p className="text-xs text-muted-foreground text-center">
+              Code sent to {codeSentTo}.{' '}
+              <button type="button" className="underline" onClick={() => { setConfirmRes(null); setCode('') }}>
+                Wrong number?
+              </button>
+            </p>
+            <input
+              value={code}
+              onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 8))}
+              placeholder="6-digit code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              className="auth-input w-full px-4 py-3 outline-none text-sm text-center tracking-widest"
+            />
+            <button disabled={busy} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
+              {busy ? 'Verifying...' : 'Verify & sign in'}
+            </button>
+          </form>
+        )
+      )}
+    </div>
+  )
+}

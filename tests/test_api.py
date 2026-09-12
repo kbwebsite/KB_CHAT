@@ -545,6 +545,71 @@ def test_ai_provider_mapping_and_endpoint_fallback():
         settings.AI_PROVIDER, settings.AI_BASE_URL = old_provider, old_base
 
 
+def test_firebase_exchange_new_existing_unverified_rejected(monkeypatch):
+    import app.api.auth as authmod
+
+    calls = {"n": 0}
+
+    def fake_verify(token):
+        calls["n"] += 1
+        if token == "good-google":
+            return {
+                "uid": "fb_google_1",
+                "email": "FireNew@Example.com",
+                "name": "Fire New",
+                "picture": "http://x/p.png",
+                "email_verified": True,
+                "firebase": {"sign_in_provider": "google.com"},
+            }
+        if token == "good-unverified":
+            return {
+                "uid": "fb_pw_1",
+                "email": "squat@example.com",
+                "email_verified": False,
+                "firebase": {"sign_in_provider": "password"},
+            }
+        raise Exception("bad token")
+
+    monkeypatch.setattr(authmod, "_firebase_app_or_503", lambda: True)
+    import firebase_admin.auth as fb_auth_mod
+
+    monkeypatch.setattr(fb_auth_mod, "verify_id_token", fake_verify)
+
+    # new Firebase user -> created
+    r = client.post("/api/auth/firebase", json={"id_token": "good-google"})
+    assert r.status_code == 200, r.text
+    uid = r.json()["data"]["user"]["id"]
+    assert r.json()["data"]["user"]["email"] == "firenew@example.com"
+    # same token again -> same user, no duplicate
+    r2 = client.post("/api/auth/firebase", json={"id_token": "good-google"})
+    assert r2.json()["data"]["user"]["id"] == uid
+    assert calls["n"] == 2
+    # unverified password account cannot squat
+    r3 = client.post("/api/auth/firebase", json={"id_token": "good-unverified"})
+    assert r3.status_code == 401, r3.text
+    # garbage token rejected; missing token rejected
+    assert (
+        client.post("/api/auth/firebase", json={"id_token": "nope"}).status_code == 401
+    )
+    assert client.post("/api/auth/firebase", json={}).status_code == 400
+    # phone user (no email) gets a deterministic placeholder identity
+    from app.api.auth import _get_or_create_phone_user
+    from app.database.connection import SessionLocal
+
+    db = SessionLocal()
+    try:
+        u1 = _get_or_create_phone_user(
+            db, fb_uid="AbC123xYz", phone="+919876543210", name=None
+        )
+        u2 = _get_or_create_phone_user(
+            db, fb_uid="AbC123xYz", phone="+919876543210", name=None
+        )
+        assert u1.id == u2.id
+        assert u1.email == "phone-abc123xyz@phone.local"
+    finally:
+        db.close()
+
+
 def test_e2ee_envelope_and_keys():
     import base64
     import time

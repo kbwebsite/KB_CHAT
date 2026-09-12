@@ -4,19 +4,51 @@ import { getFirestore, connectFirestoreEmulator, type Firestore } from 'firebase
 import { getStorage, connectStorageEmulator, type FirebaseStorage } from 'firebase/storage'
 
 // Web config for project kbwebsite-s. Values are PUBLIC (they ship in the
-// bundle by design) — paste them from Firebase Console > Project settings >
-// Your apps > Web app, or set the VITE_FIREBASE_* env vars on Vercel.
-const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_SENDER_ID as string | undefined,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
+// bundle by design). Resolution order: VITE_FIREBASE_* build env first, then
+// the backend's /api/config (covers Docker builds where env never arrives).
+function envConfig(): Record<string, string | undefined> {
+  return {
+    apiKey: import.meta.env.VITE_FIREBASE_API_KEY as string | undefined,
+    authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN as string | undefined,
+    projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID as string | undefined,
+    storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET as string | undefined,
+    messagingSenderId: import.meta.env.VITE_FIREBASE_SENDER_ID as string | undefined,
+    appId: import.meta.env.VITE_FIREBASE_APP_ID as string | undefined,
+  }
+}
+
+let runtimeConfig: Record<string, string> | null = null
+
+function currentConfig(): Record<string, string | undefined> {
+  return { ...envConfig(), ...(runtimeConfig ?? {}) }
 }
 
 export function isFirebaseConfigured(): boolean {
-  return Boolean(firebaseConfig.apiKey && firebaseConfig.projectId && firebaseConfig.appId)
+  const c = currentConfig()
+  return Boolean(c.apiKey && c.projectId && c.appId)
+}
+
+/** Fetch backend-served web config (for builds that baked in no env). */
+export async function ensureFirebaseAsync(): Promise<void> {
+  if (isFirebaseConfigured()) {
+    ensureFirebase()
+    return
+  }
+  if (!runtimeConfig) {
+    const res = await fetch('/api/config').then(r => r.json()).catch(() => null)
+    const fb = res?.data?.firebase
+    if (fb?.apiKey && fb?.projectId && fb?.appId) {
+      runtimeConfig = {
+        apiKey: fb.apiKey,
+        authDomain: `${fb.projectId}.firebaseapp.com`,
+        projectId: fb.projectId,
+        storageBucket: `${fb.projectId}.firebasestorage.app`,
+        messagingSenderId: fb.messagingSenderId || '',
+        appId: fb.appId,
+      }
+    }
+  }
+  ensureFirebase()
 }
 
 let app: FirebaseApp | null = null
@@ -26,9 +58,8 @@ let storage: FirebaseStorage | null = null
 let emulatorsWired = false
 
 function missingKeys(): string[] {
-  return (Object.keys(firebaseConfig) as (keyof typeof firebaseConfig)[]).filter(
-    k => !firebaseConfig[k],
-  )
+  const c = currentConfig()
+  return (Object.keys(c) as (keyof typeof c)[]).filter(k => !c[k])
 }
 
 /** Lazily initializes Firebase. Throws a human-readable error if unconfigured. */
@@ -36,11 +67,11 @@ export function ensureFirebase(): { app: FirebaseApp; auth: Auth; db: Firestore;
   if (!isFirebaseConfigured()) {
     throw new Error(
       `Firebase is not configured (missing: ${missingKeys().join(', ') || 'unknown'}). ` +
-        'Set VITE_FIREBASE_* env vars (see Firebase Console > Project settings).',
+        'Set VITE_FIREBASE_* env vars or serve them via /api/config.',
     )
   }
   if (!app) {
-    app = getApps().length ? getApps()[0]! : initializeApp(firebaseConfig as Record<string, string>)
+    app = getApps().length ? getApps()[0]! : initializeApp(currentConfig() as Record<string, string>)
     auth = getAuth(app)
     db = getFirestore(app)
     storage = getStorage(app)
