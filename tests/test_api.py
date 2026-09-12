@@ -376,6 +376,53 @@ def test_ai_action_shapes_carry_provider():
     assert r3.status_code == 200 and "provider" in r3.json()["data"], r3.text
 
 
+def test_link_preview_rejects_private_targets():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    u = f"ssrf{s}"
+    signup_user(u, f"{u}@ex.com", "SSRF")
+    h = _login(u)
+    for bad in [
+        "http://127.0.0.1/admin",
+        "http://localhost:8000/",
+        "http://169.254.169.254/latest/meta-data",
+        "http://10.0.0.5/",
+        "http://192.168.1.1/",
+        "ftp://example.com/x",
+        "not a url",
+    ]:
+        r = client.post("/api/link-preview", json={"url": bad}, headers=h)
+        assert r.status_code == 400, (bad, r.text)
+
+
+def test_rate_limiter_uses_forwarded_ip_and_buckets():
+    from app.main import _client_ip, _rate_limit_hit, _request_counts
+
+    class FakeClient:
+        host = "10.9.9.9"
+
+    class FakeReq:
+        client = FakeClient()
+        headers = {"x-forwarded-for": "203.0.113.7, 10.9.9.9"}
+
+    assert _client_ip(FakeReq()) == "203.0.113.7"
+
+    class FakeReq2:
+        client = FakeClient()
+        headers = {}
+
+    assert _client_ip(FakeReq2()) == "10.9.9.9"
+    _request_counts.clear()
+    assert _rate_limit_hit("1.2.3.4", "t", 1000.0, 60, 2) is False
+    assert _rate_limit_hit("1.2.3.4", "t", 1001.0, 60, 2) is False
+    assert _rate_limit_hit("1.2.3.4", "t", 1002.0, 60, 2) is True
+    # window expiry + per-scope isolation
+    assert _rate_limit_hit("1.2.3.4", "t", 1070.0, 60, 2) is False
+    assert _rate_limit_hit("1.2.3.4", "other", 1070.0, 60, 2) is False
+    _request_counts.clear()
+
+
 def test_ai_provider_mapping_and_endpoint_fallback():
     from app.ai.provider import (
         get_ai_provider,

@@ -110,12 +110,12 @@ export default function LoginPage() {
           {error && <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
           <div>
             <label className="text-sm font-medium">Email or Username</label>
-            <input value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com or username" className="auth-input mt-1 w-full px-4 py-3 outline-none text-sm" />
+            <input value={identifier} onChange={e=>setIdentifier(e.target.value)} placeholder="you@example.com or username" autoComplete="username" className="auth-input mt-1 w-full px-4 py-3 outline-none text-sm" />
           </div>
           <div>
             <label className="text-sm font-medium">Password</label>
             <div className="relative mt-1">
-              <input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" className="auth-input w-full px-4 py-3 pr-10 outline-none text-sm" />
+              <input type={show?'text':'password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder="••••••••" autoComplete="current-password" className="auth-input w-full px-4 py-3 pr-10 outline-none text-sm" />
               <button type="button" onClick={()=>setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors">{show? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
             </div>
           </div>

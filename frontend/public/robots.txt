@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /$
+Allow: /login$
+Allow: /signup$
+Disallow: /chat
+Disallow: /ai
+Disallow: /settings
+Disallow: /api/
+Disallow: /ws/
+
+Sitemap: https://kb-chat-jqdk.onrender.com/sitemap.xml

@@ -282,34 +282,67 @@ from fastapi.responses import JSONResponse
 import time
 from collections import defaultdict
 
-# simple in-memory rate limiter
+# simple in-memory rate limiter: {bucket_key: [timestamps]}
 _request_counts = defaultdict(list)
+
+# path prefix -> (window seconds, max requests). Auth stays strict (credential
+# stuffing); message sending gets a generous anti-spam cap no human hits.
+_RATE_LIMITS = [
+    ("/api/auth", 60, 30),
+    ("/api/conversations", 60, 120),
+    ("/api/messages", 60, 120),
+    ("/api/uploads", 60, 60),
+]
+
+
+def _client_ip(request: Request) -> str:
+    # Behind Render's proxy request.client is the load balancer, so every
+    # user would share one bucket. Trust X-Forwarded-For's leftmost entry
+    # (set by the proxy) and fall back to the direct peer.
+    try:
+        xff = request.headers.get("x-forwarded-for", "")
+        if xff:
+            first = xff.split(",")[0].strip()
+            if first:
+                return first
+    except Exception:
+        pass
+    return request.client.host if request.client else "unknown"
+
+
+def _rate_limit_hit(ip: str, scope: str, now: float, window: int, limit: int) -> bool:
+    key = f"{scope}:{ip}"
+    bucket = [t for t in _request_counts[key] if now - t < window]
+    if len(bucket) >= limit:
+        _request_counts[key] = bucket
+        return True
+    bucket.append(now)
+    _request_counts[key] = bucket
+    return False
 
 
 @app.middleware("http")
 async def rate_limit_middleware(request: Request, call_next):
-    # Only rate limit auth endpoints.
     # pytest sets PYTEST_CURRENT_TEST: the full test suite makes dozens of
-    # auth calls from one IP and would otherwise trip the limiter.
+    # calls from one IP and would otherwise trip the limiter.
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return await call_next(request)
-    if request.url.path.startswith("/api/auth"):
-        ip = request.client.host if request.client else "unknown"
-        now = time.time()
-        window = 60  # 60 seconds
-        max_requests = 30
-        # clean old
-        _request_counts[ip] = [t for t in _request_counts[ip] if now - t < window]
-        if len(_request_counts[ip]) >= max_requests:
-            return JSONResponse(
-                status_code=429,
-                content={
-                    "success": False,
-                    "data": None,
-                    "message": "Too many requests. Please try again later.",
-                },
-            )
-        _request_counts[ip].append(now)
+    path = request.url.path
+    for prefix, window, limit in _RATE_LIMITS:
+        if path.startswith(prefix):
+            # Only throttle writes; reads stay unlimited.
+            if request.method not in ("POST", "PUT", "PATCH", "DELETE"):
+                break
+            if _rate_limit_hit(_client_ip(request), prefix, time.time(), window, limit):
+                return JSONResponse(
+                    status_code=429,
+                    content={
+                        "success": False,
+                        "data": None,
+                        "message": "Too many requests. Please try again later.",
+                    },
+                )
+            break
     response = await call_next(request)
     return response
 
