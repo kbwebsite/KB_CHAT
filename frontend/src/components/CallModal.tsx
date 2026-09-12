@@ -46,6 +46,19 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   const pcRef=useRef<RTCPeerConnection|null>(null)
   const streamRef=useRef<MediaStream|null>(null)
   const pendingOfferRef=useRef<any>(null)
+  // Remote ICE candidates that arrive before we have a remote description
+  // cannot be added yet — buffer them and flush after setRemoteDescription.
+  // (Dropped candidates = no connection; video setup is slower than audio,
+  // which is why voice worked while video systematically failed.)
+  const pendingIceRef=useRef<any[]>([])
+  const flushIce = async () => {
+    const pc = pcRef.current
+    if (!pc || !pc.remoteDescription) return
+    const queued = pendingIceRef.current.splice(0, 50)
+    for (const c of queued) {
+      try { await pc.addIceCandidate(new RTCIceCandidate(c)) } catch {}
+    }
+  }
   const setupDoneRef=useRef(false)
   // CRITICAL: Use ref to track caller/callee role - NEVER re-run setup when isIncoming prop changes
   const isCallerRef=useRef(!isIncoming)
@@ -202,8 +215,18 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         stream.getTracks().forEach(track=> pc.addTrack(track, stream))
 
         pc.ontrack = (e)=>{
-          if (remoteRef.current) remoteRef.current.srcObject = e.streams[0]
-          if (remoteAudioRef.current) remoteAudioRef.current.srcObject = e.streams[0]
+          const stream = e.streams[0]
+          if (remoteRef.current) {
+            remoteRef.current.srcObject = stream
+            try { (remoteRef.current.play?.() as any)?.catch?.(()=>{}) } catch {}
+          }
+          // Voice-only calls have no visible video element: play via audio.
+          // (Video calls already hear the peer through the video element;
+          // attaching both would double the audio.)
+          if (type === 'voice' && remoteAudioRef.current) {
+            remoteAudioRef.current.srcObject = stream
+            try { (remoteAudioRef.current.play?.() as any)?.catch?.(()=>{}) } catch {}
+          }
           setConnected(true)
           setStatusText('Connected')
         }
@@ -239,6 +262,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         if (isCallerRef.current===false && pendingOfferRef.current) {
           const offer = pendingOfferRef.current
           await pc.setRemoteDescription(new RTCSessionDescription(offer))
+          await flushIce()
           const answer = await pc.createAnswer()
           await pc.setLocalDescription(answer)
           if (peerId && callId) {
@@ -266,6 +290,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       }
       try {
         await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
+        await flushIce()
         const answer = await pcRef.current.createAnswer()
         await pcRef.current.setLocalDescription(answer)
         if (peerId && callId) {
@@ -281,6 +306,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       try {
         if (pcRef.current && pcRef.current.signalingState !== 'stable') {
           await pcRef.current.setRemoteDescription(new RTCSessionDescription(sdp))
+          await flushIce()
           setConnected(true)
           setStatusText('Connected')
         }
@@ -290,10 +316,16 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
     const onIce = async (payload:any)=>{
       if (payload.callId && callId && payload.callId !== callId) return
       const candidate = payload.candidate
+      if (!candidate) return
       try {
-        if (candidate && pcRef.current && pcRef.current.signalingState !== 'closed') {
-          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate))
+        const pc = pcRef.current
+        if (!pc || pc.signalingState === 'closed') return
+        if (!pc.remoteDescription) {
+          // Too early: queue for flushIce() after the remote description lands.
+          if (pendingIceRef.current.length < 50) pendingIceRef.current.push(candidate)
+          return
         }
+        await pc.addIceCandidate(new RTCIceCandidate(candidate))
       } catch {}
     }
 
@@ -327,6 +359,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       streamRef.current?.getTracks().forEach(t=>t.stop())
       streamRef.current=null
       pendingOfferRef.current=null
+      pendingIceRef.current=[]
       setConnected(false)
       setElapsed(0)
     }
