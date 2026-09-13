@@ -82,24 +82,42 @@ export async function ensurePublished(userId: number): Promise<string | null> {
   }
 }
 
-const peerCache = new Map<number, string | null>()
+interface KeyEntry {
+  key: string | null
+  at: number
+}
+
+// Cached peer keys EXPIRE. Devices rotate keys (new login / cleared storage
+// publishes a fresh keypair), so a forever-cache seals boxes nobody can open
+// and a forever-cached null never notices a late publish. Misses re-fetch
+// quickly; hits are trusted for a few minutes.
+const peerCache = new Map<number, KeyEntry>()
+const NULL_KEY_TTL_MS = 30_000
+const KEY_TTL_MS = 5 * 60_000
 
 /** Fetch + cache a peer's public key (null = no key / unreachable). */
-export async function fetchPeerKey(userId: number): Promise<string | null> {
-  if (peerCache.has(userId)) return peerCache.get(userId) ?? null
+export async function fetchPeerKey(userId: number, opts?: { force?: boolean }): Promise<string | null> {
+  const now = Date.now()
+  const hit = peerCache.get(userId)
+  if (hit && !opts?.force) {
+    const ttl = hit.key == null ? NULL_KEY_TTL_MS : KEY_TTL_MS
+    if (now - hit.at < ttl) return hit.key
+  }
   try {
     const r = await api.get(`/api/users/keys/${userId}`)
     const pub = r?.data?.data?.identity_pubkey ?? null
-    peerCache.set(userId, pub)
+    peerCache.set(userId, { key: pub, at: now })
     return pub
   } catch {
-    peerCache.set(userId, null)
+    // Transport failure must not poison the cache: keep serving the stale
+    // entry (if any) until it expires naturally.
+    if (hit) return hit.key
     return null
   }
 }
 
 export function peerKeyCached(userId: number): boolean {
-  return (peerCache.get(userId) ?? null) !== null
+  return (peerCache.get(userId)?.key ?? null) !== null
 }
 
 export interface Sealed {

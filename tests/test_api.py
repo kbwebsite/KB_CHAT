@@ -903,3 +903,43 @@ def test_ai_chat_stream_emits_tokens_final_and_done():
 def test_ai_chat_stream_requires_auth():
     r = client.post("/api/ai/chat/stream", json={"message": "hi"})
     assert r.status_code in (401, 403), r.text
+
+
+def test_encrypted_preview_masked_in_conversation_list():
+    # E2EE ciphertext must never leak into chat-list previews, but the full
+    # envelope must still reach history so devices can open it.
+    import base64
+    import os
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a = f"enca{s}"
+    b = f"encb{s}"
+    signup_user(a, f"{a}@ex.com", "Enc A")
+    signup_user(b, f"{b}@ex.com", "Enc B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    assert rc.status_code == 200, rc.text
+    cid = rc.json()["data"]["id"]
+
+    content = base64.b64encode(os.urandom(40)).decode()
+    nonce = base64.b64encode(os.urandom(24)).decode()
+    r1 = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": content, "nonce": nonce, "is_encrypted": True},
+        headers=ha,
+    )
+    assert r1.status_code == 200, r1.text
+
+    rl = client.get("/api/conversations", headers=ha)
+    assert rl.status_code == 200, rl.text
+    conv = [c for c in rl.json()["data"] if c["id"] == cid][0]
+    assert conv["last_message"]["content"] == "🔒 Encrypted message", conv[
+        "last_message"
+    ]
+
+    rh = client.get(f"/api/conversations/{cid}/messages", headers=hb)
+    assert rh.status_code == 200, rh.text
+    m = [m for m in rh.json()["data"]["messages"] if m["content"] == content][0]
+    assert m["is_encrypted"] is True
+    assert m["nonce"] == nonce

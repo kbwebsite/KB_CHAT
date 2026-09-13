@@ -119,10 +119,12 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       return { messages: { ...state.messages, [real.conversation_id]: [...withoutTemp, real] } }
     })
     // refresh the conversation preview with the authoritative message
+    // (ciphertext never leaks into previews — bubbles decrypt separately).
+    const previewContent = real.is_encrypted ? '🔒 Encrypted message' : (real.content||'')
     set(state=>{
       const convs = state.conversations.map(c=>{
         if (c.id===real.conversation_id) {
-          return { ...c, last_message: { id: real.id, content: real.content||'', sender_id: real.sender_id, sender_username: real.sender_username, created_at: real.created_at, message_type: real.message_type } as any }
+          return { ...c, last_message: { id: real.id, content: previewContent, sender_id: real.sender_id, sender_username: real.sender_username, created_at: real.created_at, message_type: real.message_type } as any }
         }
         return c
       })
@@ -151,11 +153,13 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     if (!get().conversations.some(c=> c.id === msg.conversation_id)) {
       get().fetchConversations().catch(()=>{})
     }
-    // update conversation last_message preview
+    // update conversation last_message preview (masked for E2EE, same rule
+    // as the backend list endpoint).
+    const livePreview = msg.is_encrypted ? '🔒 Encrypted message' : (msg.content||'')
     set(state=>{
       const convs = state.conversations.map(c=>{
         if (c.id===msg.conversation_id) {
-          return { ...c, last_message: { id: msg.id, content: msg.content||'', sender_id: msg.sender_id, sender_username: msg.sender_username, created_at: msg.created_at, message_type: msg.message_type } as any,
+          return { ...c, last_message: { id: msg.id, content: livePreview, sender_id: msg.sender_id, sender_username: msg.sender_username, created_at: msg.created_at, message_type: msg.message_type } as any,
             // if not current, increment unread
             unread_count: state.currentConversationId===msg.conversation_id ? 0 : (c.unread_count||0)+1
           }

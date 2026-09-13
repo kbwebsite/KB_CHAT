@@ -30,10 +30,20 @@ function useDecrypted(msg: Message): DecState {
         let otherId = members.find((m: any) => m.user_id !== meId)?.user_id
         if (otherId == null && msg.sender_id !== meId) otherId = msg.sender_id
         if (otherId == null) { if (live) setSt({ s: 'failed' }); return }
-        const peerB64 = await fetchPeerKey(otherId)
+        // Keys rotate (new device/login) and publishes race chat opens, so a
+        // stale/empty cache must not be the final word: refresh once before
+        // declaring the message undecryptable.
+        let peerB64 = await fetchPeerKey(otherId)
+        if (!live) return
+        if (!peerB64) peerB64 = await fetchPeerKey(otherId, { force: true })
         if (!live) return
         if (!peerB64) { setSt({ s: 'failed' }); return }
-        const t = await openMessage(msg, meId, peerB64)
+        let t = await openMessage(msg, meId, peerB64)
+        if (t == null) {
+          const fresh = await fetchPeerKey(otherId, { force: true })
+          if (!live) return
+          if (fresh && fresh !== peerB64) t = await openMessage(msg, meId, fresh)
+        }
         if (live) setSt(t == null ? { s: 'failed' } : { s: 'open', text: t })
       } catch {
         if (live) setSt({ s: 'failed' })
@@ -134,6 +144,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const dec = useDecrypted(msg)
   const locked = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
   const shownText = locked ? (dec.s === 'open' ? dec.text : null) : content
+  // AI actions (summarize/translate/explain) must see readable text, never
+  // raw ciphertext: locked messages qualify only once actually decrypted.
+  const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text } : null) : msg
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
   const audioAtts = msg.attachments.filter(a=> a.mime_type.startsWith('audio/'))
   const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/'))
@@ -297,12 +310,12 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>
-              {onAIAction && content && !msg.is_deleted && (
+              {onAIAction && actionMsg && content && !msg.is_deleted && (
                 <>
                   <div className="border-t my-1"/>
-                  <button onClick={()=>{ onAIAction(msg, 'summarize'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Sparkles className="w-3.5 h-3.5"/> Summarize</button>
-                  <button onClick={()=>{ onTranslateAction?.(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Languages className="w-3.5 h-3.5"/> Translate</button>
-                  <button onClick={()=>{ onAIAction(msg, 'explain'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><FileText className="w-3.5 h-3.5"/> Explain</button>
+                  <button onClick={()=>{ onAIAction(actionMsg, 'summarize'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Sparkles className="w-3.5 h-3.5"/> Summarize</button>
+                  <button onClick={()=>{ onTranslateAction?.(actionMsg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Languages className="w-3.5 h-3.5"/> Translate</button>
+                  <button onClick={()=>{ onAIAction(actionMsg, 'explain'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><FileText className="w-3.5 h-3.5"/> Explain</button>
                 </>
               )}
               <div className="border-t my-1"/>

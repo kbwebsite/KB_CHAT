@@ -72,7 +72,12 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         )
         last_msg_dict = {
             "id": last_msg.id,
-            "content": "Message deleted" if last_msg.is_deleted else last_msg.content,
+            # Never leak ciphertext into list previews.
+            "content": "Message deleted"
+            if last_msg.is_deleted
+            else (
+                "🔒 Encrypted message" if last_msg.is_encrypted else last_msg.content
+            ),
             "sender_id": last_msg.sender_id,
             "sender_username": sender.username if sender else None,
             "created_at": last_msg.created_at.isoformat()
@@ -273,9 +278,14 @@ def list_conversations(
             sender = user_map.get(last_msg.sender_id) if last_msg.sender_id else None
             last_msg_dict = {
                 "id": last_msg.id,
+                # Never leak ciphertext into list previews.
                 "content": "Message deleted"
                 if last_msg.is_deleted
-                else last_msg.content,
+                else (
+                    "🔒 Encrypted message"
+                    if last_msg.is_encrypted
+                    else last_msg.content
+                ),
                 "sender_id": last_msg.sender_id,
                 "sender_username": sender.username if sender else None,
                 "created_at": last_msg.created_at.isoformat()
