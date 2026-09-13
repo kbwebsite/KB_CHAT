@@ -19,7 +19,7 @@ interface ChatState {
   fetchConversations: (search?:string)=>Promise<void>
   setCurrent: (id:number|null)=>void
   fetchMessages: (convId:number, before?:number)=>Promise<void>
-  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string})=>Promise<void>
+  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean})=>Promise<void>
   addMessage: (msg:Message)=>void
   addOptimistic: (msg:Message)=>void
   replaceMessage: (tempId:number, real:Message)=>void
@@ -36,8 +36,19 @@ interface ChatState {
   setMessageStatus: (convId:number, msgId:number, status:string)=>void
 }
 
-export const useChatStore = create<ChatState>((set, get)=> ({
-  conversations: [],
+/** Sidebar preview text: mirrors the backend masking rules (ciphertext and
+ * burn-once secrets never leak; burned view-once reads "Opened"). */
+function previewContentFor(m: Message): string {
+  if (m.is_encrypted) return '🔒 Encrypted message'
+  if (m.view_once) {
+    if (m.viewed_once) return '👁 Opened'
+    const me = useAuthStore.getState().user?.id
+    if (m.sender_id !== me) return '👁 View-once message'
+  }
+  return m.content || ''
+}
+
+export const useChatStore = create<ChatState>((set, get)=> ({  conversations: [],
   currentConversationId: null,
   messages: {},
   hasMore: {},
@@ -94,9 +105,10 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       created_at: new Date().toISOString(),
       attachments: [], reactions: [], status: 'sending' as any,
     }
+    if (extra?.view_once) (temp as any).view_once = true
     get().addOptimistic(temp)
     try {
-      const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}) })
+      const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}) })
       if (res.success) {
         get().replaceMessage(tempId, res.data)
       } else {
@@ -120,7 +132,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     })
     // refresh the conversation preview with the authoritative message
     // (ciphertext never leaks into previews — bubbles decrypt separately).
-    const previewContent = real.is_encrypted ? '🔒 Encrypted message' : (real.content||'')
+    const previewContent = previewContentFor(real)
     set(state=>{
       const convs = state.conversations.map(c=>{
         if (c.id===real.conversation_id) {
@@ -155,7 +167,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     }
     // update conversation last_message preview (masked for E2EE, same rule
     // as the backend list endpoint).
-    const livePreview = msg.is_encrypted ? '🔒 Encrypted message' : (msg.content||'')
+    const livePreview = previewContentFor(msg)
     set(state=>{
       const convs = state.conversations.map(c=>{
         if (c.id===msg.conversation_id) {

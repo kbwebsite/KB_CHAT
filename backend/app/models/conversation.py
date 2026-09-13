@@ -27,6 +27,9 @@ class Conversation(Base):
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
+    # Group invite links: unguessable token; NULL = disabled. Nullable so the
+    # online migration adds it safely; NULLs never collide in a unique index.
+    invite_token = Column(String(64), nullable=True, unique=True, index=True)
 
     members = relationship(
         "ConversationMember",

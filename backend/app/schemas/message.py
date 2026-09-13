@@ -20,6 +20,9 @@ class MessageCreate(BaseModel):
     nonce: Optional[str] = Field(
         default=None, max_length=64, description="base64 24-byte box nonce"
     )
+    view_once: bool = Field(
+        default=False, description="Burn after first explicit view (1-1 text only)"
+    )
 
 
 class MessageUpdate(BaseModel):

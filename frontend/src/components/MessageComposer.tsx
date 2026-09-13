@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Lock } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Lock, Eye } from 'lucide-react'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -8,7 +8,7 @@ import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
 
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled, secure }: {
-  onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number) => void,
+  onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
   onTyping: (isTyping: boolean) => void,
   conversationId: number,
   replyTo?: { id: number; content: string; sender: string } | null,
@@ -17,6 +17,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   secure?: boolean
 }) {
   const [text, setText] = useState('')
+  const [viewOnce, setViewOnce] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -62,6 +63,8 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const handleSend = () => {
     if (!text.trim()) return
     setSending(true)
+    const vo = viewOnce
+    setViewOnce(false)
     setText('')
     onCancelReply()
     lastTyping.current = false
@@ -69,7 +72,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     wsService.sendTyping(conversationId, false)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     // Call onSend and reset sending state after a delay (onSend is void, not async)
-    onSend(text.trim(), undefined, 'text')
+    onSend(text.trim(), undefined, 'text', undefined, vo ? { view_once: true } : undefined)
     setTimeout(() => setSending(false), 1500)
   }
 
@@ -224,7 +227,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           value={text}
           onChange={e => handleChange(e.target.value)}
           onKeyDown={handleKeyDown}
-          placeholder="Type a message..."
+          placeholder={viewOnce ? 'View-once message… burns after first view' : 'Type a message...'}
           rows={1}
           className="composer-textarea"
           style={{ background: 'rgba(20,20,42,0.8)', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 20, color: '#f0f0ff', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.03), 0 2px 8px rgba(0,0,0,0.2)' }}
@@ -234,6 +237,16 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         {/* Right side buttons */}
         <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false) }} className="composer-action-btn" aria-label="Emoji">
           <Smile className="w-5 h-5" />
+        </button>
+        {/* View-once: burns after first view (1-1 text only) */}
+        <button
+          onClick={() => setViewOnce(v => !v)}
+          className="composer-action-btn"
+          aria-label="View once"
+          title={viewOnce ? 'View-once ON: message deletes after first view' : 'Send as view-once'}
+          style={viewOnce ? { color: '#a855f7', background: 'rgba(168,85,247,0.15)' } : undefined}
+        >
+          <Eye className="w-5 h-5" />
         </button>
         <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false) }} className="composer-action-btn" aria-label="Stickers">
           <Image className="w-5 h-5" />

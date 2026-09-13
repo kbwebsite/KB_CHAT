@@ -7,6 +7,7 @@ from app.schemas.common import success_response
 from app.api.conversations import conversation_to_dict
 from app.models.conversation import Conversation, ConversationMember
 from app.models.user import User as UserModel
+import secrets
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
@@ -185,4 +186,95 @@ def remove_member(
     db.commit()
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Member removed"
+    )
+
+
+def _require_manager(db, group_id: int, user_id: int):
+    conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Group not found")
+    mem = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=group_id, user_id=user_id)
+        .first()
+    )
+    if not mem or mem.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    return conv
+
+
+@router.get("/{group_id}/invite")
+def get_invite(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Owner/admin only: read the current invite token (null = disabled)."""
+    conv = _require_manager(db, group_id, current_user.id)
+    return success_response({"invite_token": conv.invite_token})
+
+
+@router.post("/{group_id}/invite")
+def create_invite(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Owner/admin only: (re)generate the invite link token, invalidating any
+    previous link."""
+    conv = _require_manager(db, group_id, current_user.id)
+    from sqlalchemy.exc import IntegrityError
+
+    for _ in range(3):
+        conv.invite_token = secrets.token_urlsafe(24)
+        try:
+            db.commit()
+            break
+        except IntegrityError:
+            db.rollback()
+    else:
+        raise HTTPException(status_code=500, detail="Could not generate invite")
+    return success_response({"invite_token": conv.invite_token}, "Invite link ready")
+
+
+@router.delete("/{group_id}/invite")
+def disable_invite(
+    group_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Owner/admin only: disable the invite link."""
+    conv = _require_manager(db, group_id, current_user.id)
+    conv.invite_token = None
+    db.commit()
+    return success_response(None, "Invite link disabled")
+
+
+@router.post("/join/{token}")
+def join_by_invite(
+    token: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Join a group through an invite link. Idempotent for members."""
+    conv = db.query(Conversation).filter_by(invite_token=token, is_group=True).first()
+    if not conv or not token:
+        raise HTTPException(status_code=404, detail="Invalid or expired invite link")
+    existing = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv.id, user_id=current_user.id)
+        .first()
+    )
+    if existing:
+        return success_response(
+            {"conversation_id": conv.id, "already_member": True}, "Already a member"
+        )
+    db.add(
+        ConversationMember(
+            conversation_id=conv.id, user_id=current_user.id, role="member"
+        )
+    )
+    db.commit()
+    return success_response(
+        {"conversation_id": conv.id, "already_member": False}, "Joined group"
     )

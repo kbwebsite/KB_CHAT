@@ -1204,3 +1204,186 @@ def test_polls_list_batched_shape():
     assert rv.status_code == 200, rv.text
     rl2 = client.get(f"/api/conversations/{cid}/polls", headers=ha)
     assert rl2.json()["data"][0]["total_votes"] == 1, rl2.text
+
+
+def test_view_once_full_cycle():
+    # Send -> recipient sees only a shell everywhere -> explicit tap burns it
+    # exactly once -> sender keeps their copy throughout.
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"vo{s}", f"vob{s}"
+    signup_user(a, f"{a}@ex.com", "VO A")
+    signup_user(b, f"{b}@ex.com", "VO B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+
+    r1 = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "shh-secret", "view_once": True},
+        headers=ha,
+    )
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["data"]["view_once"] is True
+    mid = r1.json()["data"]["id"]
+
+    # recipient history: shell, no plaintext, no nonce
+    rb = client.get(f"/api/conversations/{cid}/messages", headers=hb)
+    got = [m for m in rb.json()["data"]["messages"] if m["id"] == mid][0]
+    assert got["content"] == "", got
+    assert got["nonce"] is None, got
+    assert got["view_once"] is True
+    # sender history: full copy
+    ra = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    mine = [m for m in ra.json()["data"]["messages"] if m["id"] == mid][0]
+    assert mine["content"] == "shh-secret", mine
+    # previews: masked for recipient, full for sender
+    cl_b = [
+        c
+        for c in client.get("/api/conversations", headers=hb).json()["data"]
+        if c["id"] == cid
+    ][0]
+    assert cl_b["last_message"]["content"] == "👁 View-once message", cl_b[
+        "last_message"
+    ]
+    cl_a = [
+        c
+        for c in client.get("/api/conversations", headers=ha).json()["data"]
+        if c["id"] == cid
+    ][0]
+    assert cl_a["last_message"]["content"] == "shh-secret", cl_a["last_message"]
+
+    # first tap burns it
+    rv = client.post(f"/api/messages/{mid}/view-once", headers=hb)
+    assert rv.status_code == 200, rv.text
+    assert rv.json()["data"]["content"] == "shh-secret"
+    # second tap is gone
+    rv2 = client.post(f"/api/messages/{mid}/view-once", headers=hb)
+    assert rv2.status_code == 410, rv2.text
+    # history stays wiped for recipient; burn is global (WhatsApp-style), so
+    # the sender's copy burns too and both previews read "Opened"
+    rb2 = client.get(f"/api/conversations/{cid}/messages", headers=hb)
+    got2 = [m for m in rb2.json()["data"]["messages"] if m["id"] == mid][0]
+    assert got2["content"] == "", got2
+    ra2 = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    mine2 = [m for m in ra2.json()["data"]["messages"] if m["id"] == mid][0]
+    assert mine2["content"] == "", mine2
+    assert mine2["viewed_once"] is True
+    cl_b2 = [
+        c
+        for c in client.get("/api/conversations", headers=hb).json()["data"]
+        if c["id"] == cid
+    ][0]
+    assert cl_b2["last_message"]["content"] == "👁 Opened", cl_b2["last_message"]
+    cl_a2 = [
+        c
+        for c in client.get("/api/conversations", headers=ha).json()["data"]
+        if c["id"] == cid
+    ][0]
+    assert cl_a2["last_message"]["content"] == "👁 Opened", cl_a2["last_message"]
+
+
+def test_view_once_rules_guards():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"vg{s}", f"vgb{s}"
+    signup_user(a, f"{a}@ex.com", "VG A")
+    signup_user(b, f"{b}@ex.com", "VG B")
+    ha, hb = _login(a), _login(b)
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    rg = client.post(
+        "/api/groups", json={"title": f"vg{s}", "member_ids": [me_b["id"]]}, headers=ha
+    )
+    gid = rg.json()["data"]["id"]
+
+    # groups rejected
+    r1 = client.post(
+        f"/api/conversations/{gid}/messages",
+        json={"content": "x", "view_once": True},
+        headers=ha,
+    )
+    assert r1.status_code == 400, r1.text
+    # attachments rejected
+    r2 = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "x", "view_once": True, "attachment_ids": [1]},
+        headers=ha,
+    )
+    assert r2.status_code == 400, r2.text
+
+    r3 = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "burner", "view_once": True},
+        headers=ha,
+    )
+    mid = r3.json()["data"]["id"]
+    # sender tap does not burn
+    rs = client.post(f"/api/messages/{mid}/view-once", headers=ha)
+    assert rs.status_code == 200, rs.text
+    assert rs.json()["data"]["content"] is None
+    # edit / forward / pin all refused
+    assert (
+        client.patch(
+            f"/api/messages/{mid}", json={"content": "nope"}, headers=ha
+        ).status_code
+        == 400
+    )
+    assert (
+        client.post(
+            f"/api/messages/{mid}/forward", json={"conversation_ids": [cid]}, headers=ha
+        ).status_code
+        == 400
+    )
+    assert client.post(f"/api/messages/{mid}/pin", headers=ha).status_code == 400
+    # non-view-once message through the tap endpoint is rejected
+    r4 = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "plain"}, headers=ha
+    )
+    mid2 = r4.json()["data"]["id"]
+    assert client.post(f"/api/messages/{mid2}/view-once", headers=hb).status_code == 400
+
+
+def test_group_invite_lifecycle():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b, c = f"ia{s}", f"ib{s}", f"ic{s}"
+    for u in (a, b, c):
+        signup_user(u, f"{u}@ex.com", u.upper())
+    ha, hb, hc = _login(a), _login(b), _login(c)
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rg = client.post(
+        "/api/groups", json={"title": f"ig{s}", "member_ids": [me_b["id"]]}, headers=ha
+    )
+    gid = rg.json()["data"]["id"]
+    # member (not manager) cannot manage invites
+    assert client.post(f"/api/groups/{gid}/invite", headers=hb).status_code == 403
+    assert client.get(f"/api/groups/{gid}/invite", headers=hb).status_code == 403
+    # owner creates a link
+    r1 = client.post(f"/api/groups/{gid}/invite", headers=ha)
+    assert r1.status_code == 200, r1.text
+    token = r1.json()["data"]["invite_token"]
+    assert token and len(token) >= 16
+    # stranger joins through it
+    rj = client.post(f"/api/groups/join/{token}", headers=hc)
+    assert rj.status_code == 200, rj.text
+    assert rj.json()["data"]["conversation_id"] == gid
+    assert rj.json()["data"]["already_member"] is False
+    # re-join is idempotent
+    rj2 = client.post(f"/api/groups/join/{token}", headers=hc)
+    assert rj2.json()["data"]["already_member"] is True
+    # rotating invalidates the old link
+    r3 = client.post(f"/api/groups/{gid}/invite", headers=ha)
+    token2 = r3.json()["data"]["invite_token"]
+    assert token2 != token
+    assert client.post(f"/api/groups/join/{token}", headers=hb).status_code == 404
+    # disabling kills the new link too
+    rd = client.delete(f"/api/groups/{gid}/invite", headers=ha)
+    assert rd.status_code == 200, rd.text
+    assert client.post(f"/api/groups/join/{token2}", headers=hb).status_code == 404
+    # garbage token
+    assert client.post("/api/groups/join/nope", headers=hb).status_code == 404

@@ -45,6 +45,12 @@ async def forward_message(
     msg = db.query(Message).filter_by(id=message_id).first()
     if not msg or msg.is_deleted:
         raise HTTPException(status_code=404, detail="Message not found")
+    if msg.view_once:
+        # A verbatim copy would carry someone else's burn-once secret into a
+        # chat whose members must never receive it.
+        raise HTTPException(
+            status_code=400, detail="View-once messages cannot be forwarded"
+        )
     # check current user is member of original conversation
     if (
         not db.query(ConversationMember)
@@ -298,7 +304,9 @@ def export_chat(
             {
                 "sender": sender.username if sender else "Unknown",
                 "display_name": sender.display_name if sender else "Unknown",
-                "content": msg.content if not msg.is_deleted else "Message deleted",
+                "content": "Message deleted"
+                if msg.is_deleted
+                else ("👁 View-once message" if msg.view_once else msg.content),
                 "message_type": msg.message_type,
                 "timestamp": msg.created_at.isoformat() if msg.created_at else None,
                 "attachments": [

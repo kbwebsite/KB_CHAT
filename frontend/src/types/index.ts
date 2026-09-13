@@ -77,6 +77,8 @@ export interface Message {
   message_type: string;
   is_encrypted?: boolean;
   nonce?: string | null;
+  view_once?: boolean;
+  viewed_once?: boolean;
   voice_duration?: number | null;
   voice_cloudinary_url?: string | null;
   reply_to_id?: number | null;

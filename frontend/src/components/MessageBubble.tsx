@@ -3,7 +3,7 @@ import { formatTime } from '../utils/format'
 import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
-import { aiApi } from '../services/api'
+import { aiApi, msgApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { openMessage, fetchPeerKey } from '../utils/e2ee'
@@ -144,6 +144,33 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const dec = useDecrypted(msg)
   const locked = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
   const shownText = locked ? (dec.s === 'open' ? dec.text : null) : content
+  const meId = useAuthStore(s => s.user?.id)
+  // View-once reveal state (recipient side only; the server burns on read).
+  const [voText, setVoText] = useState<string | null>(null)
+  const [voBusy, setVoBusy] = useState(false)
+  const [voBurned, setVoBurned] = useState(false)
+  const voShell = !!msg.view_once && !isOwn && !msg.is_deleted && !msg.viewed_once && !voBurned && voText == null
+  const voGoneUi = !!msg.view_once && !isOwn && !msg.is_deleted && (voBurned || (!!msg.viewed_once && voText == null))
+  const revealOnce = async () => {
+    if (voBusy || !voShell || meId == null) return
+    setVoBusy(true)
+    try {
+      const d = (await msgApi.viewOnce(msg.id))?.data
+      if (!d || d.content == null) { setVoBurned(true); return }
+      let text = d.content as string
+      if (d.is_encrypted) {
+        const peerB64 = msg.sender_id != null ? await fetchPeerKey(msg.sender_id) : null
+        const open = peerB64 ? await openMessage({ content: d.content, nonce: d.nonce }, meId, peerB64) : null
+        if (open == null) return
+        text = open
+      }
+      setVoText(text)
+    } catch (e: any) {
+      if (e?.response?.status === 410) setVoBurned(true)
+    } finally {
+      setVoBusy(false)
+    }
+  }
   // AI actions (summarize/translate/explain) must see readable text, never
   // raw ciphertext: locked messages qualify only once actually decrypted.
   const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text } : null) : msg
@@ -225,7 +252,17 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               ))}
             </div>
           )}
-          {locked ? (
+          {voGoneUi ? (
+            <p className="italic opacity-70 text-xs">👁 Opened — this message is gone</p>
+          ) : voShell ? (
+            <button onClick={revealOnce} disabled={voBusy} className="flex flex-col items-center gap-1 py-3 px-6 disabled:opacity-60">
+              <span className="text-2xl">👁</span>
+              <span className="text-sm font-medium">{voBusy ? 'Opening…' : 'Tap to view'}</span>
+              <span className="text-[11px] opacity-70">Deletes after viewing</span>
+            </button>
+          ) : voText != null ? (
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{msg.is_encrypted ? <span aria-label="End-to-end encrypted">🔒</span> : null} {voText}</p>
+          ) : locked ? (
             dec.s === 'open' ? (
               <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable"><span aria-label="End-to-end encrypted">🔒</span> {dec.text}</p>
             ) : dec.s === 'failed' ? (
@@ -298,7 +335,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <div className="w-px h-5 bg-border mx-1"/>
             <button onClick={()=>onReply(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Reply"><Reply className="w-3.5 h-3.5"/></button>
             <button onClick={()=>setShowMenu(!showMenu)} className="p-1.5 hover:bg-muted rounded-full" title="More"><MoreHorizontal className="w-3.5 h-3.5"/></button>
-            {isOwn && !msg.is_deleted && !locked && <>
+            {isOwn && !msg.is_deleted && !locked && !(msg as any).view_once && <>
               <button onClick={()=>onEdit(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Edit"><Edit3 className="w-3.5 h-3.5"/></button>
               <button onClick={()=>onDelete(msg)} className="p-1.5 hover:bg-muted rounded-full text-destructive" title="Delete"><Trash2 className="w-3.5 h-3.5"/></button>
             </>}

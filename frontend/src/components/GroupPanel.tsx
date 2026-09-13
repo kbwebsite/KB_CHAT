@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { convApi, extendedApi, blockApi } from '../services/api'
+import { convApi, extendedApi, blockApi, groupInviteApi } from '../services/api'
 import { Conversation } from '../types'
 import { useAuthStore } from '../store/auth'
-import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban } from 'lucide-react'
+import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check } from 'lucide-react'
 import { UserSearch } from './UserSearch'
 
 export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:Conversation, onClose:()=>void, onUpdated:()=>void }) {
@@ -17,6 +17,10 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
     ? conversation.members.find(m=> m.user_id !== user?.id) ?? null
     : null
   const [blocked, setBlocked]=useState(false)
+  // Group invite link (managers only).
+  const [inviteToken, setInviteToken]=useState<string|null|undefined>(undefined)
+  const [inviteBusy, setInviteBusy]=useState(false)
+  const [copied, setCopied]=useState(false)
   useEffect(()=>{
     if (!otherMember) { setBlocked(false); return }
     blockApi.list()
@@ -26,6 +30,38 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
 
   const myRole = conversation.members.find(m=> m.user_id===user?.id)?.role
   const canManage = myRole==='owner' || myRole==='admin'
+
+  useEffect(()=>{
+    if (!conversation.is_group || !canManage) { setInviteToken(undefined); return }
+    groupInviteApi.get(conversation.id)
+      .then((r:any)=> { if (r?.success) setInviteToken(r.data?.invite_token ?? null) })
+      .catch(()=> setInviteToken(null))
+  }, [conversation.id])
+
+  const inviteLink = inviteToken ? `${window.location.origin}/join/${inviteToken}` : null
+  const handleInviteNew=async ()=>{
+    if (!canManage || !confirm('Create a new invite link? The old one stops working.')) return
+    setInviteBusy(true)
+    try {
+      const res = await groupInviteApi.create(conversation.id)
+      if (res.success) { setInviteToken(res.data?.invite_token ?? null); setMsg('New invite link ready') }
+    } catch (e:any) { setMsg(e.response?.data?.detail || 'Failed') }
+    setInviteBusy(false)
+  }
+  const handleInviteCopy=async ()=>{
+    if (!inviteLink) return
+    try { await navigator.clipboard.writeText(inviteLink); setCopied(true); setTimeout(()=>setCopied(false), 2000) }
+    catch { setMsg('Copy failed — long-press the link') }
+  }
+  const handleInviteDisable=async ()=>{
+    if (!canManage || !confirm('Disable the invite link?')) return
+    setInviteBusy(true)
+    try {
+      const res = await groupInviteApi.disable(conversation.id)
+      if (res.success) { setInviteToken(null); setMsg('Invite link disabled') }
+    } catch (e:any) { setMsg(e.response?.data?.detail || 'Failed') }
+    setInviteBusy(false)
+  }
 
   const handleUpdate=async ()=>{
     if (!canManage) return setMsg('Only admins can edit')
@@ -144,6 +180,26 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
             </div>
             <button onClick={handleUpdate} disabled={!canManage} className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Save</button>
             {msg && <p className="text-xs text-center bg-muted py-1.5 rounded-lg">{msg}</p>}
+          </div>
+        )}
+        {conversation.is_group && canManage && (
+          <div className="rounded-xl border p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Link2 className="w-4 h-4"/>Invite link</h3>
+            {inviteToken === undefined ? (
+              <p className="text-xs text-muted-foreground">Loading…</p>
+            ) : inviteLink ? (
+              <>
+                <p className="text-xs px-2 py-1.5 rounded-lg bg-muted break-all select-all">{inviteLink}</p>
+                <div className="flex gap-2">
+                  <button onClick={handleInviteCopy} disabled={inviteBusy} className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-1">{copied ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}{copied ? 'Copied!' : 'Copy link'}</button>
+                  <button onClick={handleInviteNew} disabled={inviteBusy} title="New link (old one stops working)" className="px-2.5 py-1.5 rounded-lg bg-muted hover:bg-accent text-xs flex items-center gap-1 disabled:opacity-50"><RefreshCw className="w-3 h-3"/>New</button>
+                  <button onClick={handleInviteDisable} disabled={inviteBusy} title="Disable invite link" className="px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground text-xs disabled:opacity-50">Off</button>
+                </div>
+                <p className="text-[11px] text-muted-foreground">Anyone with the link joins instantly. New link kills the old one.</p>
+              </>
+            ) : (
+              <button onClick={handleInviteNew} disabled={inviteBusy} className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-1"><Link2 className="w-3 h-3"/>Create invite link</button>
+            )}
           </div>
         )}
 

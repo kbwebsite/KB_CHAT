@@ -37,6 +37,11 @@ class Message(Base):
     # already hold rows; NULL is treated as False everywhere.
     is_encrypted = Column(Boolean, default=False, nullable=True)
     nonce = Column(String(64), nullable=True)  # base64 24-byte nonce
+    # View-once v1: 1-1 text only. The server withholds content from everyone
+    # except the sender until an explicit tap-to-view call burns it.
+    # Nullable for the same online-migration reason; NULL means False.
+    view_once = Column(Boolean, default=False, nullable=True)
+    viewed_once = Column(Boolean, default=False, nullable=True)
     reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
     is_deleted = Column(Boolean, default=False, nullable=False, index=True)
     is_edited = Column(Boolean, default=False, nullable=False)

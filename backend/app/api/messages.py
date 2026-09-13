@@ -90,11 +90,15 @@ def _broadcast_status_soon(
         print(f"[messages] status fan-out schedule failed: {e}")
 
 
-def _message_to_dict(msg: Message, receipts: dict = None):
+def _message_to_dict(msg: Message, receipts: dict = None, viewer_id: int = None):
     """Convert message to dict - relationships already loaded via eager loading.
 
     Pass a receipts map ({user_id: (delivered_id, read_id)}) to compute the
     real tick status; without it the status falls back to "sent".
+
+    viewer_id gates view-once secrecy: everyone except the sender sees an
+    empty body until (and only through) the explicit view-once call, which
+    teams with the masked live broadcast so plaintext is never pushed.
     """
     sender = msg.sender
     atts = msg.attachments
@@ -103,15 +107,23 @@ def _message_to_dict(msg: Message, receipts: dict = None):
     if msg.reply_to_id:
         replied = msg.reply_to
         if replied and not replied.is_deleted:
-            # Never leak ciphertext into quoted previews.
-            reply_content = (
-                "🔒 Encrypted message" if replied.is_encrypted else replied.content
-            )
+            if replied.view_once and viewer_id != replied.sender_id:
+                reply_content = "👁 View-once message"
+            else:
+                # Never leak ciphertext into quoted previews.
+                reply_content = (
+                    "🔒 Encrypted message" if replied.is_encrypted else replied.content
+                )
         elif replied and replied.is_deleted:
             reply_content = "Message deleted"
     content = msg.content
+    nonce = msg.nonce
     if msg.is_deleted:
         content = "Message deleted"
+    elif msg.view_once and viewer_id is not None and viewer_id != msg.sender_id:
+        # Withheld until the explicit tap-to-view call burns it.
+        content = ""
+        nonce = None
     voice_dur = msg.voice_duration
     # Find voice attachment (first attachment with audio mime type)
     voice_att = None
@@ -130,7 +142,9 @@ def _message_to_dict(msg: Message, receipts: dict = None):
         "content": content,
         "message_type": msg.message_type,
         "is_encrypted": bool(msg.is_encrypted),
-        "nonce": msg.nonce,
+        "nonce": nonce,
+        "view_once": bool(msg.view_once),
+        "viewed_once": bool(msg.viewed_once),
         "voice_duration": voice_dur,
         "reply_to_id": msg.reply_to_id,
         "reply_to_content": reply_content,
@@ -226,7 +240,7 @@ async def list_messages(
             db.commit()
 
     receipts = receipt_map(db, conv_id)
-    result = [_message_to_dict(m, receipts) for m in msgs]
+    result = [_message_to_dict(m, receipts, current_user.id) for m in msgs]
 
     if upgraded_from is not None:
         _broadcast_status_soon(
@@ -299,6 +313,18 @@ async def create_message(
 
     voice_duration = payload.voice_duration
 
+    # View-once v1: plain 1-1 text only. Groups stay out because a single
+    # global burn flag cannot express per-recipient viewing.
+    view_once = bool(payload.view_once)
+    if view_once:
+        if msg_type != "text" or payload.attachment_ids or payload.voice_file_id:
+            raise HTTPException(
+                status_code=400, detail="View-once supports plain text only (v1)"
+            )
+        _vo_conv = db.query(_Conv).filter_by(id=conv_id).first()
+        if _vo_conv is not None and _vo_conv.is_group:
+            raise HTTPException(status_code=400, detail="View-once is 1-1 only in v1")
+
     # E2EE v1 envelope validation (transport only — crypto happens on devices).
     is_encrypted = bool(payload.is_encrypted)
     nonce = payload.nonce
@@ -337,6 +363,7 @@ async def create_message(
         voice_duration=voice_duration,
         is_encrypted=is_encrypted,
         nonce=nonce,
+        view_once=view_once,
     )
     db.add(msg)
     db.flush()
@@ -380,17 +407,32 @@ async def create_message(
     # Load relationships for broadcast
     msg = _get_messages_query(db, conv_id).filter(Message.id == msg.id).first()
     member_ids = _member_ids(db, conv_id)
-    msg_dict = _message_to_dict(msg, receipt_map(db, conv_id))
+    msg_dict = _message_to_dict(msg, receipt_map(db, conv_id), current_user.id)
 
     # Fan-out AFTER responding: slow/offline recipients must not delay the
     # sender's HTTP round-trip (this was adding seconds on production).
     async def _fanout():
         try:
-            await manager.broadcast_to_conversation(
-                conv_id,
-                {"type": "message.new", "payload": msg_dict},
-                member_ids=member_ids,
-            )
+            if msg.view_once:
+                # Never push view-once plaintext: the sender gets the full
+                # echo, everyone else an empty shell. Content is served only
+                # by the explicit view-once call, which burns it.
+                masked = {**msg_dict, "content": "", "nonce": None}
+                await manager.send_to_user(
+                    current_user.id,
+                    {"type": "message.new", "payload": msg_dict},
+                )
+                await manager.broadcast_to_conversation(
+                    conv_id,
+                    {"type": "message.new", "payload": masked},
+                    member_ids=[m for m in member_ids if m != current_user.id],
+                )
+            else:
+                await manager.broadcast_to_conversation(
+                    conv_id,
+                    {"type": "message.new", "payload": msg_dict},
+                    member_ids=member_ids,
+                )
         except Exception as e:
             print(f"[messages] message.new fan-out failed: {e}")
         # Push members with no live socket (fresh session: the request's db
@@ -427,6 +469,10 @@ async def edit_message(
         raise HTTPException(status_code=403, detail="Can only edit own messages")
     if msg.is_deleted:
         raise HTTPException(status_code=400, detail="Cannot edit deleted message")
+    if msg.view_once:
+        raise HTTPException(
+            status_code=400, detail="View-once messages cannot be edited"
+        )
     if payload.content is not None:
         if not payload.content.strip():
             raise HTTPException(status_code=400, detail="Message content required")
@@ -444,7 +490,9 @@ async def edit_message(
     msg.is_edited = True
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
+    msg_dict = _message_to_dict(
+        msg, receipt_map(db, msg.conversation_id), current_user.id
+    )
     member_ids = _member_ids(db, msg.conversation_id)
     _broadcast_soon(
         msg.conversation_id,
@@ -472,7 +520,9 @@ async def delete_message(
     msg.deleted_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
+    msg_dict = _message_to_dict(
+        msg, receipt_map(db, msg.conversation_id), current_user.id
+    )
     member_ids = _member_ids(db, msg.conversation_id)
     _broadcast_soon(
         msg.conversation_id,
@@ -654,6 +704,41 @@ async def mark_message_delivered(
     return success_response(None, "Marked delivered")
 
 
+@router.post("/messages/{message_id}/view-once")
+async def view_once_message(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Explicit tap-to-view for a view-once message. Burns on first read by
+    anyone except the sender: content/nonce are returned exactly once, then
+    wiped. History, search, previews, and the live broadcast never carry the
+    plaintext for non-senders, so this call is the only way to see it."""
+    msg = db.query(Message).filter_by(id=message_id).first()
+    if not msg or msg.is_deleted:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not _is_member(db, msg.conversation_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    if not msg.view_once:
+        raise HTTPException(status_code=400, detail="Not a view-once message")
+    if msg.sender_id == current_user.id:
+        return success_response(
+            {"viewed": bool(msg.viewed_once), "content": None},
+            "Own message",
+        )
+    if msg.viewed_once:
+        raise HTTPException(status_code=410, detail="Already viewed")
+    content, nonce, is_encrypted = msg.content, msg.nonce, bool(msg.is_encrypted)
+    msg.content = ""
+    msg.nonce = None
+    msg.viewed_once = True
+    db.commit()
+    return success_response(
+        {"content": content, "nonce": nonce, "is_encrypted": is_encrypted},
+        "Viewed once",
+    )
+
+
 @router.get("/messages/search")
 def search_messages(
     q: str = Query(..., min_length=1),
@@ -692,7 +777,10 @@ def search_messages(
             receipts_cache[conv_id] = receipt_map(db, conv_id)
         return receipts_cache[conv_id]
 
-    result = [_message_to_dict(m, _receipts_for(m.conversation_id)) for m in msgs]
+    result = [
+        _message_to_dict(m, _receipts_for(m.conversation_id), current_user.id)
+        for m in msgs
+    ]
     return success_response(result)
 
 
@@ -707,13 +795,19 @@ async def pin_message(
         raise HTTPException(status_code=404, detail="Message not found")
     if not _is_member(db, msg.conversation_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
+    if msg.view_once:
+        raise HTTPException(
+            status_code=400, detail="View-once messages cannot be pinned"
+        )
     from datetime import datetime, timezone
 
     msg.is_pinned = True
     msg.pinned_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
+    msg_dict = _message_to_dict(
+        msg, receipt_map(db, msg.conversation_id), current_user.id
+    )
     member_ids = _member_ids(db, msg.conversation_id)
     _broadcast_soon(
         msg.conversation_id,
@@ -738,7 +832,9 @@ async def unpin_message(
     msg.pinned_at = None
     db.commit()
     db.refresh(msg)
-    msg_dict = _message_to_dict(msg, receipt_map(db, msg.conversation_id))
+    msg_dict = _message_to_dict(
+        msg, receipt_map(db, msg.conversation_id), current_user.id
+    )
     member_ids = _member_ids(db, msg.conversation_id)
     _broadcast_soon(
         msg.conversation_id,
@@ -764,4 +860,6 @@ def list_pinned_messages(
         .all()
     )
     receipts = receipt_map(db, conv_id)
-    return success_response([_message_to_dict(m, receipts) for m in msgs])
+    return success_response(
+        [_message_to_dict(m, receipts, current_user.id) for m in msgs]
+    )

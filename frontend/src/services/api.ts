@@ -91,6 +91,13 @@ export const convApi = {
   archive: (id:number, archived?:boolean) => api.post(`/api/conversations/${id}/archive`, {archived}).then(r=>r.data),
 }
 
+export const groupInviteApi = {
+  get: (id:number) => api.get(`/api/groups/${id}/invite`).then(r=>r.data),
+  create: (id:number) => api.post(`/api/groups/${id}/invite`).then(r=>r.data),
+  disable: (id:number) => api.delete(`/api/groups/${id}/invite`).then(r=>r.data),
+  join: (token:string) => api.post(`/api/groups/join/${encodeURIComponent(token)}`).then(r=>r.data),
+}
+
 export const msgApi = {
   list: (cid:number, params:any={}) => {
     const q = new URLSearchParams()
@@ -100,6 +107,7 @@ export const msgApi = {
     return api.get(`/api/conversations/${cid}/messages?${q.toString()}`).then(r=>r.data)
   },
   send: (cid:number, data:any) => api.post(`/api/conversations/${cid}/messages`, data).then(r=>r.data),
+  viewOnce: (mid:number) => api.post(`/api/messages/${mid}/view-once`).then(r=>r.data),
   edit: (mid:number, content:string) => api.patch(`/api/messages/${mid}`, { content }).then(r=>r.data),
   delete: (mid:number) => api.delete(`/api/messages/${mid}`).then(r=>r.data),
   delivered: (mid:number) => api.post(`/api/messages/${mid}/delivered`).then(r=>r.data),

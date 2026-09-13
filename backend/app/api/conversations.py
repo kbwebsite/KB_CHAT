@@ -71,11 +71,23 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         )
         last_msg_dict = {
             "id": last_msg.id,
-            # Never leak ciphertext into list previews.
+            # Never leak ciphertext — or burn-once secrets — into previews.
+            # A burned view-once reads "Opened" for everyone (sender included:
+            # the content is wiped globally on first view, like WhatsApp).
             "content": "Message deleted"
             if last_msg.is_deleted
             else (
-                "🔒 Encrypted message" if last_msg.is_encrypted else last_msg.content
+                "🔒 Encrypted message"
+                if last_msg.is_encrypted
+                else (
+                    "👁 Opened"
+                    if last_msg.view_once and last_msg.viewed_once
+                    else (
+                        "👁 View-once message"
+                        if last_msg.view_once and current_user_id != last_msg.sender_id
+                        else last_msg.content
+                    )
+                )
             ),
             "sender_id": last_msg.sender_id,
             "sender_username": sender.username if sender else None,
@@ -277,20 +289,28 @@ def list_conversations(
             sender = user_map.get(last_msg.sender_id) if last_msg.sender_id else None
             last_msg_dict = {
                 "id": last_msg.id,
-                # Never leak ciphertext into list previews.
+                # Never leak ciphertext — or burn-once secrets — into previews.
                 "content": "Message deleted"
                 if last_msg.is_deleted
                 else (
                     "🔒 Encrypted message"
                     if last_msg.is_encrypted
-                    else last_msg.content
+                    else (
+                        "👁 Opened"
+                        if last_msg.view_once and last_msg.viewed_once
+                        else (
+                            "👁 View-once message"
+                            if last_msg.view_once
+                            and current_user.id != last_msg.sender_id
+                            else last_msg.content
+                        )
+                    )
                 ),
                 "sender_id": last_msg.sender_id,
                 "sender_username": sender.username if sender else None,
                 "created_at": last_msg.created_at.isoformat()
                 if last_msg.created_at
                 else None,
-                "message_type": last_msg.message_type,
             }
         my_membership = my_map.get(c.id)
         title = c.title

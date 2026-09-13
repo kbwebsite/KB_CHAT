@@ -11,6 +11,7 @@ const LoginPage = lazy(() => import('./pages/LoginPage'))
 const SignupPage = lazy(() => import('./pages/SignupPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
+const JoinPage = lazy(() => import('./pages/JoinPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const KBAIPage = lazy(() => import('./pages/KBAIPage'))
 
@@ -24,7 +25,17 @@ function Protected({ children }: { children: React.ReactNode }) {
 function PublicOnly({ children }: { children: React.ReactNode }) {
   const { user, token, initialized } = useAuthStore()
   if (!initialized) return <div className="h-screen flex items-center justify-center"><LoadingState /></div>
-  if (user && token) return <Navigate to="/chat" replace />
+  if (user && token) {
+    // A group invite link opened while logged out resumes here after login.
+    try {
+      const pending = localStorage.getItem('kb_pending_invite')
+      if (pending) {
+        localStorage.removeItem('kb_pending_invite')
+        return <Navigate to={`/join/${pending}`} replace />
+      }
+    } catch {}
+    return <Navigate to="/chat" replace />
+  }
   return <>{children}</>
 }
 
@@ -41,6 +52,7 @@ export default function App() {
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
             <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
+            <Route path="/join/:token" element={<JoinPage />} />
             <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
             <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
             <Route path="/ai" element={<Protected><KBAIPage /></Protected>} />
