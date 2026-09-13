@@ -35,8 +35,33 @@ export default function KBAIPage() {
     setLoading(true)
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
-      const res = await aiApi.chat(msg.content, history)
-      setMessages(prev => [...prev, { role: 'assistant', content: res.data.reply, timestamp: new Date() }])
+      // Placeholder the assistant bubble, then fill it word-by-word as
+      // tokens stream in (no more staring at dots for the full reply).
+      const slot = { i: -1 }
+      setMessages(prev => {
+        const next = [...prev, { role: 'assistant' as const, content: '', timestamp: new Date() }]
+        slot.i = next.length - 1
+        return next
+      })
+      const append = (t: string) => {
+        setMessages(prev => {
+          const next = [...prev]
+          if (next[slot.i] && next[slot.i].role === 'assistant') {
+            next[slot.i] = { ...next[slot.i], content: next[slot.i].content + t }
+          }
+          return next
+        })
+      }
+      const full = await aiApi.chatStream(msg.content, history, append)
+      if (!full.trim()) {
+        setMessages(prev => {
+          const next = [...prev]
+          if (next[slot.i] && next[slot.i].role === 'assistant' && !next[slot.i].content) {
+            next[slot.i] = { ...next[slot.i], content: 'Sorry, something went wrong. Please try again.' }
+          }
+          return next
+        })
+      }
     } catch {
       setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.', timestamp: new Date() }])
     }

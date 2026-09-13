@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List, Optional
+from typing import AsyncIterator, Dict, Any, List, Optional
 import httpx
+import json
 from app.database.config import settings
 
 
@@ -10,6 +11,12 @@ class AIProvider(ABC):
         self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
     ) -> str:
         raise NotImplementedError
+
+    async def chat_stream(
+        self, messages: List[Dict[str, Any]], context: Dict[str, Any] = None
+    ) -> AsyncIterator[str]:
+        """Yield reply text progressively. Default: one chunk (full reply)."""
+        yield await self.chat(messages, context)
 
 
 class ServiceProvider(AIProvider):
@@ -572,6 +579,9 @@ class OpenAICompatibleProvider(AIProvider):
         self.base_url = settings.AI_BASE_URL.rstrip("/")
         self.api_key = settings.AI_API_KEY
         self.model = settings.AI_MODEL
+        # Remember which candidate URL actually served, so later calls skip
+        # the wasted 404 probe against the other shape.
+        self._working_url: Optional[str] = None
 
     def _headers(self):
         return {
@@ -588,6 +598,13 @@ class OpenAICompatibleProvider(AIProvider):
             urls.append(f"{self.base_url}/v1/chat/completions")
         return urls
 
+    def _ordered_urls(self) -> List[str]:
+        urls = self._candidate_urls()
+        if self._working_url in urls:
+            urls.remove(self._working_url)
+            urls.insert(0, self._working_url)
+        return urls
+
     async def _chat_completion(
         self,
         messages: List[Dict[str, Any]],
@@ -600,7 +617,7 @@ class OpenAICompatibleProvider(AIProvider):
         }
         last_error = "AI endpoint not found"
         async with httpx.AsyncClient(timeout=60) as client:
-            urls = self._candidate_urls()
+            urls = self._ordered_urls()
             for url in urls:
                 r = await client.post(url, headers=self._headers(), json=payload)
                 if r.status_code == 404 and url != urls[-1]:
@@ -609,8 +626,52 @@ class OpenAICompatibleProvider(AIProvider):
                 if r.status_code != 200:
                     raise Exception(r.text)
                 data = r.json()
+                self._working_url = url
                 return data["choices"][0]["message"]["content"]
         raise Exception(last_error)
+
+    async def chat_stream(
+        self, messages: List[Dict[str, Any]], temperature: float = 0.6
+    ) -> AsyncIterator[str]:
+        """Yield reply deltas via OpenAI-compatible SSE as they arrive."""
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": messages,
+            "temperature": temperature,
+            "stream": True,
+        }
+        timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            urls = self._ordered_urls()
+            for url in urls:
+                try:
+                    async with client.stream(
+                        "POST", url, headers=self._headers(), json=payload
+                    ) as r:
+                        if r.status_code == 404 and url != urls[-1]:
+                            continue
+                        if r.status_code != 200:
+                            raise Exception(r.text)
+                        self._working_url = url
+                        async for line in r.aiter_lines():
+                            line = line.strip()
+                            if not line.startswith("data:"):
+                                continue
+                            data = line[5:].strip()
+                            if data == "[DONE]":
+                                return
+                            try:
+                                chunk = json.loads(data)
+                            except Exception:
+                                continue
+                            choices = chunk.get("choices") or [{}]
+                            delta = (choices[0].get("delta") or {}).get("content")
+                            if delta:
+                                yield delta
+                        return
+                except httpx.HTTPError:
+                    raise
+        raise Exception("AI endpoint not found")
 
     @staticmethod
     def _handle_ai_error(error: str) -> str:

@@ -7,7 +7,7 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.message import Message
 from app.schemas.common import success_response
-from app.ai.provider import get_ai_provider
+from app.ai.provider import get_ai_provider, ServiceProvider
 from app.database.config import settings
 import os
 
@@ -84,6 +84,44 @@ async def ai_chat(
     messages.append({"role": "user", "content": body.message})
     reply = await provider.chat(messages)
     return success_response({"reply": reply, "provider": settings.AI_PROVIDER})
+
+
+@router.post("/chat/stream")
+async def ai_chat_stream(
+    body: AIChatRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Token-streaming variant of /chat (SSE).
+
+    Emits `token` events as deltas arrive so the UI renders word-by-word
+    instead of waiting for the full completion, then a `final` event with
+    the complete text, then `[DONE]`. Same mock fallback as /chat on error.
+    """
+    from fastapi.responses import StreamingResponse
+    import json
+
+    provider = get_ai_provider()
+    messages = []
+    if body.history:
+        messages.extend(body.history[-10:])
+    messages.append({"role": "user", "content": body.message})
+
+    async def event_generator():
+        full = ""
+        try:
+            async for delta in provider.chat_stream(messages):
+                full += delta
+                yield f"data: {json.dumps({'type': 'token', 'content': delta})}\n\n"
+        except Exception as e:
+            print(f"[ai] stream error, falling back to mock provider: {e}")
+            if not full:
+                full = await ServiceProvider().chat(messages)
+                yield f"data: {json.dumps({'type': 'token', 'content': full})}\n\n"
+        yield f"data: {json.dumps({'type': 'final', 'content': full, 'provider': settings.AI_PROVIDER})}\n\n"
+        yield "data: [DONE]\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 
 @router.post("/action")

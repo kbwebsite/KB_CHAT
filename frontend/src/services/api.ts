@@ -259,6 +259,52 @@ export const recentlyContactedApi = {
 export const aiApi = {
   chat: (message: string, history?: {role:string;content:string}[]) =>
     api.post('/api/ai/chat', { message, history }).then(r=>r.data),
+  // Token-streaming chat: resolves with the full reply, calling onToken as
+  // each delta arrives so the UI renders word-by-word.
+  chatStream: async (
+    message: string,
+    history: {role:string;content:string}[] | undefined,
+    onToken: (t: string) => void,
+  ): Promise<string> => {
+    const base = isNativeApp() ? PROD_ORIGIN : ''
+    const token = localStorage.getItem('kb_token')
+    const res = await fetch(`${base}/api/ai/chat/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, history }),
+    })
+    if (!res.ok || !res.body) throw new Error('Stream failed')
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let full = ''
+    let final: string | null = null
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue
+        const data = line.slice(6)
+        if (data === '[DONE]') continue
+        try {
+          const ev = JSON.parse(data)
+          if (ev.type === 'token' && ev.content) {
+            full += ev.content
+            onToken(ev.content)
+          } else if (ev.type === 'final' && typeof ev.content === 'string') {
+            final = ev.content
+          }
+        } catch { /* partial line; next chunk completes it */ }
+      }
+    }
+    return final ?? full
+  },
   action: (code: string, language: string, action: string, instruction?: string) =>
     api.post('/api/ai/action', { code, language, action, instruction }).then(r=>r.data),
   summarize: (text: string) =>

@@ -852,8 +852,7 @@ def test_forgot_password_dev_returns_token_and_resets():  # Dev keeps the token-
 
 
 @pytest.mark.asyncio
-async def test_ws_send_to_hanging_socket_times_out_and_reaps():
-    # A half-dead (e.g. mobile-network) socket can block send_text for tens of
+async def test_ws_send_to_hanging_socket_times_out_and_reaps():  # A half-dead (e.g. mobile-network) socket can block send_text for tens of
     # seconds on TCP retransmits. Fan-out must time out and reap it instead of
     # stalling every broadcast (and every awaited read path) behind it.
     import asyncio
@@ -875,3 +874,32 @@ async def test_ws_send_to_hanging_socket_times_out_and_reaps():
         assert ws not in manager.user_connections.get(999999, set())
     finally:
         manager.user_connections.pop(999999, None)
+
+
+def test_ai_chat_stream_emits_tokens_final_and_done():
+    # SSE contract for the KB AI page: token event(s), a final event with the
+    # complete text, then [DONE]. Uses the mock provider in tests.
+    import time
+
+    suffix = str(int(time.time() * 1000))[-6:]
+    e = f"aistream{suffix}@example.com"
+    r = signup_user(f"aistream{suffix}", e, "AI Stream")
+    assert r.status_code == 200, r.text
+    token = r.json()["data"]["access_token"]
+
+    r2 = client.post(
+        "/api/ai/chat/stream",
+        json={"message": "How do I create a group?", "history": []},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r2.status_code == 200, r2.text
+    body = r2.text
+    assert "data: [DONE]" in body, body
+    assert '"type": "token"' in body, body
+    assert '"type": "final"' in body, body
+    assert "Creating a Group Chat" in body, body
+
+
+def test_ai_chat_stream_requires_auth():
+    r = client.post("/api/ai/chat/stream", json={"message": "hi"})
+    assert r.status_code in (401, 403), r.text
