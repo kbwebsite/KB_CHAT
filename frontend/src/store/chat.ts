@@ -21,6 +21,7 @@ interface ChatState {
   fetchMessages: (convId:number, before?:number)=>Promise<void>
   sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string})=>Promise<void>
   addMessage: (msg:Message)=>void
+  addOptimistic: (msg:Message)=>void
   replaceMessage: (tempId:number, real:Message)=>void
   removeMessage: (convId:number, msgId:number)=>void
   updateMessage: (msg:Message)=>void
@@ -93,7 +94,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({
       created_at: new Date().toISOString(),
       attachments: [], reactions: [], status: 'sending' as any,
     }
-    get().addMessage(temp)
+    get().addOptimistic(temp)
     try {
       const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}) })
       if (res.success) {
@@ -175,6 +176,17 @@ export const useChatStore = create<ChatState>((set, get)=> ({
     if (cur===msg.conversation_id && msg.id > 0) {
       get().markRead(cur, msg.id)
     }
+  },
+  addOptimistic: (msg)=>{
+    // Same insert as addMessage but WITHOUT the negative-id guard — the
+    // sendMessage placeholder (id = -Date.now()) must actually render.
+    // Reconciliation (replaceMessage on HTTP response) removes it.
+    set(state=>{
+      const list = state.messages[msg.conversation_id] || []
+      // dedup
+      if (list.some(m=>m.id===msg.id)) return state
+      return { messages: {...state.messages, [msg.conversation_id]: [...list, msg]} }
+    })
   },
   updateMessage: (msg)=>{
     set(state=>{
