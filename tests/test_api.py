@@ -44,6 +44,20 @@ def test_csp_allows_cloudinary_media():
     assert "res.cloudinary.com" in media, csp
 
 
+def test_csp_allows_firebase_auth():
+    # Google sign-in (popup/redirect) + phone reCAPTCHA load helpers from
+    # Google hosts and relay through the Firebase auth-domain iframe; if CSP
+    # blocks them the browser kills sign-in with auth/internal-error.
+    r = client.get("/api/health")
+    csp = r.headers.get("content-security-policy", "")
+    script = [p for p in csp.split(";") if "script-src" in p][0]
+    assert "https://apis.google.com" in script, csp
+    assert "https://www.gstatic.com" in script, csp
+    frame = [p for p in csp.split(";") if "frame-src" in p][0]
+    assert "https://accounts.google.com" in frame, csp
+    assert "firebaseapp.com" in frame, csp
+
+
 def test_signup_and_login():
     # unique suffix
     import time
