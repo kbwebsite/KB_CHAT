@@ -2360,6 +2360,55 @@ body {
   background: conic-gradient(from 0deg, rgba(124,92,252,0.5), rgba(34,211,238,0.4), rgba(244,114,182,0.4), rgba(124,92,252,0.5));
 }
 @keyframes authRingRotate { to { transform: rotate(360deg); } }
+
+/* ── Interactive layer: tilt, typewriter, marquee, demo ── */
+.auth-tilt-wrap { perspective: 1200px; }
+.auth-tilt {
+  transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform 0.18s ease-out;
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+.auth-tilt-reset { transition: transform 0.5s cubic-bezier(0.22, 1, 0.36, 1); }
+.auth-caret {
+  display: inline-block;
+  width: 3px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: #67e8f9;
+  border-radius: 2px;
+  animation: authCaretBlink 1s steps(2) infinite;
+  box-shadow: 0 0 12px rgba(103, 232, 249, 0.8);
+}
+@keyframes authCaretBlink { 50% { opacity: 0; } }
+.auth-magnetic { transition: transform 0.15s ease-out; will-change: transform; }
+.auth-marquee { overflow: hidden; mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent); -webkit-mask-image: linear-gradient(90deg, transparent, black 12%, black 88%, transparent); }
+.auth-marquee-track { display: flex; gap: 8px; width: max-content; animation: authMarquee 22s linear infinite; }
+.auth-marquee:hover .auth-marquee-track { animation-play-state: paused; }
+@keyframes authMarquee { to { transform: translateX(-50%); } }
+.auth-float-slow:hover, .auth-float-slower:hover, .auth-showcase-bubble:hover { animation-play-state: paused; }
+.auth-bubble-hover { transition: transform 0.2s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.2s ease; }
+.auth-bubble-hover:hover { transform: translateY(-3px) scale(1.015); }
+.auth-react-bar { opacity: 0; transform: translateY(4px); transition: all 0.2s ease; }
+.auth-showcase-bubble:hover .auth-react-bar, .auth-bubble-hover:hover .auth-react-bar { opacity: 1; transform: none; }
+.auth-like-pop { animation: authLikePop 0.35s cubic-bezier(0.34, 1.56, 0.64, 1); }
+@keyframes authLikePop { 0% { transform: scale(0.4); } 60% { transform: scale(1.35); } 100% { transform: scale(1); } }
+.auth-demo-scroll { scrollbar-width: thin; }
+.auth-demo-scroll::-webkit-scrollbar { width: 4px; }
+.auth-demo-scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 999px; }
+.auth-msg-in { animation: authBubbleIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.auth-pulse-ring { position: relative; }
+.auth-pulse-ring::before {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: inherit;
+  border: 2px solid rgba(52, 211, 153, 0.6);
+  animation: authPulseRing 2s ease-out infinite;
+}
+@keyframes authPulseRing { from { transform: scale(0.85); opacity: 1; } to { transform: scale(1.25); opacity: 0; } }
+.auth-stat-num { font-variant-numeric: tabular-nums; }
 .hero-entrance-delay { animation: authRise 0.6s 0.15s cubic-bezier(0.21, 0.9, 0.35, 1) both; }
 
 /* ═══════════════════════════════════════════════════════════════
