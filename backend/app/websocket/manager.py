@@ -7,6 +7,7 @@ from collections import defaultdict
 
 logger = logging.getLogger(__name__)
 
+
 class ConnectionManager:
     def __init__(self):
         self.user_connections: Dict[int, Set[WebSocket]] = defaultdict(set)
@@ -30,17 +31,33 @@ class ConnectionManager:
 
     async def send_to_user(self, user_id: int, data: dict):
         conns = list(self.user_connections.get(user_id, []))
+        if not conns:
+            return
+        text = json.dumps(data)
         dead = []
         for ws in conns:
             try:
-                await ws.send_text(json.dumps(data))
+                # Half-dead (e.g. mobile-network) sockets can block a send for
+                # tens of seconds on TCP retransmits — never let one zombie
+                # stall the whole fan-out; reap it and move on.
+                await asyncio.wait_for(ws.send_text(text), timeout=5)
             except Exception:
                 dead.append(ws)
         for ws in dead:
             await self.disconnect(ws, user_id)
 
-    async def broadcast_to_conversation(self, conversation_id: int, data: dict, exclude_user: int = None, member_ids: List[int] = None):
-        targets = member_ids if member_ids is not None else await self._get_conversation_members(conversation_id)
+    async def broadcast_to_conversation(
+        self,
+        conversation_id: int,
+        data: dict,
+        exclude_user: int = None,
+        member_ids: List[int] = None,
+    ):
+        targets = (
+            member_ids
+            if member_ids is not None
+            else await self._get_conversation_members(conversation_id)
+        )
         for uid in targets:
             if exclude_user is not None and uid == exclude_user:
                 continue
@@ -49,9 +66,14 @@ class ConnectionManager:
     async def _get_conversation_members(self, conversation_id: int) -> List[int]:
         from app.database.connection import SessionLocal
         from app.models.conversation import ConversationMember
+
         db = SessionLocal()
         try:
-            members = db.query(ConversationMember.user_id).filter_by(conversation_id=conversation_id).all()
+            members = (
+                db.query(ConversationMember.user_id)
+                .filter_by(conversation_id=conversation_id)
+                .all()
+            )
             return [m[0] for m in members]
         except Exception as e:
             logger.error(f"Failed to get conversation members: {e}")
@@ -62,16 +84,26 @@ class ConnectionManager:
     async def broadcast_presence(self, user_id: int, is_online: bool):
         from app.database.connection import SessionLocal
         from app.models.conversation import ConversationMember
+
         payload = {
             "type": "presence.online" if is_online else "presence.offline",
-            "payload": {"user_id": user_id, "is_online": is_online}
+            "payload": {"user_id": user_id, "is_online": is_online},
         }
         db = SessionLocal()
         try:
-            conv_ids = [c[0] for c in db.query(ConversationMember.conversation_id).filter_by(user_id=user_id).all()]
+            conv_ids = [
+                c[0]
+                for c in db.query(ConversationMember.conversation_id)
+                .filter_by(user_id=user_id)
+                .all()
+            ]
             member_ids = set()
             for cid in conv_ids:
-                members = db.query(ConversationMember.user_id).filter_by(conversation_id=cid).all()
+                members = (
+                    db.query(ConversationMember.user_id)
+                    .filter_by(conversation_id=cid)
+                    .all()
+                )
                 for m in members:
                     if m[0] != user_id:
                         member_ids.add(m[0])
@@ -82,11 +114,13 @@ class ConnectionManager:
         finally:
             db.close()
 
-    async def send_typing(self, conversation_id: int, user_id: int, is_typing: bool, member_ids: List[int]):
+    async def send_typing(
+        self, conversation_id: int, user_id: int, is_typing: bool, member_ids: List[int]
+    ):
         typ = "typing.start" if is_typing else "typing.stop"
         payload = {
             "type": typ,
-            "payload": {"conversation_id": conversation_id, "user_id": user_id}
+            "payload": {"conversation_id": conversation_id, "user_id": user_id},
         }
         for uid in member_ids:
             if uid == user_id:
@@ -98,5 +132,6 @@ class ConnectionManager:
 
     def get_online_user_ids(self):
         return list(self.user_connections.keys())
+
 
 manager = ConnectionManager()

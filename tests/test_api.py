@@ -810,8 +810,7 @@ def test_forgot_password_hides_token_in_production():
         settings.APP_ENV = old
 
 
-def test_forgot_password_dev_returns_token_and_resets():
-    # Dev keeps the token-in-response flow so local testing still works, and
+def test_forgot_password_dev_returns_token_and_resets():  # Dev keeps the token-in-response flow so local testing still works, and
     # a consumed token cannot be reused.
     import time
 
@@ -850,3 +849,29 @@ def test_forgot_password_dev_returns_token_and_resets():
         assert r5.status_code == 200, r5.text
     finally:
         settings.APP_ENV = old
+
+
+@pytest.mark.asyncio
+async def test_ws_send_to_hanging_socket_times_out_and_reaps():
+    # A half-dead (e.g. mobile-network) socket can block send_text for tens of
+    # seconds on TCP retransmits. Fan-out must time out and reap it instead of
+    # stalling every broadcast (and every awaited read path) behind it.
+    import asyncio
+    import time
+
+    from app.websocket.manager import manager
+
+    class HangingWS:
+        async def send_text(self, text):
+            await asyncio.sleep(30)
+
+    ws = HangingWS()
+    manager.user_connections[999999].add(ws)
+    try:
+        start = time.monotonic()
+        await manager.send_to_user(999999, {"type": "x", "payload": {}})
+        elapsed = time.monotonic() - start
+        assert elapsed < 20, elapsed
+        assert ws not in manager.user_connections.get(999999, set())
+    finally:
+        manager.user_connections.pop(999999, None)

@@ -58,6 +58,38 @@ def _broadcast_soon(conv_id: int, event: dict, member_ids: list) -> None:
         print(f"[messages] fan-out schedule failed: {e}")
 
 
+def _broadcast_status_soon(
+    conv_id: int, reader_id: int, old_id, new_id, member_ids: list
+) -> None:
+    """Status-tick fan-out without delaying the HTTP response.
+
+    broadcast_status_upgrades walks messages and pushes every member socket;
+    awaiting it in read paths (history fetch, mark read/delivered) made those
+    calls wait on everyone's connection health. Cursors are already committed
+    by the caller, so backgrounding only delays tick events, never state.
+    Uses a fresh session: the request's db is closed once we respond.
+    """
+    import asyncio
+
+    async def _run():
+        from app.database.connection import SessionLocal
+
+        fdb = SessionLocal()
+        try:
+            await broadcast_status_upgrades(
+                fdb, conv_id, reader_id, old_id, new_id, member_ids
+            )
+        except Exception as e:
+            print(f"[messages] status fan-out failed: {e}")
+        finally:
+            fdb.close()
+
+    try:
+        asyncio.create_task(_run())
+    except Exception as e:
+        print(f"[messages] status fan-out schedule failed: {e}")
+
+
 def _message_to_dict(msg: Message, receipts: dict = None):
     """Convert message to dict - relationships already loaded via eager loading.
 
@@ -197,8 +229,8 @@ async def list_messages(
     result = [_message_to_dict(m, receipts) for m in msgs]
 
     if upgraded_from is not None:
-        await broadcast_status_upgrades(
-            db, conv_id, current_user.id, upgraded_from, newest_id, member_ids
+        _broadcast_status_soon(
+            conv_id, current_user.id, upgraded_from, newest_id, member_ids
         )
 
     # has_more?
@@ -580,8 +612,8 @@ async def mark_message_read(
         },
         member_ids=member_ids,
     )
-    await broadcast_status_upgrades(
-        db, msg.conversation_id, current_user.id, old_read, message_id, member_ids
+    _broadcast_status_soon(
+        msg.conversation_id, current_user.id, old_read, message_id, member_ids
     )
     return success_response(None, "Marked read")
 
@@ -612,8 +644,7 @@ async def mark_message_delivered(
             membership.last_delivered_message_id = message_id
             db.commit()
     member_ids = _member_ids(db, msg.conversation_id)
-    await broadcast_status_upgrades(
-        db,
+    _broadcast_status_soon(
         msg.conversation_id,
         current_user.id,
         old_delivered,
