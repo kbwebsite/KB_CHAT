@@ -3,10 +3,12 @@ import {
   GoogleAuthProvider,
   RecaptchaVerifier,
   createUserWithEmailAndPassword,
+  getRedirectResult,
   sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
+  signInWithRedirect,
   type ConfirmationResult,
 } from 'firebase/auth'
 import { getFirebaseAuth, ensureFirebaseAsync } from '../services/firebase'
@@ -51,10 +53,32 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
   const [unavailable, setUnavailable] = useState<string | null>(null)
 
   const [ready, setReady] = useState(false)
+  const [redirecting, setRedirecting] = useState(false)
   useEffect(() => {
     let cancelled = false
     ensureFirebaseAsync()
-      .then(() => {
+      .then(async () => {
+        // Returning from a Google redirect sign-in — complete the session.
+        try {
+          const result = await getRedirectResult(getFirebaseAuth())
+          if (result?.user && !cancelled) {
+            setRedirecting(true)
+            try {
+              await onSession(await result.user.getIdToken())
+            } catch (err: any) {
+              const detail = err?.response?.data?.detail
+              if (!cancelled) setError(detail || err?.message || 'Could not start your session.')
+            } finally {
+              if (!cancelled) {
+                setRedirecting(false)
+                setReady(true)
+              }
+            }
+            return
+          }
+        } catch (err: any) {
+          if (!cancelled) setError(friendlyAuthError(err))
+        }
         if (!cancelled) setReady(true)
       })
       .catch((e: any) => {
@@ -71,7 +95,11 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
 
   if (unavailable) return null
   if (!ready) {
-    return <p className="text-xs text-center text-muted-foreground">Loading sign-in options...</p>
+    return (
+      <p className="text-xs text-center text-muted-foreground">
+        {redirecting ? 'Finishing Google sign-in...' : 'Loading sign-in options...'}
+      </p>
+    )
   }
 
   const finish = async (idToken: string, fallbackEmail?: string) => {
@@ -165,12 +193,26 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
   const handleGoogle = async () => {
     setBusy(true)
     setError(null)
+    const auth = getFirebaseAuth()
+    const provider = new GoogleAuthProvider()
     try {
-      const auth = getFirebaseAuth()
-      const cred = await signInWithPopup(auth, new GoogleAuthProvider())
+      const cred = await signInWithPopup(auth, provider)
       await finish(await cred.user.getIdToken())
     } catch (err: any) {
-      if (err?.code === 'auth/invalid-credential') {
+      // Popups are killed by Brave Shields, popup blockers, and strict
+      // third-party-cookie settings — redirect survives all of those, so
+      // fall back to it automatically instead of stranding the user.
+      if (err?.code === 'auth/internal-error' || err?.code === 'auth/popup-blocked') {
+        try {
+          setRedirecting(true)
+          await signInWithRedirect(auth, provider)
+          return // browser leaves for Google; result is handled on return
+        } catch (redirectErr: any) {
+          setError(friendlyAuthError(redirectErr))
+        } finally {
+          setRedirecting(false)
+        }
+      } else if (err?.code === 'auth/invalid-credential') {
         setError('Google sign-in failed — the app is not authorized for this domain. Add it under: Firebase Console → Authentication → Settings → Authorized domains.')
       } else {
         setError(friendlyAuthError(err))
@@ -207,7 +249,13 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
         recaptchaRef.current?.clear()
       } catch {}
       recaptchaRef.current = null
-      setError(friendlyAuthError(err))
+      if (err?.code === 'auth/internal-error') {
+        setError(
+          'Could not start phone verification. Content blockers (Brave Shields, ad blockers) often block the verification check — turn them off for this site and retry. If it still fails, the Phone provider needs enabling in Firebase Console (Authentication → Sign-in method → Phone), which can also require billing for SMS.',
+        )
+      } else {
+        setError(friendlyAuthError(err))
+      }
     } finally {
       setBusy(false)
     }
