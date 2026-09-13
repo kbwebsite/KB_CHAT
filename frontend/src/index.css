@@ -2185,6 +2185,181 @@ body {
   background-clip: text;
   color: transparent;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   ANIMATED AUTH (login) — motion-rich glass experience
+   ═══════════════════════════════════════════════════════════════ */
+
+.auth-stage {
+  --mx: 50%;
+  --my: 30%;
+  background:
+    radial-gradient(1100px 600px at var(--mx) var(--my), rgba(124, 92, 252, 0.10), transparent 60%),
+    radial-gradient(900px 500px at 85% 90%, rgba(34, 211, 238, 0.07), transparent 60%),
+    radial-gradient(800px 500px at 10% 90%, rgba(244, 114, 182, 0.06), transparent 60%),
+    var(--bg-primary);
+}
+.auth-grid-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 80% at 50% 20%, black 30%, transparent 75%);
+}
+.auth-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(90px);
+  pointer-events: none;
+  mix-blend-mode: screen;
+  will-change: transform;
+}
+.auth-orb-a {
+  width: 480px; height: 480px;
+  left: -140px; top: -140px;
+  background: radial-gradient(circle, rgba(124, 92, 252, 0.55), transparent 70%);
+  opacity: 0.5;
+  animation: authDriftA 16s ease-in-out infinite;
+}
+.auth-orb-b {
+  width: 420px; height: 420px;
+  right: -120px; top: 20%;
+  background: radial-gradient(circle, rgba(34, 211, 238, 0.45), transparent 70%);
+  opacity: 0.35;
+  animation: authDriftB 20s ease-in-out infinite;
+}
+.auth-orb-c {
+  width: 380px; height: 380px;
+  left: 30%; bottom: -160px;
+  background: radial-gradient(circle, rgba(244, 114, 182, 0.4), transparent 70%);
+  opacity: 0.28;
+  animation: authDriftA 14s ease-in-out infinite reverse;
+}
+@keyframes authDriftA {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  33% { transform: translate(40px, 30px) scale(1.08); }
+  66% { transform: translate(-30px, -20px) scale(0.95); }
+}
+@keyframes authDriftB {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-50px, 40px) scale(1.1); }
+}
+.auth-particle {
+  position: absolute;
+  border-radius: 9999px;
+  pointer-events: none;
+  animation: authRiseFade linear infinite;
+  opacity: 0;
+}
+@keyframes authRiseFade {
+  0% { transform: translateY(20px) scale(1); opacity: 0; }
+  15% { opacity: 0.9; }
+  85% { opacity: 0.5; }
+  100% { transform: translateY(-110px) scale(0.6); opacity: 0; }
+}
+.auth-card {
+  background: rgba(12, 12, 24, 0.78);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: var(--shadow-xl), 0 0 0 1px rgba(124, 92, 252, 0.06), 0 0 80px rgba(124, 92, 252, 0.10);
+  animation: authCardIn 0.6s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes authCardIn {
+  from { opacity: 0; transform: translateY(22px) scale(0.98); }
+  to { opacity: 1; transform: none; }
+}
+.auth-logo-orb {
+  position: relative;
+  background: linear-gradient(135deg, #7c5cfc, #a855f7, #22d3ee);
+  box-shadow: 0 8px 28px rgba(124, 92, 252, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.12) inset;
+  animation: authLogoFloat 4s ease-in-out infinite;
+}
+.auth-logo-orb::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: inherit;
+  background: linear-gradient(135deg, #7c5cfc, #f472b6, #22d3ee);
+  filter: blur(14px);
+  opacity: 0.45;
+  z-index: -1;
+  animation: authLogoGlow 3s ease-in-out infinite;
+}
+@keyframes authLogoFloat {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50% { transform: translateY(-4px) rotate(2deg); }
+}
+@keyframes authLogoGlow {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.6; }
+}
+.auth-gradient-word {
+  background: linear-gradient(90deg, #c4b5fd, #f0abfc, #67e8f9, #c4b5fd);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: authGradientSlide 6s linear infinite;
+}
+@keyframes authGradientSlide {
+  to { background-position: 250% 0; }
+}
+.auth-field {
+  transition: transform 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+.auth-field:focus-within {
+  transform: translateY(-1px);
+  border-color: rgba(124, 92, 252, 0.7) !important;
+  box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.16), 0 8px 28px rgba(124, 92, 252, 0.18);
+  background: rgba(24, 24, 48, 0.95);
+}
+.auth-error-shake { animation: authShake 0.4s ease; }
+@keyframes authShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-7px); }
+  40% { transform: translateX(6px); }
+  60% { transform: translateX(-4px); }
+  80% { transform: translateX(3px); }
+}
+.auth-btn-shine { position: relative; overflow: hidden; isolation: isolate; }
+.auth-btn-shine::after {
+  content: '';
+  position: absolute;
+  top: 0; bottom: 0;
+  width: 45%;
+  left: -60%;
+  background: linear-gradient(105deg, transparent, rgba(255, 255, 255, 0.35), transparent);
+  transform: skewX(-20deg);
+  animation: authShine 3.2s ease-in-out infinite;
+  z-index: 1;
+}
+@keyframes authShine {
+  0%, 55% { left: -60%; }
+  90%, 100% { left: 130%; }
+}
+.auth-showcase-bubble { animation: authBubbleIn 0.7s cubic-bezier(0.22, 1, 0.36, 1) both; }
+@keyframes authBubbleIn {
+  from { opacity: 0; transform: translateY(16px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.auth-float-slow { animation: authFloatY 5s ease-in-out infinite; }
+.auth-float-slower { animation: authFloatY 7s ease-in-out infinite; }
+@keyframes authFloatY {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+.auth-spin-slow { animation: spin 14s linear infinite; }
+.auth-pulse-dot { animation: pulse 2s ease-in-out infinite; }
+.auth-marquee-ring {
+  animation: authRingRotate 24s linear infinite;
+  background: conic-gradient(from 0deg, rgba(124,92,252,0.5), rgba(34,211,238,0.4), rgba(244,114,182,0.4), rgba(124,92,252,0.5));
+}
+@keyframes authRingRotate { to { transform: rotate(360deg); } }
 .hero-entrance-delay { animation: authRise 0.6s 0.15s cubic-bezier(0.21, 0.9, 0.35, 1) both; }
 
 /* ═══════════════════════════════════════════════════════════════
