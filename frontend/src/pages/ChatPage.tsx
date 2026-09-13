@@ -17,6 +17,7 @@ import { Message } from '../types'
 import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
+import { fetchPeerKey, openMessage } from '../utils/e2ee'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
@@ -317,7 +318,29 @@ export default function ChatPage() {
     setAiLoading(true); setAiError(null)
     try {
       const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
-      const recentText = currentMsgs.slice(-10).map((m: any) => `${m.sender_display_name || 'User'}: ${m.content}`).join('\n')
+      // E2EE: AI features must read plaintext, never ciphertext. Decrypt what
+      // this device can open (peer key is cached after the first message);
+      // the rest becomes an honest marker instead of Base64 soup.
+      const members = (currentConv as any)?.members || []
+      const otherId = members.find((m: any) => m.user_id !== user?.id)?.user_id
+      const parts: string[] = []
+      for (const m of (currentMsgs as any[]).slice(-10)) {
+        if (!m || m.is_deleted) continue
+        let text = m.content || ''
+        if (m.is_encrypted && m.message_type === 'text') {
+          text = '🔒 (encrypted message)'
+          try {
+            const peer = otherId ?? (m.sender_id !== user?.id ? m.sender_id : undefined)
+            if (peer != null && user?.id != null) {
+              const key = await fetchPeerKey(peer)
+              const open = key ? await openMessage(m, user.id, key) : null
+              if (open != null) text = open
+            }
+          } catch {}
+        }
+        parts.push(`${m.sender_display_name || 'User'}: ${text}`)
+      }
+      const recentText = parts.join('\n')
       const contextText = recentText || 'No conversation context available.'
       let res
       if (action === 'summarize') res = await aiApi.summarize(contextText)
@@ -637,7 +660,7 @@ export default function ChatPage() {
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
               {mobileActionSheet.msg.sender_id === user?.id && (
                 <>
-                  <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
+                  <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg && !(mobileActionSheet.msg as any).is_encrypted) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
                   <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg && confirm('Delete?')) { deleteMessage(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
                 </>
               )}

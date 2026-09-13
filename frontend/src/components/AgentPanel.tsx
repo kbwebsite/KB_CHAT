@@ -68,6 +68,7 @@ export function AgentPanel({
   }
 
   const newChat = async () => {
+    if (loading) return
     setMessages([])
     setConversationId(null)
     localStorage.removeItem(AGENT_CONV_KEY)
@@ -82,11 +83,28 @@ export function AgentPanel({
       content: input.trim(),
       timestamp: new Date()
     }
-    setMessages(prev => [...prev, userMsg])
     const currentInput = input.trim()
     setInput('')
     setLoading(true)
     setStreaming(true)
+
+    const assistantMsg: AgentMessage = {
+      role: 'assistant',
+      content: '',
+      timestamp: new Date(),
+    }
+    // No concurrent sends while loading, so the placeholder slot is stable.
+    const slotIdx = messages.length + 1
+    const fillSlot = (text: string) => {
+      setMessages(prev => {
+        const next = [...prev]
+        if (next[slotIdx] && next[slotIdx].role === 'assistant') {
+          next[slotIdx] = { ...next[slotIdx], content: text }
+          return next
+        }
+        return [...prev, { role: 'assistant', content: text, timestamp: new Date() } as AgentMessage]
+      })
+    }
 
     try {
       // Use streaming endpoint
@@ -106,17 +124,23 @@ export function AgentPanel({
       const decoder = new TextDecoder()
       let buffer = ''
 
-      const assistantMsg: AgentMessage = {
-        role: 'assistant',
-        content: '',
-        timestamp: new Date(),
+      setMessages(prev => [...prev, userMsg, assistantMsg])
+      const parseLine = (line: string) => {
+        if (!line.startsWith('data: ')) return
+        const data = line.slice(6)
+        if (data === '[DONE]') return
+        try {
+          const event = JSON.parse(data)
+          if (event.type === 'conversation') {
+            persistConversation(event.conversation_id)
+            if (event.provider) setProvider(event.provider)
+          } else if (event.type === 'final') {
+            fillSlot(event.content ?? '')
+          }
+        } catch (e) {
+          console.error('Parse error:', e)
+        }
       }
-      let assistantIndex = -1
-      setMessages(prev => {
-        const next = [...prev, assistantMsg]
-        assistantIndex = next.length - 1
-        return next
-      })
 
       while (reader) {
         const { done, value } = await reader.read()
@@ -125,48 +149,21 @@ export function AgentPanel({
         const lines = buffer.split('\n')
         buffer = lines.pop() || ''
 
-        for (const line of lines) {
-          if (line.startsWith('data: ')) {
-            const data = line.slice(6)
-            if (data === '[DONE]') continue
-            try {
-              const event = JSON.parse(data)
-              if (event.type === 'conversation') {
-                persistConversation(event.conversation_id)
-                if (event.provider) setProvider(event.provider)
-              } else if (event.type === 'final') {
-                setMessages(prev => {
-                  const next = [...prev]
-                  if (next[assistantIndex]) {
-                    next[assistantIndex] = { ...next[assistantIndex], content: event.content }
-                  }
-                  return next
-                })
-              }
-            } catch (e) {
-              console.error('Parse error:', e)
-            }
-          }
-        }
+        for (const line of lines) parseLine(line)
       }
+      // A final event split across the last chunks has no trailing newline
+      // to trigger parsing above — flush the tail or the bubble stays empty.
+      if (buffer.trim()) parseLine(buffer)
     } catch (error) {
       console.error('Stream error:', error)
-      // Fallback to non-streaming
+      // Fallback to non-streaming (fills the placeholder, never duplicates)
       try {
         const res = await agentApi.chat(currentInput, conversationId)
         persistConversation(res.data?.conversation_id)
         if (res.data?.provider) setProvider(res.data.provider)
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: res.data.response,
-          timestamp: new Date(),
-        }])
+        fillSlot(res.data.response)
       } catch {
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: 'Sorry, something went wrong. Please try again.',
-          timestamp: new Date()
-        }])
+        fillSlot('Sorry, something went wrong. Please try again.')
       }
     } finally {
       setLoading(false)

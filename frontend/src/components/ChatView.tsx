@@ -259,7 +259,12 @@ export function ChatView({
 
   const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number) => {
     if (!currentConversationId) return
-    if (editTarget) { await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return }
+    // E2EE v1 has no edit path (edits can't be re-sealed server-side), so
+    // locked messages are not editable — the entry points stay hidden too.
+    if (editTarget) {
+      if ((editTarget as any).is_encrypted) { setEditTarget(null); setEditText(''); return }
+      await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return
+    }
     try {
       let body = content
       const extra: { voice_duration?: number; is_encrypted?: boolean; nonce?: string; displayContent?: string } =
@@ -553,7 +558,7 @@ export function ChatView({
                       isGroup={!!currentConv?.is_group}
                       showAvatar={showAvatar}
                       onReply={(m: any) => setReplyTo({ id: m.id, content: m.is_encrypted ? '🔒 Encrypted message' : (m.content || ''), sender: m.sender_display_name || 'Unknown' })}
-                      onEdit={(m: any) => { setEditTarget(m); setEditText(m.content || '') }}
+                      onEdit={(m: any) => { if (m.is_encrypted) return; setEditTarget(m); setEditText(m.content || '') }}
                       onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
                       onReact={onReact}
                       onCopy={(t: string) => navigator.clipboard.writeText(t)}

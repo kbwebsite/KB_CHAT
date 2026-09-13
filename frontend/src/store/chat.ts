@@ -322,6 +322,15 @@ let initialized = false
 export function initChatWS() {
   if (initialized) return
   initialized=true
+  // Reconnect backfill: the server keeps no per-device queue, so anything
+  // that arrived while the socket was down was never delivered — refresh on
+  // every (re)connect instead of waiting for a manual refresh.
+  wsService.on('_open', ()=>{
+    const st = useChatStore.getState()
+    st.fetchConversations().catch(()=>{})
+    const cur = st.currentConversationId
+    if (cur) st.fetchMessages(cur).catch(()=>{})
+  })
   wsService.on('message.new', (payload)=>{
     // payload is Message
     const msg = payload as Message

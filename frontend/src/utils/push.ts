@@ -9,6 +9,9 @@ import { configApi, pushApi, isNativeApp } from '../services/api'
 
 let started = false
 let inflight: Promise<void> | null = null
+// Set when the user opts out (desktop === false). A bare initWebPush() call
+// must not override an explicit opt-out; toggling back on clears it.
+let disabledByPref = false
 
 /** Short, dependency-free new-message blip (no audio asset needed). */
 export function playPing(): void {
@@ -32,6 +35,9 @@ export function playPing(): void {
 }
 
 export function initWebPush(opts?: { desktop?: boolean }): Promise<void> {
+  if (opts?.desktop === false) disabledByPref = true
+  else if (opts?.desktop === true) disabledByPref = false
+  if (disabledByPref) return Promise.resolve()
   if (started) return Promise.resolve()
   if (inflight) return inflight
   inflight = runWebPush(opts).finally(() => {
@@ -113,6 +119,8 @@ async function runWebPush(opts?: { desktop?: boolean }): Promise<void> {
 }
 
 export async function unregisterWebPush(): Promise<void> {
+  // Allow the next login (possibly a different user) to register fresh.
+  started = false
   try {
     const token = localStorage.getItem('kb_push_token')
     if (token) {

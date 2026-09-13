@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { extendedApi, usersApi } from '../services/api'
 import { Contact, Search, MessageCircle, X } from 'lucide-react'
 import { initials } from '../utils/format'
@@ -10,6 +10,7 @@ export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(u
   const debounced=useDebounce(q, 300)
   const [searchRes, setSearchRes]=useState<any[]>([])
   const [loading, setLoading]=useState(true)
+  const searchSeq = useRef(0)
 
   useEffect(()=>{
     extendedApi.contacts().then(r=>{ if(r.success) setContacts(r.data)}).finally(()=> setLoading(false))
@@ -17,7 +18,11 @@ export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(u
 
   useEffect(()=>{
     if (!debounced) { setSearchRes([]); return }
-    usersApi.search(debounced).then(r=>{ if(r.success) setSearchRes(r.data)})
+    // Guard against out-of-order responses: only the latest query wins.
+    const seq = ++searchSeq.current
+    usersApi.search(debounced).then(r=>{
+      if (seq === searchSeq.current && r.success) setSearchRes(r.data)
+    })
   }, [debounced])
 
   const list = q ? searchRes : contacts

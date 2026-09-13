@@ -44,12 +44,17 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
         set({user:u, token, initialized:true})
         wsService.connect(token)
       } else {
-        set({initialized:true})
+        // Server explicitly rejected the session: drop it so guards stop
+        // bouncing and the user lands on login instead of limbo.
+        localStorage.removeItem('kb_token')
+        localStorage.removeItem('kb_user')
+        set({user:null, token:null, initialized:true})
       }
     } catch {
-      localStorage.removeItem('kb_token')
-      localStorage.removeItem('kb_user')
-      set({user:null, token:null, initialized:true})
+      // Network/server blip (not a rejection): keep the stored session so a
+      // flaky connection doesn't log the user out; the 401 interceptor
+      // clears truly-dead tokens on the next authenticated call.
+      set({initialized:true})
     }
   },
   login: async (identifier, password)=>{
@@ -84,6 +89,8 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
     try { await authApi.logout() } catch {}
     localStorage.removeItem('kb_token')
     localStorage.removeItem('kb_user')
+    // Don't leak the previous account's agent chat into the next login.
+    localStorage.removeItem('kb_agent_conv_id')
     wsService.disconnect()
     set({user:null, token:null})
   }

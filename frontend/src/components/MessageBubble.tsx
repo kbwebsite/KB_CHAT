@@ -164,7 +164,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const [transcription, setTranscription] = useState<string|null>(null)
   const [transcribing, setTranscribing] = useState(false)
 
-  const allImages = imgAtts.map(a=> ({ url: a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`, name: a.original_filename }))
+  const allImages = imgAtts.map(a=> ({ url: resolveAttUrl(a), name: a.original_filename }))
 
   // Stickers (and pasted single-image links) arrive as a lone image URL in
   // the text body — render them as a sticker image, not as link text.
@@ -194,14 +194,14 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
         <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && (
             <div className={`grid gap-1 mb-2 -mx-1 ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
-              {imgAtts.map((img,i)=> {
-                const url = img.file_path.startsWith('/api') ? img.file_path : `/api/uploads/file/${img.filename}`
+                {imgAtts.map((img,i)=> {
+                const url = resolveAttUrl(img)
                 return <img key={img.id} src={url} alt={img.original_filename} className="rounded-xl max-h-64 w-full object-cover cursor-pointer" onClick={()=> safeImageClick(url, img.original_filename, allImages, i)} />
               })}
             </div>
           )}
           {fileAtts.map(f=> {
-            const href = f.file_path.startsWith('/api') ? f.file_path : `/api/uploads/file/${f.filename}`
+            const href = resolveAttUrl(f)
             return (
               <a key={f.id} href={href} target="_blank" rel="noreferrer" className={`flex items-center gap-2 p-2 rounded-xl mb-2 ${isOwn?'bg-white/15':'bg-muted'}`}>
                 <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center text-xs">📄</div>
@@ -298,14 +298,14 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <div className="w-px h-5 bg-border mx-1"/>
             <button onClick={()=>onReply(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Reply"><Reply className="w-3.5 h-3.5"/></button>
             <button onClick={()=>setShowMenu(!showMenu)} className="p-1.5 hover:bg-muted rounded-full" title="More"><MoreHorizontal className="w-3.5 h-3.5"/></button>
-            {isOwn && !msg.is_deleted && <>
+            {isOwn && !msg.is_deleted && !locked && <>
               <button onClick={()=>onEdit(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Edit"><Edit3 className="w-3.5 h-3.5"/></button>
               <button onClick={()=>onDelete(msg)} className="p-1.5 hover:bg-muted rounded-full text-destructive" title="Delete"><Trash2 className="w-3.5 h-3.5"/></button>
             </>}
           </div>
           {showMenu && (
             <div className={`absolute ${isOwn?'left-0' : 'right-0'} top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm`}>
-              <button onClick={()=>{ safeCopy((locked && dec.s === 'open' ? dec.text : content) || ''); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
+              <button onClick={()=>{ safeCopy(locked ? (dec.s === 'open' ? dec.text : '') : (content || '')); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
               <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}

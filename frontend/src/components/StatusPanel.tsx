@@ -101,7 +101,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
                   <div className="avatar-ring w-10 h-10">
                     <div className="w-full h-full rounded-full bg-card p-0.5">
                       <div className="w-full h-full rounded-full overflow-hidden bg-muted flex items-center justify-center">
-                        {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover"/> : s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span className="text-xs">{s.display_name[0]}</span>}
+                        {s.avatar_url ? <img src={s.avatar_url} alt="" className="w-full h-full object-cover"/> : s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span className="text-xs">{(s.display_name || '?')[0]}</span>}
                       </div>
                     </div>
                   </div>
@@ -123,7 +123,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
               {feed.viewed.map((s:any, i:number)=> (
                 <button key={s.id} onClick={()=> onViewer(feed.viewed, i)} className="w-full flex items-center gap-3 p-2 rounded-xl hover:bg-muted text-left">
                   <div className="w-10 h-10 rounded-full overflow-hidden bg-muted flex items-center justify-center">
-                    {s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span>{s.display_name[0]}</span>}
+                      {s.media_url ? <img src={s.media_url} alt="" className="w-full h-full object-cover"/> : <span>{(s.display_name || '?')[0]}</span>}
                   </div>
                   <div>
                     <p className="text-sm font-medium">{s.display_name}</p>
