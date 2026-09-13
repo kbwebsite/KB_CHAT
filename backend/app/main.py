@@ -369,14 +369,16 @@ async def security_headers(request: Request, call_next):
     # helpers from apis.google.com / www.gstatic.com and relays through a hidden
     # iframe on the project's auth domain — block any of those and the browser
     # kills sign-in with auth/internal-error when returning from Google.
+    # Phone auth's invisible reCAPTCHA loads api.js from www.google.com (with
+    # recaptcha.net as fallback), so both hosts need script + frame access.
     firebase_auth_frame = (
         f"https://{settings.FIREBASE_PROJECT_ID}.firebaseapp.com"
         if settings.FIREBASE_PROJECT_ID
         else "https://*.firebaseapp.com"
     )
     response.headers["Content-Security-Policy"] = (
-        "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://www.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' wss: ws: https: https://api.openai.com; "
-        f"frame-src 'self' https://accounts.google.com https://www.google.com {firebase_auth_frame}; media-src 'self' blob: https://res.cloudinary.com; frame-ancestors 'none'"
+        "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com https://apis.google.com https://www.gstatic.com https://www.google.com https://recaptcha.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https: blob:; connect-src 'self' wss: ws: https: https://api.openai.com; "
+        f"frame-src 'self' https://accounts.google.com https://www.google.com https://recaptcha.net {firebase_auth_frame}; media-src 'self' blob: https://res.cloudinary.com; frame-ancestors 'none'"
     )
     return response
 

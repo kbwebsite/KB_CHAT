@@ -53,6 +53,8 @@ def test_csp_allows_firebase_auth():
     script = [p for p in csp.split(";") if "script-src" in p][0]
     assert "https://apis.google.com" in script, csp
     assert "https://www.gstatic.com" in script, csp
+    # phone auth's invisible reCAPTCHA loads api.js from www.google.com
+    assert "https://www.google.com" in script, csp
     frame = [p for p in csp.split(";") if "frame-src" in p][0]
     assert "https://accounts.google.com" in frame, csp
     assert "firebaseapp.com" in frame, csp
