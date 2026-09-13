@@ -784,3 +784,67 @@ def test_google_auth_new_existing_and_reject(monkeypatch):
         assert r3.status_code == 401, r3.text
     finally:
         settings.GOOGLE_CLIENT_ID = old
+
+
+def test_forgot_password_hides_token_in_production():
+    # SECURITY: with no email sender wired up, returning the live reset token
+    # lets anyone take over any account. Production must not disclose it.
+    import time
+
+    from app.database.config import settings
+
+    suffix = str(int(time.time() * 1000))[-6:]
+    e = f"resetprod{suffix}@example.com"
+    r = signup_user(f"resetprod{suffix}", e, "Reset Prod")
+    assert r.status_code == 200, r.text
+
+    old = settings.APP_ENV
+    settings.APP_ENV = "production"
+    try:
+        r2 = client.post("/api/auth/forgot-password", json={"email": e})
+        assert r2.status_code == 200, r2.text
+        assert r2.json()["data"] is None, r2.text
+    finally:
+        settings.APP_ENV = old
+
+
+def test_forgot_password_dev_returns_token_and_resets():
+    # Dev keeps the token-in-response flow so local testing still works, and
+    # a consumed token cannot be reused.
+    import time
+
+    from app.database.config import settings
+
+    suffix = str(int(time.time() * 1000))[-6:]
+    e = f"resetdev{suffix}@example.com"
+    r = signup_user(f"resetdev{suffix}", e, "Reset Dev")
+    assert r.status_code == 200, r.text
+
+    old = settings.APP_ENV
+    settings.APP_ENV = "development"
+    try:
+        r2 = client.post("/api/auth/forgot-password", json={"email": e})
+        assert r2.status_code == 200, r2.text
+        token = (r2.json()["data"] or {}).get("token")
+        assert token, r2.text
+
+        r3 = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "new_password": "newpass123"},
+        )
+        assert r3.status_code == 200, r3.text
+
+        # single-use: replay must fail
+        r4 = client.post(
+            "/api/auth/reset-password",
+            json={"token": token, "new_password": "newpass123"},
+        )
+        assert r4.status_code == 400, r4.text
+
+        # login with the new password works
+        r5 = client.post(
+            "/api/auth/login", json={"identifier": e, "password": "newpass123"}
+        )
+        assert r5.status_code == 200, r5.text
+    finally:
+        settings.APP_ENV = old

@@ -398,7 +398,9 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
 
 @router.post("/forgot-password")
 def forgot_password(payload: dict, db: Session = Depends(get_db)):
-    """Request a password reset. Returns a reset token (in production, send via email)."""
+    """Request a password reset. Dev returns the reset token; production does
+    not (no email sender is wired up yet, so disclosing it would allow
+    account takeover with no inbox proof)."""
     try:
         email = payload.get("email", "").lower().strip()
         if not email:
@@ -425,8 +427,18 @@ def forgot_password(payload: dict, db: Session = Depends(get_db)):
             "expires": datetime.now(timezone.utc) + timedelta(hours=1),
         }
 
-        # In production, send email here with reset_token
-        # For now, return it in response (dev mode)
+        # SECURITY: there is no email sender wired up yet, so in production the
+        # live token must NEVER go back in the response — returning it lets
+        # anyone who knows (or guesses) an email take over that account with
+        # zero proof of inbox access. Dev keeps the token in the response for
+        # local testing; the frontend already handles a missing token by
+        # showing the generic "Email Sent" screen.
+        if settings.APP_ENV == "production":
+            return success_response(
+                None, "If the email exists, a reset link has been sent"
+            )
+
+        # Dev mode only: return it in response (no email sender configured).
         print(f"[AUTH] Password reset token for {email}: {reset_token}")
 
         return success_response(
