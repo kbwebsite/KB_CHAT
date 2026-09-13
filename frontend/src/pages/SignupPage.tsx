@@ -9,7 +9,7 @@ export default function SignupPage() {
   const [form, setForm]=useState({ display_name:'', username:'', email:'', password:'', confirm_password:'' })
   const [error, setError]=useState<string|null>(null)
   const [show, setShow]=useState(false)
-  const { signup, loading } = useAuthStore()
+  const { signup, loading, setToken, setUser } = useAuthStore()
   const nav=useNavigate()
 
   const handle=async (e:React.FormEvent)=>{
@@ -29,11 +29,14 @@ export default function SignupPage() {
   }
 
   // Firebase tabs (Email/Google/Phone) share this session exchange.
+  // NOTE: must go through the auth store (not raw localStorage) — the
+  // Protected/PublicOnly guards read store state, so a direct localStorage
+  // write leaves /chat bouncing back to the auth page until a full reload.
   const handleFirebaseSession=async (idToken:string)=>{
     const res = await authApi.firebase(idToken)
     if (res.success) {
-      localStorage.setItem('kb_token', res.data.access_token)
-      localStorage.setItem('kb_user', JSON.stringify(res.data.user))
+      setToken(res.data.access_token)
+      setUser(res.data.user)
       nav('/chat')
     } else {
       throw new Error(res.message || 'Could not start your session.')

@@ -10,7 +10,7 @@ export default function LoginPage() {
   const [password, setPassword]=useState('')
   const [show, setShow]=useState(false)
   const [error, setError]=useState<string|null>(null)
-  const { login, loading } = useAuthStore()
+  const { login, loading, setToken, setUser } = useAuthStore()
   const nav=useNavigate()
 
   const handleSubmit=async (e:React.FormEvent)=>{
@@ -27,11 +27,14 @@ export default function LoginPage() {
 
   // Legacy GIS credential login is superseded by the Firebase tabs below.
   // Exchanges a Firebase ID token for a regular app session.
+  // NOTE: must go through the auth store (not raw localStorage) — the
+  // Protected/PublicOnly guards read store state, so a direct localStorage
+  // write leaves /chat bouncing back to /login until a full page reload.
   const handleFirebaseSession=async (idToken:string)=>{
     const res = await authApi.firebase(idToken)
     if (res.success) {
-      localStorage.setItem('kb_token', res.data.access_token)
-      localStorage.setItem('kb_user', JSON.stringify(res.data.user))
+      setToken(res.data.access_token)
+      setUser(res.data.user)
       nav('/chat')
     } else {
       throw new Error(res.message || 'Could not start your session.')
