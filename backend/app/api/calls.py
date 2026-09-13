@@ -81,6 +81,10 @@ async def start_call(
         raise HTTPException(status_code=400, detail="callee required")
     if callee_id == current_user.id:
         raise HTTPException(status_code=400, detail="Cannot call yourself")
+    from app.models.user import User as UserModel
+
+    if not db.query(UserModel).filter_by(id=callee_id).first():
+        raise HTTPException(status_code=404, detail="User not found")
     # verify conversation if provided
     if conversation_id:
         if (
@@ -89,6 +93,14 @@ async def start_call(
             .first()
         ):
             raise HTTPException(status_code=403, detail="Not in conversation")
+        if (
+            not db.query(ConversationMember)
+            .filter_by(conversation_id=conversation_id, user_id=callee_id)
+            .first()
+        ):
+            raise HTTPException(
+                status_code=403, detail="Callee is not in this conversation"
+            )
     call = CallHistory(
         caller_id=current_user.id,
         callee_id=callee_id,
@@ -262,7 +274,7 @@ async def accept_call(
         raise HTTPException(
             status_code=400, detail=f"Call cannot be accepted (status: {call.status})"
         )
-    call.status = "ongoing"
+    call.status = "accepted"
     db.commit()
     from app.websocket.manager import manager
 

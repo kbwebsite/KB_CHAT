@@ -209,33 +209,97 @@ async def _handle_call_signaling(user_id: int, mtype: str, payload: dict):
         or payload.get("callee_id")
         or payload.get("caller_id")
     )
-    if not to_user and payload.get("callId"):
-        db = SessionLocal()
-        try:
-            from app.models.call import CallHistory
+    db = SessionLocal()
+    try:
+        from app.models.call import CallHistory
+        from app.models.conversation import ConversationMember
 
-            call = (
-                db.query(CallHistory).filter_by(id=int(payload.get("callId"))).first()
-            )
-            if call:
-                to_user = (
-                    call.callee_id if user_id == call.caller_id else call.caller_id
+        if not to_user and payload.get("callId"):
+            try:
+                call = (
+                    db.query(CallHistory)
+                    .filter_by(id=int(payload.get("callId")))
+                    .first()
                 )
-        except Exception as e:
-            logger.error(f"Failed to resolve call target: {e}")
-        finally:
-            db.close()
+            except (TypeError, ValueError):
+                call = None
+            if not call:
+                return
+            # Only a party of the call may use its id as a relay path.
+            if user_id not in (call.caller_id, call.callee_id):
+                return
+            to_user = call.callee_id if user_id == call.caller_id else call.caller_id
 
-    if to_user:
-        await manager.send_to_user(
-            int(to_user),
-            {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
-        )
-    else:
-        conv_id = payload.get("conversation_id")
-        if conv_id:
-            await manager.broadcast_to_conversation(
-                conv_id,
-                {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
-                exclude_user=user_id,
+        if to_user:
+            try:
+                other = int(to_user)
+            except (TypeError, ValueError):
+                return
+            if other == user_id:
+                return
+            # Strangers must not be able to ring each other: require a shared
+            # conversation or an existing call row between the two parties.
+            my_convs = [
+                c[0]
+                for c in db.query(ConversationMember.conversation_id)
+                .filter_by(user_id=user_id)
+                .all()
+            ]
+            shares_chat = (
+                (
+                    db.query(ConversationMember)
+                    .filter(
+                        ConversationMember.user_id == other,
+                        ConversationMember.conversation_id.in_(my_convs),
+                    )
+                    .first()
+                    is not None
+                )
+                if my_convs
+                else False
             )
+            if not shares_chat:
+                known = (
+                    db.query(CallHistory)
+                    .filter(
+                        (
+                            (CallHistory.caller_id == user_id)
+                            & (CallHistory.callee_id == other)
+                        )
+                        | (
+                            (CallHistory.caller_id == other)
+                            & (CallHistory.callee_id == user_id)
+                        )
+                    )
+                    .first()
+                    is not None
+                )
+                if not known:
+                    return
+            await manager.send_to_user(
+                other,
+                {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
+            )
+        else:
+            conv_id = payload.get("conversation_id")
+            if conv_id:
+                try:
+                    cid = int(conv_id)
+                except (TypeError, ValueError):
+                    return
+                member = (
+                    db.query(ConversationMember)
+                    .filter_by(conversation_id=cid, user_id=user_id)
+                    .first()
+                )
+                if not member:
+                    return
+                await manager.broadcast_to_conversation(
+                    cid,
+                    {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
+                    exclude_user=user_id,
+                )
+    except Exception as e:
+        logger.error(f"Failed to handle call signaling: {e}")
+    finally:
+        db.close()

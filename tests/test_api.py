@@ -943,3 +943,264 @@ def test_encrypted_preview_masked_in_conversation_list():
     m = [m for m in rh.json()["data"]["messages"] if m["content"] == content][0]
     assert m["is_encrypted"] is True
     assert m["nonce"] == nonce
+
+
+def test_get_user_by_username_returns_profile():
+    # Regression: wrong variable name 500'd every lookup.
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    u = f"lookup{s}"
+    signup_user(u, f"{u}@ex.com", "Lookup User")
+    h = _login(u)
+    r = client.get(f"/api/users/{u}", headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["username"] == u
+    assert "last_seen" in r.json()["data"]
+
+
+def test_status_view_enforces_privacy():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b, c = f"sva{s}", f"svb{s}", f"svc{s}"
+    for u in (a, b, c):
+        signup_user(u, f"{u}@ex.com", u.upper())
+    ha, hb, hc = _login(a), _login(b), _login(c)
+    # A and B share a conversation; C is a stranger to A
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    assert rc.status_code == 200, rc.text
+    id_b = client.get("/api/auth/me", headers=hb).json()["data"]["id"]
+
+    def mk(privacy, allowed=""):
+        fd = {
+            "content": f"sv-{privacy}-{s}",
+            "media_type": "text",
+            "privacy": privacy,
+        }
+        if allowed:
+            fd["allowed_ids"] = allowed
+        r = client.post("/api/status", data=fd, headers=ha)
+        assert r.status_code == 200, r.text
+        return r.json()["data"]["id"]
+
+    sid_contacts = mk("contacts")
+    sid_nobody = mk("nobody")
+    sid_selected = mk("selected", f"[{id_b}]")
+
+    # stranger sees none of them (404: no existence leak, no viewer row)
+    for sid in (sid_contacts, sid_nobody, sid_selected):
+        r = client.post(f"/api/status/{sid}/view", headers=hc)
+        assert r.status_code == 404, (sid, r.text)
+    # contact sees contacts + selected, not nobody
+    assert (
+        client.post(f"/api/status/{sid_contacts}/view", headers=hb).status_code == 200
+    )
+    assert (
+        client.post(f"/api/status/{sid_selected}/view", headers=hb).status_code == 200
+    )
+    assert client.post(f"/api/status/{sid_nobody}/view", headers=hb).status_code == 404
+    # owner always can
+    assert client.post(f"/api/status/{sid_nobody}/view", headers=ha).status_code == 200
+
+
+def test_call_accept_transitions_and_end_coerces():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"ac{s}", f"bc{s}"
+    signup_user(a, f"{a}@ex.com", "Accept A")
+    signup_user(b, f"{b}@ex.com", "Accept B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rs = client.post(
+        "/api/calls/start",
+        json={"callee_id": me_b["id"], "conversation_id": cid, "call_type": "voice"},
+        headers=ha,
+    )
+    call_id = rs.json()["data"]["id"]
+    ra = client.post(f"/api/calls/{call_id}/accept", headers=hb)
+    assert ra.status_code == 200, ra.text
+    # callee (not caller) can accept; caller gets 403
+    ra_bad = client.post(f"/api/calls/{call_id}/accept", headers=ha)
+    assert ra_bad.status_code == 403, ra_bad.text
+    re_ = client.post(f"/api/calls/{call_id}/end", json={"status": "ended"}, headers=ha)
+    assert re_.json()["data"]["status"] == "ended"
+
+
+def test_call_start_rejects_unknown_callee_and_outsider():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b, c = f"cs{s}", f"ct{s}", f"co{s}"
+    for u in (a, b, c):
+        signup_user(u, f"{u}@ex.com", u.upper())
+    ha, hb, hc = _login(a), _login(b), _login(c)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    r1 = client.post(
+        "/api/calls/start",
+        json={"callee_id": 999999999, "conversation_id": cid},
+        headers=ha,
+    )
+    assert r1.status_code == 404, r1.text
+    me_c = client.get("/api/auth/me", headers=hc).json()["data"]
+    r2 = client.post(
+        "/api/calls/start",
+        json={"callee_id": me_c["id"], "conversation_id": cid},
+        headers=ha,
+    )
+    assert r2.status_code == 403, r2.text
+
+
+def test_scheduled_update_rejects_past_and_naive_ok():
+    import time
+    from datetime import datetime, timedelta, timezone
+
+    s = str(int(time.time() * 1000))[-6:]
+    u = f"sch{s}"
+    signup_user(u, f"{u}@ex.com", "Sched")
+    h = _login(u)
+    v = f"schv{s}"
+    signup_user(v, f"{v}@ex.com", "Sched V")
+    rc = client.post("/api/conversations", json={"participant_username": v}, headers=h)
+    assert rc.status_code == 200, rc.text
+    cid = rc.json()["data"]["id"]
+
+    future = (datetime.now(timezone.utc) + timedelta(hours=2)).isoformat()
+    r1 = client.post(
+        f"/api/conversations/{cid}/scheduled",
+        json={"content": "later", "scheduled_at": future},
+        headers=h,
+    )
+    assert r1.status_code == 200, r1.text
+    sm_id = r1.json()["data"]["id"]
+    # naive datetime must not 500 (assumed UTC)
+    naive = (
+        (datetime.now(timezone.utc) + timedelta(hours=3))
+        .replace(tzinfo=None)
+        .isoformat()
+    )
+    r2 = client.post(
+        f"/api/conversations/{cid}/scheduled",
+        json={"content": "naive", "scheduled_at": naive},
+        headers=h,
+    )
+    assert r2.status_code == 200, r2.text
+    # moving to the past is rejected
+    past = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    r3 = client.patch(f"/api/scheduled/{sm_id}", json={"scheduled_at": past}, headers=h)
+    assert r3.status_code == 400, r3.text
+
+
+def test_event_rejects_unparseable_date():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"ev{s}", f"evb{s}"
+    signup_user(a, f"{a}@ex.com", "Ev A")
+    signup_user(b, f"{b}@ex.com", "Ev B")
+    ha = _login(a)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    r = client.post(
+        f"/api/conversations/{cid}/events",
+        json={"title": "Party", "event_date": "not-a-date"},
+        headers=ha,
+    )
+    assert r.status_code == 400, r.text
+
+
+def test_sticker_use_rejects_unknown_id():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    u = f"st{s}"
+    signup_user(u, f"{u}@ex.com", "Sticker")
+    h = _login(u)
+    r1 = client.post("/api/stickers/999999999/use", headers=h)
+    assert r1.status_code == 404, r1.text
+    r2 = client.post("/api/stickers/999999999/favorite", headers=h)
+    assert r2.status_code == 404, r2.text
+
+
+def test_group_self_leave_and_owner_handoff():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"ga{s}", f"gb{s}"
+    signup_user(a, f"{a}@ex.com", "GA")
+    signup_user(b, f"{b}@ex.com", "GB")
+    ha, hb = _login(a), _login(b)
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rg = client.post(
+        "/api/groups", json={"title": f"g{s}", "member_ids": [me_b["id"]]}, headers=ha
+    )
+    assert rg.status_code == 200, rg.text
+    gid = rg.json()["data"]["id"]
+    # member can leave on their own (was 403)
+    rl = client.delete(f"/api/groups/{gid}/members/{me_b['id']}", headers=hb)
+    assert rl.status_code == 200, rl.text
+    # owner self-leaves with nobody left -> group is gone, never ownerless
+    me_a = client.get("/api/auth/me", headers=ha).json()["data"]
+    rl2 = client.delete(f"/api/groups/{gid}/members/{me_a['id']}", headers=ha)
+    assert rl2.status_code == 200, rl2.text
+    rg2 = client.get(f"/api/conversations/{gid}", headers=ha)
+    assert rg2.status_code in (403, 404), rg2.text
+
+
+def test_group_owner_leave_promotes_member():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"pa{s}", f"pb{s}"
+    signup_user(a, f"{a}@ex.com", "PA")
+    signup_user(b, f"{b}@ex.com", "PB")
+    ha, hb = _login(a), _login(b)
+    me_b = client.get("/api/auth/me", headers=hb).json()["data"]
+    rg = client.post(
+        "/api/groups", json={"title": f"pg{s}", "member_ids": [me_b["id"]]}, headers=ha
+    )
+    gid = rg.json()["data"]["id"]
+    me_a = client.get("/api/auth/me", headers=ha).json()["data"]
+    rl = client.delete(f"/api/groups/{gid}/members/{me_a['id']}", headers=ha)
+    assert rl.status_code == 200, rl.text
+    # B (promoted) can now act as owner: add A back
+    ra = client.post(
+        f"/api/groups/{gid}/members", json={"member_ids": [me_a["id"]]}, headers=hb
+    )
+    assert ra.status_code == 200, ra.text
+
+
+def test_polls_list_batched_shape():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"po{s}", f"pob{s}"
+    signup_user(a, f"{a}@ex.com", "PO A")
+    signup_user(b, f"{b}@ex.com", "PO B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    rp = client.post(
+        f"/api/conversations/{cid}/polls",
+        json={"question": "Lunch?", "options": ["Here", "There", "Else"]},
+        headers=ha,
+    )
+    assert rp.status_code == 200, rp.text
+    pid = rp.json()["data"]["id"]
+    rl = client.get(f"/api/conversations/{cid}/polls", headers=hb)
+    assert rl.status_code == 200, rl.text
+    polls = rl.json()["data"]
+    assert len(polls) == 1 and len(polls[0]["options"]) == 3, rl.text
+    assert polls[0]["total_votes"] == 0
+    rv = client.post(
+        f"/api/polls/{pid}/vote",
+        json={"option_ids": [polls[0]["options"][0]["id"]]},
+        headers=hb,
+    )
+    assert rv.status_code == 200, rv.text
+    rl2 = client.get(f"/api/conversations/{cid}/polls", headers=ha)
+    assert rl2.json()["data"][0]["total_votes"] == 1, rl2.text

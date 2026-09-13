@@ -328,6 +328,10 @@ def view_status(
         raise HTTPException(status_code=404, detail="Not found")
     if s.user_id == current_user.id:
         return success_response(None, "Own status")
+    # Enforce the same privacy as the feed: no probing statuses shared with
+    # "nobody"/others, and no phantom viewer rows for them either.
+    if not can_view_status(s, current_user.id, _contact_ids(db, current_user.id)):
+        raise HTTPException(status_code=404, detail="Not found")
     existing = (
         db.query(StatusViewer)
         .filter_by(status_id=status_id, viewer_id=current_user.id)

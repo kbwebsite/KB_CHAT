@@ -10,36 +10,64 @@ from app.models.user import User as UserModel
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
+
 @router.post("")
-def create_group(payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def create_group(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     # payload: {title, description, member_ids, member_usernames}
     title = payload.get("title")
     if not title:
         raise HTTPException(status_code=400, detail="Group title required")
-    conv = Conversation(is_group=True, title=title.strip(), description=payload.get("description"), created_by=current_user.id)
+    conv = Conversation(
+        is_group=True,
+        title=title.strip(),
+        description=payload.get("description"),
+        created_by=current_user.id,
+    )
     db.add(conv)
     db.flush()
-    db.add(ConversationMember(conversation_id=conv.id, user_id=current_user.id, role="owner"))
+    db.add(
+        ConversationMember(
+            conversation_id=conv.id, user_id=current_user.id, role="owner"
+        )
+    )
     member_ids = set(payload.get("member_ids") or [])
-    for uname in (payload.get("member_usernames") or []):
+    for uname in payload.get("member_usernames") or []:
         u = db.query(UserModel).filter_by(username=uname.lower()).first()
         if u:
             member_ids.add(u.id)
     for uid in member_ids:
-        if uid == current_user.id: continue
-        if not db.query(UserModel).filter_by(id=uid).first(): continue
+        if uid == current_user.id:
+            continue
+        if not db.query(UserModel).filter_by(id=uid).first():
+            continue
         db.add(ConversationMember(conversation_id=conv.id, user_id=uid, role="member"))
     db.commit()
     db.refresh(conv)
-    return success_response(conversation_to_dict(db, conv, current_user.id), "Group created")
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id), "Group created"
+    )
+
 
 @router.patch("/{group_id}")
-def update_group(group_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def update_group(
+    group_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Group not found")
-    membership = db.query(ConversationMember).filter_by(conversation_id=group_id, user_id=current_user.id).first()
-    if not membership or membership.role not in ("owner","admin"):
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=group_id, user_id=current_user.id)
+        .first()
+    )
+    if not membership or membership.role not in ("owner", "admin"):
         raise HTTPException(status_code=403, detail="Not authorized")
     if "title" in payload and payload["title"]:
         conv.title = payload["title"]
@@ -49,45 +77,112 @@ def update_group(group_id: int, payload: dict, db: Session = Depends(get_db), cu
         conv.avatar_url = payload["avatar_url"]
     db.commit()
     db.refresh(conv)
-    return success_response(conversation_to_dict(db, conv, current_user.id), "Group updated")
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id), "Group updated"
+    )
+
 
 @router.post("/{group_id}/members")
-def add_members(group_id: int, payload: dict, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def add_members(
+    group_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Group not found")
-    membership = db.query(ConversationMember).filter_by(conversation_id=group_id, user_id=current_user.id).first()
-    if not membership or membership.role not in ("owner","admin"):
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=group_id, user_id=current_user.id)
+        .first()
+    )
+    if not membership or membership.role not in ("owner", "admin"):
         raise HTTPException(status_code=403, detail="Not authorized")
     user_ids = payload.get("user_ids") or []
-    for uname in (payload.get("usernames") or []):
+    for uname in payload.get("usernames") or []:
         u = db.query(UserModel).filter_by(username=uname.lower()).first()
         if u and u.id not in user_ids:
             user_ids.append(u.id)
-    added=[]
+    added = []
     for uid in user_ids:
-        if db.query(ConversationMember).filter_by(conversation_id=group_id, user_id=uid).first():
+        if (
+            db.query(ConversationMember)
+            .filter_by(conversation_id=group_id, user_id=uid)
+            .first()
+        ):
             continue
         u = db.query(UserModel).filter_by(id=uid).first()
-        if not u: continue
+        if not u:
+            continue
         db.add(ConversationMember(conversation_id=group_id, user_id=uid, role="member"))
         added.append(uid)
     db.commit()
-    return success_response(conversation_to_dict(db, conv, current_user.id), f"Added {len(added)} members")
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id), f"Added {len(added)} members"
+    )
+
 
 @router.delete("/{group_id}/members/{user_id}")
-def remove_member(group_id: int, user_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def remove_member(
+    group_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
     conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
     if not conv:
         raise HTTPException(status_code=404, detail="Group not found")
-    my_mem = db.query(ConversationMember).filter_by(conversation_id=group_id, user_id=current_user.id).first()
-    if not my_mem or my_mem.role not in ("owner","admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    target = db.query(ConversationMember).filter_by(conversation_id=group_id, user_id=user_id).first()
+    my_mem = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=group_id, user_id=current_user.id)
+        .first()
+    )
+    if not my_mem:
+        raise HTTPException(status_code=403, detail="Not a member")
+    target = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=group_id, user_id=user_id)
+        .first()
+    )
     if not target:
         raise HTTPException(status_code=404, detail="Member not found")
-    if target.role == "owner" and my_mem.role != "owner":
+    is_self_leave = user_id == current_user.id
+    if not is_self_leave and my_mem.role not in ("owner", "admin"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    if target.role == "owner" and my_mem.role != "owner" and not is_self_leave:
         raise HTTPException(status_code=403, detail="Cannot remove owner")
+    if is_self_leave and target.role == "owner":
+        # Hand the crown to the longest-standing remaining member so the
+        # group is never left ownerless; sole owner leaving deletes it.
+        others = (
+            db.query(ConversationMember)
+            .filter(
+                ConversationMember.conversation_id == group_id,
+                ConversationMember.user_id != current_user.id,
+            )
+            .order_by(ConversationMember.id.asc())
+            .all()
+        )
+        if others:
+            others[0].role = "owner"
+        else:
+            from app.models.message import Message as MessageModel
+            from app.models.poll import Poll as PollModel
+
+            db.delete(target)
+            db.query(ConversationMember).filter_by(conversation_id=group_id).delete()
+            db.query(MessageModel).filter_by(conversation_id=group_id).update(
+                {"is_deleted": True}
+            )
+            # ORM deletes (not bulk) so option/vote cascades fire on every DB.
+            for p in db.query(PollModel).filter_by(conversation_id=group_id).all():
+                db.delete(p)
+            db.delete(conv)
+            db.commit()
+            return success_response(None, "Group deleted")
     db.delete(target)
     db.commit()
-    return success_response(conversation_to_dict(db, conv, current_user.id), "Member removed")
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id), "Member removed"
+    )

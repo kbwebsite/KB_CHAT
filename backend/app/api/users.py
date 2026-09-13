@@ -216,7 +216,7 @@ def get_user_by_username(
             "avatar_url": user.avatar_url,
             "about": user.about,
             "is_online": user.is_online,
-            "last_seen": u.last_seen.isoformat() if u.last_seen else None,
+            "last_seen": user.last_seen.isoformat() if user.last_seen else None,
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
     )

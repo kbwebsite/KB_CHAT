@@ -7,7 +7,6 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User, BlockedUser
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message
-from app.models.poll import Poll
 from app.schemas.conversation import ConversationCreate, GroupUpdate
 from app.schemas.common import success_response
 from app.websocket.manager import manager
@@ -549,9 +548,12 @@ def delete_conversation(
             db.query(Message).filter_by(conversation_id=conv_id).update(
                 {"is_deleted": True}
             )
-            db.query(Poll).filter_by(conversation_id=conv_id).update(
-                {"is_deleted": True}
-            )
+            # Poll has no is_deleted column: ORM-delete so option/vote
+            # cascades fire (a bulk update here used to 500 the whole call).
+            from app.models.poll import Poll as PollModel
+
+            for p in db.query(PollModel).filter_by(conversation_id=conv_id).all():
+                db.delete(p)
             db.delete(conv)
             db.commit()
             return success_response(None, "Group deleted")

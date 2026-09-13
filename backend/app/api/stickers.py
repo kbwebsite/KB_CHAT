@@ -187,6 +187,8 @@ def use_sticker(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if not db.query(Sticker).filter_by(id=sticker_id).first():
+        raise HTTPException(status_code=404, detail="Sticker not found")
     existing = (
         db.query(UserSticker)
         .filter_by(user_id=current_user.id, sticker_id=sticker_id)
@@ -212,6 +214,8 @@ def toggle_favorite_sticker(
         .first()
     )
     if not us:
+        if not db.query(Sticker).filter_by(id=sticker_id).first():
+            raise HTTPException(status_code=404, detail="Sticker not found")
         us = UserSticker(
             user_id=current_user.id, sticker_id=sticker_id, is_favorite=True
         )
