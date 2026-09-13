@@ -26,14 +26,23 @@ def call_history(
         .limit(50)
         .all()
     )
+    # Batch user lookups: the per-row queries here used to issue up to 100
+    # sequential round-trips for a full 50-row page.
+    user_ids = set()
+    for c in calls:
+        if c.caller_id:
+            user_ids.add(c.caller_id)
+        if c.callee_id:
+            user_ids.add(c.callee_id)
+    users = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        if user_ids
+        else {}
+    )
     result = []
     for c in calls:
-        caller = (
-            db.query(User).filter_by(id=c.caller_id).first() if c.caller_id else None
-        )
-        callee = (
-            db.query(User).filter_by(id=c.callee_id).first() if c.callee_id else None
-        )
+        caller = users.get(c.caller_id) if c.caller_id else None
+        callee = users.get(c.callee_id) if c.callee_id else None
         result.append(
             {
                 "id": c.id,

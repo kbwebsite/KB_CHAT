@@ -569,28 +569,41 @@ def recently_contacted(
         .limit(10)
         .all()
     )
+    conv_ids = [c.id for c in convs]
+    # Batch: one members query + one users query instead of two per chat.
+    first_other_by_conv = {}
+    for m in (
+        db.query(ConversationMember)
+        .filter(
+            ConversationMember.conversation_id.in_(conv_ids),
+            ConversationMember.user_id != current_user.id,
+        )
+        .all()
+    ):
+        first_other_by_conv.setdefault(m.conversation_id, m.user_id)
+    users = (
+        {
+            u.id: u
+            for u in db.query(User)
+            .filter(User.id.in_(set(first_other_by_conv.values())))
+            .all()
+        }
+        if first_other_by_conv
+        else {}
+    )
     result = []
     for c in convs:
-        other_members = (
-            db.query(ConversationMember)
-            .filter(
-                ConversationMember.conversation_id == c.id,
-                ConversationMember.user_id != current_user.id,
+        u = users.get(first_other_by_conv.get(c.id))
+        if u:
+            result.append(
+                {
+                    "id": u.id,
+                    "username": u.username,
+                    "display_name": u.display_name,
+                    "avatar_url": u.avatar_url,
+                    "is_online": u.is_online,
+                }
             )
-            .all()
-        )
-        if other_members:
-            u = db.query(User).filter_by(id=other_members[0].user_id).first()
-            if u:
-                result.append(
-                    {
-                        "id": u.id,
-                        "username": u.username,
-                        "display_name": u.display_name,
-                        "avatar_url": u.avatar_url,
-                        "is_online": u.is_online,
-                    }
-                )
     return success_response(result)
 
 
