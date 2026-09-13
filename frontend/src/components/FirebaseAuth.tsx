@@ -36,7 +36,12 @@ function friendlyAuthError(e: any): string {
  * Firebase sign-in: Email, Google, and Phone tabs. On success the Firebase
  * ID token is handed to onSession(), which exchanges it with our backend for
  * a regular app session (same kb_token flow as every other login method).
+ *
+ * NOTE: the Phone tab is hidden unless VITE_ENABLE_PHONE_AUTH === 'true'.
+ * Firebase only sends real SMS on the paid Blaze plan — without it the tab
+ * is a dead end, so it stays out of the UI until billing is enabled.
  */
+const PHONE_ENABLED = import.meta.env.VITE_ENABLE_PHONE_AUTH === 'true'
 export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Promise<void> }) {
   const [tab, setTab] = useState<'email' | 'google' | 'phone'>('email')
   const [busy, setBusy] = useState(false)
@@ -279,11 +284,11 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
     }
   }
 
-  const tabs = [
+  const tabs: { id: 'email' | 'google' | 'phone'; label: string }[] = [
     { id: 'email', label: 'Email' },
     { id: 'google', label: 'Google' },
-    { id: 'phone', label: 'Phone' },
-  ] as const
+    ...(PHONE_ENABLED ? [{ id: 'phone' as const, label: 'Phone' }] : []),
+  ]
 
   return (
     <div className="w-full">
