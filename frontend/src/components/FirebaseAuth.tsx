@@ -3,6 +3,7 @@ import {
   GoogleAuthProvider,
   RecaptchaVerifier,
   createUserWithEmailAndPassword,
+  sendEmailVerification,
   signInWithEmailAndPassword,
   signInWithPhoneNumber,
   signInWithPopup,
@@ -13,7 +14,8 @@ import { getFirebaseAuth, ensureFirebaseAsync } from '../services/firebase'
 function friendlyAuthError(e: any): string {
   const code = e?.code || ''
   if (code === 'auth/operation-not-allowed') return 'This sign-in method is not enabled yet. Please use another method for now.'
-  if (code === 'auth/unauthorized-domain') return 'This site is not authorized for Firebase sign-in yet.'
+  if (code === 'auth/unauthorized-domain') return 'This site is not authorized for Firebase sign-in yet. In Firebase Console → Authentication → Settings → Authorized domains, add this site domain.'
+  if (code === 'auth/internal-error') return 'Sign-in was interrupted before reaching the server. If you use Brave, turn Shields down for this site and allow popups + third-party cookies, then retry. Otherwise check that this domain is in Firebase Authorized domains and the sign-in method is enabled.'
   if (code === 'auth/invalid-phone-number' || code === 'auth/missing-phone-number') return 'Enter a valid phone number with country code, e.g. +919876543210.'
   if (code === 'auth/invalid-verification-code') return 'Wrong code. Check the SMS and try again.'
   if (code === 'auth/code-expired') return 'That code expired. Request a new one.'
@@ -43,6 +45,8 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
   const [code, setCode] = useState('')
   const [confirmRes, setConfirmRes] = useState<ConfirmationResult | null>(null)
   const [codeSentTo, setCodeSentTo] = useState<string | null>(null)
+  const [verificationSentTo, setVerificationSentTo] = useState<string | null>(null)
+  const [resent, setResent] = useState(false)
   const recaptchaRef = useRef<RecaptchaVerifier | null>(null)
   const [unavailable, setUnavailable] = useState<string | null>(null)
 
@@ -70,7 +74,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
     return <p className="text-xs text-center text-muted-foreground">Loading sign-in options...</p>
   }
 
-  const finish = async (idToken: string) => {
+  const finish = async (idToken: string, fallbackEmail?: string) => {
     setBusy(true)
     setError(null)
     try {
@@ -82,9 +86,35 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       // still hits is an emulator-only local backend without a service account.
       if (err?.response?.status === 503) {
         setError('The server is not yet configured for Firebase logins — try again in a minute, or use another sign-in method.')
+      } else if (typeof detail === 'string' && detail.toLowerCase().includes('verify')) {
+        // Backend refuses unverified password-provider emails by design.
+        // Keep the user on a path forward: check inbox + resend.
+        if (fallbackEmail) setVerificationSentTo(fallbackEmail)
+        setResent(false)
+        setError(detail + ' — check your inbox (and spam) for the verification link, then try again.')
       } else {
         setError(detail || err?.message || 'Could not start your session.')
       }
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleResendVerification = async () => {
+    setBusy(true)
+    setError(null)
+    try {
+      const auth = getFirebaseAuth()
+      const user = auth.currentUser
+      if (!user) {
+        setError('Sign in with your email + password first, then resend the verification email.')
+        return
+      }
+      await sendEmailVerification(user)
+      setVerificationSentTo(user.email || email.trim() || null)
+      setResent(true)
+    } catch (err: any) {
+      setError(friendlyAuthError(err))
     } finally {
       setBusy(false)
     }
@@ -106,11 +136,20 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       } catch (err: any) {
         if (err?.code === 'auth/user-not-found' || err?.code === 'auth/invalid-credential') {
           cred = await createUserWithEmailAndPassword(auth, email.trim(), password)
+          // New accounts must verify before the backend accepts them —
+          // without this email the user is stuck in a verify-first loop.
+          try {
+            await sendEmailVerification(cred.user)
+          } catch {
+            /* non-fatal: user can resend from the UI */
+          }
+          setVerificationSentTo(email.trim())
+          setResent(false)
         } else {
           throw err
         }
       }
-      await finish(await cred.user.getIdToken())
+      await finish(await cred.user.getIdToken(), email.trim())
     } catch (err: any) {
       const msg = friendlyAuthError(err)
       if (err?.code === 'auth/email-already-in-use' && tab !== 'google') {
@@ -219,6 +258,19 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       {error && (
         <div className="p-3 mb-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm" role="alert">
           {error}
+        </div>
+      )}
+
+      {tab === 'email' && verificationSentTo && (
+        <div className="p-3 mb-3 rounded-xl bg-primary/10 border border-primary/20 text-sm" role="status">
+          Verification email sent to <span className="font-semibold">{verificationSentTo}</span>.
+          Click the link in your inbox (check spam), then sign in again.
+          <div className="mt-2 flex items-center gap-2">
+            <button type="button" disabled={busy} onClick={handleResendVerification} className="underline font-medium disabled:opacity-50">
+              {busy ? 'Sending...' : 'Resend verification email'}
+            </button>
+            {resent && <span className="text-xs text-muted-foreground">Sent — check your inbox.</span>}
+          </div>
         </div>
       )}
 
