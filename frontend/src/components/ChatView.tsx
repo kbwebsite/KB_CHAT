@@ -2,6 +2,7 @@ import { useRef, useEffect, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useSettingsStore } from '../store/settings'
+import { useToastStore } from '../store/toast'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
 import { ChatHeader } from './ChatHeader'
@@ -38,6 +39,7 @@ export function ChatView({
 }: any) {
   const { user } = useAuthStore()
   const settings = useSettingsStore()
+  const toast = useToastStore(s => s.push)
   const {
     currentConversationId, messages, hasMore, loadingMessages,
     sendMessage, editMessage, deleteMessage, fetchMessages, fetchConversations
@@ -283,7 +285,7 @@ export function ChatView({
       }
       await sendMessage(currentConversationId, body, replyTo?.id, attachmentIds, type, extra)
     }
-    catch (e: any) { console.error('Send failed:', e) }
+    catch (e: any) { toast('Failed to send: ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
   }
 
   const handleRefresh = async () => {

@@ -24,6 +24,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [progress, setProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  // Ref mirror: state updates are async, so a fast double-Enter would read
+  // stale `sending === false` twice and fire two sends. The ref blocks that.
+  const sendingRef = useRef(false)
   const fileRef = useRef<HTMLInputElement>(null)
   const abortRef = useRef<AbortController | null>(null)
   const typingTimeout = useRef<any>(null)
@@ -61,8 +64,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   const handleSend = () => {
-    if (!text.trim()) return
+    if (!text.trim() || sendingRef.current || uploading || disabled) return
+    sendingRef.current = true
     setSending(true)
+    const body = text.trim()
     const vo = viewOnce
     setViewOnce(false)
     setText('')
@@ -72,8 +77,8 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     wsService.sendTyping(conversationId, false)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     // Call onSend and reset sending state after a delay (onSend is void, not async)
-    onSend(text.trim(), undefined, 'text', undefined, vo ? { view_once: true } : undefined)
-    setTimeout(() => setSending(false), 1500)
+    onSend(body, undefined, 'text', undefined, vo ? { view_once: true } : undefined)
+    setTimeout(() => { sendingRef.current = false; setSending(false) }, 1500)
   }
 
   const handleEmoji = (e: EmojiClickData) => {

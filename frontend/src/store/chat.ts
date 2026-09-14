@@ -36,6 +36,21 @@ interface ChatState {
   setMessageStatus: (convId:number, msgId:number, status:string)=>void
 }
 
+/** Tick order is monotonic: a message must never move backwards
+ * (a double-tick must not decay to a single tick on refetch or on a
+ * stale full-object update). Every merge path below goes through this. */
+const STATUS_RANK: Record<string, number> = { sending: -1, sent: 0, delivered: 1, read: 2 }
+function statusRank(s?: string | null): number {
+  if (!s) return 0
+  return STATUS_RANK[s] ?? 0
+}
+/** Keep the furthest tick when merging two copies of one message. */
+function mergeStatus(oldS?: string | null, newS?: string | null): string | undefined {
+  if (newS == null) return oldS ?? undefined
+  if (oldS == null) return newS
+  return statusRank(newS) >= statusRank(oldS) ? newS : oldS
+}
+
 /** Sidebar preview text: mirrors the backend masking rules (ciphertext and
  * burn-once secrets never leak; burned view-once reads "Opened"). */
 function previewContentFor(m: Message): string {
@@ -81,12 +96,20 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       if (res.success) {
         const { messages, has_more } = res.data
         set(state=>{
+          const oldById = new Map<number, Message>((state.messages[convId]||[]).map((m:Message)=>[m.id,m] as [number, Message]))
           const existing = before ? (state.messages[convId]||[]) : []
           const merged = before ? [...messages, ...existing] : messages
           // dedupe by id
           const map = new Map<number, Message>(merged.map((m:Message)=>[m.id,m] as [number, Message]))
           const unique = Array.from(map.values()).sort((a:Message,b:Message)=>a.id-b.id)
-          return { messages: {...state.messages, [convId]: unique }, hasMore: {...state.hasMore, [convId]: has_more } }
+          // Server snapshots can lag the live tick state (status events
+          // arrive ahead of the next history fetch) — never move backwards.
+          const reconciled = unique.map(m=> {
+            const old = oldById.get(m.id)
+            if (old && old.status !== m.status) return { ...m, status: mergeStatus(old.status, m.status) }
+            return m
+          })
+          return { messages: {...state.messages, [convId]: reconciled }, hasMore: {...state.hasMore, [convId]: has_more } }
         })
       }
     } finally { set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } })) }
@@ -125,8 +148,12 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       const list = state.messages[real.conversation_id] || []
       // Drop the optimistic placeholder; add real unless WS already delivered it.
       const withoutTemp = list.filter(m=> m.id !== tempId)
-      if (withoutTemp.some(m=> m.id === real.id)) {
-        return { messages: { ...state.messages, [real.conversation_id]: withoutTemp } }
+      const dup = withoutTemp.find(m=> m.id === real.id)
+      if (dup) {
+        // WS echo won the race: keep its fields, but never lose a newer tick.
+        const s = mergeStatus(dup.status, (real as Message).status)
+        if (s === dup.status) return { messages: { ...state.messages, [real.conversation_id]: withoutTemp } }
+        return { messages: { ...state.messages, [real.conversation_id]: withoutTemp.map(m=> m.id === real.id ? { ...real, status: s } : m) } }
       }
       return { messages: { ...state.messages, [real.conversation_id]: [...withoutTemp, real] } }
     })
@@ -156,8 +183,17 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     if (msg.id < 0) return
     set(state=>{
       const list = state.messages[msg.conversation_id] || []
-      // dedup
-      if (list.some(m=>m.id===msg.id)) return state
+      // dedup — but a duplicate can still carry a NEWER tick (HTTP `sent`
+      // copy vs WS `delivered` echo), so merge status instead of dropping.
+      const idx = list.findIndex(m=>m.id===msg.id)
+      if (idx>=0) {
+        const cur = list[idx]
+        const s = mergeStatus(cur.status, (msg as Message).status)
+        if (s === cur.status) return state
+        const next = [...list]
+        next[idx] = { ...cur, status: s }
+        return { messages: {...state.messages, [msg.conversation_id]: next} }
+      }
       return { messages: {...state.messages, [msg.conversation_id]: [...list, msg]} }
     })
     // Message from a conversation we don't list yet (e.g. a new contact
@@ -207,7 +243,9 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   updateMessage: (msg)=>{
     set(state=>{
       const list = state.messages[msg.conversation_id] || []
-      return { messages: {...state.messages, [msg.conversation_id]: list.map(m=> m.id===msg.id? msg : m)} }
+      // Full-object updates (edit/pin/server echo) may carry a stale tick —
+      // merge so ticks only ever move forward.
+      return { messages: {...state.messages, [msg.conversation_id]: list.map(m=> m.id===msg.id? { ...msg, status: mergeStatus(m.status, (msg as Message).status) } : m)} }
     })
   },
   deleteMessagePlaceholder: (payload)=>{
@@ -312,15 +350,13 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     wsService.markRead(convId, lastId)
   },
   setMessageStatus: (convId, msgId, status)=>{
-    const order: Record<string, number> = { sent: 0, delivered: 1, read: 2 }
-    if (!(status in order)) return
+    if (!(status in STATUS_RANK)) return
     set(state=>{
       const list = state.messages[convId] || []
       let changed = false
       const next = list.map(m=>{
         if (m.id !== msgId) return m
-        const cur = order[m.status || 'sent'] ?? 0
-        if (order[status] > cur) { changed = true; return { ...m, status } }
+        if (statusRank(status) > statusRank(m.status || 'sent')) { changed = true; return { ...m, status } }
         return m
       })
       if (!changed) return state

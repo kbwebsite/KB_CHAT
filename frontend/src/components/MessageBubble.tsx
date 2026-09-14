@@ -1,6 +1,6 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
@@ -173,7 +173,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   }
   // AI actions (summarize/translate/explain) must see readable text, never
   // raw ciphertext: locked messages qualify only once actually decrypted.
-  const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text } : null) : msg
+  // The copy is marked plain (is_encrypted cleared) so downstream handlers
+  // treat `content` as final instead of trying to decrypt it again.
+  const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text, is_encrypted: false } : null) : msg
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
   const audioAtts = msg.attachments.filter(a=> a.mime_type.startsWith('audio/'))
   const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/'))
@@ -323,8 +325,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span>{formatTime(msg.created_at)}</span>
             {msg.is_edited && !msg.is_deleted && <span className="italic">• edited</span>}
             {isOwn && !msg.is_deleted && (
-              <span className="ml-1">
-                {msg.status==='read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" style={{ filter: 'drop-shadow(0 0 3px rgba(125,211,252,0.8))' }}/> : msg.status==='delivered' ? <CheckCheck className="w-3.5 h-3.5 opacity-70"/> : <Check className="w-3.5 h-3.5 opacity-70"/>}
+              <span className="ml-1" title={msg.status === 'sending' ? 'Sending…' : msg.status}>
+                {msg.status==='read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" style={{ filter: 'drop-shadow(0 0 3px rgba(125,211,252,0.8))' }}/> : msg.status==='delivered' ? <CheckCheck className="w-3.5 h-3.5 opacity-70"/> : msg.status==='sending' ? <Clock className="w-3.5 h-3.5 opacity-70 animate-pulse"/> : <Check className="w-3.5 h-3.5 opacity-70"/>}
               </span>
             )}
           </div>
