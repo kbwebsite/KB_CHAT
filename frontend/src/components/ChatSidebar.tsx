@@ -221,7 +221,7 @@ export function ChatSidebar({
       {/* Content */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {showContacts ? (
-          <ContactsPanel onClose={() => setShowContacts(false)} onChat={handleStartChat} />
+          <ContactsPanel onClose={() => setShowContacts(false)} onChat={handleStartChat} onSelectConversation={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowContacts(false); onMobileViewChange('chat') }} />
         ) : showSaved ? (
           <SavedMessagesPanel onClose={() => setShowSaved(false)} onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowSaved(false); onMobileViewChange('chat') }} />
         ) : showCalls ? (

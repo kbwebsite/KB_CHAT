@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { extendedApi, usersApi } from '../services/api'
-import { Contact, Search, MessageCircle, X } from 'lucide-react'
+import { Contact, Search, MessageCircle, X, Users } from 'lucide-react'
 import { initials } from '../utils/format'
 import { useDebounce } from '../hooks/useDebounce'
 import { useChatStore } from '../store/chat'
 import { useAuthStore } from '../store/auth'
 
-export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(user:any)=>void }) {
+export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClose:()=>void, onChat:(user:any)=>void, onSelectConversation?:(cid:number)=>void }) {
   const [contacts, setContacts]=useState<any[]>([])
   const [q, setQ]=useState('')
   const debounced=useDebounce(q, 300)
@@ -17,10 +17,11 @@ export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(u
   const currentUserId = useAuthStore(s => s.user?.id)
 
   // Map contact user_id -> total unread across 1-1 conversations with them.
-  // (Group unreads stay on the Chats list; contacts are people.)
   const unreadByUser: Record<number, number> = {}
+  const unreadGroups: any[] = []
   for (const c of conversations as any[]) {
-    if (c.is_group || !c.unread_count) continue
+    if (!c.unread_count) continue
+    if (c.is_group) { unreadGroups.push(c); continue }
     const other = (c.members || []).find((m: any) => m.user_id !== currentUserId)
     if (other) unreadByUser[other.user_id] = (unreadByUser[other.user_id] || 0) + c.unread_count
   }
@@ -53,6 +54,27 @@ export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(u
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
+        {!q && unreadGroups.length > 0 && (
+          <div className="pb-1">
+            <p className="px-2 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Groups • unread</p>
+            {unreadGroups.map(g => (
+              <button key={`g-${g.id}`} onClick={() => onSelectConversation?.(g.id)} className="panel-row w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted" aria-label={`Open ${g.title}, ${g.unread_count} unread`}>
+                <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center overflow-visible shrink-0">
+                  <div className="w-full h-full rounded-full flex items-center justify-center overflow-hidden">
+                    {g.avatar_url ? <img src={g.avatar_url} className="w-full h-full object-cover" alt="" /> : <Users className="w-4 h-4" />}
+                  </div>
+                  <span className="conv-unread" style={{ position: 'absolute', top: -6, right: -8 }} aria-label={`${g.unread_count} unread messages`}>
+                    {g.unread_count > 99 ? '99+' : g.unread_count}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{g.title}</p>
+                  <p className="text-xs text-muted-foreground truncate">{(g.members || []).length} members • {g.unread_count} new</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
         {loading ? <p className="text-sm text-muted-foreground p-4">Loading contacts...</p> : list.length===0 ? (
           <p className="text-sm text-muted-foreground p-4 text-center">{q ? 'No users found' : 'No contacts yet. Search to start chatting.'}</p>
         ) : list.map(u=> {

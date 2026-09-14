@@ -64,7 +64,7 @@ export function ChatPanels({
       {showSettings && <SettingsPanel onClose={onClose} />}
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
       {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}
-      {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} />}
+      {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} onSelectConversation={(cid: number) => { onClose(); onJump(cid) }} />}
       {showCalls && <CallsPanel onClose={onClose} />}
       {showStatus && <StatusPanel onClose={onClose} onViewer={onStatusViewer || (() => {})} />}
       {showPolls && currentConv && <PollPanel conversationId={currentConv.id} onClose={() => setShowPolls(false)} />}
