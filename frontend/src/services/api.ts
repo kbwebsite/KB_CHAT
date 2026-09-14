@@ -33,9 +33,20 @@ api.interceptors.response.use(
     if (err.response?.status === 401) {
       localStorage.removeItem('kb_token')
       localStorage.removeItem('kb_user')
+      // Kill the in-memory session too: clearing storage alone leaves the
+      // auth-store `user` intact, so the route guard stays satisfied and the
+      // user is stuck in a dead chat shell ("No conversations yet" with
+      // every request 401ing) instead of landing on /login. Dynamic import
+      // keeps this cycle-free (store/auth imports this module).
+      import('../store/auth').then((m) => {
+        try {
+          m.useAuthStore.getState().setUser(null)
+          m.useAuthStore.getState().setToken(null)
+        } catch {}
+      }).catch(() => {})
       // don't redirect if already on login
       if (!window.location.pathname.includes('/login')) {
-        // window.location.href = '/login'
+        window.location.href = '/login'
       }
     }
     return Promise.reject(err)
