@@ -3,6 +3,8 @@ import { extendedApi, usersApi } from '../services/api'
 import { Contact, Search, MessageCircle, X } from 'lucide-react'
 import { initials } from '../utils/format'
 import { useDebounce } from '../hooks/useDebounce'
+import { useChatStore } from '../store/chat'
+import { useAuthStore } from '../store/auth'
 
 export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(user:any)=>void }) {
   const [contacts, setContacts]=useState<any[]>([])
@@ -11,6 +13,17 @@ export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(u
   const [searchRes, setSearchRes]=useState<any[]>([])
   const [loading, setLoading]=useState(true)
   const searchSeq = useRef(0)
+  const conversations = useChatStore(s => s.conversations)
+  const currentUserId = useAuthStore(s => s.user?.id)
+
+  // Map contact user_id -> total unread across 1-1 conversations with them.
+  // (Group unreads stay on the Chats list; contacts are people.)
+  const unreadByUser: Record<number, number> = {}
+  for (const c of conversations as any[]) {
+    if (c.is_group || !c.unread_count) continue
+    const other = (c.members || []).find((m: any) => m.user_id !== currentUserId)
+    if (other) unreadByUser[other.user_id] = (unreadByUser[other.user_id] || 0) + c.unread_count
+  }
 
   useEffect(()=>{
     extendedApi.contacts().then(r=>{ if(r.success) setContacts(r.data)}).finally(()=> setLoading(false))
@@ -42,18 +55,28 @@ export function ContactsPanel({ onClose, onChat }: { onClose:()=>void, onChat:(u
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {loading ? <p className="text-sm text-muted-foreground p-4">Loading contacts...</p> : list.length===0 ? (
           <p className="text-sm text-muted-foreground p-4 text-center">{q ? 'No users found' : 'No contacts yet. Search to start chatting.'}</p>
-        ) : list.map(u=> (
+        ) : list.map(u=> {
+          const unread = unreadByUser[u.id] || 0
+          return (
           <div key={u.id} className="panel-row flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted">
-            <div className="w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center overflow-hidden">
-              {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt=""/> : initials(u.display_name)}
+            <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center overflow-visible shrink-0">
+              <div className="w-full h-full rounded-full flex items-center justify-center overflow-hidden">
+                {u.avatar_url ? <img src={u.avatar_url} className="w-full h-full object-cover" alt=""/> : initials(u.display_name)}
+              </div>
+              {unread > 0 && (
+                <span className="conv-unread" style={{ position: 'absolute', top: -6, right: -8 }} aria-label={`${unread} unread messages`}>
+                  {unread > 99 ? '99+' : unread}
+                </span>
+              )}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{u.display_name}</p>
               <p className="text-xs text-muted-foreground truncate">@{u.username} • {u.is_online ? 'Online' : 'Offline'}</p>
             </div>
-            <button onClick={()=> onChat(u)} className="p-2 rounded-full bg-primary text-primary-foreground"><MessageCircle className="w-4 h-4"/></button>
+            <button onClick={()=> onChat(u)} className="p-2 rounded-full bg-primary text-primary-foreground" aria-label={`Chat with ${u.display_name}`}><MessageCircle className="w-4 h-4"/></button>
           </div>
-        ))}
+          )
+        })}
       </div>
     </div>
   )
