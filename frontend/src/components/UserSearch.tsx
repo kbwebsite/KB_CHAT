@@ -29,7 +29,7 @@ export function UserSearch({ onSelect }: { onSelect:(user:any)=>void }) {
         {!loading && results.map(u=> (
           <div key={u.id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted">
             <div className="w-10 h-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 text-white flex items-center justify-center overflow-hidden">
-              {u.avatar_url ? <img src={u.avatar_url} alt="" className="w-full h-full object-cover" /> : <span className="text-sm font-semibold">{initials(u.display_name)}</span>}
+              {u.avatar_url ? <img src={u.avatar_url} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover" /> : <span className="text-sm font-semibold">{initials(u.display_name)}</span>}
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium truncate">{u.display_name}</p>

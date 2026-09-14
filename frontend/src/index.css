@@ -2626,3 +2626,35 @@ body {
   0% { margin-left: -40%; }
   100% { margin-left: 100%; }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE PERFORMANCE — low-end WebViews choke on backdrop-blur and
+   huge animated blurs. On touch/small screens: solid bars, no ambient
+   orbs, no tap-zoom delay. Desktop keeps the full eye candy.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 820px), (pointer: coarse) {
+  .mobile-header,
+  .bottom-nav,
+  .composer-wrapper,
+  .chat-header,
+  .kryzen-dropdown-glass,
+  .kryzen-msg-actions {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .ambient-bg {
+    display: none !important;
+  }
+  button,
+  a,
+  input,
+  textarea,
+  select,
+  [role="button"] {
+    touch-action: manipulation;
+  }
+  body {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

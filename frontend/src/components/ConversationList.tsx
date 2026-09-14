@@ -39,7 +39,7 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
       <div className={`conv-avatar ${!isGroup && conv.members.some(m => m.user_id !== currentUserId && m.is_online) ? 'online' : !isGroup && conv.members.some(m => m.user_id !== currentUserId) ? 'offline' : ''}`}
         style={{ background: avatar ? 'none' : getAvatarGradient(conv.id), boxShadow: '0 4px 20px rgba(0,0,0,0.4), 0 0 0 1px rgba(255,255,255,0.06)' }}>
         {avatar ? (
-          <img src={avatar} alt="" className="w-full h-full object-cover rounded-[16px]" />
+          <img src={avatar} alt="" loading="lazy" decoding="async" className="w-full h-full object-cover rounded-[16px]" />
         ) : isGroup ? (
           <Users className="w-5 h-5 text-white" />
         ) : (

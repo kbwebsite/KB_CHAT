@@ -10,7 +10,7 @@ import { ChatModals } from '../components/ChatModals'
 import { MobileNav } from '../components/MobileNav'
 import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
 import { msgPinApi, aiApi, agentApi } from '../services/api'
-import { convApi, extendedApi, savedApi, callsApi } from '../services/api'
+import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
@@ -494,6 +494,43 @@ export default function ChatPage() {
     setShowTheme(false)
   }
 
+  // ─── Android system back button (native app only) ───
+  // Browser history knows nothing about panels/sheets/chat-view, so without
+  // this the OS back button quits the entire app from anywhere. This walks
+  // back one layer at a time: overlay → panel → chat→list → quit.
+  const capAppRef = useRef<any>(null)
+  const backRef = useRef<() => void>(() => {})
+  backRef.current = () => {
+    if (lightbox) { setLightbox(null); return }
+    if (statusViewer) { setStatusViewer(null); return }
+    if (forwardMsg) { setForwardMsg(null); return }
+    if (mobileActionSheet.open) { setMobileActionSheet({ open: false }); return }
+    if (showCommandPalette) { setShowCommandPalette(false); return }
+    if (showMessageSearch) { setShowMessageSearch(false); setMessageSearch(''); return }
+    if (showProfile || showGroupInfo || showSettings || showNotifications ||
+      showSaved || showContacts || showCalls || showStatus || showPolls || showPinned ||
+      showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme) {
+      closeAllPanels(); return
+    }
+    if (mobileView === 'chat') { handleBack(); return }
+    // Main list with nothing open: standard Android behavior quits the app.
+    try { capAppRef.current?.exitApp() } catch {}
+  }
+  useEffect(() => {
+    if (!isNativeApp()) return
+    let off: (() => void) | undefined
+    let cancelled = false
+    import('@capacitor/app').then(({ App: CapApp }) => {
+      if (cancelled) return
+      capAppRef.current = CapApp
+      CapApp.addListener('backButton', () => backRef.current()).then(
+        h => { off = () => { try { h.remove() } catch {} } },
+        () => {},
+      )
+    }).catch(() => {})
+    return () => { cancelled = true; off?.() }
+  }, [])
+
   const totalUnread = conversations.reduce((a: number, b: any) => a + b.unread_count, 0)
 
   // Determine if we should show chat view
@@ -504,7 +541,7 @@ export default function ChatPage() {
   return (
     <ChatLayout>
       {/* Ambient 3D background orbs */}
-      <div style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: 'radial-gradient(ellipse at 25% 15%, rgba(124,92,252,0.12) 0%, transparent 55%), radial-gradient(ellipse at 75% 85%, rgba(34,211,238,0.08) 0%, transparent 55%), radial-gradient(ellipse at 50% 50%, rgba(244,114,182,0.05) 0%, transparent 60%), #06060e' }}>
+      <div className="ambient-bg" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: 'radial-gradient(ellipse at 25% 15%, rgba(124,92,252,0.12) 0%, transparent 55%), radial-gradient(ellipse at 75% 85%, rgba(34,211,238,0.08) 0%, transparent 55%), radial-gradient(ellipse at 50% 50%, rgba(244,114,182,0.05) 0%, transparent 60%), #06060e' }}>
         <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,92,252,0.18), transparent 70%)', top: -120, right: -120, filter: 'blur(80px)', animation: 'ambientDrift 14s ease-in-out infinite' }} />
         <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,211,238,0.12), transparent 70%)', bottom: '12%', left: -80, filter: 'blur(80px)', animation: 'ambientDrift 18s ease-in-out infinite reverse' }} />
         <div style={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,114,182,0.10), transparent 70%)', bottom: -60, right: '28%', filter: 'blur(80px)', animation: 'ambientDrift 12s ease-in-out infinite' }} />

@@ -222,10 +222,10 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
         )}
         <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && (
-            <div className={`grid gap-1 mb-2 -mx-1 ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
+            <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
                 const url = resolveAttUrl(img)
-                return <img key={img.id} src={url} alt={img.original_filename} className="rounded-xl max-h-64 w-full object-cover cursor-pointer" onClick={()=> safeImageClick(url, img.original_filename, allImages, i)} />
+                return <img key={img.id} src={url} alt={img.original_filename} loading="lazy" decoding="async" className="rounded-xl max-h-64 w-full object-cover cursor-pointer" onClick={()=> safeImageClick(url, img.original_filename, allImages, i)} />
               })}
             </div>
           )}
