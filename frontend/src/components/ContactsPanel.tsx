@@ -14,17 +14,26 @@ export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClo
   const [loading, setLoading]=useState(true)
   const searchSeq = useRef(0)
   const conversations = useChatStore(s => s.conversations)
+  const fetchConversations = useChatStore(s => s.fetchConversations)
   const currentUserId = useAuthStore(s => s.user?.id)
 
-  // Map contact user_id -> total unread across 1-1 conversations with them.
+  // Map contact user_id -> total unread across 1-1 conversations with them,
+  // plus the full group list (unread-first) so contacts AND groups show.
   const unreadByUser: Record<number, number> = {}
-  const unreadGroups: any[] = []
+  const groups: any[] = []
   for (const c of conversations as any[]) {
+    if (c.is_group) { groups.push(c); continue }
     if (!c.unread_count) continue
-    if (c.is_group) { unreadGroups.push(c); continue }
     const other = (c.members || []).find((m: any) => m.user_id !== currentUserId)
     if (other) unreadByUser[other.user_id] = (unreadByUser[other.user_id] || 0) + c.unread_count
   }
+  groups.sort((a, b) => (b.unread_count || 0) - (a.unread_count || 0))
+
+  // Make sure we have conversation data even if the panel opens first.
+  useEffect(() => {
+    if (conversations.length === 0) fetchConversations().catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   useEffect(()=>{
     extendedApi.contacts().then(r=>{ if(r.success) setContacts(r.data)}).finally(()=> setLoading(false))
@@ -40,6 +49,9 @@ export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClo
   }, [debounced])
 
   const list = q ? searchRes : contacts
+  const visibleGroups = q
+    ? groups.filter(g => (g.title || '').toLowerCase().includes(q.toLowerCase()))
+    : groups
 
   return (
     <div className="h-full flex flex-col bg-card">
@@ -54,27 +66,30 @@ export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClo
         </div>
       </div>
       <div className="flex-1 overflow-y-auto p-2 space-y-1">
-        {!q && unreadGroups.length > 0 && (
+        {visibleGroups.length > 0 && (
           <div className="pb-1">
-            <p className="px-2 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Groups • unread</p>
-            {unreadGroups.map(g => (
-              <button key={`g-${g.id}`} onClick={() => onSelectConversation?.(g.id)} className="panel-row w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted" aria-label={`Open ${g.title}, ${g.unread_count} unread`}>
+            <p className="px-2 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Groups{q ? ' • matching' : ''}</p>
+            {visibleGroups.map(g => (
+              <button key={`g-${g.id}`} onClick={() => onSelectConversation?.(g.id)} className="panel-row w-full text-left flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted" aria-label={g.unread_count > 0 ? `Open ${g.title}, ${g.unread_count} unread` : `Open ${g.title}`}>
                 <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center overflow-visible shrink-0">
                   <div className="w-full h-full rounded-full flex items-center justify-center overflow-hidden">
                     {g.avatar_url ? <img src={g.avatar_url} className="w-full h-full object-cover" alt="" /> : <Users className="w-4 h-4" />}
                   </div>
-                  <span className="conv-unread" style={{ position: 'absolute', top: -6, right: -8 }} aria-label={`${g.unread_count} unread messages`}>
-                    {g.unread_count > 99 ? '99+' : g.unread_count}
-                  </span>
+                  {g.unread_count > 0 && (
+                    <span className="conv-unread" style={{ position: 'absolute', top: -6, right: -8 }} aria-label={`${g.unread_count} unread messages`}>
+                      {g.unread_count > 99 ? '99+' : g.unread_count}
+                    </span>
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{g.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{(g.members || []).length} members • {g.unread_count} new</p>
+                  <p className="text-xs text-muted-foreground truncate">{(g.members || []).length} members{g.unread_count > 0 ? ` • ${g.unread_count} new` : g.last_message?.content ? ` • ${(g.last_message.content as string).slice(0, 30)}` : ''}</p>
                 </div>
               </button>
             ))}
           </div>
         )}
+        <p className="px-2 pt-1 pb-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">Contacts</p>
         {loading ? <p className="text-sm text-muted-foreground p-4">Loading contacts...</p> : list.length===0 ? (
           <p className="text-sm text-muted-foreground p-4 text-center">{q ? 'No users found' : 'No contacts yet. Search to start chatting.'}</p>
         ) : list.map(u=> {
