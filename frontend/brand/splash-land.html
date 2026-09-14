@@ -1,0 +1,44 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html, body { width: 1920px; height: 1280px; overflow: hidden; background: #06060e;
+    font-family: "Segoe UI", system-ui, sans-serif; }
+  .stage { position: relative; width: 1920px; height: 1280px; overflow: hidden;
+    background:
+      radial-gradient(ellipse 700px 500px at 30% 15%, rgba(124,92,252,0.20), transparent 65%),
+      radial-gradient(ellipse 620px 520px at 75% 85%, rgba(34,211,238,0.13), transparent 65%),
+      radial-gradient(ellipse 560px 460px at 52% 55%, rgba(244,114,182,0.08), transparent 65%),
+      #06060e; }
+  .grid { position: absolute; inset: 0; opacity: 0.5;
+    background-image: linear-gradient(rgba(124,92,252,0.07) 1px, transparent 1px),
+                      linear-gradient(90deg, rgba(124,92,252,0.07) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(ellipse 70% 75% at 50% 50%, black 30%, transparent 78%);
+    -webkit-mask-image: radial-gradient(ellipse 70% 75% at 50% 50%, black 30%, transparent 78%); }
+  .orb { position: absolute; border-radius: 50%; filter: blur(90px); }
+  .orb1 { width: 560px; height: 560px; top: -160px; left: 8%;
+    background: radial-gradient(circle, rgba(124,92,252,0.35), transparent 70%); }
+  .orb2 { width: 480px; height: 480px; bottom: -100px; right: 6%;
+    background: radial-gradient(circle, rgba(34,211,238,0.22), transparent 70%); }
+  .center { position: absolute; inset: 0; display: flex; align-items: center;
+    justify-content: center; gap: 72px; }
+  .logo { width: 330px; height: 330px;
+    filter: drop-shadow(0 24px 80px rgba(124,92,252,0.55)) drop-shadow(0 0 120px rgba(168,85,247,0.25)); }
+  .name { font-size: 118px; font-weight: 800; letter-spacing: 10px; color: #ffffff; }
+  .rule { margin-top: 24px; width: 280px; height: 6px; border-radius: 3px;
+    background: linear-gradient(90deg, #7c5cfc, #a855f7, #22d3ee); }
+  .tag { margin-top: 24px; font-size: 32px; font-weight: 600; letter-spacing: 12px;
+    color: rgba(240,240,255,0.55); }
+</style></head>
+<body><div class="stage">
+  <div class="grid"></div>
+  <div class="orb orb1"></div><div class="orb orb2"></div>
+  <div class="center">
+    <img class="logo" src="logo.svg" alt="">
+    <div>
+      <div class="name">Kryzen</div>
+      <div class="rule"></div>
+      <div class="tag">CONNECT &bull; CHAT &bull; SHARE</div>
+    </div>
+  </div>
+</div></body></html>

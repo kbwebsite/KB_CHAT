@@ -31,6 +31,12 @@ htmlcov/
 .playwright-mcp/
 reference-frames/
 *.png
+# Brand + launcher artwork stays tracked despite *.png above
+!frontend/public/krizen-logo.png
+!frontend/android/app/src/main/res/mipmap-*/ic_launcher*.png
+!frontend/android/app/src/main/res/drawable/splash.png
+!frontend/android/app/src/main/res/drawable-port-*/splash.png
+!frontend/android/app/src/main/res/drawable-land-*/splash.png
 *.mp4
 site-*.png
 IDEA.md

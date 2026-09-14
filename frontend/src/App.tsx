@@ -1,10 +1,11 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
-import { useEffect, lazy, Suspense } from 'react'
+import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useAuthStore } from './store/auth'
 import { initTheme } from './store/theme'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 import { ToastContainer } from './components/Toast'
+import { BootSplash } from './components/BootSplash'
 
 const LandingPage = lazy(() => import('./pages/LandingPage'))
 const LoginPage = lazy(() => import('./pages/LoginPage'))
@@ -41,10 +42,13 @@ function PublicOnly({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const init = useAuthStore(s=> s.init)
+  const [boot, setBoot] = useState(true)
+  const endBoot = useCallback(() => setBoot(false), [])
   useEffect(()=>{ init(); initTheme() }, [])
 
   return (
     <ErrorBoundary>
+      {boot && <BootSplash onDone={endBoot} />}
       <BrowserRouter>
         <Suspense fallback={<div className="h-screen flex items-center justify-center"><LoadingState text="Loading..." /></div>}>
           <Routes>

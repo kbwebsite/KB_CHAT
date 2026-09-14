@@ -2541,3 +2541,83 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   BOOT SPLASH — animated brand intro (gold KZ, KRIZEN, tagline)
+   ═══════════════════════════════════════════════════════════════ */
+
+.boot-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: #040406;
+  transition: opacity 0.45s ease;
+}
+
+.boot-leaving {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.boot-logo-wrap {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+}
+
+.boot-logo {
+  display: block;
+  width: min(80vw, 340px);
+  height: auto;
+  animation: bootLogoIn 0.9s cubic-bezier(0.22, 1, 0.36, 1) both;
+  filter: drop-shadow(0 0 44px rgba(212, 175, 55, 0.30));
+}
+
+.boot-shine {
+  position: absolute;
+  top: -20%;
+  bottom: -20%;
+  left: -30%;
+  width: 34%;
+  background: linear-gradient(100deg, transparent, rgba(255, 244, 214, 0.55) 45%, rgba(255, 255, 255, 0.85) 50%, rgba(255, 244, 214, 0.55) 55%, transparent);
+  transform: skewX(-12deg);
+  animation: bootSweep 1.5s ease-in-out 0.55s both;
+  mix-blend-mode: screen;
+  pointer-events: none;
+}
+
+.boot-bar {
+  margin-top: 40px;
+  width: min(52vw, 210px);
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.10);
+  overflow: hidden;
+}
+
+.boot-bar-fill {
+  height: 100%;
+  width: 40%;
+  border-radius: 2px;
+  background: linear-gradient(90deg, #8a6d1c, #e8c85a, #fff3c4);
+  animation: bootBar 1.9s ease-in-out 0.1s both;
+}
+
+@keyframes bootLogoIn {
+  from { opacity: 0; transform: scale(0.92); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+@keyframes bootSweep {
+  from { left: -35%; }
+  to { left: 130%; }
+}
+
+@keyframes bootBar {
+  0% { margin-left: -40%; }
+  100% { margin-left: 100%; }
+}

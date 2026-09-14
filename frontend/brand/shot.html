@@ -1,0 +1,19 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; padding: 0; }
+  html, body { background: #fff; }
+  #shot { display: block; }
+</style></head>
+<body>
+<img id="shot" alt="">
+<script>
+  const q = new URLSearchParams(location.search);
+  const img = document.getElementById('shot');
+  const size = parseInt(q.get('size') || '512', 10);
+  img.src = q.get('svg') || 'logo.svg';
+  img.style.width = size + 'px';
+  img.style.height = 'auto';
+  document.body.style.background = q.get('bg') || 'transparent';
+  document.title = 'shot-' + size;
+</script>
+</body></html>
