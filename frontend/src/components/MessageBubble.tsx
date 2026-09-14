@@ -232,8 +232,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           {fileAtts.map(f=> {
             const href = resolveAttUrl(f)
             return (
-              <a key={f.id} href={href} target="_blank" rel="noreferrer" className={`flex items-center gap-2 p-2 rounded-xl mb-2 ${isOwn?'bg-white/15':'bg-muted'}`}>
-                <div className="w-8 h-8 rounded-lg bg-background flex items-center justify-center text-xs">📄</div>
+              <a key={f.id} href={href} target="_blank" rel="noreferrer" className={`flex items-center gap-2 p-2 rounded-xl mb-2 min-w-0 max-w-full overflow-hidden ${isOwn?'bg-white/15':'bg-muted'}`}>
+                <div className="w-8 h-8 shrink-0 rounded-lg bg-background flex items-center justify-center text-xs">📄</div>
                 <div className="min-w-0">
                   <p className="text-xs font-medium truncate">{f.original_filename}</p>
                   <p className="text-[11px] opacity-70">{(f.file_size/1024).toFixed(1)} KB • <span className="underline">Download</span></p>
@@ -242,7 +242,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             )
           })}
           {!msg.is_deleted && audioAtts.length > 0 && (
-            <div className="flex flex-col gap-1 mb-1 -mx-1">
+            <div className="flex flex-col gap-1 mb-1 -mx-1 min-w-0 max-w-full overflow-hidden">
               {audioAtts.map(a => (
                 <VoicePlayer
                   key={a.id}
@@ -345,7 +345,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           {showMenu && (
             <div className={`absolute ${isOwn?'left-0' : 'right-0'} top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm`}>
               <button onClick={()=>{ safeCopy(locked ? (dec.s === 'open' ? dec.text : '') : (content || '')); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
-              <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>
+              {!locked && <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>}
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>

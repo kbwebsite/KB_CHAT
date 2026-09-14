@@ -51,6 +51,15 @@ async def forward_message(
         raise HTTPException(
             status_code=400, detail="View-once messages cannot be forwarded"
         )
+    if msg.is_encrypted:
+        # Ciphertext is sealed to one (sender, recipient) device pair: copying
+        # it elsewhere (without the flag/nonce context) renders as raw
+        # Base64 on every client. Re-sealing needs the sender's device, so
+        # forwarding stays plaintext-only in v1 — copy/paste the decrypted
+        # text instead.
+        raise HTTPException(
+            status_code=400, detail="Encrypted messages cannot be forwarded. Copy the text instead."
+        )
     # check current user is member of original conversation
     if (
         not db.query(ConversationMember)

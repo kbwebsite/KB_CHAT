@@ -257,6 +257,11 @@ export default function ChatPage() {
   // ─── Forward ───
   const handleForward = async (targetIds: number[]) => {
     if (!forwardMsg) return
+    if ((forwardMsg as any).is_encrypted) {
+      toast('Encrypted messages cannot be forwarded. Copy the text instead.', 'error')
+      setForwardMsg(null)
+      return
+    }
     try {
       const res = await extendedApi.forward(forwardMsg.id, targetIds)
       if (res.success) { toast(`Forwarded to ${res.data.forwarded_to.length} chats`, 'success'); setForwardMsg(null); fetchConversations() }

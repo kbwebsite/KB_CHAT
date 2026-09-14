@@ -12,6 +12,7 @@ import {
   type ConfirmationResult,
 } from 'firebase/auth'
 import { getFirebaseAuth, ensureFirebaseAsync } from '../services/firebase'
+import { isNativeApp } from '../services/api'
 
 function friendlyAuthError(e: any): string {
   const code = e?.code || ''
@@ -29,6 +30,7 @@ function friendlyAuthError(e: any): string {
   if (code === 'auth/email-already-in-use') return 'An account with this email already exists. Try signing in.'
   if (code === 'auth/weak-password') return 'Password must be at least 6 characters.'
   if (code === 'auth/invalid-email') return 'Enter a valid email address.'
+  if (code === 'auth/web-storage-unsupported') return 'This browser blocks the storage Google sign-in needs. Allow cookies/site data for this site (in Brave: Shields down) and retry.'
   return e?.message || 'Sign-in failed. Please try again.'
 }
 
@@ -59,6 +61,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
 
   const [ready, setReady] = useState(false)
   const [redirecting, setRedirecting] = useState(false)
+  const [redirectOffer, setRedirectOffer] = useState(false)
   useEffect(() => {
     let cancelled = false
     ensureFirebaseAsync()
@@ -195,28 +198,34 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
     }
   }
 
-  const handleGoogle = async () => {
+  const handleGoogle = async (redirect = false) => {
+    // Inside the installed app (Capacitor WebView) OAuth can't return: the
+    // Google tab hands off to an external browser and the redirect never
+    // comes back — it strands users on a Firebase error page. Email works.
+    if (isNativeApp()) {
+      setError('Google sign-in is not available inside the installed app yet — please use the Email tab (same account, same chats).')
+      return
+    }
     setBusy(true)
     setError(null)
     const auth = getFirebaseAuth()
     const provider = new GoogleAuthProvider()
     try {
+      if (redirect) {
+        setRedirecting(true)
+        await signInWithRedirect(auth, provider)
+        return // browser leaves for Google; result is handled on return
+      }
       const cred = await signInWithPopup(auth, provider)
       await finish(await cred.user.getIdToken())
     } catch (err: any) {
-      // Popups are killed by Brave Shields, popup blockers, and strict
-      // third-party-cookie settings — redirect survives all of those, so
-      // fall back to it automatically instead of stranding the user.
-      if (err?.code === 'auth/internal-error' || err?.code === 'auth/popup-blocked') {
-        try {
-          setRedirecting(true)
-          await signInWithRedirect(auth, provider)
-          return // browser leaves for Google; result is handled on return
-        } catch (redirectErr: any) {
-          setError(friendlyAuthError(redirectErr))
-        } finally {
-          setRedirecting(false)
-        }
+      // NEVER auto-redirect on failure: content blockers (Brave Shields) also
+      // break the redirect's return trip, stranding users on a Firebase
+      // "requested action is invalid" page outside the app. Stay in-app
+      // with guidance and let the user choose the redirect explicitly.
+      if (err?.code === 'auth/popup-blocked' || err?.code === 'auth/internal-error') {
+        setError('The Google popup was blocked. Turn Shields/ad-blockers down for this site and retry — or use the redirect option below.')
+        setRedirectOffer(true)
       } else if (err?.code === 'auth/invalid-credential') {
         setError('Google sign-in failed — the app is not authorized for this domain. Add it under: Firebase Console → Authentication → Settings → Authorized domains.')
       } else {
@@ -224,6 +233,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       }
     } finally {
       setBusy(false)
+      setRedirecting(false)
     }
   }
 
@@ -300,7 +310,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
             type="button"
             role="tab"
             aria-selected={tab === t.id}
-            onClick={() => { setTab(t.id); setError(null) }}
+            onClick={() => { setTab(t.id); setError(null); setRedirectOffer(false) }}
             className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${tab === t.id ? 'bg-background shadow text-foreground' : 'text-muted-foreground hover:text-foreground'}`}
           >
             {t.label}
@@ -353,7 +363,8 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
       )}
 
       {tab === 'google' && (
-        <button disabled={busy} onClick={handleGoogle} className="auth-google-btn w-full py-3 rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
+        <div className="space-y-2">
+        <button disabled={busy} onClick={() => handleGoogle(false)} className="auth-google-btn w-full py-3 rounded-xl text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2">
           <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
             <path fill="#4285F4" d="M23.5 12.3c0-.9-.1-1.5-.3-2.3H12v4.5h6.5c-.1 1.1-.8 2.7-2.4 3.8l-.1.1 3.5 2.7.2.1c2.2-2 3.8-5 3.8-8.9z" />
             <path fill="#34A853" d="M12 24c3.2 0 6-1.1 7.9-2.9l-3.8-2.9c-1 .7-2.4 1.2-4.1 1.2-3.2 0-5.9-2.1-6.8-5.1l-.1.1-3.6 2.8v.1C3.5 21.3 7.5 24 12 24z" />
@@ -362,6 +373,12 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
           </svg>
           {busy ? 'Please wait...' : 'Continue with Google'}
         </button>
+        {redirectOffer && !isNativeApp() && (
+          <button disabled={busy} onClick={() => handleGoogle(true)} className="w-full py-2.5 rounded-xl text-xs font-medium text-muted-foreground hover:text-foreground border border-border disabled:opacity-50">
+            Popup blocked? Continue with redirect instead
+          </button>
+        )}
+        </div>
       )}
 
       {tab === 'phone' && (

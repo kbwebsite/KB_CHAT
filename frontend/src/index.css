@@ -2330,6 +2330,11 @@ body {
   box-shadow: 0 0 0 3px rgba(124, 92, 252, 0.16), 0 8px 28px rgba(124, 92, 252, 0.18);
   background: rgba(24, 24, 48, 0.95);
 }
+/* The field draws its own focus ring; kill the global :focus-visible
+   outline on the inner input or autofocus paints a doubled border. */
+.auth-field input:focus-visible {
+  outline: none;
+}
 .auth-error-shake { animation: authShake 0.4s ease; }
 @keyframes authShake {
   0%, 100% { transform: translateX(0); }
