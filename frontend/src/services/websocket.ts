@@ -8,17 +8,38 @@ class WSService {
   private shouldReconnect = true
   private pingInterval: any = null
   private lastPong = 0
+  private netListenersBound = false
+  private reconnectTimer: any = null
+
+  private onNetworkUp = () => {
+    // Flapping between cell/wifi kills the socket silently; the ping
+    // watchdog takes up to 60s to notice — reconnect right away instead.
+    if (this.shouldReconnect && (!this.ws || this.ws.readyState !== WebSocket.OPEN)) {
+      this.reconnectAttempts = 0
+      this._connect()
+    }
+  }
 
   connect(token: string) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) return
     if (this.ws) { this.ws.close(); this.ws = null }
+    this.shouldReconnect = true
+    this.reconnectAttempts = 0
+    if (!this.netListenersBound) {
+      this.netListenersBound = true
+      try {
+        window.addEventListener('online', this.onNetworkUp)
+        document.addEventListener('visibilitychange', () => {
+          if (!document.hidden) this.onNetworkUp()
+        })
+      } catch {}
+    }
     // Native shell has a local (capacitor://) origin — dial production directly.
     try {
       const cap = (window as any)?.Capacitor
       if (cap?.isNativePlatform?.()) {
         const wsBase = (import.meta.env.VITE_WS_URL || 'wss://kb-chat-jqdk.onrender.com').replace(/\/$/, '')
         this.url = `${wsBase}/ws/chat?token=${encodeURIComponent(token)}`
-        this.shouldReconnect = true
         this._connect()
         return
       }
@@ -28,7 +49,6 @@ class WSService {
     let wsHost = host
     if (host.includes('5173')) wsHost = '127.0.0.1:8000'
     this.url = `${protocol}//${wsHost}/ws/chat?token=${encodeURIComponent(token)}`
-    this.shouldReconnect = true
     this._connect()
   }
 
@@ -64,10 +84,14 @@ class WSService {
         this.shouldReconnect = false
         return
       }
-      if (this.shouldReconnect && this.reconnectAttempts < 20) {
-        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000)
+      // Never give up: an outage longer than ~3.5min used to leave the
+      // socket dead until a full reload. Back off to a 30s ceiling and
+      // keep trying while the session lives.
+      if (this.shouldReconnect) {
+        const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000)
         this.reconnectAttempts++
-        setTimeout(()=> this._connect(), delay)
+        clearTimeout(this.reconnectTimer)
+        this.reconnectTimer = setTimeout(()=> this._connect(), delay)
       }
     }
     this.ws.onerror = () => {
@@ -78,6 +102,7 @@ class WSService {
   disconnect() {
     this.shouldReconnect = false
     clearInterval(this.pingInterval)
+    clearTimeout(this.reconnectTimer)
     if (this.ws) {
       this.ws.close()
       this.ws = null

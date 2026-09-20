@@ -11,7 +11,7 @@ import { PollCard } from './PollPanel'
 import { EventCard } from './EventPanel'
 import { pollApi, eventApi } from '../services/api'
 import wsService from '../services/websocket'
-import { sealForConversation, fetchPeerKey, ensurePublished } from '../utils/e2ee'
+import { fetchPeerKey, ensurePublished } from '../utils/e2ee'
 import { formatTime } from '../utils/format'
 import { wallpaperStyle } from '../utils/wallpapers'
 import { Message } from '../types'
@@ -42,7 +42,7 @@ export function ChatView({
   const toast = useToastStore(s => s.push)
   const {
     currentConversationId, messages, hasMore, loadingMessages,
-    sendMessage, editMessage, deleteMessage, fetchMessages, fetchConversations
+    sendMessage, editMessage, deleteMessage, fetchMessages, fetchConversations, retryMessage
   } = useChatStore() as any
 
   const isCurrentLoading = currentConversationId ? loadingMessages[currentConversationId] : false
@@ -268,24 +268,14 @@ export function ChatView({
       await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return
     }
     try {
-      let body = content
-      const extra: { voice_duration?: number; is_encrypted?: boolean; nonce?: string; displayContent?: string; view_once?: boolean } =
+      // Sealing happens inside the store's sendMessage (so retries reuse the
+      // exact same envelope) — pass raw content here.
+      const extra: { voice_duration?: number; view_once?: boolean } =
         voiceDuration != null ? { voice_duration: voiceDuration } : {}
       if (opts?.view_once) extra.view_once = true
-      // Seal 1-1 text with the peer's key when available; groups and media
-      // stay transport-encrypted in v1.
-      if (!attachmentIds?.length && (type || 'text') === 'text' && user?.id) {
-        const sealed = await sealForConversation(currentConv ?? null, user.id, content)
-        if (sealed) {
-          body = sealed.content
-          extra.is_encrypted = true
-          extra.nonce = sealed.nonce
-          extra.displayContent = content
-        }
-      }
-      await sendMessage(currentConversationId, body, replyTo?.id, attachmentIds, type, extra)
+      await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type, extra)
     }
-    catch (e: any) { toast('Failed to send: ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
+    catch (e: any) { toast('Failed to send — tap the message to retry. ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
   }
 
   const handleRefresh = async () => {
@@ -496,7 +486,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className="message-list flex-1 overflow-y-auto relative min-h-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)}>
+        <div className="message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
@@ -523,9 +513,9 @@ export function ChatView({
               if (item.kind === 'poll' && item.poll) {
                 const poll = item.poll
                 return (
-                  <div key={item.key}>
+                  <div key={item.key} className="min-w-0 max-w-full overflow-x-clip">
                     {dateSep}
-                    <div className="mb-3 px-2 sm:px-4">
+                    <div className="mb-3 px-2 sm:px-4 min-w-0 max-w-full overflow-hidden">
                       <p className="text-[11px] font-semibold text-primary mb-1">📊 Poll • {poll.creator_name || 'Unknown'}</p>
                       <PollCard poll={poll} userId={user?.id} onVote={handlePollVote} onDelete={handlePollDelete} />
                     </div>
@@ -535,9 +525,9 @@ export function ChatView({
               if (item.kind === 'event' && item.event) {
                 const ev = item.event
                 return (
-                  <div key={item.key}>
+                  <div key={item.key} className="min-w-0 max-w-full overflow-x-clip">
                     {dateSep}
-                    <div className="mb-3 px-2 sm:px-4">
+                    <div className="mb-3 px-2 sm:px-4 min-w-0 max-w-full overflow-hidden">
                       <p className="text-[11px] font-semibold text-primary mb-1">📅 Event • {ev.creator_name || 'Unknown'}</p>
                       <EventCard ev={ev} userId={user?.id ?? 0} onRespond={handleEventRespond} />
                     </div>
@@ -552,7 +542,7 @@ export function ChatView({
               const showAvatar = !!currentConv?.is_group && (!prevMsg || prevMsg.sender_id !== msg.sender_id)
               const isLastInGroup = !nextMsg || nextMsg.sender_id !== msg.sender_id || (nextMsg && new Date(nextMsg.created_at).getTime() - new Date(msg.created_at).getTime() > 300000)
               return (
-                <div key={item.key} id={`msg-${msg.id}`} className={flashId === msg.id ? 'msg-flash rounded-xl' : ''}>
+                <div key={item.key} id={`msg-${msg.id}`} className={`min-w-0 max-w-full overflow-x-clip ${flashId === msg.id ? 'msg-flash rounded-xl' : ''}`}>
                   {dateSep}
                   <div className={isLastInGroup ? 'mb-3' : 'mb-0.5'}>
                     <MessageBubble
@@ -573,6 +563,7 @@ export function ChatView({
                       savedIds={savedIds}
                       onPin={onPin}
                       onAIAction={onAIAction}
+                      onRetry={(m: any) => retryMessage(m.id)}
                       onTranslateAction={handleTranslateClick}
                       onMobileMore={(m: any) => onMobileMore(m)}
                     />

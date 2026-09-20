@@ -19,6 +19,9 @@ const api = axios.create({
     ? (import.meta.env.VITE_API_URL || PROD_ORIGIN)
     : (import.meta.env.VITE_API_URL || ''),
   headers: { 'Content-Type': 'application/json' },
+  // Half-dead mobile connections can hang a request forever (and the UI
+  // with it). Fail fast so sends surface a retryable error instead.
+  timeout: 25000,
 })
 
 api.interceptors.request.use((config) => {

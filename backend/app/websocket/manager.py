@@ -58,10 +58,15 @@ class ConnectionManager:
             if member_ids is not None
             else await self._get_conversation_members(conversation_id)
         )
-        for uid in targets:
-            if exclude_user is not None and uid == exclude_user:
-                continue
-            await self.send_to_user(uid, data)
+        # Parallel fan-out: members were awaited one-by-one, so a single
+        # slow (or half-dead) socket delayed delivery to everyone after it.
+        jobs = [
+            self.send_to_user(uid, data)
+            for uid in targets
+            if exclude_user is None or uid != exclude_user
+        ]
+        if jobs:
+            await asyncio.gather(*jobs, return_exceptions=True)
 
     async def _get_conversation_members(self, conversation_id: int) -> List[int]:
         from app.database.connection import SessionLocal
@@ -97,18 +102,22 @@ class ConnectionManager:
                 .filter_by(user_id=user_id)
                 .all()
             ]
-            member_ids = set()
-            for cid in conv_ids:
-                members = (
-                    db.query(ConversationMember.user_id)
-                    .filter_by(conversation_id=cid)
-                    .all()
+            if not conv_ids:
+                return
+            # One query for all co-members (was one query per conversation).
+            member_rows = (
+                db.query(ConversationMember.user_id)
+                .filter(
+                    ConversationMember.conversation_id.in_(conv_ids),
+                    ConversationMember.user_id != user_id,
                 )
-                for m in members:
-                    if m[0] != user_id:
-                        member_ids.add(m[0])
-            for uid in member_ids:
-                await self.send_to_user(uid, payload)
+                .distinct()
+                .all()
+            )
+            member_ids = [m[0] for m in member_rows]
+            jobs = [self.send_to_user(uid, payload) for uid in member_ids]
+            if jobs:
+                await asyncio.gather(*jobs, return_exceptions=True)
         except Exception as e:
             logger.error(f"Failed to broadcast presence: {e}")
         finally:
@@ -122,10 +131,9 @@ class ConnectionManager:
             "type": typ,
             "payload": {"conversation_id": conversation_id, "user_id": user_id},
         }
-        for uid in member_ids:
-            if uid == user_id:
-                continue
-            await self.send_to_user(uid, payload)
+        jobs = [self.send_to_user(uid, payload) for uid in member_ids if uid != user_id]
+        if jobs:
+            await asyncio.gather(*jobs, return_exceptions=True)
 
     def is_online(self, user_id: int) -> bool:
         return user_id in self.user_connections

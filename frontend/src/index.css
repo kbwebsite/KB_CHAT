@@ -2657,4 +2657,58 @@ body {
   body {
     -webkit-tap-highlight-color: transparent;
   }
+  /* Opaque bars on small screens: translucent blur is off here, so keep
+     the header solid — messages can never show through or cross it. */
+  .chat-header {
+    background: #06060e !important;
+  }
+  /* 3D tilt needs a pointer; on touch it only risks sideways overflow. */
+  .auth-tilt {
+    transform: none !important;
+  }
+  .auth-tilt-wrap {
+    perspective: none;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE HARD-FIT — header layering, auth overflow, bubble clamp
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Header always paints above the scroll list (isolated below it). */
+.chat-header {
+  position: relative;
+  z-index: 30;
+}
+.message-list {
+  position: relative;
+  z-index: 0;
+  isolation: isolate;
+  overflow-x: clip;
+}
+.message-list > div {
+  min-width: 0;
+  max-width: 100%;
+}
+
+/* Auth: long placeholders must shrink, never push the card wider. */
+.auth-stage {
+  overflow-x: clip;
+}
+.auth-card {
+  max-width: 100%;
+  overflow: hidden;
+}
+.auth-field {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+}
+.auth-field input,
+.auth-input {
+  min-width: 0;
+  max-width: 100%;
+}
+.auth-marquee {
+  max-width: 100%;
 }

@@ -45,7 +45,7 @@ export default function SignupPage() {
 
   return (
     <div className="min-h-screen flex relative overflow-hidden">
-      <div className="flex-1 flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto py-8 relative z-10">
+      <div className="flex-1 min-w-0 w-full flex flex-col justify-center px-6 sm:px-12 lg:px-16 max-w-xl mx-auto py-8 relative z-10">
         <Link to="/" className="flex items-center gap-2 mb-6 auth-form-entrance">
           <img src="/kryzen-logo.svg" alt="Kryzen" className="w-8 h-8 rounded-xl" />
           <span className="font-bold landing-hero-title">Kryzen</span>
@@ -57,27 +57,27 @@ export default function SignupPage() {
           {error && <div className="p-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm">{error}</div>}
           <div>
             <label className="text-sm font-medium">Display Name</label>
-            <input value={form.display_name} onChange={e=>setForm({...form, display_name:e.target.value})} placeholder="Alex Morgan" autoComplete="name" className="auth-input mt-1 w-full px-4 py-3 outline-none text-sm" />
+            <input value={form.display_name} onChange={e=>setForm({...form, display_name:e.target.value})} placeholder="Alex Morgan" autoComplete="name" className="auth-input mt-1 w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm" />
           </div>
           <div>
             <label className="text-sm font-medium">Username</label>
-            <input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} placeholder="alex_morgan" autoComplete="username" className="auth-input mt-1 w-full px-4 py-3 outline-none text-sm" />
+            <input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} placeholder="alex_morgan" autoComplete="username" className="auth-input mt-1 w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm" />
             <p className="text-[11px] text-muted-foreground mt-1">Letters, numbers, _ and - only. 3+ chars.</p>
           </div>
           <div>
             <label className="text-sm font-medium">Email</label>
-            <input type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} placeholder="alex@example.com" autoComplete="email" className="auth-input mt-1 w-full px-4 py-3 outline-none text-sm" />
+            <input type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} placeholder="alex@example.com" autoComplete="email" className="auth-input mt-1 w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm" />
           </div>
           <div>
             <label className="text-sm font-medium">Password</label>
             <div className="relative mt-1">
-              <input type={show?'text':'password'} value={form.password} onChange={e=>setForm({...form, password:e.target.value})} placeholder="••••••••" autoComplete="new-password" className="auth-input w-full px-4 py-3 pr-10 outline-none text-sm" />
+              <input type={show?'text':'password'} value={form.password} onChange={e=>setForm({...form, password:e.target.value})} placeholder="••••••••" autoComplete="new-password" className="auth-input w-full min-w-0 max-w-full px-4 py-3 pr-10 outline-none text-sm" />
               <button type="button" onClick={()=>setShow(!show)} className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-muted-foreground hover:text-foreground transition-colors">{show? <EyeOff className="w-4 h-4"/> : <Eye className="w-4 h-4"/>}</button>
             </div>
           </div>
           <div>
             <label className="text-sm font-medium">Confirm Password</label>
-            <input type={show?'text':'password'} value={form.confirm_password} onChange={e=>setForm({...form, confirm_password:e.target.value})} placeholder="••••••••" autoComplete="new-password" className="auth-input w-full mt-1 px-4 py-3 outline-none text-sm" />
+            <input type={show?'text':'password'} value={form.confirm_password} onChange={e=>setForm({...form, confirm_password:e.target.value})} placeholder="••••••••" autoComplete="new-password" className="auth-input w-full min-w-0 max-w-full mt-1 px-4 py-3 outline-none text-sm" />
           </div>
           <button disabled={loading} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50 mt-2">
             {loading ? 'Creating...' : 'Create Account'}

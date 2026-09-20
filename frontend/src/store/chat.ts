@@ -15,11 +15,16 @@ interface ChatState {
   typingUsers: Record<number, Set<number>> // convId -> set of userIds
   onlineUsers: Set<number>
   searchQuery: string
+  // Unsent payloads keyed by optimistic temp id — kept so a failed send
+  // can be retried verbatim (including the sealed E2EE body).
+  pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean} }>
   // actions
   fetchConversations: (search?:string)=>Promise<void>
   setCurrent: (id:number|null)=>void
   fetchMessages: (convId:number, before?:number)=>Promise<void>
   sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean})=>Promise<void>
+  retryMessage: (tempId:number)=>Promise<void>
+  retryAllFailed: (convId?:number)=>void
   addMessage: (msg:Message)=>void
   addOptimistic: (msg:Message)=>void
   replaceMessage: (tempId:number, real:Message)=>void
@@ -39,7 +44,7 @@ interface ChatState {
 /** Tick order is monotonic: a message must never move backwards
  * (a double-tick must not decay to a single tick on refetch or on a
  * stale full-object update). Every merge path below goes through this. */
-const STATUS_RANK: Record<string, number> = { sending: -1, sent: 0, delivered: 1, read: 2 }
+const STATUS_RANK: Record<string, number> = { failed: -2, sending: -1, sent: 0, delivered: 1, read: 2 }
 function statusRank(s?: string | null): number {
   if (!s) return 0
   return STATUS_RANK[s] ?? 0
@@ -72,6 +77,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   typingUsers: {},
   onlineUsers: new Set(),
   searchQuery: '',
+  pendingSends: {},
   fetchConversations: async (search)=>{
     set({loadingConvs:true})
     try {
@@ -130,17 +136,81 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     }
     if (extra?.view_once) (temp as any).view_once = true
     get().addOptimistic(temp)
+    // Seal 1-1 text with the peer's key when available; groups and media
+    // stay transport-encrypted in v1. (Sealing lives here — not in the
+    // ChatView — so retries reuse the exact same envelope.)
+    let body = content
+    const finalExtra: NonNullable<ChatState['pendingSends'][number]['extra']> =
+      extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}
+    if (extra?.view_once) finalExtra.view_once = true
+    if (!attachmentIds?.length && (type || 'text') === 'text' && me?.id) {
+      const { sealForConversation } = await import('../utils/e2ee')
+      const sealed = await sealForConversation(
+        (get().conversations.find((c: any) => c.id === convId) ?? null) as any,
+        me.id, content,
+      )
+      if (sealed) {
+        body = sealed.content
+        finalExtra.is_encrypted = true
+        finalExtra.nonce = sealed.nonce
+        finalExtra.displayContent = content
+      }
+    }
+    const stash = { convId, body, replyTo, attachmentIds, type: type || 'text', extra: finalExtra }
+    set(state=> ({ pendingSends: { ...state.pendingSends, [tempId]: stash } }))
     try {
-      const res = await msgApi.send(convId, { content, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}) })
+      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(finalExtra.voice_duration != null ? { voice_duration: finalExtra.voice_duration } : {}), ...(finalExtra.is_encrypted ? { is_encrypted: true, nonce: finalExtra.nonce } : {}), ...(finalExtra.view_once ? { view_once: true } : {}) })
       if (res.success) {
+        set(state=> {
+          const pending = { ...state.pendingSends }
+          delete pending[tempId]
+          return { pendingSends: pending }
+        })
         get().replaceMessage(tempId, res.data)
       } else {
-        get().removeMessage(convId, tempId)
+        get().setMessageStatus(convId, tempId, 'failed')
         throw new Error(res.message || 'Send failed')
       }
     } catch (e) {
-      get().removeMessage(convId, tempId)
+      // Keep the bubble (marked failed, retryable) — a flaky tunnel must
+      // never eat the user's message.
+      get().setMessageStatus(convId, tempId, 'failed')
       throw e
+    }
+  },
+  retryMessage: async (tempId)=>{
+    const stash = get().pendingSends[tempId]
+    if (!stash) return
+    const { convId, body, replyTo, attachmentIds, type, extra } = stash
+    get().setMessageStatus(convId, tempId, 'sending')
+    try {
+      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}) })
+      if (res.success) {
+        set(state=> {
+          const pending = { ...state.pendingSends }
+          delete pending[tempId]
+          return { pendingSends: pending }
+        })
+        get().replaceMessage(tempId, res.data)
+      } else {
+        get().setMessageStatus(convId, tempId, 'failed')
+        throw new Error(res.message || 'Send failed')
+      }
+    } catch (e) {
+      get().setMessageStatus(convId, tempId, 'failed')
+      throw e
+    }
+  },
+  retryAllFailed: (convId)=>{
+    const st = get()
+    const temps = Object.keys(st.pendingSends).map(Number)
+    for (const tempId of temps) {
+      const s = st.pendingSends[tempId]
+      if (!s || (convId != null && s.convId !== convId)) continue
+      const list = st.messages[s.convId] || []
+      const row = list.find(m=> m.id === tempId)
+      if (!row || (row as any).status !== 'failed') continue
+      st.retryMessage(tempId).catch(()=>{})
     }
   },
   replaceMessage: (tempId, real)=>{
@@ -356,7 +426,9 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       let changed = false
       const next = list.map(m=>{
         if (m.id !== msgId) return m
-        if (statusRank(status) > statusRank(m.status || 'sent')) { changed = true; return { ...m, status } }
+        // 'failed' is a terminal display state set only by the send path —
+        // it always applies; ticks still only move forward otherwise.
+        if (status === 'failed' || statusRank(status) > statusRank(m.status || 'sent')) { changed = true; return { ...m, status } }
         return m
       })
       if (!changed) return state
@@ -378,6 +450,8 @@ export function initChatWS() {
     st.fetchConversations().catch(()=>{})
     const cur = st.currentConversationId
     if (cur) st.fetchMessages(cur).catch(()=>{})
+    // Anything that failed while offline goes out now, oldest first.
+    st.retryAllFailed()
   })
   wsService.on('message.new', (payload)=>{
     // payload is Message

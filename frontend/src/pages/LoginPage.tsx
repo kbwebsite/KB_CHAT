@@ -238,8 +238,8 @@ export default function LoginPage() {
       ))}
 
       {/* ── Left: form ─────────────────────────────── */}
-      <div className="flex-1 flex items-center justify-center px-5 sm:px-10 py-10 relative z-10">
-        <div className="w-full max-w-md">
+      <div className="flex-1 min-w-0 flex items-center justify-center px-5 sm:px-10 py-10 relative z-10">
+        <div className="w-full max-w-md min-w-0">
           <Link to="/" className="auth-form-entrance inline-flex items-center gap-3 group">
             <span className="auth-logo-orb w-11 h-11 rounded-2xl flex items-center justify-center text-white transition-transform group-hover:scale-110 group-hover:rotate-6">
               <MessageCircle className="w-5 h-5" />
@@ -266,7 +266,7 @@ export default function LoginPage() {
             onMouseLeave={() => setTilt({ rx: 0, ry: 0, active: false })}
           >
             <div
-              className={`auth-card auth-tilt rounded-3xl p-6 sm:p-7 ${tilt.active ? '' : 'auth-tilt-reset'}`}
+              className={`auth-card auth-tilt rounded-3xl p-6 sm:p-7 min-w-0 max-w-full overflow-hidden ${tilt.active ? '' : 'auth-tilt-reset'}`}
               style={{ ['--rx' as any]: `${tilt.rx}deg`, ['--ry' as any]: `${tilt.ry}deg` } as React.CSSProperties}
             >
               <form onSubmit={handleSubmit} className="space-y-4">
@@ -277,7 +277,7 @@ export default function LoginPage() {
                 )}
                 <div>
                   <label className="text-[13px] font-semibold text-muted-foreground">Email or Username</label>
-                  <div className="auth-field auth-input mt-1.5 flex items-center gap-2.5 px-4">
+                  <div className="auth-field auth-input mt-1.5 flex items-center gap-2.5 px-4 min-w-0 max-w-full overflow-hidden">
                     <User className="w-4 h-4 text-muted-foreground shrink-0" />
                     <input
                       value={identifier}
@@ -285,7 +285,7 @@ export default function LoginPage() {
                       placeholder="you@example.com or username"
                       autoComplete="username"
                       autoFocus
-                      className="bg-transparent flex-1 py-3 outline-none text-sm"
+                      className="bg-transparent flex-1 min-w-0 w-full py-3 outline-none text-sm"
                     />
                   </div>
                 </div>
@@ -294,7 +294,7 @@ export default function LoginPage() {
                     <label className="text-[13px] font-semibold text-muted-foreground">Password</label>
                     <Link to="/forgot-password" className="text-xs text-primary hover:underline font-medium">Forgot?</Link>
                   </div>
-                  <div className="auth-field auth-input mt-1.5 flex items-center gap-2.5 px-4">
+                  <div className="auth-field auth-input mt-1.5 flex items-center gap-2.5 px-4 min-w-0 max-w-full overflow-hidden">
                     <Lock className="w-4 h-4 text-muted-foreground shrink-0" />
                     <input
                       type={show ? 'text' : 'password'}
@@ -304,7 +304,7 @@ export default function LoginPage() {
                       onBlur={() => setCaps(false)}
                       placeholder="••••••••"
                       autoComplete="current-password"
-                      className="bg-transparent flex-1 py-3 outline-none text-sm"
+                      className="bg-transparent flex-1 min-w-0 w-full py-3 outline-none text-sm"
                     />
                     <button
                       type="button"

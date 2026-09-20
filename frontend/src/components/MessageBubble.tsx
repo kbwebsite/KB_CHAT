@@ -1,6 +1,6 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
@@ -130,15 +130,16 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
-  onImageClick?:(url:string, name:string, all:{url:string,name:string}[], idx:number)=>void,
+  onImageClick?:(url:string, name:string, all:{url:string,name:string,type?:string}[], idx:number)=>void,
   savedIds?:Set<number>, onPin?:(m:Message)=>void,
   onAIAction?:(msg:Message, action:string)=>void,
   onTranslateAction?:(msg:Message)=>void,
-  onMobileMore?:(msg:Message)=>void
+  onMobileMore?:(msg:Message)=>void,
+  onRetry?:(msg:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
   const dec = useDecrypted(msg)
@@ -178,7 +179,11 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text, is_encrypted: false } : null) : msg
   const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
   const audioAtts = msg.attachments.filter(a=> a.mime_type.startsWith('audio/'))
-  const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/'))
+  const videoAtts = msg.attachments.filter(a=> a.mime_type.startsWith('video/'))
+  const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/') && !a.mime_type.startsWith('video/'))
+
+  const isPdf = (a: { mime_type: string; filename: string; original_filename?: string }) =>
+    a.mime_type.includes('pdf') || /\.pdf$/i.test(a.original_filename || a.filename || '')
 
   const resolveAttUrl = (a: { filename: string; file_path: string; cloudinary_url?: string | null; url?: string }) =>
     a.cloudinary_url || a.url || (a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`)
@@ -194,6 +199,11 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const [transcribing, setTranscribing] = useState(false)
 
   const allImages = imgAtts.map(a=> ({ url: resolveAttUrl(a), name: a.original_filename }))
+  // Full viewer list: images first, then videos (indices stay stable for images).
+  const allViewerMedia = [
+    ...imgAtts.map(a=> ({ url: resolveAttUrl(a), name: a.original_filename, type: a.mime_type })),
+    ...videoAtts.map(a=> ({ url: resolveAttUrl(a), name: a.original_filename, type: a.mime_type })),
+  ]
 
   // Stickers (and pasted single-image links) arrive as a lone image URL in
   // the text body — render them as a sticker image, not as link text.
@@ -204,7 +214,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     : null
 
   return (
-    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`}>
+    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 min-w-0 max-w-full overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`}>
       <div className="flex items-center mr-1 shrink-0">
         {onSelect && <input type="checkbox" checked={!!isSelected} onChange={()=> safeSelect(msg)} className={`w-4 h-4 rounded border ${isSelected ? 'block' : 'hidden sm:group-hover:block'}`} />}
       </div>
@@ -220,25 +230,58 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
+        <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
                 const url = resolveAttUrl(img)
-                return <img key={img.id} src={url} alt={img.original_filename} loading="lazy" decoding="async" className="rounded-xl max-h-64 w-full object-cover cursor-pointer" onClick={()=> safeImageClick(url, img.original_filename, allImages, i)} />
+                return <img key={img.id} src={url} alt={img.original_filename} loading="lazy" decoding="async" className="rounded-xl max-h-64 w-full max-w-full min-w-0 object-cover cursor-pointer" onClick={()=> safeImageClick(url, img.original_filename, allViewerMedia, i)} />
+              })}
+            </div>
+          )}
+          {videoAtts.length>0 && !msg.is_deleted && (
+            <div className="flex flex-col gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden">
+              {videoAtts.map((v, vi) => {
+                const url = resolveAttUrl(v)
+                return (
+                  <video
+                    key={v.id}
+                    src={url}
+                    controls
+                    playsInline
+                    preload="metadata"
+                    className="rounded-xl max-h-64 w-full max-w-full min-w-0 bg-black object-contain cursor-pointer"
+                    onClick={(e) => { e.stopPropagation(); safeImageClick(url, v.original_filename, allViewerMedia, imgAtts.length + vi) }}
+                  />
+                )
               })}
             </div>
           )}
           {fileAtts.map(f=> {
             const href = resolveAttUrl(f)
+            const pdf = isPdf(f)
             return (
-              <a key={f.id} href={href} target="_blank" rel="noreferrer" className={`flex items-center gap-2 p-2 rounded-xl mb-2 min-w-0 max-w-full overflow-hidden ${isOwn?'bg-white/15':'bg-muted'}`}>
-                <div className="w-8 h-8 shrink-0 rounded-lg bg-background flex items-center justify-center text-xs">📄</div>
-                <div className="min-w-0">
-                  <p className="text-xs font-medium truncate">{f.original_filename}</p>
-                  <p className="text-[11px] opacity-70">{(f.file_size/1024).toFixed(1)} KB • <span className="underline">Download</span></p>
+              <div key={f.id} className={`flex items-center gap-2 p-2 rounded-xl mb-2 min-w-0 w-full max-w-full overflow-hidden ${isOwn?'bg-white/15':'bg-muted'}`}>
+                <div className="w-8 h-8 shrink-0 rounded-lg bg-background flex items-center justify-center text-xs">{pdf ? '📕' : '📄'}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-medium truncate block max-w-full">{f.original_filename}</p>
+                  <p className="text-[11px] opacity-70 truncate block max-w-full">{(f.file_size/1024).toFixed(1)} KB • {pdf ? 'PDF document' : 'Document'}</p>
+                  <div className="flex items-center gap-3 mt-1" onClick={(e) => e.stopPropagation()}>
+                    <a href={href} target="_blank" rel="noreferrer" className="text-[11px] underline font-medium" onClick={(e) => e.stopPropagation()}>
+                      Download
+                    </a>
+                    {pdf && !msg.is_deleted && (
+                      <button
+                        type="button"
+                        onClick={() => safeImageClick(href, f.original_filename, [{ url: href, name: f.original_filename, type: 'application/pdf' }], 0)}
+                        className="text-[11px] underline font-medium"
+                      >
+                        Preview
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </a>
+              </div>
             )
           })}
           {!msg.is_deleted && audioAtts.length > 0 && (
@@ -324,7 +367,17 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           <div className={`flex items-center gap-1 mt-1 text-[11px] ${isOwn?'text-primary-foreground/70 justify-end':'text-muted-foreground'}`}>
             <span>{formatTime(msg.created_at)}</span>
             {msg.is_edited && !msg.is_deleted && <span className="italic">• edited</span>}
-            {isOwn && !msg.is_deleted && (
+            {(msg as any).status === 'failed' && !msg.is_deleted ? (
+              <button
+                onClick={(e) => { e.stopPropagation(); onRetry?.(msg) }}
+                className={`ml-1 flex items-center gap-1 font-semibold ${isOwn ? 'text-red-200 hover:text-white' : 'text-red-400 hover:text-red-300'}`}
+                title="Message not delivered — tap to retry"
+              >
+                <AlertTriangle className="w-3.5 h-3.5" />
+                Not sent
+                <RotateCcw className="w-3.5 h-3.5" />
+              </button>
+            ) : isOwn && !msg.is_deleted && (
               <span className="ml-1" title={msg.status === 'sending' ? 'Sending…' : msg.status}>
                 {msg.status==='read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" style={{ filter: 'drop-shadow(0 0 3px rgba(125,211,252,0.8))' }}/> : msg.status==='delivered' ? <CheckCheck className="w-3.5 h-3.5 opacity-70"/> : msg.status==='sending' ? <Clock className="w-3.5 h-3.5 opacity-70 animate-pulse"/> : <Check className="w-3.5 h-3.5 opacity-70"/>}
               </span>

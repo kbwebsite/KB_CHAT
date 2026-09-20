@@ -23,6 +23,22 @@ engine = create_engine(
     **engine_kwargs,
 )
 
+if is_sqlite:
+    # Concurrent readers/writers (request handlers + WS fan-out tasks) hit
+    # "database is locked" on stock SQLite: WAL lets reads proceed during
+    # writes and busy_timeout waits out brief write contention instead of
+    # erroring instantly.
+    from sqlalchemy import event as _sa_event
+
+    @_sa_event.listens_for(engine, "connect")
+    def _sqlite_pragmas(dbapi_conn, _conn_record):
+        cur = dbapi_conn.cursor()
+        cur.execute("PRAGMA journal_mode=WAL")
+        cur.execute("PRAGMA busy_timeout=30000")
+        cur.execute("PRAGMA synchronous=NORMAL")
+        cur.close()
+
+
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()

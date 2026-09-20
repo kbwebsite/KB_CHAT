@@ -345,7 +345,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
             onChange={e => setEmail(e.target.value)}
             placeholder="Email address"
             autoComplete="email"
-            className="auth-input w-full px-4 py-3 outline-none text-sm"
+            className="auth-input w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm"
           />
           <input
             type="password"
@@ -353,7 +353,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
             onChange={e => setPassword(e.target.value)}
             placeholder="Password (min 6 chars for new accounts)"
             autoComplete="current-password"
-            className="auth-input w-full px-4 py-3 outline-none text-sm"
+            className="auth-input w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm"
           />
           <button disabled={busy} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
             {busy ? 'Please wait...' : 'Continue with Email'}
@@ -390,7 +390,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
               onChange={e => setPhone(e.target.value)}
               placeholder="+919876543210"
               autoComplete="tel"
-              className="auth-input w-full px-4 py-3 outline-none text-sm"
+              className="auth-input w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm"
             />
             <button disabled={busy} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
               {busy ? 'Sending...' : 'Send verification code'}
@@ -410,7 +410,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
               placeholder="6-digit code"
               inputMode="numeric"
               autoComplete="one-time-code"
-              className="auth-input w-full px-4 py-3 outline-none text-sm text-center tracking-widest"
+              className="auth-input w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm text-center tracking-widest"
             />
             <button disabled={busy} className="auth-submit-btn w-full py-3 rounded-xl text-white font-semibold disabled:opacity-50">
               {busy ? 'Verifying...' : 'Verify & sign in'}
