@@ -75,6 +75,7 @@ export const authApi = {
   forgotPassword: (email:string) => api.post('/api/auth/forgot-password', { email }).then(r=>r.data),
   resetPassword: (token:string, newPassword:string) => api.post('/api/auth/reset-password', { token, new_password: newPassword }).then(r=>r.data),
   verifyEmail: (email:string, code:string) => api.post('/api/auth/verify-email', { email, code }).then(r=>r.data),
+  sendVerification: (email:string) => api.post('/api/auth/send-verification', { email }).then(r=>r.data),
 }
 
 export const usersApi = {

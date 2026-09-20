@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     AI_BASE_URL: str = "https://api.openai.com/v1"
     AI_PROVIDER: str = "mock"
     GOOGLE_CLIENT_ID: str = ""
+    # Outbound email via Resend (verification codes, password resets).
+    # Unset locally/tests: sends are skipped with a log line (fail-soft).
+    RESEND_API_KEY: str = ""
+    RESEND_FROM: str = "Kryzen <onboarding@resend.dev>"
+    FRONTEND_URL: str = "https://kb-chat-jqdk.onrender.com"
     # Firebase Cloud Messaging (push). Service-account JSON goes in
     # FIREBASE_CREDENTIALS_JSON (secret — never exposed). The rest are public
     # web-config values served to the SPA via /api/config.

@@ -60,3 +60,14 @@ services:
         sync: false
       - key: TURN_CREDENTIAL
         sync: false
+      # Outbound email via Resend (verification codes, password resets).
+      # RESEND_API_KEY stays dashboard-managed; without it auth still works
+      # but no emails go out. Onboarding senders (resend.dev) only deliver
+      # to the account owner's address — use a verified domain sender here
+      # once available.
+      - key: RESEND_API_KEY
+        sync: false
+      - key: RESEND_FROM
+        value: Kryzen <onboarding@resend.dev>
+      - key: FRONTEND_URL
+        value: https://kb-chat-jqdk.onrender.com

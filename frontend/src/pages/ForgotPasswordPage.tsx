@@ -1,9 +1,10 @@
-import { useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useState } from 'react'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { authApi } from '../services/api'
 import { MessageCircle, ArrowLeft, Mail, CheckCircle } from 'lucide-react'
 
 export default function ForgotPasswordPage() {
+  const [searchParams] = useSearchParams()
   const [step, setStep] = useState<'email' | 'reset'>('email')
   const [email, setEmail] = useState('')
   const [token, setToken] = useState('')
@@ -13,6 +14,15 @@ export default function ForgotPasswordPage() {
   const [success, setSuccess] = useState(false)
   const [loading, setLoading] = useState(false)
   const nav = useNavigate()
+
+  // Emailed reset links land here as ?token= — jump straight to the form.
+  useEffect(() => {
+    const t = searchParams.get('token')
+    if (t) {
+      setToken(t)
+      setStep('reset')
+    }
+  }, [])
 
   const handleRequestReset = async (e: React.FormEvent) => {
     e.preventDefault()

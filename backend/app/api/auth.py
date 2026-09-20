@@ -47,11 +47,22 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
         db.add(user)
         db.commit()
         db.refresh(user)
+        # Native-signup email verification (Resend 6-digit code). Fail-soft:
+        # signup still succeeds when the sender isn't configured.
+        verification_sent = False
+        if user.auth_provider in (None, "local"):
+            try:
+                verification_sent = bool(_issue_code(user))
+            except HTTPException:
+                verification_sent = False
+            except Exception as e:
+                print(f"[auth] verification email failed: {e}")
         token = create_access_token({"sub": str(user.id), "username": user.username})
         return success_response(
             {
                 "access_token": token,
                 "token_type": "bearer",
+                "verification_sent": verification_sent,
                 "user": {
                     "id": user.id,
                     "username": user.username,
@@ -60,13 +71,19 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
                     "avatar_url": user.avatar_url,
                     "about": user.about,
                     "is_online": user.is_online,
+                    "email_verified": bool(getattr(user, "email_verified", False)),
                     "last_seen": user.last_seen.isoformat() if user.last_seen else None,
                     "created_at": user.created_at.isoformat()
                     if user.created_at
                     else None,
                 },
             },
-            "Account created successfully",
+            "Account created successfully"
+            + (
+                " — check your inbox for the verification code"
+                if verification_sent
+                else ""
+            ),
         )
     except HTTPException:
         raise
@@ -427,12 +444,25 @@ def forgot_password(payload: dict, db: Session = Depends(get_db)):
             "expires": datetime.now(timezone.utc) + timedelta(hours=1),
         }
 
-        # SECURITY: there is no email sender wired up yet, so in production the
-        # live token must NEVER go back in the response — returning it lets
-        # anyone who knows (or guesses) an email take over that account with
-        # zero proof of inbox access. Dev keeps the token in the response for
-        # local testing; the frontend already handles a missing token by
-        # showing the generic "Email Sent" screen.
+        # SECURITY: the live token must NEVER go back in the response once an
+        # email sender exists — returning it lets anyone who knows (or
+        # guesses) an email take over that account with zero proof of inbox
+        # access. With Resend configured the link goes to the inbox; without
+        # it, dev keeps the token in the response for local testing (the
+        # frontend already handles a missing token by showing the generic
+        # "Email Sent" screen).
+        from app.utils.email import resend_configured, send_password_reset
+
+        if resend_configured():
+            link = f"{settings.FRONTEND_URL.rstrip('/')}/forgot-password?token={reset_token}"
+            try:
+                send_password_reset(email, link)
+            except Exception as e:
+                print(f"[auth] reset email failed: {e}")
+            return success_response(
+                None, "If the email exists, a reset link has been sent"
+            )
+
         if settings.APP_ENV == "production":
             return success_response(
                 None, "If the email exists, a reset link has been sent"
@@ -509,27 +539,27 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
 
 @router.post("/verify-email")
 def verify_email(payload: dict, db: Session = Depends(get_db)):
-    """Verify email address with a verification code."""
+    """Verify a native-signup email with the 6-digit Resend code."""
     try:
         email = payload.get("email", "").lower().strip()
-        code = payload.get("code", "")
+        code = (payload.get("code", "") or "").strip()
 
         if not email or not code:
             raise HTTPException(status_code=400, detail="Email and code required")
-
-        # For demo: accept any 6-digit code
-        # In production, verify against stored code
-        if len(code) != 6:
+        if len(code) != 6 or not code.isdigit():
             raise HTTPException(status_code=400, detail="Invalid verification code")
 
         user = db.query(User).filter_by(email=email).first()
         if not user:
-            raise HTTPException(status_code=404, detail="User not found")
+            # Generic: don't reveal whether the address is registered.
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
 
-        # Mark email as verified (add field to User model if needed)
-        # user.email_verified = True
-        # db.commit()
+        uid = _consume_code(email, code)
+        if uid is None or uid != user.id:
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
 
+        user.email_verified = True
+        db.commit()
         return success_response(None, "Email verified successfully")
     except HTTPException:
         raise
@@ -537,3 +567,87 @@ def verify_email(payload: dict, db: Session = Depends(get_db)):
         tb = traceback.format_exc()
         print(f"VERIFY EMAIL ERROR: {e}\n{tb}")
         return error_response(None, "Failed to verify email")
+
+
+@router.post("/send-verification")
+def send_verification(payload: dict, db: Session = Depends(get_db)):
+    """(Re)send the 6-digit verification code. Always a generic response."""
+    try:
+        email = payload.get("email", "").lower().strip()
+        if not email:
+            raise HTTPException(status_code=400, detail="Email required")
+        user = db.query(User).filter_by(email=email).first()
+        sent = False
+        if (
+            user is not None
+            and not bool(getattr(user, "email_verified", False))
+            and (user.auth_provider or "local") == "local"
+        ):
+            sent = bool(_issue_code(user))
+        return success_response(
+            {"sent": sent},
+            "If the email exists, a verification code has been sent",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"SEND VERIFICATION ERROR: {e}")
+        return error_response(None, "Failed to send verification code")
+
+
+_CODE_TTL = timedelta(minutes=10)
+_CODE_COOLDOWN = timedelta(seconds=60)
+
+
+def _code_store() -> dict:
+    if not hasattr(settings, "_verification_codes"):
+        settings._verification_codes = {}
+    return settings._verification_codes
+
+
+def _code_cooldowns() -> dict:
+    if not hasattr(settings, "_verification_last_sent"):
+        settings._verification_last_sent = {}
+    return settings._verification_last_sent
+
+
+def _purge_codes(now: datetime):
+    store = _code_store()
+    for h, e in list(store.items()):
+        if e["expires"] < now:
+            del store[h]
+
+
+def _issue_code(user: User) -> bool:
+    """Generate, store (hashed) and email a 6-digit code. Returns sent-flag."""
+    from app.utils.email import send_verification_code
+
+    now = datetime.now(timezone.utc)
+    _purge_codes(now)
+    last = _code_cooldowns().get(user.email)
+    if last is not None and now - last < _CODE_COOLDOWN:
+        raise HTTPException(
+            status_code=429,
+            detail="Code sent recently — check your inbox before requesting another",
+        )
+    code = f"{secrets.randbelow(900000) + 100000:06d}"
+    _code_store()[hashlib.sha256(code.encode()).hexdigest()] = {
+        "user_id": user.id,
+        "email": user.email,
+        "expires": now + _CODE_TTL,
+    }
+    sent = send_verification_code(user.email, code)
+    _code_cooldowns()[user.email] = now
+    return sent
+
+
+def _consume_code(email: str, code: str):
+    """Single-use redeem. Returns the bound user id, or None."""
+    now = datetime.now(timezone.utc)
+    _purge_codes(now)
+    h = hashlib.sha256(code.encode()).hexdigest()
+    entry = _code_store().get(h)
+    if not entry or entry["email"] != email:
+        return None
+    del _code_store()[h]
+    return entry["user_id"]

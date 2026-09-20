@@ -9,6 +9,10 @@ export default function SignupPage() {
   const [form, setForm]=useState({ display_name:'', username:'', email:'', password:'', confirm_password:'' })
   const [error, setError]=useState<string|null>(null)
   const [show, setShow]=useState(false)
+  const [verifyStep, setVerifyStep]=useState(false)
+  const [code, setCode]=useState('')
+  const [verifyBusy, setVerifyBusy]=useState(false)
+  const [verifyMsg, setVerifyMsg]=useState<string|null>(null)
   const { signup, loading, setToken, setUser } = useAuthStore()
   const nav=useNavigate()
 
@@ -19,12 +23,50 @@ export default function SignupPage() {
     if (form.password !== form.confirm_password) { setError('Passwords do not match'); return }
     if (form.password.length<6) { setError('Password must be at least 6 chars'); return }
     try {
-      await signup(form)
+      const data = await signup(form)
+      // A verification code went to the inbox — confirm it before chatting.
+      if (data?.verification_sent) {
+        setVerifyStep(true)
+        setVerifyMsg(`We sent a 6-digit code to ${form.email}. Enter it below.`)
+        return
+      }
       nav('/chat')
     } catch (err:any) {
       const detail = err.response?.data?.detail
       if (Array.isArray(detail)) setError(detail.map((d:any)=> d.msg).join(', '))
       else setError(detail || err.response?.data?.message || err.message || 'Signup failed')
+    }
+  }
+
+  const handleVerify=async (e:React.FormEvent)=>{
+    e.preventDefault()
+    setError(null)
+    if (code.trim().length !== 6) { setError('Enter the 6-digit code'); return }
+    setVerifyBusy(true)
+    try {
+      const res = await authApi.verifyEmail(form.email.trim(), code.trim())
+      if (res.success) nav('/chat')
+      else setError(res.message || 'Verification failed')
+    } catch (err:any) {
+      setError(err.response?.data?.detail || 'Invalid or expired code')
+    } finally {
+      setVerifyBusy(false)
+    }
+  }
+
+  const handleResend=async ()=>{
+    setError(null)
+    setVerifyMsg(null)
+    setVerifyBusy(true)
+    try {
+      const res = await authApi.sendVerification(form.email.trim())
+      if (res.success) setVerifyMsg('New code sent — check your inbox (and spam).')
+      else setError(res.message || 'Could not resend the code')
+    } catch (err:any) {
+      const detail = err.response?.data?.detail
+      setError(detail || 'Could not resend the code yet — wait a minute and retry')
+    } finally {
+      setVerifyBusy(false)
     }
   }
 
@@ -83,6 +125,33 @@ export default function SignupPage() {
             {loading ? 'Creating...' : 'Create Account'}
           </button>
         </form>
+
+        {verifyStep && (
+          <form onSubmit={handleVerify} className="mt-4 p-4 rounded-2xl bg-primary/10 border border-primary/20 auth-form-entrance">
+            <p className="text-sm font-semibold">Check your inbox</p>
+            {verifyMsg && <p className="text-xs text-muted-foreground mt-1">{verifyMsg}</p>}
+            <input
+              value={code}
+              onChange={e=>setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+              placeholder="6-digit code"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              autoFocus
+              className="auth-input w-full min-w-0 max-w-full mt-3 px-4 py-3 outline-none text-sm text-center tracking-[0.5em]"
+            />
+            <button disabled={verifyBusy} className="auth-submit-btn w-full py-3 mt-3 rounded-xl text-white font-semibold disabled:opacity-50">
+              {verifyBusy ? 'Verifying...' : 'Verify & start chatting'}
+            </button>
+            <div className="flex items-center justify-between mt-2">
+              <button type="button" disabled={verifyBusy} onClick={handleResend} className="text-xs text-primary hover:underline font-medium disabled:opacity-50">
+                Resend code
+              </button>
+              <button type="button" onClick={()=>nav('/chat')} className="text-xs text-muted-foreground hover:underline">
+                Skip for now
+              </button>
+            </div>
+          </form>
+        )}
 
         <div className="mt-4 auth-form-entrance">
           <div className="relative">

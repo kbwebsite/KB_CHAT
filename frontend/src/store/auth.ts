@@ -12,7 +12,7 @@ interface AuthState {
   setToken: (t:string|null)=>void
   init: ()=>Promise<void>
   login: (identifier:string, password:string)=>Promise<void>
-  signup: (data:any)=>Promise<void>
+  signup: (data:any)=>Promise<any>
   logout: ()=>Promise<void>
 }
 
@@ -79,6 +79,7 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
       localStorage.setItem('kb_user', JSON.stringify(user))
       set({token: access_token, user})
       wsService.connect(access_token)
+      return res.data
     } finally { set({loading:false}) }
   },
   logout: async ()=>{

@@ -29,6 +29,9 @@ class User(Base):
     is_online = Column(Boolean, default=False)
     last_seen = Column(DateTime(timezone=True), server_default=func.now())
     is_active = Column(Boolean, default=True)
+    # Native-signup email verification (Resend codes). Nullable so the
+    # auto-migration can add it to existing tables; NULL reads as False.
+    email_verified = Column(Boolean, default=False)
     auth_provider = Column(String(20), nullable=True, default="local")  # local, google
     # X25519 device identity public key (base64, 32 bytes) for E2EE v1.
     # The private half never leaves the device.
