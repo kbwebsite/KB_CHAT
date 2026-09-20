@@ -44,7 +44,7 @@ function friendlyAuthError(e: any): string {
  * is a dead end, so it stays out of the UI until billing is enabled.
  */
 const PHONE_ENABLED = import.meta.env.VITE_ENABLE_PHONE_AUTH === 'true'
-export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Promise<void> }) {
+export function FirebaseAuth({ onSession, tabs }: { onSession: (idToken: string) => Promise<void>; tabs?: ('email' | 'google' | 'phone')[] }) {
   const [tab, setTab] = useState<'email' | 'google' | 'phone'>('email')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -294,17 +294,26 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
     }
   }
 
-  const tabs: { id: 'email' | 'google' | 'phone'; label: string }[] = [
+  const allTabs: { id: 'email' | 'google' | 'phone'; label: string }[] = [
     { id: 'email', label: 'Email' },
     { id: 'google', label: 'Google' },
     ...(PHONE_ENABLED ? [{ id: 'phone' as const, label: 'Phone' }] : []),
   ]
+  // Auth pages pass tabs={['google']} for an Email + Google-only page.
+  const visibleTabs = tabs ? allTabs.filter(t => tabs.includes(t.id)) : allTabs
+  useEffect(() => {
+    if (tabs && !tabs.includes(tab)) {
+      const fallback = (['google', 'email', 'phone'] as const).find(t => tabs.includes(t))
+      if (fallback) setTab(fallback)
+    }
+  }, [])
 
   return (
-    <div className="w-full">
+    <div className="w-full min-w-0">
       <div id="kb-recaptcha" />
+      {visibleTabs.length > 1 && (
       <div className="flex gap-1 p-1 rounded-xl bg-muted mb-3" role="tablist" aria-label="Sign-in methods">
-        {tabs.map(t => (
+        {visibleTabs.map(t => (
           <button
             key={t.id}
             type="button"
@@ -317,6 +326,7 @@ export function FirebaseAuth({ onSession }: { onSession: (idToken: string) => Pr
           </button>
         ))}
       </div>
+      )}
 
       {error && (
         <div className="p-3 mb-3 rounded-xl bg-destructive/10 border border-destructive/20 text-destructive text-sm" role="alert">

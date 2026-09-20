@@ -133,6 +133,10 @@ export default function LoginPage() {
   const [show, setShow] = useState(false)
   const [caps, setCaps] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [verifyStep, setVerifyStep] = useState(false)
+  const [code, setCode] = useState('')
+  const [verifyBusy, setVerifyBusy] = useState(false)
+  const [verifyMsg, setVerifyMsg] = useState<string | null>(null)
   const [glow, setGlow] = useState({ x: 50, y: 28 })
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, active: false })
   const [mag, setMag] = useState({ x: 0, y: 0 })
@@ -177,12 +181,60 @@ export default function LoginPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
-    if (!identifier || !password) { setError('Please fill all fields'); return }
+    const email = identifier.trim()
+    if (!email || !password) { setError('Please fill all fields'); return }
+    if (!email.includes('@')) { setError('Enter your email address'); return }
     try {
-      await login(identifier, password)
+      await login(email, password)
       nav('/chat')
     } catch (err: any) {
-      setError(err.response?.data?.detail || err.message || 'Login failed')
+      const detail = err.response?.data?.detail || err.message || 'Login failed'
+      // Unverified inbox: send a fresh code and show the verify step
+      // instead of a dead end (existing accounts included).
+      if (typeof detail === 'string' && detail.toLowerCase().includes('verify')) {
+        setVerifyStep(true)
+        setVerifyMsg(`This email isn't verified yet — we sent a 6-digit code to ${email}.`)
+        try {
+          await authApi.sendVerification(email)
+        } catch {}
+        return
+      }
+      setError(detail)
+    }
+  }
+
+  const handleVerify = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    if (code.trim().length !== 6) { setError('Enter the 6-digit code'); return }
+    setVerifyBusy(true)
+    try {
+      const res = await authApi.verifyEmail(identifier.trim(), code.trim())
+      if (res.success) {
+        await login(identifier.trim(), password)
+        nav('/chat')
+      } else {
+        setError(res.message || 'Verification failed')
+      }
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Invalid or expired code')
+    } finally {
+      setVerifyBusy(false)
+    }
+  }
+
+  const handleResend = async () => {
+    setError(null)
+    setVerifyMsg(null)
+    setVerifyBusy(true)
+    try {
+      const res = await authApi.sendVerification(identifier.trim())
+      if (res.success) setVerifyMsg('New code sent — check your inbox (and spam).')
+      else setError(res.message || 'Could not resend the code')
+    } catch (err: any) {
+      setError(err.response?.data?.detail || 'Could not resend the code yet — wait a minute and retry')
+    } finally {
+      setVerifyBusy(false)
     }
   }
 
@@ -276,14 +328,15 @@ export default function LoginPage() {
                   </div>
                 )}
                 <div>
-                  <label className="text-[13px] font-semibold text-muted-foreground">Email or Username</label>
+                  <label className="text-[13px] font-semibold text-muted-foreground">Email</label>
                   <div className="auth-field auth-input mt-1.5 flex items-center gap-2.5 px-4 min-w-0 max-w-full overflow-hidden">
                     <User className="w-4 h-4 text-muted-foreground shrink-0" />
                     <input
                       value={identifier}
                       onChange={e => setIdentifier(e.target.value)}
-                      placeholder="you@example.com or username"
-                      autoComplete="username"
+                      placeholder="you@example.com"
+                      type="email"
+                      autoComplete="email"
                       autoFocus
                       className="bg-transparent flex-1 min-w-0 w-full py-3 outline-none text-sm"
                     />
@@ -336,6 +389,27 @@ export default function LoginPage() {
                 </button>
               </form>
 
+              {verifyStep && (
+                <form onSubmit={handleVerify} className="mt-4 p-4 rounded-2xl bg-primary/10 border border-primary/20">
+                  <p className="text-sm font-semibold">Verify your email</p>
+                  {verifyMsg && <p className="text-xs text-muted-foreground mt-1">{verifyMsg}</p>}
+                  <input
+                    value={code}
+                    onChange={e => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    placeholder="6-digit code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    className="auth-input w-full min-w-0 max-w-full mt-3 px-4 py-3 outline-none text-sm text-center tracking-[0.5em]"
+                  />
+                  <button disabled={verifyBusy} className="auth-submit-btn w-full py-3 mt-3 rounded-xl text-white font-semibold disabled:opacity-50">
+                    {verifyBusy ? 'Verifying...' : 'Verify & sign in'}
+                  </button>
+                  <button type="button" disabled={verifyBusy} onClick={handleResend} className="mt-2 text-xs text-primary hover:underline font-medium disabled:opacity-50">
+                    Resend code
+                  </button>
+                </form>
+              )}
+
               <div className="auth-marquee mt-5 -mx-1">
                 <div className="auth-marquee-track">
                   {[...MARQUEE_PILLS, ...MARQUEE_PILLS].map((p, i) => (
@@ -352,7 +426,7 @@ export default function LoginPage() {
                   </div>
                 </div>
                 <div className="mt-4">
-                  <FirebaseAuth onSession={handleFirebaseSession} />
+                  <FirebaseAuth onSession={handleFirebaseSession} tabs={['google']} />
                 </div>
               </div>
             </div>

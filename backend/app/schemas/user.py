@@ -2,8 +2,11 @@ from pydantic import BaseModel, ConfigDict, EmailStr, Field, field_validator
 from typing import Optional
 from datetime import datetime
 
+
 class UserCreate(BaseModel):
-    username: str = Field(..., min_length=3, max_length=50)
+    # Optional: the server derives one from the email when omitted
+    # (email-only signup). Provided names must match the allowed charset.
+    username: Optional[str] = Field(None, min_length=3, max_length=50)
     email: EmailStr
     display_name: str = Field(..., min_length=1, max_length=100)
     password: str = Field(..., min_length=6, max_length=100)
@@ -12,9 +15,12 @@ class UserCreate(BaseModel):
     @field_validator("username")
     @classmethod
     def validate_username(cls, v):
+        if v is None:
+            return v
         if not v.isalnum() and "_" not in v and "-" not in v:
             # allow alphanumeric + _ -
             import re
+
             if not re.match(r"^[a-zA-Z0-9_-]+$", v):
                 raise ValueError("Username can only contain letters, numbers, _ and -")
         if len(v) < 3:
@@ -29,14 +35,17 @@ class UserCreate(BaseModel):
             raise ValueError("Passwords do not match")
         return v
 
+
 class UserLogin(BaseModel):
     identifier: str  # email or username
     password: str
+
 
 class UserUpdate(BaseModel):
     display_name: Optional[str] = Field(None, min_length=1, max_length=100)
     about: Optional[str] = Field(None, max_length=500)
     avatar_url: Optional[str] = None
+
 
 class UserPublic(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -50,8 +59,10 @@ class UserPublic(BaseModel):
     last_seen: Optional[datetime] = None
     created_at: Optional[datetime] = None
 
+
 class UserPrivate(UserPublic):
     email: str
+
 
 class TokenResponse(BaseModel):
     access_token: str

@@ -6,7 +6,7 @@ import { FirebaseAuth } from '../components/FirebaseAuth'
 import { Eye, EyeOff } from 'lucide-react'
 
 export default function SignupPage() {
-  const [form, setForm]=useState({ display_name:'', username:'', email:'', password:'', confirm_password:'' })
+  const [form, setForm]=useState({ display_name:'', email:'', password:'', confirm_password:'' })
   const [error, setError]=useState<string|null>(null)
   const [show, setShow]=useState(false)
   const [verifyStep, setVerifyStep]=useState(false)
@@ -19,7 +19,7 @@ export default function SignupPage() {
   const handle=async (e:React.FormEvent)=>{
     e.preventDefault()
     setError(null)
-    if (!form.display_name || !form.username || !form.email || !form.password) { setError('Fill all fields'); return }
+    if (!form.display_name || !form.email || !form.password) { setError('Fill all fields'); return }
     if (form.password !== form.confirm_password) { setError('Passwords do not match'); return }
     if (form.password.length<6) { setError('Password must be at least 6 chars'); return }
     try {
@@ -102,11 +102,6 @@ export default function SignupPage() {
             <input value={form.display_name} onChange={e=>setForm({...form, display_name:e.target.value})} placeholder="Alex Morgan" autoComplete="name" className="auth-input mt-1 w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm" />
           </div>
           <div>
-            <label className="text-sm font-medium">Username</label>
-            <input value={form.username} onChange={e=>setForm({...form, username:e.target.value})} placeholder="alex_morgan" autoComplete="username" className="auth-input mt-1 w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm" />
-            <p className="text-[11px] text-muted-foreground mt-1">Letters, numbers, _ and - only. 3+ chars.</p>
-          </div>
-          <div>
             <label className="text-sm font-medium">Email</label>
             <input type="email" value={form.email} onChange={e=>setForm({...form, email:e.target.value})} placeholder="alex@example.com" autoComplete="email" className="auth-input mt-1 w-full min-w-0 max-w-full px-4 py-3 outline-none text-sm" />
           </div>
@@ -159,7 +154,7 @@ export default function SignupPage() {
             <div className="relative flex justify-center text-xs uppercase"><span className="bg-background px-2 text-muted-foreground">or</span></div>
           </div>
           <div className="mt-4">
-            <FirebaseAuth onSession={handleFirebaseSession} />
+            <FirebaseAuth onSession={handleFirebaseSession} tabs={['google']} />
           </div>
         </div>
 

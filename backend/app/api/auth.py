@@ -21,24 +21,28 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 @router.post("/signup")
 def signup(payload: UserCreate, db: Session = Depends(get_db)):
     try:
+        username = (payload.username or "").lower().strip()
+        if not username:
+            # Email-only signup: derive a unique handle from the address.
+            username = _unique_username(db, payload.email.split("@")[0])
         existing = (
             db.query(User)
             .filter(
                 or_(
-                    User.username == payload.username.lower(),
+                    User.username == username,
                     User.email == payload.email.lower(),
                 )
             )
             .first()
         )
         if existing:
-            if existing.username == payload.username.lower():
+            if existing.username == username:
                 raise HTTPException(status_code=400, detail="Username already taken")
             else:
                 raise HTTPException(status_code=400, detail="Email already registered")
         hashed = hash_password(payload.password)
         user = User(
-            username=payload.username.lower(),
+            username=username,
             email=payload.email.lower(),
             display_name=payload.display_name,
             hashed_password=hashed,
@@ -111,6 +115,13 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
             )
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account disabled")
+        # Every native sign-in needs a verified inbox (Resend codes).
+        if (user.auth_provider or "local") == "local" and not bool(
+            getattr(user, "email_verified", False)
+        ):
+            raise HTTPException(
+                status_code=403, detail="Please verify your email address first"
+            )
         token = create_access_token({"sub": str(user.id), "username": user.username})
         return success_response(
             {
@@ -196,6 +207,10 @@ def _get_or_create_oauth_user(
             user.avatar_url = picture
         if user.display_name == "Hey there! I'm using KB Chat." and name:
             user.display_name = name
+        # OAuth emails arrive pre-verified by the provider — record it so
+        # the account never falls into the native verification gate.
+        if not bool(getattr(user, "email_verified", False)):
+            user.email_verified = True
         db.commit()
         db.refresh(user)
         return user
@@ -208,6 +223,7 @@ def _get_or_create_oauth_user(
         avatar_url=picture,
         about=about,
         auth_provider=provider,
+        email_verified=True,
     )
     db.add(user)
     db.commit()
@@ -313,8 +329,10 @@ def firebase_auth(payload: dict, db: Session = Depends(get_db)):
     provider = (decoded.get("firebase") or {}).get("sign_in_provider", "")
     email = (decoded.get("email") or "").lower() or None
     # Email/password accounts can claim any address until verified — refuse
-    # unverified ones so nobody can squat someone else's email.
-    if provider == "password" and not decoded.get("email_verified"):
+    # unverified ones so nobody can squat someone else's email. Same for
+    # any other email-based provider (e.g. Google): only verified inboxes
+    # get sessions. (Phone logins carry no email and are unaffected.)
+    if email and not decoded.get("email_verified"):
         raise HTTPException(
             status_code=401, detail="Please verify your email address first"
         )
@@ -386,6 +404,13 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
         if not google_email:
             raise HTTPException(status_code=401, detail="No email in Google token")
 
+        # Google tells us whether the inbox is verified — unverified ones
+        # get no session, same rule as every other email path.
+        if not google_data.get("email_verified"):
+            raise HTTPException(
+                status_code=401, detail="Please verify your email address first"
+            )
+
         # Verify the token was issued for our client ID
         aud = (google_data.get("aud") or "").strip()
         if aud != google_client_id:
@@ -451,9 +476,9 @@ def forgot_password(payload: dict, db: Session = Depends(get_db)):
         # it, dev keeps the token in the response for local testing (the
         # frontend already handles a missing token by showing the generic
         # "Email Sent" screen).
-        from app.utils.email import resend_configured, send_password_reset
+        from app.utils.email import email_configured, send_password_reset
 
-        if resend_configured():
+        if email_configured():
             link = f"{settings.FRONTEND_URL.rstrip('/')}/forgot-password?token={reset_token}"
             try:
                 send_password_reset(email, link)

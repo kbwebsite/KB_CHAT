@@ -99,6 +99,76 @@ def test_verify_email_happy_path_single_use():
     assert r.status_code == 400
 
 
+def test_signup_without_username_autoderives():
+    suffix = str(int(time.time() * 1000))[-6:]
+    email = f"nouser{suffix}@ex.com"
+    r = client.post(
+        "/api/auth/signup",
+        json={
+            "display_name": "No Username",
+            "email": email,
+            "password": "pass123",
+            "confirm_password": "pass123",
+        },
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["user"]["username"].startswith(f"nouser{suffix}"[:8])
+
+
+def test_unverified_login_blocked_until_verified():
+    suffix = str(int(time.time() * 1000))[-6:]
+    email = f"gate{suffix}@ex.com"
+    _signup(f"gate{suffix}", email)
+    r = client.post(
+        "/api/auth/login", json={"identifier": email, "password": "pass123"}
+    )
+    assert r.status_code == 403
+    assert "verify" in r.json()["detail"].lower()
+    _seed_code(email)
+    r = client.post("/api/auth/verify-email", json={"email": email, "code": "123456"})
+    assert r.status_code == 200
+    r = client.post(
+        "/api/auth/login", json={"identifier": email, "password": "pass123"}
+    )
+    assert r.status_code == 200, r.text
+
+
+def test_smtp_fallback_sends_without_resend(monkeypatch):
+    """With only SMTP configured, send_email delivers via SMTP."""
+    from app.utils import email as email_module
+
+    sent = {}
+
+    class FakeSMTP:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            sent["login"] = user
+
+        def sendmail(self, sender, to, msg):
+            sent["to"] = to
+            sent["subject"] = "subject-ok" if "Subject" in msg else "missing"
+
+    monkeypatch.setattr(email_module.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(settings, "SMTP_HOST", "smtp.gmail.com", raising=False)
+    monkeypatch.setattr(settings, "SMTP_USER", "test@gmail.com", raising=False)
+    monkeypatch.setattr(settings, "SMTP_PASS", "app-pass", raising=False)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "", raising=False)
+    assert email_module.email_configured() is True
+    assert email_module.send_email("a@ex.com", "Hi", "<p>hi</p>", "hi") is True
+    assert sent["to"] == ["a@ex.com"]
+
+
 def test_forgot_password_dev_token_preserved_without_resend():
     suffix = str(int(time.time() * 1000))[-6:]
     email = f"fp{suffix}@ex.com"

@@ -41,6 +41,14 @@ class Settings(BaseSettings):
     RESEND_API_KEY: str = ""
     RESEND_FROM: str = "Kryzen <onboarding@resend.dev>"
     FRONTEND_URL: str = "https://kb-chat-jqdk.onrender.com"
+    # Domain-free fallback: Gmail SMTP with an App Password (Google account
+    # -> Security -> 2-Step Verification -> App passwords). Sends to any
+    # address, no domain needed. Used only when RESEND_API_KEY is unset.
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASS: str = ""
+    SMTP_FROM: str = ""
     # Firebase Cloud Messaging (push). Service-account JSON goes in
     # FIREBASE_CREDENTIALS_JSON (secret — never exposed). The rest are public
     # web-config values served to the SPA via /api/config.

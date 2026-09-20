@@ -1,10 +1,13 @@
-"""Outbound email via Resend (HTTP API, no extra dependency).
+"""Outbound email: Resend first, Gmail SMTP fallback (stdlib only).
 
-Everything here is fail-soft: when RESEND_API_KEY is unset (local dev,
+Everything here is fail-soft: when neither sender is configured (local dev,
 tests) the send is skipped with a log line so auth flows keep working.
 """
 
 import logging
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
 
 import httpx
 
@@ -19,14 +22,40 @@ def resend_configured() -> bool:
     return bool((settings.RESEND_API_KEY or "").strip())
 
 
+def smtp_configured() -> bool:
+    return bool(
+        (settings.SMTP_HOST or "").strip()
+        and (settings.SMTP_USER or "").strip()
+        and (settings.SMTP_PASS or "").strip()
+    )
+
+
+def email_configured() -> bool:
+    """True when at least one sender can actually deliver."""
+    return resend_configured() or smtp_configured()
+
+
 def send_email(to: str, subject: str, html: str, text: str | None = None) -> bool:
-    """Send one transactional email. Returns True on accept (2xx)."""
+    """Send one transactional email. Resend first, SMTP fallback."""
+    if not email_configured():
+        logger.info(
+            "[email] no sender configured — skipping send to %s (%s)", to, subject
+        )
+        return False
+    if resend_configured() and _send_via_resend(to, subject, html, text):
+        return True
+    if resend_configured():
+        logger.info("[email] Resend failed, trying SMTP fallback for %s", to)
+    if smtp_configured():
+        return _send_via_smtp(to, subject, html, text)
+    return False
+
+
+def _send_via_resend(to: str, subject: str, html: str, text: str | None) -> bool:
+    """Send via the Resend API. Returns True on accept (2xx)."""
     api_key = (settings.RESEND_API_KEY or "").strip()
     sender = (settings.RESEND_FROM or "").strip() or "Kryzen <onboarding@resend.dev>"
     if not api_key:
-        logger.info(
-            "[email] RESEND_API_KEY unset — skipping send to %s (%s)", to, subject
-        )
         return False
     payload: dict = {"from": sender, "to": [to], "subject": subject, "html": html}
     if text:
@@ -42,7 +71,7 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> boo
             timeout=10,
         )
         if 200 <= resp.status_code < 300:
-            logger.info("[email] sent to %s (%s)", to, subject)
+            logger.info("[email] sent via Resend to %s (%s)", to, subject)
             return True
         logger.warning(
             "[email] Resend rejected send to %s: %s %s",
@@ -52,7 +81,31 @@ def send_email(to: str, subject: str, html: str, text: str | None = None) -> boo
         )
         return False
     except Exception as e:
-        logger.warning("[email] send to %s failed: %s", to, e)
+        logger.warning("[email] Resend send to %s failed: %s", to, e)
+        return False
+
+
+def _send_via_smtp(to: str, subject: str, html: str, text: str | None) -> bool:
+    """Send via SMTP (e.g. Gmail + App Password). No domain needed."""
+    sender = (settings.SMTP_FROM or "").strip() or settings.SMTP_USER.strip()
+    msg = MIMEMultipart("alternative")
+    msg["From"] = sender
+    msg["To"] = to
+    msg["Subject"] = subject
+    if text:
+        msg.attach(MIMEText(text, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    try:
+        with smtplib.SMTP(
+            settings.SMTP_HOST.strip(), int(settings.SMTP_PORT or 587), timeout=10
+        ) as smtp:
+            smtp.starttls()
+            smtp.login(settings.SMTP_USER.strip(), settings.SMTP_PASS)
+            smtp.sendmail(sender, [to], msg.as_string())
+        logger.info("[email] sent via SMTP to %s (%s)", to, subject)
+        return True
+    except Exception as e:
+        logger.warning("[email] SMTP send to %s failed: %s", to, e)
         return False
 
 
