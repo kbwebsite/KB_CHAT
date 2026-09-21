@@ -45,7 +45,10 @@ function friendlyAuthError(e: any): string {
  */
 const PHONE_ENABLED = import.meta.env.VITE_ENABLE_PHONE_AUTH === 'true'
 export function FirebaseAuth({ onSession, tabs }: { onSession: (idToken: string) => Promise<void>; tabs?: ('email' | 'google' | 'phone')[] }) {
-  const [tab, setTab] = useState<'email' | 'google' | 'phone'>('email')
+  // Default to the first visible tab (auth pages pass tabs={['google']}).
+  // NOTE: no hooks may be added below the early returns in this component
+  // (React #310) — tab correction happens here, unconditionally.
+  const [tab, setTab] = useState<'email' | 'google' | 'phone'>(() => (tabs && tabs.length > 0 ? tabs[0] : 'email'))
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [email, setEmail] = useState('')
@@ -301,12 +304,6 @@ export function FirebaseAuth({ onSession, tabs }: { onSession: (idToken: string)
   ]
   // Auth pages pass tabs={['google']} for an Email + Google-only page.
   const visibleTabs = tabs ? allTabs.filter(t => tabs.includes(t.id)) : allTabs
-  useEffect(() => {
-    if (tabs && !tabs.includes(tab)) {
-      const fallback = (['google', 'email', 'phone'] as const).find(t => tabs.includes(t))
-      if (fallback) setTab(fallback)
-    }
-  }, [])
 
   return (
     <div className="w-full min-w-0">
