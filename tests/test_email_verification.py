@@ -169,6 +169,49 @@ def test_smtp_fallback_sends_without_resend(monkeypatch):
     assert sent["to"] == ["a@ex.com"]
 
 
+def test_sandbox_resend_does_not_shortcircuit_smtp(monkeypatch):
+    """Sandbox sender + SMTP configured -> SMTP is tried first, Resend
+    untouched (its 200-then-drop would otherwise eat the fallback)."""
+    from app.utils import email as email_module
+
+    calls = []
+
+    class FakeSMTP:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def sendmail(self, sender, to, msg):
+            calls.append(("smtp", to))
+
+    def boom(*a, **k):
+        calls.append(("resend", None))
+        return True
+
+    monkeypatch.setattr(email_module.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(email_module, "_send_via_resend", boom)
+    monkeypatch.setattr(settings, "SMTP_HOST", "smtp.gmail.com", raising=False)
+    monkeypatch.setattr(settings, "SMTP_USER", "test@gmail.com", raising=False)
+    monkeypatch.setattr(settings, "SMTP_PASS", "app-pass", raising=False)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "re_test", raising=False)
+    monkeypatch.setattr(
+        settings, "RESEND_FROM", "Kryzen <onboarding@resend.dev>", raising=False
+    )
+    assert email_module.send_email("a@ex.com", "Hi", "<p>hi</p>", "hi") is True
+    assert calls == [("smtp", ["a@ex.com"])]
+
+
 def test_forgot_password_dev_token_preserved_without_resend():
     suffix = str(int(time.time() * 1000))[-6:]
     email = f"fp{suffix}@ex.com"

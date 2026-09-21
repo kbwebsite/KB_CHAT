@@ -35,18 +35,33 @@ def email_configured() -> bool:
     return resend_configured() or smtp_configured()
 
 
+def _resend_sender_is_sandbox() -> bool:
+    """Sandbox senders (onboarding@resend.dev) only deliver to the Resend
+    account owner's address — and the API still returns 200 for everyone
+    else, dropping the mail silently afterwards. Never let that result
+    short-circuit the SMTP fallback."""
+    raw = (settings.RESEND_FROM or "").strip().lower()
+    if "<" in raw and ">" in raw:
+        raw = raw.split("<", 1)[1].rsplit(">", 1)[0]
+    return raw.endswith("@resend.dev")
+
+
 def send_email(to: str, subject: str, html: str, text: str | None = None) -> bool:
-    """Send one transactional email. Resend first, SMTP fallback."""
+    """Send one transactional email. SMTP first with a sandbox Resend
+    sender (it can't reach other inboxes anyway), Resend first otherwise."""
     if not email_configured():
         logger.info(
             "[email] no sender configured — skipping send to %s (%s)", to, subject
         )
         return False
+    smtp_first = smtp_configured() and (
+        not resend_configured() or _resend_sender_is_sandbox()
+    )
+    if smtp_first and _send_via_smtp(to, subject, html, text):
+        return True
     if resend_configured() and _send_via_resend(to, subject, html, text):
         return True
-    if resend_configured():
-        logger.info("[email] Resend failed, trying SMTP fallback for %s", to)
-    if smtp_configured():
+    if not smtp_first and smtp_configured():
         return _send_via_smtp(to, subject, html, text)
     return False
 
