@@ -329,9 +329,33 @@ def _rate_limit_hit(ip: str, scope: str, now: float, window: int, limit: int) ->
     return False
 
 
+# Slow-request timing: ground truth for "every click takes N seconds".
+# Logs method + path + status + SERVER-side ms for anything over threshold.
+# Compare with the client-measured total to split server time vs network.
+_SLOW_MS = 800
+
+
 @app.middleware("http")
-async def rate_limit_middleware(request: Request, call_next):
-    # pytest sets PYTEST_CURRENT_TEST: the full test suite makes dozens of
+async def timing_middleware(request: Request, call_next):
+    start = time.perf_counter()
+    response = None
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        elapsed_ms = (time.perf_counter() - start) * 1000
+        if elapsed_ms >= _SLOW_MS:
+            status = response.status_code if response is not None else 500
+            print(
+                f"[slow] {request.method} {request.url.path} "
+                f"-> {status} in {elapsed_ms:.0f}ms"
+            )
+
+
+@app.middleware("http")
+async def rate_limit_middleware(
+    request: Request, call_next
+):  # pytest sets PYTEST_CURRENT_TEST: the full test suite makes dozens of
     # calls from one IP and would otherwise trip the limiter.
     if os.environ.get("PYTEST_CURRENT_TEST"):
         return await call_next(request)
