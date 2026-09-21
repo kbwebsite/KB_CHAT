@@ -40,9 +40,9 @@ def _broadcast_soon(conv_id: int, event: dict, member_ids: list) -> None:
     """Fan out a WS event without delaying the HTTP response.
 
     All callers commit first and pass plain-data payloads, so backgrounding
-    only changes timing, never content.
+    only changes timing, never content. Loop-safe: works from sync
+    (threadpool) endpoints too.
     """
-    import asyncio
 
     async def _run():
         try:
@@ -52,10 +52,7 @@ def _broadcast_soon(conv_id: int, event: dict, member_ids: list) -> None:
         except Exception as e:
             print(f"[messages] fan-out failed ({event.get('type')}): {e}")
 
-    try:
-        asyncio.create_task(_run())
-    except Exception as e:
-        print(f"[messages] fan-out schedule failed: {e}")
+    manager.spawn(_run())
 
 
 def _broadcast_status_soon(
@@ -68,8 +65,8 @@ def _broadcast_status_soon(
     calls wait on everyone's connection health. Cursors are already committed
     by the caller, so backgrounding only delays tick events, never state.
     Uses a fresh session: the request's db is closed once we respond.
+    Loop-safe: works from sync (threadpool) endpoints too.
     """
-    import asyncio
 
     async def _run():
         from app.database.connection import SessionLocal
@@ -84,10 +81,7 @@ def _broadcast_status_soon(
         finally:
             fdb.close()
 
-    try:
-        asyncio.create_task(_run())
-    except Exception as e:
-        print(f"[messages] status fan-out schedule failed: {e}")
+    manager.spawn(_run())
 
 
 def _message_to_dict(msg: Message, receipts: dict = None, viewer_id: int = None):
@@ -197,7 +191,7 @@ def _get_messages_query(db: Session, conv_id: int):
 
 
 @router.get("/conversations/{conv_id}/messages")
-async def list_messages(
+def list_messages(
     conv_id: int,
     limit: int = Query(50, ge=1, le=100),
     before: Optional[int] = Query(
@@ -266,7 +260,7 @@ async def list_messages(
 
 
 @router.post("/conversations/{conv_id}/messages")
-async def create_message(
+def create_message(
     conv_id: int,
     payload: MessageCreate,
     db: Session = Depends(get_db),
@@ -449,14 +443,12 @@ async def create_message(
         except Exception as e:
             print(f"[messages] push fan-out failed: {e}")
 
-    import asyncio
-
-    asyncio.create_task(_fanout())
+    manager.spawn(_fanout())
     return success_response(msg_dict, "Message sent")
 
 
 @router.patch("/messages/{message_id}")
-async def edit_message(
+def edit_message(
     message_id: int,
     payload: MessageUpdate,
     db: Session = Depends(get_db),
@@ -503,7 +495,7 @@ async def edit_message(
 
 
 @router.delete("/messages/{message_id}")
-async def delete_message(
+def delete_message(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -541,7 +533,7 @@ async def delete_message(
 
 
 @router.post("/messages/{message_id}/reactions")
-async def add_reaction(
+def add_reaction(
     message_id: int,
     payload: ReactionCreate,
     db: Session = Depends(get_db),
@@ -588,7 +580,7 @@ async def add_reaction(
 
 
 @router.delete("/messages/{message_id}/reactions")
-async def remove_reaction(
+def remove_reaction(
     message_id: int,
     emoji: str = Query(...),
     db: Session = Depends(get_db),
@@ -623,7 +615,7 @@ async def remove_reaction(
 
 
 @router.post("/messages/{message_id}/read")
-async def mark_message_read(
+def mark_message_read(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -669,7 +661,7 @@ async def mark_message_read(
 
 
 @router.post("/messages/{message_id}/delivered")
-async def mark_message_delivered(
+def mark_message_delivered(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -705,7 +697,7 @@ async def mark_message_delivered(
 
 
 @router.post("/messages/{message_id}/view-once")
-async def view_once_message(
+def view_once_message(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -785,7 +777,7 @@ def search_messages(
 
 
 @router.post("/messages/{message_id}/pin")
-async def pin_message(
+def pin_message(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -818,7 +810,7 @@ async def pin_message(
 
 
 @router.post("/messages/{message_id}/unpin")
-async def unpin_message(
+def unpin_message(
     message_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),

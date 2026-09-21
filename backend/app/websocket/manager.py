@@ -12,6 +12,33 @@ class ConnectionManager:
     def __init__(self):
         self.user_connections: Dict[int, Set[WebSocket]] = defaultdict(set)
         self.lock = asyncio.Lock()
+        self._loop = None
+
+    def set_loop(self, loop) -> None:
+        """Main event loop, captured at startup for cross-thread scheduling."""
+        self._loop = loop
+
+    def spawn(self, coro) -> None:
+        """Fire-and-forget a coroutine from ANY thread.
+
+        Hot HTTP endpoints are sync (threadpool) so slow DB calls can't stall
+        the event loop — but plain create_task only works on the loop thread.
+        This schedules correctly from both worlds; nothing is ever silently
+        dropped except when the server is shutting down.
+        """
+        try:
+            asyncio.get_running_loop().create_task(coro)
+            return
+        except RuntimeError:
+            pass
+        if self._loop is not None:
+            try:
+                asyncio.run_coroutine_threadsafe(coro, self._loop)
+                return
+            except Exception as e:
+                logger.error(f"Background schedule failed: {e}")
+                return
+        logger.error("No event loop to schedule background task on")
 
     async def connect(self, websocket: WebSocket, user_id: int):
         await websocket.accept()

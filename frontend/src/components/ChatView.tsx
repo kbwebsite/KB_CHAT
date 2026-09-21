@@ -9,7 +9,7 @@ import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
 import { PollCard } from './PollPanel'
 import { EventCard } from './EventPanel'
-import { pollApi, eventApi } from '../services/api'
+import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { fetchPeerKey, ensurePublished } from '../utils/e2ee'
 import { formatTime } from '../utils/format'
@@ -114,13 +114,13 @@ export function ChatView({
     setConvEvents([])
     if (!currentConversationId) return
     const cid = currentConversationId
-    pollApi.list(cid).then((r: any) => {
-      if (r?.success && currentConversationId === cid) setConvPolls(r.data || [])
-    }).catch(() => {})
-    eventApi.list(cid).then((r: any) => {
+    // One round trip for polls + events + pins (was three serial calls).
+    extrasApi.get(cid).then((r: any) => {
       if (r?.success && currentConversationId === cid) {
-        const list = Array.isArray(r.data) ? r.data : (r.data?.events || [])
-        setConvEvents(list)
+        setConvPolls(r.data?.polls || [])
+        const evs = r.data?.events
+        setConvEvents(Array.isArray(evs) ? evs : (evs?.events || []))
+        setPinnedMessages(r.data?.pinned || [])
       }
     }).catch(() => {})
   }, [currentConversationId])

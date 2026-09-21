@@ -4,10 +4,24 @@ import os, sys
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend"))
 from app.main import app
-from app.database.connection import create_tables
+from app.database.connection import SessionLocal, create_tables
+from app.models.user import User
 
 create_tables()
 client = TestClient(app)
+
+
+def _mark_verified(email):
+    # Fixture state for non-auth tests (the login gate itself is covered
+    # in test_email_verification.py).
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email=email.lower()).first()
+        if u is not None and not u.email_verified:
+            u.email_verified = True
+            db.commit()
+    finally:
+        db.close()
 
 
 def get_token_for_new_user(suffix):
@@ -25,6 +39,7 @@ def get_token_for_new_user(suffix):
             "confirm_password": "pass123",
         },
     )
+    _mark_verified(e)
     r = client.post("/api/auth/login", json={"identifier": u, "password": "pass123"})
     return r.json()["data"]["access_token"], u
 
@@ -57,6 +72,7 @@ def test_typing_event():
                 "confirm_password": "pass123",
             },
         )
+        _mark_verified(f"{username}@ex.com")
         r = client.post(
             "/api/auth/login", json={"identifier": username, "password": "pass123"}
         )

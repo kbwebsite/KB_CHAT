@@ -47,7 +47,7 @@ def _event_to_dict(db, ev):
 
 
 @router.post("/conversations/{conv_id}/events")
-async def create_event(
+def create_event(
     conv_id: int,
     payload: dict,
     db: Session = Depends(get_db),
@@ -89,10 +89,12 @@ async def create_event(
         m.user_id
         for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()
     ]
-    await manager.broadcast_to_conversation(
-        conv_id,
-        {"type": "event.created", "payload": _event_to_dict(db, ev)},
-        member_ids=member_ids,
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            conv_id,
+            {"type": "event.created", "payload": _event_to_dict(db, ev)},
+            member_ids=member_ids,
+        )
     )
     return success_response(_event_to_dict(db, ev), "Event created")
 
@@ -116,7 +118,7 @@ def list_events(
 
 
 @router.post("/events/{event_id}/respond")
-async def respond_event(
+def respond_event(
     event_id: int,
     payload: dict,
     db: Session = Depends(get_db),
@@ -150,16 +152,18 @@ async def respond_event(
         .filter_by(conversation_id=ev.conversation_id)
         .all()
     ]
-    await manager.broadcast_to_conversation(
-        ev.conversation_id,
-        {"type": "event.updated", "payload": _event_to_dict(db, ev)},
-        member_ids=member_ids,
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            ev.conversation_id,
+            {"type": "event.updated", "payload": _event_to_dict(db, ev)},
+            member_ids=member_ids,
+        )
     )
     return success_response(_event_to_dict(db, ev), "Response recorded")
 
 
 @router.delete("/events/{event_id}")
-async def delete_event(
+def delete_event(
     event_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -178,12 +182,14 @@ async def delete_event(
         m.user_id
         for m in db.query(ConversationMember).filter_by(conversation_id=conv_id).all()
     ]
-    await manager.broadcast_to_conversation(
-        conv_id,
-        {
-            "type": "event.deleted",
-            "payload": {"id": event_id, "conversation_id": conv_id},
-        },
-        member_ids=member_ids,
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            conv_id,
+            {
+                "type": "event.deleted",
+                "payload": {"id": event_id, "conversation_id": conv_id},
+            },
+            member_ids=member_ids,
+        )
     )
     return success_response(None, "Event deleted")

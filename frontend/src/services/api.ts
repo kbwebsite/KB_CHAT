@@ -235,6 +235,12 @@ export const eventApi = {
   delete: (eid:number) => api.delete(`/api/events/${eid}`).then(r=>r.data),
 }
 
+// One round trip for everything a chat open needs beyond history
+// (polls + events + pinned). Panels keep their dedicated endpoints.
+export const extrasApi = {
+  get: (cid:number) => api.get(`/api/conversations/${cid}/extras`).then(r=>r.data),
+}
+
 export const scheduledApi = {
   list: (cid:number) => api.get(`/api/conversations/${cid}/scheduled`).then(r=>r.data),
   create: (cid:number, data:any) => api.post(`/api/conversations/${cid}/scheduled`, data).then(r=>r.data),

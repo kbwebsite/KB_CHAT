@@ -7,10 +7,24 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend"))
 
 from fastapi.testclient import TestClient
 from app.main import app
-from app.database.connection import create_tables
+from app.database.connection import SessionLocal, create_tables
+from app.models.user import User
 
 create_tables()
 client = TestClient(app)
+
+
+def _mark_verified(email):
+    # Fixture state for non-auth tests (the login gate itself is covered
+    # in test_email_verification.py).
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email=email.lower()).first()
+        if u is not None and not u.email_verified:
+            u.email_verified = True
+            db.commit()
+    finally:
+        db.close()
 
 
 def _signup(username):
@@ -25,6 +39,7 @@ def _signup(username):
         },
     )
     assert r.status_code == 200, r.text
+    _mark_verified(f"{username}@ex.com")
 
 
 def _login(username):

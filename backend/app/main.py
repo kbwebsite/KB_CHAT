@@ -12,6 +12,12 @@ os.makedirs(settings.upload_dir_abs, exist_ok=True)
 
 @asynccontextmanager
 async def lifespan(app):
+    # Capture the main loop so sync (threadpool) endpoints can schedule
+    # websocket fan-out without touching a loop they don't own.
+    from app.websocket.manager import manager as _ws_manager
+
+    _ws_manager.set_loop(asyncio.get_running_loop())
+
     # Startup: background task to check scheduled messages every 30 seconds
     async def _check():
         while True:
@@ -87,6 +93,7 @@ from app.api.polls import router as polls_router
 from app.api.highlights import router as highlights_router
 from app.api.linkpreview import router as linkpreview_router
 from app.api.events import router as events_router
+from app.api.extras import router as extras_router
 from app.api.scheduled import router as scheduled_router
 from app.api.notification_settings import router as notif_settings_router
 from app.api.sessions import router as sessions_router
@@ -134,6 +141,7 @@ app.include_router(polls_router)
 app.include_router(highlights_router)
 app.include_router(linkpreview_router)
 app.include_router(events_router)
+app.include_router(extras_router)
 app.include_router(scheduled_router)
 app.include_router(notif_settings_router)
 app.include_router(sessions_router)

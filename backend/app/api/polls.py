@@ -73,7 +73,7 @@ def _poll_to_dict(db: Session, poll: Poll):
 
 
 @router.post("/conversations/{conv_id}/polls")
-async def create_poll(
+def create_poll(
     conv_id: int,
     payload: dict,
     db: Session = Depends(get_db),
@@ -114,8 +114,12 @@ async def create_poll(
     db.refresh(poll)
     poll_dict = _poll_to_dict(db, poll)
     member_ids = _member_ids(db, conv_id)
-    await manager.broadcast_to_conversation(
-        conv_id, {"type": "poll.created", "payload": poll_dict}, member_ids=member_ids
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            conv_id,
+            {"type": "poll.created", "payload": poll_dict},
+            member_ids=member_ids,
+        )
     )
     return success_response(poll_dict, "Poll created")
 
@@ -128,6 +132,11 @@ def list_polls(
 ):
     if not _is_member(db, conv_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
+    return success_response(_batched_polls(db, conv_id))
+
+
+def _batched_polls(db: Session, conv_id: int):
+    """All polls for a conversation in a fixed handful of queries."""
     polls = (
         db.query(Poll)
         .filter_by(conversation_id=conv_id)
@@ -188,11 +197,11 @@ def list_polls(
             "options": [_opt_dict(o) for o in opts],
         }
 
-    return success_response([_batched_poll(p) for p in polls])
+    return [_batched_poll(p) for p in polls]
 
 
 @router.post("/polls/{poll_id}/vote")
-async def vote_poll(
+def vote_poll(
     poll_id: int,
     payload: dict,
     db: Session = Depends(get_db),
@@ -230,16 +239,18 @@ async def vote_poll(
     db.commit()
     poll_dict = _poll_to_dict(db, poll)
     member_ids = _member_ids(db, poll.conversation_id)
-    await manager.broadcast_to_conversation(
-        poll.conversation_id,
-        {"type": "poll.updated", "payload": poll_dict},
-        member_ids=member_ids,
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            poll.conversation_id,
+            {"type": "poll.updated", "payload": poll_dict},
+            member_ids=member_ids,
+        )
     )
     return success_response(poll_dict, "Vote recorded")
 
 
 @router.delete("/polls/{poll_id}")
-async def delete_poll(
+def delete_poll(
     poll_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -253,12 +264,14 @@ async def delete_poll(
     db.delete(poll)
     db.commit()
     member_ids = _member_ids(db, conv_id)
-    await manager.broadcast_to_conversation(
-        conv_id,
-        {
-            "type": "poll.deleted",
-            "payload": {"id": poll_id, "conversation_id": conv_id},
-        },
-        member_ids=member_ids,
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            conv_id,
+            {
+                "type": "poll.deleted",
+                "payload": {"id": poll_id, "conversation_id": conv_id},
+            },
+            member_ids=member_ids,
+        )
     )
     return success_response(None, "Poll deleted")

@@ -180,7 +180,8 @@ export default function ChatPage() {
     setShowMessageSearch(false)
     setMobileView('chat')
     setMobileNavTab('chats')
-    try { const res = await msgPinApi.list(id); if (res.success) setPinnedMessages(res.data) } catch {}
+    // Pins/polls/events arrive with the chat's single extras fetch in
+    // ChatView — no serial round trip here to gate the open on.
   }
 
   // ─── Start chat from user search ───
