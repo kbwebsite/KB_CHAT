@@ -8,6 +8,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../backend"))
 
 from app.main import app
 from app.database.connection import SessionLocal, create_tables, Base, engine
+from app.models.user import User
 
 # Use test DB
 # Override to in-memory? Use sqlite file for tests
@@ -15,8 +16,22 @@ create_tables()
 client = TestClient(app)
 
 
+def _mark_verified(email):
+    # Fixture state: these tests exercise post-auth features, so treat the
+    # inbox as already verified (the login gate itself is covered in
+    # test_email_verification.py).
+    db = SessionLocal()
+    try:
+        u = db.query(User).filter_by(email=email.lower()).first()
+        if u is not None and not u.email_verified:
+            u.email_verified = True
+            db.commit()
+    finally:
+        db.close()
+
+
 def signup_user(username, email, display_name, password="password123"):
-    return client.post(
+    r = client.post(
         "/api/auth/signup",
         json={
             "username": username,
@@ -26,6 +41,8 @@ def signup_user(username, email, display_name, password="password123"):
             "confirm_password": password,
         },
     )
+    _mark_verified(email)
+    return r
 
 
 def test_health():
@@ -742,6 +759,7 @@ def test_google_auth_new_existing_and_reject(monkeypatch):
 
     payload = {
         "email": "GNew@Example.com",
+        "email_verified": True,
         "name": "G New",
         "picture": "http://x/p.png",
         "sub": "g123",
@@ -784,6 +802,17 @@ def test_google_auth_new_existing_and_reject(monkeypatch):
         monkeypatch.setattr(authmod.httpx, "get", lambda *a, **k: BadResp())
         r3 = client.post("/api/auth/google", json={"credential": "bad"})
         assert r3.status_code == 401, r3.text
+
+        # unverified Google inbox -> no session (same rule as native email)
+        class UnverifiedResp:
+            status_code = 200
+
+            def json(self):
+                return {**payload, "email_verified": False}
+
+        monkeypatch.setattr(authmod.httpx, "get", lambda *a, **k: UnverifiedResp())
+        r4 = client.post("/api/auth/google", json={"credential": "tok"})
+        assert r4.status_code == 401, r4.text
     finally:
         settings.GOOGLE_CLIENT_ID = old
 
@@ -1387,3 +1416,88 @@ def test_group_invite_lifecycle():
     assert client.post(f"/api/groups/join/{token2}", headers=hb).status_code == 404
     # garbage token
     assert client.post("/api/groups/join/nope", headers=hb).status_code == 404
+
+
+def test_extras_single_call_shape():
+    # One round trip serves polls + events + pinned for a chat open.
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"ex{s}", f"exb{s}"
+    signup_user(a, f"{a}@ex.com", "EX A")
+    signup_user(b, f"{b}@ex.com", "EX B")
+    ha = _login(a)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    rp = client.post(
+        f"/api/conversations/{cid}/polls",
+        json={"question": "Go?", "options": ["Yes", "No"]},
+        headers=ha,
+    )
+    assert rp.status_code == 200, rp.text
+    rm = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "pin me"}, headers=ha
+    )
+    mid = rm.json()["data"]["id"]
+    assert client.post(f"/api/messages/{mid}/pin", headers=ha).status_code == 200
+    re_ = client.get(f"/api/conversations/{cid}/extras", headers=ha)
+    assert re_.status_code == 200, re_.text
+    data = re_.json()["data"]
+    assert len(data["polls"]) == 1 and data["polls"][0]["question"] == "Go?"
+    assert data["events"] == []
+    assert len(data["pinned"]) == 1 and data["pinned"][0]["id"] == mid
+    # Non-member gets 403, not data.
+    s2 = str(int(time.time() * 1000))[-6:]
+    c = f"exo{s2}"
+    signup_user(c, f"{c}@ex.com", "EX O")
+    ho = _login(c)
+    assert client.get(f"/api/conversations/{cid}/extras", headers=ho).status_code == 403
+
+
+def test_unread_clears_on_first_open_and_survives_refresh():
+    # Acceptance: A sends -> B sees unread 1 -> B marks read once ->
+    # unread 0 across refetches (no second open needed). A stale cursor
+    # must not regress it; a genuinely new message re-arms the badge.
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"ur{s}", f"urb{s}"
+    signup_user(a, f"{a}@ex.com", "UR A")
+    signup_user(b, f"{b}@ex.com", "UR B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+
+    rm = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "hey B"}, headers=ha
+    )
+    assert rm.status_code == 200, rm.text
+    mid = rm.json()["data"]["id"]
+
+    def unread_of():
+        rl = client.get("/api/conversations", headers=hb)
+        assert rl.status_code == 200, rl.text
+        conv = next(c for c in rl.json()["data"] if c["id"] == cid)
+        return conv["unread_count"]
+
+    assert unread_of() == 1
+    # B opens the chat once: persist the read cursor.
+    rr = client.post(
+        f"/api/conversations/{cid}/read", json={"last_message_id": mid}, headers=hb
+    )
+    assert rr.status_code == 200, rr.text
+    # Badge stays 0 across refetches (refresh / reconnect / second open).
+    assert unread_of() == 0
+    assert unread_of() == 0
+    # Stale cursor must not regress the badge... or the cursor.
+    ro = client.post(
+        f"/api/conversations/{cid}/read", json={"last_message_id": mid - 1}, headers=hb
+    )
+    assert ro.status_code == 200, ro.text
+    assert unread_of() == 0
+    # A genuinely new message re-arms the badge.
+    rm2 = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "again"}, headers=ha
+    )
+    assert rm2.status_code == 200, rm2.text
+    assert unread_of() == 1

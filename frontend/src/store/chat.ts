@@ -15,6 +15,10 @@ interface ChatState {
   typingUsers: Record<number, Set<number>> // convId -> set of userIds
   onlineUsers: Set<number>
   searchQuery: string
+  // Highest read cursor already persisted server-side per conversation.
+  // The WS read event alone is not durable (dropped when the socket is
+  // down), so acks also go over HTTP — at most one request per advance.
+  persistedRead: Record<number, number>
   // Unsent payloads keyed by optimistic temp id — kept so a failed send
   // can be retried verbatim (including the sealed E2EE body).
   pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean} }>
@@ -77,6 +81,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   typingUsers: {},
   onlineUsers: new Set(),
   searchQuery: '',
+  persistedRead: {},
   pendingSends: {},
   fetchConversations: async (search)=>{
     set({loadingConvs:true})
@@ -117,6 +122,13 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
           })
           return { messages: {...state.messages, [convId]: reconciled }, hasMore: {...state.hasMore, [convId]: has_more } }
         })
+        // First open races setCurrent: the cache was empty so its markRead
+        // no-oped — now that history is actually in, mark the newest once.
+        if (convId === get().currentConversationId) {
+          const list = get().messages[convId] || []
+          const newest = list[list.length - 1]
+          if (newest && newest.id > 0) get().markRead(convId, newest.id)
+        }
       }
     } finally { set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } })) }
   },
@@ -413,11 +425,27 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     return []
   },
   markRead: (convId, lastId)=>{
+    if (!convId || !(lastId > 0)) return
     set(state=>{
       const convs = state.conversations.map(c=> c.id===convId? {...c, unread_count:0}: c)
       return { conversations: convs }
     })
     wsService.markRead(convId, lastId)
+    // Durable persist: the WS event is fire-and-forget and vanishes when
+    // the socket is down; without this the next fetchConversations
+    // resurrects the badge (survives refresh/reconnect only via server).
+    // One request per cursor advance — per-message acks don't spam.
+    if (lastId <= (get().persistedRead[convId] || 0)) return
+    set(state=> ({ persistedRead: { ...state.persistedRead, [convId]: lastId } }))
+    convApi.markRead(convId, lastId).catch(()=>{
+      // Persist failed: allow a later mark to retry it.
+      const cur = get().persistedRead[convId]
+      if (cur === lastId) {
+        const next = { ...get().persistedRead }
+        delete next[convId]
+        set({ persistedRead: next })
+      }
+    })
   },
   setMessageStatus: (convId, msgId, status)=>{
     if (!(status in STATUS_RANK)) return
