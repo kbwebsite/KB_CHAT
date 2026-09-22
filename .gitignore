@@ -41,3 +41,8 @@ reference-frames/
 site-*.png
 IDEA.md
 opencode.json
+opencode.json.bak.*
+*_test*.py
+verify_users.py
+results.txt
+todos_final.md
