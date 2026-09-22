@@ -163,7 +163,7 @@ app.include_router(push_router)
 app.include_router(ws_router)
 
 
-@app.get("/api/health")
+@app.api_route("/api/health", methods=["GET", "HEAD"])
 def health():
     import os
 
