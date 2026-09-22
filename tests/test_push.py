@@ -43,12 +43,37 @@ def _signup(username):
 
 
 def _login(username):
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
+    from app.api import auth as auth_module
+
     r = client.post(
         "/api/auth/login",
         json={"identifier": username, "password": "password123"},
     )
     assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['data']['access_token']}"}
+    data = r.json()["data"]
+    if "access_token" not in data:
+        assert data.get("login_step") == "verify_code", data
+        email = data["email"]
+        db = SessionLocal()
+        try:
+            user = db.query(User).filter_by(email=email).first()
+            assert user is not None
+            auth_module._code_store()[hashlib.sha256(b"123456").hexdigest()] = {
+                "user_id": user.id,
+                "email": email,
+                "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
+            }
+        finally:
+            db.close()
+        r2 = client.post(
+            "/api/auth/verify-login", json={"email": email, "code": "123456"}
+        )
+        assert r2.status_code == 200, r2.text
+        data = r2.json()["data"]
+    return {"Authorization": f"Bearer {data['access_token']}"}
 
 
 def test_push_token_register_upsert_unregister():

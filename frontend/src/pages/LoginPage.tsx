@@ -185,21 +185,17 @@ export default function LoginPage() {
     if (!email || !password) { setError('Please fill all fields'); return }
     if (!email.includes('@')) { setError('Enter your email address'); return }
     try {
-      await login(email, password)
-      nav('/chat')
-    } catch (err: any) {
-      const detail = err.response?.data?.detail || err.message || 'Login failed'
-      // Unverified inbox: send a fresh code and show the verify step
-      // instead of a dead end (existing accounts included).
-      if (typeof detail === 'string' && detail.toLowerCase().includes('verify')) {
+      const data = await login(email, password)
+      // Every password sign-in requires a fresh inbox code.
+      if (data?.login_step === 'verify_code') {
         setVerifyStep(true)
-        setVerifyMsg(`This email isn't verified yet — we sent a 6-digit code to ${email}.`)
-        try {
-          await authApi.sendVerification(email)
-        } catch {}
+        setCode('')
+        setVerifyMsg(`We sent a 6-digit sign-in code to ${email} — enter it below.`)
         return
       }
-      setError(detail)
+      nav('/chat')
+    } catch (err: any) {
+      setError(err.response?.data?.detail || err.message || 'Login failed')
     }
   }
 
@@ -209,9 +205,11 @@ export default function LoginPage() {
     if (code.trim().length !== 6) { setError('Enter the 6-digit code'); return }
     setVerifyBusy(true)
     try {
-      const res = await authApi.verifyEmail(identifier.trim(), code.trim())
+      // Redeeming the login code verifies the inbox AND opens the session.
+      const res = await authApi.verifyLogin(identifier.trim(), code.trim())
       if (res.success) {
-        await login(identifier.trim(), password)
+        setToken(res.data.access_token)
+        setUser(res.data.user)
         nav('/chat')
       } else {
         setError(res.message || 'Verification failed')
@@ -228,9 +226,9 @@ export default function LoginPage() {
     setVerifyMsg(null)
     setVerifyBusy(true)
     try {
-      const res = await authApi.sendVerification(identifier.trim())
-      if (res.success) setVerifyMsg('New code sent — check your inbox (and spam).')
-      else setError(res.message || 'Could not resend the code')
+      // Re-run password login: it issues a fresh sign-in code.
+      await login(identifier.trim(), password)
+      setVerifyMsg('New code sent — check your inbox (and spam).')
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Could not resend the code yet — wait a minute and retry')
     } finally {
@@ -391,7 +389,7 @@ export default function LoginPage() {
 
               {verifyStep && (
                 <form onSubmit={handleVerify} className="mt-4 p-4 rounded-2xl bg-primary/10 border border-primary/20">
-                  <p className="text-sm font-semibold">Verify your email</p>
+                  <p className="text-sm font-semibold">Enter your sign-in code</p>
                   {verifyMsg && <p className="text-xs text-muted-foreground mt-1">{verifyMsg}</p>}
                   <input
                     value={code}

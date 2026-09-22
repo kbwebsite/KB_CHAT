@@ -45,6 +45,40 @@ def signup_user(username, email, display_name, password="password123"):
     return r
 
 
+def _login_token(identifier, password="password123"):
+    """Password login through the every-sign-in code step. Returns a token."""
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
+    from app.api import auth as auth_module
+
+    r = client.post(
+        "/api/auth/login", json={"identifier": identifier, "password": password}
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    if "access_token" in data:
+        return data["access_token"]  # fail-open: no mail backend
+    assert data.get("login_step") == "verify_code", data
+    email = data["email"]
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(email=email).first()
+        assert user is not None
+        auth_module._code_store()[hashlib.sha256(b"123456").hexdigest()] = {
+            "user_id": user.id,
+            "email": email,
+            "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
+        }
+    finally:
+        db.close()
+    r2 = client.post(
+        "/api/auth/verify-login", json={"email": email, "code": "123456"}
+    )
+    assert r2.status_code == 200, r2.text
+    return r2.json()["data"]["access_token"]
+
+
 def test_health():
     r = client.get("/api/health")
     assert r.status_code == 200
@@ -114,10 +148,7 @@ def test_user_search_and_conversation_flow():
     signup_user(a, f"{a}@ex.com", "Alice")
     signup_user(b, f"{b}@ex.com", "Bob")
     # login as alice
-    r = client.post(
-        "/api/auth/login", json={"identifier": a, "password": "password123"}
-    )
-    token_a = r.json()["data"]["access_token"]
+    token_a = _login_token(a)
     headers_a = {"Authorization": f"Bearer {token_a}"}
     # search for bob
     r2 = client.get(f"/api/users/search?q={b}", headers=headers_a)
@@ -146,10 +177,7 @@ def test_user_search_and_conversation_flow():
     assert len(r5.json()["data"]["messages"]) >= 1
 
     # login as bob and check he can see message
-    r6 = client.post(
-        "/api/auth/login", json={"identifier": b, "password": "password123"}
-    )
-    token_b = r6.json()["data"]["access_token"]
+    token_b = _login_token(b)
     headers_b = {"Authorization": f"Bearer {token_b}"}
     r7 = client.get(f"/api/conversations/{conv_id}/messages", headers=headers_b)
     assert r7.status_code == 200
@@ -174,10 +202,7 @@ def test_message_edit_delete():
     s = str(int(time.time() * 1000))[-5:]
     u = f"edituser{s}"
     signup_user(u, f"{u}@ex.com", "Edit User")
-    r = client.post(
-        "/api/auth/login", json={"identifier": u, "password": "password123"}
-    )
-    token = r.json()["data"]["access_token"]
+    token = _login_token(u)
     h = {"Authorization": f"Bearer {token}"}
     # create self? need second user
     u2 = f"editbuddy{s}"
@@ -210,10 +235,7 @@ def test_group_creation():
     signup_user(owner, f"{owner}@ex.com", "Owner")
     signup_user(m1, f"{m1}@ex.com", "M1")
     signup_user(m2, f"{m2}@ex.com", "M2")
-    r = client.post(
-        "/api/auth/login", json={"identifier": owner, "password": "password123"}
-    )
-    token = r.json()["data"]["access_token"]
+    token = _login_token(owner)
     h = {"Authorization": f"Bearer {token}"}
     r2 = client.post(
         "/api/conversations",
@@ -237,11 +259,7 @@ def test_file_validation_unit():
 
 
 def _login(username):
-    r = client.post(
-        "/api/auth/login", json={"identifier": username, "password": "password123"}
-    )
-    assert r.status_code == 200, r.text
-    return {"Authorization": f"Bearer {r.json()['data']['access_token']}"}
+    return {"Authorization": f"Bearer {_login_token(username)}"}
 
 
 def test_leaderboard_weekly_bounds_and_counts():

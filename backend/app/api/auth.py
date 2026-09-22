@@ -115,33 +115,31 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
             )
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account disabled")
-        # Every native sign-in needs a verified inbox (Resend codes).
-        if (user.auth_provider or "local") == "local" and not bool(
-            getattr(user, "email_verified", False)
-        ):
-            raise HTTPException(
-                status_code=403, detail="Please verify your email address first"
-            )
-        token = create_access_token({"sub": str(user.id), "username": user.username})
+        # Every password sign-in requires a fresh inbox code: correct
+        # password alone never yields a token. The code step also marks
+        # the inbox verified, so first-time and returning users share it.
+        code_sent = False
+        try:
+            code_sent = bool(_issue_code(user))
+        except HTTPException as e:
+            if e.status_code == 429:
+                # A code went out <60s ago (e.g. right after signup) —
+                # don't error, just point at the inbox.
+                code_sent = True
+            else:
+                raise
+        if not code_sent:
+            # No mail backend configured (dev/test): fail-open with a
+            # direct token, mirroring the fail-soft signup behavior.
+            print("[auth] no mail backend — issuing login token without code step")
+            return _login_token_response(user)
         return success_response(
             {
-                "access_token": token,
-                "token_type": "bearer",
-                "user": {
-                    "id": user.id,
-                    "username": user.username,
-                    "email": user.email,
-                    "display_name": user.display_name,
-                    "avatar_url": user.avatar_url,
-                    "about": user.about,
-                    "is_online": user.is_online,
-                    "last_seen": user.last_seen.isoformat() if user.last_seen else None,
-                    "created_at": user.created_at.isoformat()
-                    if user.created_at
-                    else None,
-                },
+                "login_step": "verify_code",
+                "email": user.email,
+                "code_sent": True,
             },
-            "Login successful",
+            "Verification code sent — enter it to finish signing in",
         )
     except HTTPException:
         raise
@@ -149,6 +147,62 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
         tb = traceback.format_exc()
         print(f"LOGIN ERROR: {e}\n{tb}")
         return error_response(None, f"Login failed: {str(e)}")
+
+
+def _login_token_response(user: User):
+    """Full session payload shared by login fallbacks and code verify."""
+    token = create_access_token({"sub": str(user.id), "username": user.username})
+    return success_response(
+        {
+            "access_token": token,
+            "token_type": "bearer",
+            "user": {
+                "id": user.id,
+                "username": user.username,
+                "email": user.email,
+                "display_name": user.display_name,
+                "avatar_url": user.avatar_url,
+                "about": user.about,
+                "is_online": user.is_online,
+                "email_verified": bool(getattr(user, "email_verified", False)),
+                "last_seen": user.last_seen.isoformat() if user.last_seen else None,
+                "created_at": user.created_at.isoformat()
+                if user.created_at
+                else None,
+            },
+        },
+        "Login successful",
+    )
+
+
+@router.post("/verify-login")
+def verify_login(payload: dict, db: Session = Depends(get_db)):
+    """Second step of password sign-in: redeem the fresh inbox code."""
+    try:
+        email = (payload.get("email", "") or "").lower().strip()
+        code = (payload.get("code", "") or "").strip()
+        if not email or len(code) != 6 or not code.isdigit():
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+        user = db.query(User).filter_by(email=email).first()
+        if not user:
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+        if (user.auth_provider or "local") != "local":
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account disabled")
+        uid = _consume_code(email, code)
+        if uid is None or uid != user.id:
+            raise HTTPException(status_code=400, detail="Invalid or expired code")
+        # A redeemed login code proves inbox ownership.
+        user.email_verified = True
+        db.commit()
+        return _login_token_response(user)
+    except HTTPException:
+        raise
+    except Exception as e:
+        tb = traceback.format_exc()
+        print(f"VERIFY LOGIN ERROR: {e}\n{tb}")
+        return error_response(None, "Failed to verify code")
 
 
 @router.post("/logout")

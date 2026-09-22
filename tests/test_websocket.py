@@ -24,6 +24,40 @@ def _mark_verified(email):
         db.close()
 
 
+def _login_token(identifier, password="pass123"):
+    """Password login through the every-sign-in code step. Returns a token."""
+    import hashlib
+    from datetime import datetime, timedelta, timezone
+
+    from app.api import auth as auth_module
+
+    r = client.post(
+        "/api/auth/login", json={"identifier": identifier, "password": password}
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    if "access_token" in data:
+        return data["access_token"]  # fail-open: no mail backend
+    assert data.get("login_step") == "verify_code", data
+    email = data["email"]
+    db = SessionLocal()
+    try:
+        user = db.query(User).filter_by(email=email).first()
+        assert user is not None
+        auth_module._code_store()[hashlib.sha256(b"123456").hexdigest()] = {
+            "user_id": user.id,
+            "email": email,
+            "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
+        }
+    finally:
+        db.close()
+    r2 = client.post(
+        "/api/auth/verify-login", json={"email": email, "code": "123456"}
+    )
+    assert r2.status_code == 200, r2.text
+    return r2.json()["data"]["access_token"]
+
+
 def get_token_for_new_user(suffix):
     import time
 
@@ -40,8 +74,7 @@ def get_token_for_new_user(suffix):
         },
     )
     _mark_verified(e)
-    r = client.post("/api/auth/login", json={"identifier": u, "password": "pass123"})
-    return r.json()["data"]["access_token"], u
+    return _login_token(u), u
 
 
 def test_websocket_connect():
@@ -73,10 +106,7 @@ def test_typing_event():
             },
         )
         _mark_verified(f"{username}@ex.com")
-        r = client.post(
-            "/api/auth/login", json={"identifier": username, "password": "pass123"}
-        )
-        return r.json()["data"]["access_token"]
+        return _login_token(username)
 
     import random
 

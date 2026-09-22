@@ -11,7 +11,7 @@ interface AuthState {
   setUser: (u:User|null)=>void
   setToken: (t:string|null)=>void
   init: ()=>Promise<void>
-  login: (identifier:string, password:string)=>Promise<void>
+  login: (identifier:string, password:string)=>Promise<any>
   signup: (data:any)=>Promise<any>
   logout: ()=>Promise<void>
 }
@@ -57,16 +57,20 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
       set({initialized:true})
     }
   },
+  // Returns the login payload: either a full session ({access_token, user})
+  // or a code step ({login_step: 'verify_code', email}). Callers decide.
   login: async (identifier, password)=>{
     set({loading:true})
     try {
       const res = await authApi.login({identifier, password})
       if (!res.success) throw new Error(res.message || 'Login failed')
-      const { access_token, user } = res.data
+      const { access_token, user } = res.data || {}
+      if (!access_token) return res.data
       localStorage.setItem('kb_token', access_token)
       localStorage.setItem('kb_user', JSON.stringify(user))
       set({token: access_token, user})
       wsService.connect(access_token)
+      return res.data
     } finally { set({loading:false}) }
   },
   signup: async (data)=>{

@@ -115,22 +115,70 @@ def test_signup_without_username_autoderives():
     assert r.json()["data"]["user"]["username"].startswith(f"nouser{suffix}"[:8])
 
 
-def test_unverified_login_blocked_until_verified():
-    suffix = str(int(time.time() * 1000))[-6:]
-    email = f"gate{suffix}@ex.com"
-    _signup(f"gate{suffix}", email)
-    r = client.post(
-        "/api/auth/login", json={"identifier": email, "password": "pass123"}
-    )
-    assert r.status_code == 403
-    assert "verify" in r.json()["detail"].lower()
-    _seed_code(email)
-    r = client.post("/api/auth/verify-email", json={"email": email, "code": "123456"})
-    assert r.status_code == 200
+def _login_step(email):
     r = client.post(
         "/api/auth/login", json={"identifier": email, "password": "pass123"}
     )
     assert r.status_code == 200, r.text
+    return r.json()["data"]
+
+
+def test_unverified_login_goes_through_code_step():
+    """No more 403 gate: unverified sign-in enters the code step, and
+    redeeming the code verifies the inbox and issues the session."""
+    from app.utils import email as email_module
+
+    real_send = email_module.send_verification_code
+    email_module.send_verification_code = lambda to, code: True
+    try:
+        suffix = str(int(time.time() * 1000))[-6:]
+        email = f"gate{suffix}@ex.com"
+        _signup(f"gate{suffix}", email)
+        # Cooldown from signup's own code must not 429 the login.
+        data = _login_step(email)
+        assert data.get("login_step") == "verify_code", data
+        assert "access_token" not in data
+        _seed_code(email)
+        r = client.post(
+            "/api/auth/verify-login", json={"email": email, "code": "123456"}
+        )
+        assert r.status_code == 200, r.text
+        assert r.json()["data"]["access_token"]
+        assert r.json()["data"]["user"]["email_verified"] is True
+    finally:
+        email_module.send_verification_code = real_send
+
+
+def test_verify_login_rejects_bad_code():
+    suffix = str(int(time.time() * 1000))[-6:]
+    email = f"badlogin{suffix}@ex.com"
+    _signup(f"badlogin{suffix}", email)
+    r = client.post(
+        "/api/auth/verify-login", json={"email": email, "code": "000000"}
+    )
+    assert r.status_code == 400
+    r = client.post("/api/auth/verify-login", json={"email": email, "code": "abc"})
+    assert r.status_code == 400
+    r = client.post(
+        "/api/auth/verify-login",
+        json={"email": "nobody@ex.com", "code": "123456"},
+    )
+    assert r.status_code == 400
+
+
+def test_verify_login_code_single_use():
+    suffix = str(int(time.time() * 1000))[-6:]
+    email = f"once{suffix}@ex.com"
+    _signup(f"once{suffix}", email)
+    _seed_code(email)
+    r = client.post(
+        "/api/auth/verify-login", json={"email": email, "code": "123456"}
+    )
+    assert r.status_code == 200, r.text
+    r = client.post(
+        "/api/auth/verify-login", json={"email": email, "code": "123456"}
+    )
+    assert r.status_code == 400
 
 
 def test_smtp_fallback_sends_without_resend(monkeypatch):
