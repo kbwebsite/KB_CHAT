@@ -177,10 +177,11 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   // The copy is marked plain (is_encrypted cleared) so downstream handlers
   // treat `content` as final instead of trying to decrypt it again.
   const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text, is_encrypted: false } : null) : msg
-  const imgAtts = msg.attachments.filter(a=> a.mime_type.startsWith('image/'))
-  const audioAtts = msg.attachments.filter(a=> a.mime_type.startsWith('audio/'))
-  const videoAtts = msg.attachments.filter(a=> a.mime_type.startsWith('video/'))
-  const fileAtts = msg.attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/') && !a.mime_type.startsWith('video/'))
+  const attachments = msg.attachments || []
+  const imgAtts = attachments.filter(a=> a.mime_type.startsWith('image/'))
+  const audioAtts = attachments.filter(a=> a.mime_type.startsWith('audio/'))
+  const videoAtts = attachments.filter(a=> a.mime_type.startsWith('video/'))
+  const fileAtts = attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/') && !a.mime_type.startsWith('video/'))
 
   const isPdf = (a: { mime_type: string; filename: string; original_filename?: string }) =>
     a.mime_type.includes('pdf') || /\.pdf$/i.test(a.original_filename || a.filename || '')
@@ -330,7 +331,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <button onClick={async ()=>{
               setTranscribing(true)
               try {
-                const att = msg.attachments[0]
+                const att = (msg.attachments || [])[0]
                 if (att) {
                   const url = resolveAttUrl(att)
                   const blob = await fetch(url).then(r=> r.blob())
@@ -354,9 +355,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           {(msg as any).is_pinned && (
             <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>
           )}
-          {msg.reactions.length>0 && (
+          {(msg.reactions || []).length>0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {Object.entries(msg.reactions.reduce((acc:any, r)=>{
+              {Object.entries((msg.reactions || []).reduce((acc:any, r)=>{
                 acc[r.emoji]=(acc[r.emoji]||0)+1
                 return acc
               }, {})).map(([emoji, count]:any)=>(

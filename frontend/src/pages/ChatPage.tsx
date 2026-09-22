@@ -232,7 +232,7 @@ export default function ChatPage() {
     const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
     const msg = currentMsgs.find((m: any) => m.id === id)
     if (!msg || !user) return
-    const myReacts = msg.reactions.filter((r: any) => r.user_id === user.id)
+    const myReacts = (msg.reactions || []).filter((r: any) => r.user_id === user.id)
     const hasSame = myReacts.some((r: any) => r.emoji === emoji)
     try {
       if (hasSame) {
@@ -399,7 +399,7 @@ export default function ChatPage() {
   const handleCall = (type: 'voice' | 'video') => {
     if (!currentConv) return
     if (currentConv.is_group) return toast('Voice/video calls work in direct chats for now', 'error')
-    const other = currentConv.members.find((m: any) => m.user_id !== user?.id)
+    const other = (currentConv.members || []).find((m: any) => m.user_id !== user?.id)
     if (!other) return toast('No peer to call', 'error')
     callsApi.start({ callee_id: other.user_id, conversation_id: currentConv.id, call_type: type })
       .then((r: any) => { if (r.success) setCallModal({ open: true, type, peerName: other.display_name, peerAvatar: other.avatar_url, incoming: false, callId: r.data.id, peerId: other.user_id }) })

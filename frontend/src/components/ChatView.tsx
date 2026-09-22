@@ -535,6 +535,7 @@ export function ChatView({
                 )
               }
               const msg = item.msg
+              if (!msg) return null
               const prevMsg = prev?.kind === 'msg' ? prev.msg : undefined
               const next = flowItems[idx + 1]
               const nextMsg = next?.kind === 'msg' ? next.msg : undefined

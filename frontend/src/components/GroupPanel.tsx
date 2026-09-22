@@ -13,8 +13,9 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   const [msg, setMsg]=useState<string|null>(null)
   const [muted, setMuted]=useState(false)
   // 1-1 chats only: the other participant + block state.
+  const members = conversation.members || []
   const otherMember = !conversation.is_group
-    ? conversation.members.find(m=> m.user_id !== user?.id) ?? null
+    ? members.find(m=> m.user_id !== user?.id) ?? null
     : null
   const [blocked, setBlocked]=useState(false)
   // Group invite link (managers only).
@@ -28,7 +29,7 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
       .catch(()=>{})
   }, [conversation.id])
 
-  const myRole = conversation.members.find(m=> m.user_id===user?.id)?.role
+  const myRole = members.find(m=> m.user_id===user?.id)?.role
   const canManage = myRole==='owner' || myRole==='admin'
 
   useEffect(()=>{
@@ -157,7 +158,7 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
             <Users className="w-8 h-8"/>
           </div>
           <p className="font-semibold mt-2">{conversation.title}</p>
-          <p className="text-xs text-muted-foreground">{conversation.members.length} members • {myRole} {myRole==='owner' && <Shield className="w-3 h-3 inline"/>}</p>
+          <p className="text-xs text-muted-foreground">{members.length} members • {myRole} {myRole==='owner' && <Shield className="w-3 h-3 inline"/>}</p>
           <div className="flex gap-2 mt-3 flex-wrap justify-center">
             <button onClick={handleMute} className={`px-3 py-1.5 rounded-full text-xs flex items-center gap-1 ${muted ? 'bg-amber-500 text-white' : 'bg-muted'}`}>{muted ? <BellOff className="w-3 h-3"/> : <Bell className="w-3 h-3"/>}{muted? 'Muted':'Mute'}</button>
             {otherMember && (
@@ -216,7 +217,7 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
           </div>
           {showAdd && <div className="mt-2 border rounded-xl overflow-hidden"><UserSearch onSelect={handleAdd}/></div>}
           <div className="mt-3 space-y-2">
-            {conversation.members.map(m=> (
+            {members.map(m=> (
               <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted">
                 <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white flex items-center justify-center text-xs font-bold overflow-hidden">
                   {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt=""/> : m.display_name[0]}

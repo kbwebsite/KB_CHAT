@@ -375,15 +375,16 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
         const idx = list.findIndex(m=> m.id === mid)
         if (idx < 0) continue
         const msg = list[idx]
+        const curReactions = msg.reactions || []
         if (add) {
-          if (msg.reactions.some(r=> r.user_id === me && r.emoji === emoji)) continue
+          if (curReactions.some(r=> r.user_id === me && r.emoji === emoji)) continue
           const next = [...list]
-          next[idx] = { ...msg, reactions: [...msg.reactions, { id: -Date.now(), user_id: me as number, emoji }] }
+          next[idx] = { ...msg, reactions: [...curReactions, { id: -Date.now(), user_id: me as number, emoji }] }
           messages[Number(cid)] = next
           changed = true
         } else {
           const next = [...list]
-          next[idx] = { ...msg, reactions: msg.reactions.filter(r=> !(r.user_id === me && r.emoji === emoji)) }
+          next[idx] = { ...msg, reactions: curReactions.filter(r=> !(r.user_id === me && r.emoji === emoji)) }
           messages[Number(cid)] = next
           changed = true
         }
@@ -410,7 +411,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       // also update conversations members
       const convs = state.conversations.map(c=>{
         let changed=false
-        const members=c.members.map(m=>{
+        const members=(c.members || []).map(m=>{
           if (m.user_id===userId && m.is_online!==isOnline) {changed=true; return {...m, is_online:isOnline}}
           return m
         })
@@ -518,8 +519,9 @@ export function initChatWS() {
       const idx = msgs.findIndex(m=>m.id===mid)
       if (idx>=0) {
         const msg = msgs[idx]
-        if (!msg.reactions.some(r=> r.user_id===p.user_id && r.emoji===p.emoji)) {
-          const updated = {...msg, reactions: [...msg.reactions, {id:p.id, user_id:p.user_id, emoji:p.emoji}]}
+        const cur = msg.reactions || []
+        if (!cur.some(r=> r.user_id===p.user_id && r.emoji===p.emoji)) {
+          const updated = {...msg, reactions: [...cur, {id:p.id, user_id:p.user_id, emoji:p.emoji}]}
           useChatStore.getState().updateMessage(updated as any)
         }
       }
@@ -530,7 +532,7 @@ export function initChatWS() {
     for (const msgs of Object.values(state.messages)) {
       const target=msgs.find(m=>m.id===p.message_id)
       if (target) {
-        const updated={...target, reactions: target.reactions.filter(r=> !(r.user_id===p.user_id && r.emoji===p.emoji))}
+        const updated={...target, reactions: (target.reactions || []).filter(r=> !(r.user_id===p.user_id && r.emoji===p.emoji))}
         useChatStore.getState().updateMessage(updated as any)
       }
     }

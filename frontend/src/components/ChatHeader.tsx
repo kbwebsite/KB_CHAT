@@ -54,13 +54,14 @@ export function ChatHeader({
     { key: 'insights', label: 'Insights', icon: Lightbulb },
   ] : []
   const title = conv?.title || 'Unknown'
-  const isOnline = conv && !conv.is_group && conv.members.some(m => m.user_id !== currentUserId && m.is_online)
+  const members = conv?.members || []
+  const isOnline = conv && !conv.is_group && members.some(m => m.user_id !== currentUserId && m.is_online)
   const subtitle = conv?.is_group
-    ? `${conv.members.length} members`
+    ? `${members.length} members`
     : isOnline
       ? 'Online'
       : conv
-        ? formatLastSeen(conv.members.find(m => m.user_id !== currentUserId)?.is_online ? undefined : undefined, false)
+        ? formatLastSeen(members.find(m => m.user_id !== currentUserId)?.is_online ? undefined : undefined, false)
         : ''
 
   return (
