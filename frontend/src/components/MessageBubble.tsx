@@ -177,17 +177,20 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   // The copy is marked plain (is_encrypted cleared) so downstream handlers
   // treat `content` as final instead of trying to decrypt it again.
   const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text, is_encrypted: false } : null) : msg
-  const attachments = msg.attachments || []
-  const imgAtts = attachments.filter(a=> a.mime_type.startsWith('image/'))
-  const audioAtts = attachments.filter(a=> a.mime_type.startsWith('audio/'))
-  const videoAtts = attachments.filter(a=> a.mime_type.startsWith('video/'))
-  const fileAtts = attachments.filter(a=> !a.mime_type.startsWith('image/') && !a.mime_type.startsWith('audio/') && !a.mime_type.startsWith('video/'))
+  const attachments = (msg.attachments || []).filter(Boolean)
+  // mime_type/file_path can be NULL on legacy rows (the API passes them
+  // through as null) — never let one bad attachment crash the whole view.
+  const mimeOf = (a: any) => (typeof a?.mime_type === 'string' ? a.mime_type : '')
+  const imgAtts = attachments.filter(a=> mimeOf(a).startsWith('image/'))
+  const audioAtts = attachments.filter(a=> mimeOf(a).startsWith('audio/'))
+  const videoAtts = attachments.filter(a=> mimeOf(a).startsWith('video/'))
+  const fileAtts = attachments.filter(a=> !mimeOf(a).startsWith('image/') && !mimeOf(a).startsWith('audio/') && !mimeOf(a).startsWith('video/'))
 
-  const isPdf = (a: { mime_type: string; filename: string; original_filename?: string }) =>
-    a.mime_type.includes('pdf') || /\.pdf$/i.test(a.original_filename || a.filename || '')
+  const isPdf = (a: { mime_type?: string | null; filename?: string | null; original_filename?: string | null }) =>
+    mimeOf(a).includes('pdf') || /\.pdf$/i.test(a?.original_filename || a?.filename || '')
 
-  const resolveAttUrl = (a: { filename: string; file_path: string; cloudinary_url?: string | null; url?: string }) =>
-    a.cloudinary_url || a.url || (a.file_path.startsWith('/api') ? a.file_path : `/api/uploads/file/${a.filename}`)
+  const resolveAttUrl = (a: { filename?: string | null; file_path?: string | null; cloudinary_url?: string | null; url?: string }) =>
+    a?.cloudinary_url || (a as any)?.url || ((typeof a?.file_path === 'string' && a.file_path.startsWith('/api')) ? a.file_path : `/api/uploads/file/${a?.filename || ''}`)
   const isSaved = savedIds?.has(msg.id)
   const [showMenu, setShowMenu]=useState(false)
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))

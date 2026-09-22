@@ -17,14 +17,15 @@ async def lifespan(app):
     from app.websocket.manager import manager as _ws_manager
 
     _ws_manager.set_loop(asyncio.get_running_loop())
-    # Warm the DB pool: the first user after a cold start otherwise pays
-    # TLS + auth handshakes inside their own requests (seconds on free).
+    # Warm the DB pool with a single ping: the first user after a cold start
+    # otherwise pays TLS + auth handshakes inside their own request. One ping
+    # is enough to establish the connection; extra rounds only delay readiness
+    # (lifespan blocks serving until done) on slow/cold networks.
     try:
         from app.database.connection import engine as _engine
 
-        for _ in range(3):
-            with _engine.connect() as _conn:
-                _conn.exec_driver_sql("SELECT 1")
+        with _engine.connect() as _conn:
+            _conn.exec_driver_sql("SELECT 1")
     except Exception as e:
         print(f"[db] pool warmup skipped: {e}")
 

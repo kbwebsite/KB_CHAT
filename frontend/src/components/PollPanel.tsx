@@ -100,7 +100,8 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
 }
 
 export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userId?: number, onVote: (id: number, opts: number[]) => void, onDelete: (id: number) => void }) {
-  const myVotes = poll.options.filter(o => o.voter_ids.includes(userId!)).map(o => o.id)
+  const pollOptions = Array.isArray(poll.options) ? poll.options : []
+  const myVotes = pollOptions.filter(o => (o.voter_ids || []).includes(userId!)).map(o => o.id)
   const [selected, setSelected] = useState<number[]>(myVotes)
   const hasVoted = myVotes.length > 0
   const isClosed = poll.closes_at && new Date(poll.closes_at) < new Date()
@@ -120,13 +121,13 @@ export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userI
     <div className="p-3 rounded-xl border bg-background space-y-2">
       <div className="flex items-start justify-between">
         <p className="text-sm font-medium">{poll.question}</p>
-        {userId && poll.options.some(o => o.voter_ids.includes(userId)) && (
+        {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (
           <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Voted</span>
         )}
       </div>
       <p className="text-[11px] text-muted-foreground">{poll.total_votes} vote{poll.total_votes !== 1 ? 's' : ''}{poll.is_multiple_choice ? ' • Multiple choice' : ''}</p>
       <div className="space-y-1.5">
-        {poll.options.map(opt => {
+        {pollOptions.map(opt => {
           const pct = poll.total_votes > 0 ? Math.round((opt.vote_count / poll.total_votes) * 100) : 0
           const isSelected = selected.includes(opt.id)
           const isMyVote = myVotes.includes(opt.id)
@@ -151,8 +152,8 @@ export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userI
       {!hasVoted && !isClosed && selected.length > 0 && (
         <button onClick={submitVote} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium">Submit Vote</button>
       )}
-      {userId && poll.options.some(o => o.voter_ids.includes(userId)) && (
-        <div className="text-[11px] text-muted-foreground">Your votes: {poll.options.filter(o => o.voter_ids.includes(userId!)).map(o => o.text).join(', ')}</div>
+      {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (
+        <div className="text-[11px] text-muted-foreground">Your votes: {pollOptions.filter(o => (o.voter_ids || []).includes(userId!)).map(o => o.text).join(', ')}</div>
       )}
     </div>
   )
