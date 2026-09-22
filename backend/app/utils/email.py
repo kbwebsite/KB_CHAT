@@ -1,9 +1,12 @@
-"""Outbound email: Resend first, Gmail SMTP fallback (stdlib only).
+"""Outbound email: Gmail API first, then Resend, then Gmail SMTP fallback.
 
-Everything here is fail-soft: when neither sender is configured (local dev,
-tests) the send is skipped with a log line so auth flows keep working.
+Gmail API is plain HTTPS, so it works from hosts (Render) where outbound
+SMTP is blocked — and needs no verified domain. Everything here is
+fail-soft: when no sender is configured (local dev, tests) the send is
+skipped with a log line so auth flows keep working.
 """
 
+import base64
 import logging
 import smtplib
 from email.mime.multipart import MIMEMultipart
@@ -16,6 +19,10 @@ from app.database.config import settings
 logger = logging.getLogger(__name__)
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
+GMAIL_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
+GMAIL_SEND_ENDPOINT = (
+    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
+)
 
 
 def resend_configured() -> bool:
@@ -30,9 +37,17 @@ def smtp_configured() -> bool:
     )
 
 
+def gmail_configured() -> bool:
+    return bool(
+        (settings.GMAIL_CLIENT_ID or "").strip()
+        and (settings.GMAIL_CLIENT_SECRET or "").strip()
+        and (settings.GMAIL_REFRESH_TOKEN or "").strip()
+    )
+
+
 def email_configured() -> bool:
     """True when at least one sender can actually deliver."""
-    return resend_configured() or smtp_configured()
+    return gmail_configured() or resend_configured() or smtp_configured()
 
 
 def _resend_sender_is_sandbox() -> bool:
@@ -46,9 +61,82 @@ def _resend_sender_is_sandbox() -> bool:
     return raw.endswith("@resend.dev")
 
 
+def _gmail_access_token() -> str | None:
+    """Mint a short-lived access token from the stored refresh token."""
+    try:
+        resp = httpx.post(
+            GMAIL_TOKEN_ENDPOINT,
+            data={
+                "client_id": settings.GMAIL_CLIENT_ID.strip(),
+                "client_secret": settings.GMAIL_CLIENT_SECRET.strip(),
+                "refresh_token": settings.GMAIL_REFRESH_TOKEN.strip(),
+                "grant_type": "refresh_token",
+            },
+            timeout=10,
+        )
+        if 200 <= resp.status_code < 300:
+            token = (resp.json() or {}).get("access_token")
+            return token or None
+        logger.warning(
+            "[email] Gmail token refresh failed: %s", resp.status_code
+        )
+    except Exception as e:
+        logger.warning("[email] Gmail token refresh failed: %s", e)
+    return None
+
+
+def _send_via_gmail_api(
+    to: str, subject: str, html: str, text: str | None
+) -> bool:
+    """Send via the Gmail API. Free, no domain needed; mail goes out from
+    the authorized Gmail account."""
+    sender = (settings.GMAIL_FROM or "").strip() or (
+        settings.SMTP_USER or ""
+    ).strip()
+    if "@" not in sender:
+        return False
+    access = _gmail_access_token()
+    if not access:
+        return False
+    msg = MIMEMultipart("alternative")
+    msg["From"] = sender
+    msg["To"] = to
+    msg["Subject"] = subject
+    if text:
+        msg.attach(MIMEText(text, "plain", "utf-8"))
+    msg.attach(MIMEText(html, "html", "utf-8"))
+    try:
+        raw = base64.urlsafe_b64encode(msg.as_bytes()).decode()
+        resp = httpx.post(
+            GMAIL_SEND_ENDPOINT,
+            headers={
+                "Authorization": f"Bearer {access}",
+                "Content-Type": "application/json",
+            },
+            json={"raw": raw},
+            timeout=10,
+        )
+        if 200 <= resp.status_code < 300:
+            logger.info("[email] sent via Gmail API to %s (%s)", to, subject)
+            return True
+        logger.warning(
+            "[email] Gmail API send to %s failed: %s %s",
+            to,
+            resp.status_code,
+            resp.text[:200],
+        )
+        return False
+    except Exception as e:
+        logger.warning("[email] Gmail API send to %s failed: %s", to, e)
+        return False
+
+
 def send_email(to: str, subject: str, html: str, text: str | None = None) -> bool:
-    """Send one transactional email. SMTP first with a sandbox Resend
-    sender (it can't reach other inboxes anyway), Resend first otherwise."""
+    """Send one transactional email. Gmail API first (works where SMTP is
+    blocked), then SMTP-first with a sandbox Resend sender (it can't reach
+other inboxes anyway), Resend first otherwise."""
+    if gmail_configured() and _send_via_gmail_api(to, subject, html, text):
+        return True
     if not email_configured():
         logger.info(
             "[email] no sender configured — skipping send to %s (%s)", to, subject

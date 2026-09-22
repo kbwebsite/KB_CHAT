@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     SMTP_USER: str = ""
     SMTP_PASS: str = ""
     SMTP_FROM: str = ""
+    # Gmail API sending (free, no domain needed; plain HTTPS so it works
+    # where outbound SMTP is blocked). One-time setup: enable Gmail API,
+    # create an OAuth Desktop client, mint a refresh token, store all three
+    # here plus the sending address in GMAIL_FROM.
+    GMAIL_CLIENT_ID: str = ""
+    GMAIL_CLIENT_SECRET: str = ""
+    GMAIL_REFRESH_TOKEN: str = ""
+    GMAIL_FROM: str = ""
     # Firebase Cloud Messaging (push). Service-account JSON goes in
     # FIREBASE_CREDENTIALS_JSON (secret — never exposed). The rest are public
     # web-config values served to the SPA via /api/config.

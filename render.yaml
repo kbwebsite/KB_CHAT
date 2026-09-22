@@ -82,3 +82,13 @@ services:
         sync: false
       - key: SMTP_FROM
         sync: false
+      # Gmail API sending (free, no domain needed; works where SMTP is
+      # blocked). Values are dashboard-managed secrets.
+      - key: GMAIL_CLIENT_ID
+        sync: false
+      - key: GMAIL_CLIENT_SECRET
+        sync: false
+      - key: GMAIL_REFRESH_TOKEN
+        sync: false
+      - key: GMAIL_FROM
+        sync: false

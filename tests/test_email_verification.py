@@ -260,6 +260,69 @@ def test_sandbox_resend_does_not_shortcircuit_smtp(monkeypatch):
     assert calls == [("smtp", ["a@ex.com"])]
 
 
+def test_gmail_sender_disabled_without_config():
+    from app.utils import email as email_module
+
+    assert email_module.gmail_configured() is False
+
+
+def test_gmail_api_send_success_first(monkeypatch):
+    """Gmail API sender mints a token then sends; tried before others."""
+    from app.utils import email as email_module
+
+    calls = []
+
+    class FakeResp:
+        def __init__(self, status_code, payload=None):
+            self.status_code = status_code
+            self._payload = payload or {}
+            self.text = ""
+
+        def json(self):
+            return self._payload
+
+    def fake_post(url, **kw):
+        calls.append(url)
+        if "oauth2" in url:
+            assert kw["data"]["grant_type"] == "refresh_token"
+            return FakeResp(200, {"access_token": "ya29.test"})
+        assert kw["headers"]["Authorization"] == "Bearer ya29.test"
+        assert "raw" in kw["json"]
+        return FakeResp(200, {"id": "msg1"})
+
+    monkeypatch.setattr(email_module.httpx, "post", fake_post)
+    monkeypatch.setattr(settings, "GMAIL_CLIENT_ID", "cid", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_CLIENT_SECRET", "csec", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_REFRESH_TOKEN", "rtok", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_FROM", "me@gmail.com", raising=False)
+    assert email_module.gmail_configured() is True
+    assert email_module.email_configured() is True
+    assert email_module.send_email("a@ex.com", "Hi", "<p>hi</p>", "hi") is True
+    assert calls[0].startswith("https://oauth2")
+    assert "gmail.googleapis" in calls[1]
+
+
+def test_gmail_failure_is_fail_soft(monkeypatch):
+    """Bad refresh token -> False, no exception, other senders untouched."""
+    from app.utils import email as email_module
+
+    class FakeResp:
+        status_code = 400
+        text = "invalid_grant"
+
+        def json(self):
+            return {}
+
+    monkeypatch.setattr(
+        email_module.httpx, "post", lambda *a, **k: FakeResp()
+    )
+    monkeypatch.setattr(settings, "GMAIL_CLIENT_ID", "cid", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_CLIENT_SECRET", "csec", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_REFRESH_TOKEN", "bad", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_FROM", "me@gmail.com", raising=False)
+    assert email_module.send_email("a@ex.com", "Hi", "<p>hi</p>", "hi") is False
+
+
 def test_forgot_password_dev_token_preserved_without_resend():
     suffix = str(int(time.time() * 1000))[-6:]
     email = f"fp{suffix}@ex.com"
