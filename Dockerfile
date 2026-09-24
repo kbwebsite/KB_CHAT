@@ -25,7 +25,9 @@ RUN mkdir -p /app/backend/uploads
 WORKDIR /app/backend
 
 # Render injects PORT; default 8000 for local
+# Unbuffered stdout so print-diagnostics reach Render logs immediately.
 ENV PORT=8000
+ENV PYTHONUNBUFFERED=1
 EXPOSE 8000
 
 # Use shell form so $PORT is expanded by Render

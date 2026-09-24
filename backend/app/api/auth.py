@@ -214,7 +214,12 @@ def verify_login(payload: dict, db: Session = Depends(get_db)):
                     reason = "expired"
                 else:
                     reason = "user-mismatch"
-                print(f"[auth] verify-login rejected ({reason}) for {email}")
+                # flush=True: stdout is block-buffered under Docker and a
+                # lone print can otherwise sit invisible for minutes.
+                print(
+                    f"[auth] verify-login rejected ({reason}) for {email}",
+                    flush=True,
+                )
             except Exception:
                 pass
             raise HTTPException(status_code=400, detail="Invalid or expired code")
