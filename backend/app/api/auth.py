@@ -192,6 +192,31 @@ def verify_login(payload: dict, db: Session = Depends(get_db)):
             raise HTTPException(status_code=403, detail="Account disabled")
         uid = _consume_code(db, email, code)
         if uid is None or uid != user.id:
+            # Diagnose (never log the code itself): no row / wrong inbox /
+            # expired / already used.
+            try:
+                from app.models.verification import VerificationCode
+
+                row = (
+                    db.query(VerificationCode)
+                    .filter_by(code_hash=hashlib.sha256(code.encode()).hexdigest())
+                    .first()
+                )
+                if row is None:
+                    reason = "no-such-code"
+                elif row.email != email:
+                    reason = "email-mismatch"
+                elif row.used:
+                    reason = "already-used"
+                elif row.expires_at is None or _as_aware(row.expires_at) < datetime.now(
+                    timezone.utc
+                ):
+                    reason = "expired"
+                else:
+                    reason = "user-mismatch"
+                print(f"[auth] verify-login rejected ({reason}) for {email}")
+            except Exception:
+                pass
             raise HTTPException(status_code=400, detail="Invalid or expired code")
         # A redeemed login code proves inbox ownership.
         user.email_verified = True
