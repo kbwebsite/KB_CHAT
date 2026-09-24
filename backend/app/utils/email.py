@@ -225,7 +225,7 @@ def _shell(title: str, body_html: str) -> str:
 def send_verification_code(to: str, code: str) -> bool:
     html = _shell(
         "Verify your email",
-        f"""<p style="color:#9898b8;font-size:14px;">Enter this code in Kryzen to verify your address. It expires in 10 minutes.</p>
+        f"""<p style="color:#9898b8;font-size:14px;">Enter this code in Kryzen to verify your address. It expires in 30 minutes. Only the newest code works — older ones stop working when a new one is sent.</p>
 <p style="font-size:34px;font-weight:bold;letter-spacing:10px;color:#7c5cfc;margin:16px 0;">{code}</p>
 <p style="color:#5c5c80;font-size:12px;">Didn't ask for this? Ignore the email.</p>""",
     )
@@ -233,7 +233,7 @@ def send_verification_code(to: str, code: str) -> bool:
         to,
         "Your Kryzen verification code",
         html,
-        text=f"Your Kryzen verification code is {code}. It expires in 10 minutes.",
+        text=f"Your Kryzen verification code is {code}. It expires in 30 minutes. Only the newest code works.",
     )
 
 

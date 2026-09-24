@@ -704,7 +704,7 @@ def send_verification(payload: dict, db: Session = Depends(get_db)):
         return error_response(None, "Failed to send verification code")
 
 
-_CODE_TTL = timedelta(minutes=10)
+_CODE_TTL = timedelta(minutes=30)
 _CODE_COOLDOWN = timedelta(seconds=60)
 
 
@@ -742,6 +742,11 @@ def _issue_code(db: Session, user: User) -> bool:
                 status_code=429,
                 detail="Code sent recently — check your inbox before requesting another",
             )
+    # Only the newest code per inbox stays valid: invalidate older unused
+    # ones so a stale email's code can never shadow the fresh one.
+    db.query(VerificationCode).filter(
+        VerificationCode.email == user.email, VerificationCode.used == False  # noqa: E712
+    ).delete(synchronize_session=False)
     # 6 digits collide occasionally (and stale rows linger) — retry instead
     # of 500ing on the unique hash constraint.
     from sqlalchemy.exc import IntegrityError
