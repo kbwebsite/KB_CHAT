@@ -56,7 +56,7 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
         verification_sent = False
         if user.auth_provider in (None, "local"):
             try:
-                verification_sent = bool(_issue_code(user))
+                verification_sent = bool(_issue_code(db, user))
             except HTTPException:
                 verification_sent = False
             except Exception as e:
@@ -120,7 +120,7 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
         # the inbox verified, so first-time and returning users share it.
         code_sent = False
         try:
-            code_sent = bool(_issue_code(user))
+            code_sent = bool(_issue_code(db, user))
         except HTTPException as e:
             if e.status_code == 429:
                 # A code went out <60s ago (e.g. right after signup) —
@@ -190,7 +190,7 @@ def verify_login(payload: dict, db: Session = Depends(get_db)):
             raise HTTPException(status_code=400, detail="Invalid or expired code")
         if not user.is_active:
             raise HTTPException(status_code=403, detail="Account disabled")
-        uid = _consume_code(email, code)
+        uid = _consume_code(db, email, code)
         if uid is None or uid != user.id:
             raise HTTPException(status_code=400, detail="Invalid or expired code")
         # A redeemed login code proves inbox ownership.
@@ -633,7 +633,7 @@ def verify_email(payload: dict, db: Session = Depends(get_db)):
             # Generic: don't reveal whether the address is registered.
             raise HTTPException(status_code=400, detail="Invalid or expired code")
 
-        uid = _consume_code(email, code)
+        uid = _consume_code(db, email, code)
         if uid is None or uid != user.id:
             raise HTTPException(status_code=400, detail="Invalid or expired code")
 
@@ -662,7 +662,7 @@ def send_verification(payload: dict, db: Session = Depends(get_db)):
             and not bool(getattr(user, "email_verified", False))
             and (user.auth_provider or "local") == "local"
         ):
-            sent = bool(_issue_code(user))
+            sent = bool(_issue_code(db, user))
         return success_response(
             {"sent": sent},
             "If the email exists, a verification code has been sent",
@@ -678,55 +678,81 @@ _CODE_TTL = timedelta(minutes=10)
 _CODE_COOLDOWN = timedelta(seconds=60)
 
 
-def _code_store() -> dict:
-    if not hasattr(settings, "_verification_codes"):
-        settings._verification_codes = {}
-    return settings._verification_codes
+def _as_aware(dt: datetime) -> datetime:
+    """Normalize a stored timestamp for comparison (SQLite returns naive,
+    Postgres returns aware)."""
+    if dt is not None and dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
-def _code_cooldowns() -> dict:
-    if not hasattr(settings, "_verification_last_sent"):
-        settings._verification_last_sent = {}
-    return settings._verification_last_sent
+def _issue_code(db: Session, user: User) -> bool:
+    """Generate, store (hashed, in DB) and email a 6-digit code.
 
-
-def _purge_codes(now: datetime):
-    store = _code_store()
-    for h, e in list(store.items()):
-        if e["expires"] < now:
-            del store[h]
-
-
-def _issue_code(user: User) -> bool:
-    """Generate, store (hashed) and email a 6-digit code. Returns sent-flag."""
+    DB-backed so codes survive sleeps, restarts and redeploys.
+    Returns the sent-flag."""
+    from app.models.verification import VerificationCode
     from app.utils.email import send_verification_code
 
     now = datetime.now(timezone.utc)
-    _purge_codes(now)
-    last = _code_cooldowns().get(user.email)
-    if last is not None and now - last < _CODE_COOLDOWN:
-        raise HTTPException(
-            status_code=429,
-            detail="Code sent recently — check your inbox before requesting another",
-        )
-    code = f"{secrets.randbelow(900000) + 100000:06d}"
-    _code_store()[hashlib.sha256(code.encode()).hexdigest()] = {
-        "user_id": user.id,
-        "email": user.email,
-        "expires": now + _CODE_TTL,
-    }
-    sent = send_verification_code(user.email, code)
-    _code_cooldowns()[user.email] = now
-    return sent
+    # Opportunistic purge of expired rows.
+    db.query(VerificationCode).filter(
+        VerificationCode.expires_at < now
+    ).delete(synchronize_session=False)
+    last = (
+        db.query(VerificationCode)
+        .filter_by(email=user.email)
+        .order_by(VerificationCode.id.desc())
+        .first()
+    )
+    if last is not None and last.created_at is not None:
+        created = _as_aware(last.created_at)
+        if created is not None and now - created < _CODE_COOLDOWN:
+            raise HTTPException(
+                status_code=429,
+                detail="Code sent recently — check your inbox before requesting another",
+            )
+    # 6 digits collide occasionally (and stale rows linger) — retry instead
+    # of 500ing on the unique hash constraint.
+    from sqlalchemy.exc import IntegrityError
+
+    code = None
+    for _ in range(5):
+        candidate = f"{secrets.randbelow(900000) + 100000:06d}"
+        try:
+            db.add(
+                VerificationCode(
+                    user_id=user.id,
+                    email=user.email,
+                    code_hash=hashlib.sha256(candidate.encode()).hexdigest(),
+                    expires_at=now + _CODE_TTL,
+                )
+            )
+            db.commit()
+            code = candidate
+            break
+        except IntegrityError:
+            db.rollback()
+    if code is None:
+        raise HTTPException(status_code=500, detail="Could not issue code")
+    return bool(send_verification_code(user.email, code))
 
 
-def _consume_code(email: str, code: str):
+def _consume_code(db: Session, email: str, code: str):
     """Single-use redeem. Returns the bound user id, or None."""
+    from app.models.verification import VerificationCode
+
     now = datetime.now(timezone.utc)
-    _purge_codes(now)
     h = hashlib.sha256(code.encode()).hexdigest()
-    entry = _code_store().get(h)
-    if not entry or entry["email"] != email:
+    row = (
+        db.query(VerificationCode)
+        .filter_by(code_hash=h, used=False)
+        .first()
+    )
+    if not row or row.email != email:
         return None
-    del _code_store()[h]
-    return entry["user_id"]
+    if row.expires_at is None or _as_aware(row.expires_at) < now:
+        return None
+    row.used = True
+    db.commit()
+    return row.user_id

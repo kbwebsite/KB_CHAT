@@ -29,7 +29,7 @@ def _login_token(identifier, password="pass123"):
     import hashlib
     from datetime import datetime, timedelta, timezone
 
-    from app.api import auth as auth_module
+    from app.models.verification import VerificationCode
 
     r = client.post(
         "/api/auth/login", json={"identifier": identifier, "password": password}
@@ -44,11 +44,19 @@ def _login_token(identifier, password="pass123"):
     try:
         user = db.query(User).filter_by(email=email).first()
         assert user is not None
-        auth_module._code_store()[hashlib.sha256(b"123456").hexdigest()] = {
-            "user_id": user.id,
-            "email": email,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
-        }
+        # Stale rows from earlier runs share the fixed test code hash.
+        db.query(VerificationCode).filter_by(
+            code_hash=hashlib.sha256(b"123456").hexdigest()
+        ).delete()
+        db.add(
+            VerificationCode(
+                user_id=user.id,
+                email=email,
+                code_hash=hashlib.sha256(b"123456").hexdigest(),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            )
+        )
+        db.commit()
     finally:
         db.close()
     r2 = client.post(

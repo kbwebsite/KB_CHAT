@@ -12,7 +12,6 @@ from app.main import app  # noqa: E402
 from app.database.connection import SessionLocal, create_tables  # noqa: E402
 from app.database.config import settings  # noqa: E402
 from app.models.user import User  # noqa: E402
-from app.api import auth as auth_module  # noqa: E402
 
 create_tables()
 client = TestClient(app)
@@ -37,15 +36,25 @@ def _signup(username, email):
 
 
 def _seed_code(email, code="123456"):
+    from app.models.verification import VerificationCode
+
     db = SessionLocal()
     try:
         user = db.query(User).filter_by(email=email).first()
         assert user is not None
-        auth_module._code_store()[hashlib.sha256(code.encode()).hexdigest()] = {
-            "user_id": user.id,
-            "email": email,
-            "expires": datetime.now(timezone.utc) + timedelta(minutes=10),
-        }
+        # Stale rows from earlier runs share the fixed test code hash.
+        db.query(VerificationCode).filter_by(
+            code_hash=hashlib.sha256(code.encode()).hexdigest()
+        ).delete()
+        db.add(
+            VerificationCode(
+                user_id=user.id,
+                email=email,
+                code_hash=hashlib.sha256(code.encode()).hexdigest(),
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+            )
+        )
+        db.commit()
         return user.id
     finally:
         db.close()
@@ -66,7 +75,14 @@ def test_send_verification_cooldown():
     r0 = client.post("/api/auth/send-verification", json={"email": email})
     assert r0.status_code == 429
     # After the cooldown window, resending works (fail-soft: sent False here).
-    auth_module._code_cooldowns().pop(email, None)
+    from app.models.verification import VerificationCode
+
+    db = SessionLocal()
+    try:
+        db.query(VerificationCode).filter_by(email=email).delete()
+        db.commit()
+    finally:
+        db.close()
     r1 = client.post("/api/auth/send-verification", json={"email": email})
     assert r1.status_code == 200
     assert r1.json()["data"]["sent"] is False  # no Resend key in tests

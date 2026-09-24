@@ -87,6 +87,7 @@ from app.models.session import UserSession
 from app.models.sticker import StickerPack, Sticker, UserSticker
 from app.models.agent import AgentConversation, AgentMessage
 from app.models.push_token import DeviceToken  # noqa: F401 (register table)
+from app.models.verification import VerificationCode  # noqa: F401 (register table)
 
 
 from app.api.auth import router as auth_router
