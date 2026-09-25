@@ -139,6 +139,33 @@ export function FirebaseAuth({ onSession, tabs }: { onSession: (idToken: string)
     }
   }
 
+  const handleNativeGoogle = async () => {
+    // Installed app: system account picker via the native SDK, then the
+    // same session exchange as web (Firebase ID token -> app session).
+    setBusy(true)
+    setError(null)
+    try {
+      const { FirebaseAuthentication } = await import(
+        '@capacitor-firebase/authentication'
+      )
+      await FirebaseAuthentication.signInWithGoogle()
+      const { token } = await FirebaseAuthentication.getIdToken()
+      if (!token) throw new Error('No ID token from native sign-in')
+      await finish(token)
+    } catch (err: any) {
+      const msg = String(err?.message || err || '')
+      // User dismissed the account picker — not an error.
+      if (/cancel|cancelled|dismissed|12501/i.test(msg)) return
+      setError(
+        err?.code === 'auth/invalid-credential'
+          ? 'Google sign-in failed — the app is not authorized. Its SHA-1 must be registered under: Firebase Console → Project settings → Android app.'
+          : friendlyAuthError(err),
+      )
+    } finally {
+      setBusy(false)
+    }
+  }
+
   const handleResendVerification = async () => {
     setBusy(true)
     setError(null)
@@ -202,11 +229,11 @@ export function FirebaseAuth({ onSession, tabs }: { onSession: (idToken: string)
   }
 
   const handleGoogle = async (redirect = false) => {
-    // Inside the installed app (Capacitor WebView) OAuth can't return: the
-    // Google tab hands off to an external browser and the redirect never
-    // comes back — it strands users on a Firebase error page. Email works.
+    // Inside the installed app (Capacitor WebView) web OAuth can't return:
+    // the Google tab hands off to an external browser and the redirect
+    // never comes back. Use the native SDK flow instead.
     if (isNativeApp()) {
-      setError('Google sign-in is not available inside the installed app yet — please use the Email tab (same account, same chats).')
+      await handleNativeGoogle()
       return
     }
     setBusy(true)

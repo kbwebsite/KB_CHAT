@@ -91,6 +91,17 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
       const { unregisterWebPush } = await import('../utils/push')
       await unregisterWebPush()
     } catch {}
+    try {
+      // Installed app: also clear the native Firebase session so the next
+      // Google tap shows the account picker instead of reusing silently.
+      const { Capacitor } = await import('@capacitor/core')
+      if (Capacitor.isNativePlatform()) {
+        const { FirebaseAuthentication } = await import(
+          '@capacitor-firebase/authentication'
+        )
+        await FirebaseAuthentication.signOut()
+      }
+    } catch {}
     try { await authApi.logout() } catch {}
     localStorage.removeItem('kb_token')
     localStorage.removeItem('kb_user')
