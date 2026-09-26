@@ -1,7 +1,12 @@
 import { Component, ReactNode } from 'react'
 import { AlertTriangle, RefreshCw } from 'lucide-react'
 
-interface Props { children: ReactNode; fallback?: ReactNode }
+interface Props {
+  children: ReactNode
+  // Static node, or a render function receiving the caught error so
+  // fallbacks can surface the message (one screenshot = diagnosis).
+  fallback?: ReactNode | ((error: Error | null) => ReactNode)
+}
 interface State { hasError: boolean; error: Error | null }
 
 export class ErrorBoundary extends Component<Props, State> {
@@ -13,7 +18,11 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, info: any) { console.error('ErrorBoundary:', error, info) }
   render() {
     if (this.state.hasError) {
-      if (this.props.fallback) return this.props.fallback
+      if (this.props.fallback) {
+        return typeof this.props.fallback === 'function'
+          ? this.props.fallback(this.state.error)
+          : this.props.fallback
+      }
       return (
         <div className="h-screen flex items-center justify-center bg-background p-8">
           <div className="max-w-md w-full text-center space-y-4">
