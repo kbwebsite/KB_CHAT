@@ -570,7 +570,7 @@ export default function ChatPage() {
         {/* Chat panel */}
         {showChatView && (
           <div className="chat-panel col-12 col-lg-8 col-xl-9" style={{ background: 'var(--bg-primary)' }}>
-            <ErrorBoundary fallback={(err) =>
+            <ErrorBoundary fallback={(err, stack) =>
               <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6">
                 <div className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'rgba(239, 68, 68, 0.1)' }}>
                   <span className="text-xl" style={{ color: 'var(--error)' }}>!</span>
@@ -578,6 +578,12 @@ export default function ChatPage() {
                 <p className="text-sm text-center" style={{ color: 'var(--text-secondary)' }}>Chat view crashed. Try selecting a conversation again.</p>
                 {err?.message && (
                   <p className="text-[11px] text-center font-mono px-3 py-1.5 rounded-lg bg-black/40 max-w-full break-words" style={{ color: 'var(--error)' }}>{err.message}</p>
+                )}
+                {stack && (
+                  <details className="max-w-full">
+                    <summary className="text-[11px] cursor-pointer" style={{ color: 'var(--text-secondary)' }}>Stack</summary>
+                    <pre className="text-[10px] text-left font-mono p-2 rounded-lg bg-black/40 max-w-full overflow-x-auto whitespace-pre-wrap" style={{ color: 'var(--text-secondary)' }}>{stack.split('\n').slice(0, 8).join('\n')}</pre>
+                  </details>
                 )}
                 <button onClick={() => window.location.reload()} className="btn-primary">Reload</button>
               </div>
