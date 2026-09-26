@@ -38,7 +38,7 @@ class WSService {
     try {
       const cap = (window as any)?.Capacitor
       if (cap?.isNativePlatform?.()) {
-        const wsBase = (import.meta.env.VITE_WS_URL || 'wss://kb-chat-jqdk.onrender.com').replace(/\/$/, '')
+        const wsBase = (import.meta.env.VITE_WS_URL || 'wss://kb-chat-1.onrender.com').replace(/\/$/, '')
         this.url = `${wsBase}/ws/chat?token=${encodeURIComponent(token)}`
         this._connect()
         return

@@ -3,7 +3,7 @@ import axios from 'axios'
 // Production backend origin. The native Android shell (Capacitor) serves the
 // SPA from a local origin, so relative API URLs would resolve to the device
 // itself — in the app we must talk to production over absolute URLs.
-export const PROD_ORIGIN = 'https://kb-chat-jqdk.onrender.com'
+export const PROD_ORIGIN = 'https://kb-chat-1.onrender.com'
 
 export function isNativeApp(): boolean {
   try {
@@ -20,8 +20,9 @@ const api = axios.create({
     : (import.meta.env.VITE_API_URL || ''),
   headers: { 'Content-Type': 'application/json' },
   // Half-dead mobile connections can hang a request forever (and the UI
-  // with it). Fail fast so sends surface a retryable error instead.
-  timeout: 25000,
+  // with it). Free-tier cold starts can exceed 25s, so allow 60s before
+  // surfacing a retryable error instead.
+  timeout: 60000,
 })
 
 api.interceptors.request.use((config) => {
