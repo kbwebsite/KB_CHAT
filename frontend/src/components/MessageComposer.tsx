@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Lock, Eye } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye } from 'lucide-react'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -7,14 +7,13 @@ import { uploadApi } from '../services/api'
 import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
 
-export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled, secure }: {
+export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
   onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
   onTyping: (isTyping: boolean) => void,
   conversationId: number,
   replyTo?: { id: number; content: string; sender: string } | null,
   onCancelReply: () => void,
   disabled?: boolean,
-  secure?: boolean
 }) {
   const [text, setText] = useState('')
   const [viewOnce, setViewOnce] = useState(false)
@@ -218,13 +217,6 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <Paperclip className="w-5 h-5" />
         </button>
         <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm,.m4a,.wav,.ogg,.aac,.amr" multiple />
-
-        {/* E2EE indicator */}
-        {secure && (
-          <span className="shrink-0 flex items-center gap-1 text-[10px] font-medium text-emerald-400" title="End-to-end encrypted: only you and the recipient can read these messages">
-            <Lock className="w-3.5 h-3.5" />
-          </span>
-        )}
 
         {/* Textarea */}
         <textarea

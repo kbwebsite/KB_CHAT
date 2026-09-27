@@ -670,6 +670,8 @@ def test_firebase_exchange_new_existing_unverified_rejected(monkeypatch):
 
 
 def test_e2ee_envelope_and_keys():
+    # E2EE removed: no envelope validation anymore. Flags are stored
+    # verbatim (legacy compat) and the device-keys endpoints still answer.
     import base64
     import time
 
@@ -712,7 +714,7 @@ def test_e2ee_envelope_and_keys():
     assert rm.status_code == 200, rm.text
     assert rm.json()["data"]["is_encrypted"] is True
     assert rm.json()["data"]["nonce"] == nonce
-    # bad nonce rejected
+    # no envelope validation anymore: bad nonce accepted
     rb = client.post(
         f"/api/conversations/{cid}/messages",
         json={
@@ -723,8 +725,8 @@ def test_e2ee_envelope_and_keys():
         },
         headers=ha,
     )
-    assert rb.status_code == 400
-    # groups reject encrypted
+    assert rb.status_code == 200, rb.text
+    # groups accept flagged messages too
     rg = client.post(
         "/api/conversations",
         json={"is_group": True, "title": "Enc Group", "member_usernames": [b]},
@@ -741,7 +743,7 @@ def test_e2ee_envelope_and_keys():
         },
         headers=ha,
     )
-    assert rgg.status_code == 400
+    assert rgg.status_code == 200, rgg.text
 
 
 def test_call_missed_posts_system_note():

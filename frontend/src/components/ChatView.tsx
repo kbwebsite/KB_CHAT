@@ -11,7 +11,6 @@ import { PollCard } from './PollPanel'
 import { EventCard } from './EventPanel'
 import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
-import { fetchPeerKey, ensurePublished } from '../utils/e2ee'
 import { formatTime } from '../utils/format'
 import { wallpaperStyle } from '../utils/wallpapers'
 import { Message } from '../types'
@@ -95,19 +94,6 @@ export function ChatView({
   // Polls & events rendered inline in the message flow (not just the panels)
   const [convPolls, setConvPolls] = useState<any[]>([])
   const [convEvents, setConvEvents] = useState<any[]>([])
-  // E2EE v1: publish this device's key once per login; track whether the
-  // open 1-1 chat has the peer's key (then sends are sealed).
-  const [secure, setSecure] = useState(false)
-  useEffect(() => { if (user?.id) ensurePublished(user.id) }, [user?.id])
-  useEffect(() => {
-    setSecure(false)
-    if (!currentConversationId || !currentConv || (currentConv as any).is_group || !user?.id) return
-    const other = (currentConv as any).members?.find((m: any) => m.user_id !== user.id)
-    if (!other) return
-    let live = true
-    fetchPeerKey(other.user_id).then(k => { if (live) setSecure(!!k) })
-    return () => { live = false }
-  }, [currentConversationId])
 
   useEffect(() => {
     setConvPolls([])
@@ -264,15 +250,11 @@ export function ChatView({
 
   const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => {
     if (!currentConversationId) return
-    // E2EE v1 has no edit path (edits can't be re-sealed server-side), so
-    // locked messages are not editable — the entry points stay hidden too.
     if (editTarget) {
-      if ((editTarget as any).is_encrypted || (editTarget as any).view_once) { setEditTarget(null); setEditText(''); return }
+      if ((editTarget as any).view_once) { setEditTarget(null); setEditText(''); return }
       await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return
     }
     try {
-      // Sealing happens inside the store's sendMessage (so retries reuse the
-      // exact same envelope) — pass raw content here.
       const extra: { voice_duration?: number; view_once?: boolean } =
         voiceDuration != null ? { voice_duration: voiceDuration } : {}
       if (opts?.view_once) extra.view_once = true
@@ -687,7 +669,6 @@ export function ChatView({
           conversationId={currentConv.id}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
-          secure={secure}
         />
       </div>
     </DragDropZone>

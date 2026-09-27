@@ -17,7 +17,6 @@ import { Message } from '../types'
 import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
-import { fetchPeerKey, openMessage } from '../utils/e2ee'
 
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
@@ -269,32 +268,10 @@ export default function ChatPage() {
     } catch (e: any) { toast(e.response?.data?.detail || 'Forward failed', 'error') }
   }
 
-  // ─── E2EE plaintext for single-message AI features ───
-  // The desktop hover menu passes an already-decrypted copy (is_encrypted
-  // cleared by the bubble); the mobile action sheet passes the raw store
-  // message. Open the box here so ciphertext never reaches AI/translate.
+  // ─── Readable text for single-message AI features ───
   const readableTextFor = async (m: any): Promise<string | null> => {
     if (!m || m.is_deleted) return null
-    if (!m.is_encrypted || m.message_type !== 'text') return m.content || ''
-    try {
-      const members = (currentConv as any)?.members || []
-      let peer = members.find((x: any) => x.user_id !== user?.id)?.user_id
-      if (peer == null && m.sender_id !== user?.id) peer = m.sender_id
-      if (peer == null && m.conversation_id) {
-        const c = (conversations as any[]).find((x: any) => x.id === m.conversation_id)
-        peer = (c as any)?.members?.find((x: any) => x.user_id !== user?.id)?.user_id
-      }
-      if (peer == null || user?.id == null) return null
-      let key = await fetchPeerKey(peer)
-      if (!key) key = await fetchPeerKey(peer, { force: true })
-      if (!key) return null
-      let t = await openMessage(m, user.id, key)
-      if (t == null) {
-        const fresh = await fetchPeerKey(peer, { force: true })
-        if (fresh && fresh !== key) t = await openMessage(m, user.id, fresh)
-      }
-      return t
-    } catch { return null }
+    return m.content || ''
   }
 
   // ─── AI action ───
@@ -306,7 +283,7 @@ export default function ChatPage() {
     setAiResult(null)
     try {
       const text = await readableTextFor(msg)
-      if (!text || !text.trim()) { setAiResult({ text: "Couldn't read this message on this device (still encrypted).", action }); return }
+      if (!text || !text.trim()) { setAiResult({ text: "Couldn't read this message.", action }); return }
       let res
       if (action === 'summarize') res = await aiApi.summarize(text)
       else res = await aiApi.action(text, 'text', action)
@@ -330,7 +307,7 @@ export default function ChatPage() {
     setLanguagesLoading(false)
     if (pendingTranslateMsg) {
       const src = await readableTextFor(pendingTranslateMsg)
-      if (!src || !src.trim()) { setAiResult({ text: "Couldn't read this message on this device (still encrypted).", action: 'translate' }); return }
+      if (!src || !src.trim()) { setAiResult({ text: "Couldn't read this message.", action: 'translate' }); return }
       try {
         setAiLoading(true)
         const res = await aiApi.translate(src, langName)
@@ -347,8 +324,8 @@ export default function ChatPage() {
   const handleTranslateClick = async (msg?: Message) => {
     if (msg) {
       const plain = await readableTextFor(msg)
-      if (plain == null || !plain.trim()) { toast("Couldn't read this message on this device (still encrypted).", 'error'); return }
-      setPendingTranslateMsg({ ...msg, content: plain, is_encrypted: false } as Message)
+      if (plain == null || !plain.trim()) { toast("Couldn't read this message.", 'error'); return }
+      setPendingTranslateMsg({ ...msg, content: plain } as Message)
     }
     else setPendingTranslateMsg(null)
     await fetchLanguages()
@@ -359,26 +336,10 @@ export default function ChatPage() {
     setAiLoading(true); setAiError(null)
     try {
       const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
-      // E2EE: AI features must read plaintext, never ciphertext. Decrypt what
-      // this device can open (peer key is cached after the first message);
-      // the rest becomes an honest marker instead of Base64 soup.
-      const members = (currentConv as any)?.members || []
-      const otherId = members.find((m: any) => m.user_id !== user?.id)?.user_id
       const parts: string[] = []
       for (const m of (currentMsgs as any[]).slice(-10)) {
         if (!m || m.is_deleted) continue
-        let text = m.content || ''
-        if (m.is_encrypted && m.message_type === 'text') {
-          text = '🔒 (encrypted message)'
-          try {
-            const peer = otherId ?? (m.sender_id !== user?.id ? m.sender_id : undefined)
-            if (peer != null && user?.id != null) {
-              const key = await fetchPeerKey(peer)
-              const open = key ? await openMessage(m, user.id, key) : null
-              if (open != null) text = open
-            }
-          } catch {}
-        }
+        const text = m.content || ''
         parts.push(`${m.sender_display_name || 'User'}: ${text}`)
       }
       const recentText = parts.join('\n')

@@ -13,12 +13,12 @@ type DemoMsg = { id: number; from: 'them' | 'me'; text: string; likes: number; l
 
 const TYPE_WORDS = ['your universe.', 'your people.', 'your crew.', 'your story.']
 const CANNED_REPLIES = [
-  'That was instant — imagine this with E2EE on ⚡',
+  'That was instant — imagine groups, calls and KB AI ⚡',
   'Delivered before you even blinked ✨',
   'Tap the ❤️ on my bubble — try it!',
   'Now imagine groups, calls, KB AI… all here 🔥',
 ]
-const MARQUEE_PILLS = ['⚡ Real-time', '🔒 E2EE-ready', '👥 Groups', '📞 Calls', '🎨 Themes', '📎 Media', '🔔 Push', '🤖 KB AI', '😀 Reactions', '📌 Polls']
+const MARQUEE_PILLS = ['⚡ Real-time', '🔒 Private chats', '👥 Groups', '📞 Calls', '🎨 Themes', '📎 Media', '🔔 Push', '🤖 KB AI', '😀 Reactions', '📌 Polls']
 
 /* Animated stat that counts up on mount */
 function Stat({ value, decimals = 0, suffix, label }: { value: number; decimals?: number; suffix: string; label: string }) {

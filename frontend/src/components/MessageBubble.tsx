@@ -5,54 +5,8 @@ import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { useChatStore } from '../store/chat'
-import { openMessage, fetchPeerKey } from '../utils/e2ee'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
-
-type DecState = { s: 'plain' } | { s: 'loading' } | { s: 'failed' } | { s: 'open'; text: string }
-
-/** Resolve displayable text for E2EE v1 messages (async device-side open). */
-function useDecrypted(msg: Message): DecState {
-  const meId = useAuthStore(s => s.user?.id)
-  const conv = useChatStore(s => s.conversations.find((c: any) => c.id === msg.conversation_id))
-  const [st, setSt] = useState<DecState>(msg.is_encrypted ? { s: 'loading' } : { s: 'plain' })
-  useEffect(() => {
-    if (!msg.is_encrypted || msg.message_type !== 'text') { setSt({ s: 'plain' }); return }
-    if (meId == null) { setSt({ s: 'failed' }); return }
-    let live = true
-    setSt({ s: 'loading' })
-    ;(async () => {
-      try {
-        // The other party's key opens the box in both directions: it is the
-        // sender for received messages and the recipient for my own.
-        const members = (conv as any)?.members || []
-        let otherId = members.find((m: any) => m.user_id !== meId)?.user_id
-        if (otherId == null && msg.sender_id !== meId) otherId = msg.sender_id
-        if (otherId == null) { if (live) setSt({ s: 'failed' }); return }
-        // Keys rotate (new device/login) and publishes race chat opens, so a
-        // stale/empty cache must not be the final word: refresh once before
-        // declaring the message undecryptable.
-        let peerB64 = await fetchPeerKey(otherId)
-        if (!live) return
-        if (!peerB64) peerB64 = await fetchPeerKey(otherId, { force: true })
-        if (!live) return
-        if (!peerB64) { setSt({ s: 'failed' }); return }
-        let t = await openMessage(msg, meId, peerB64)
-        if (t == null) {
-          const fresh = await fetchPeerKey(otherId, { force: true })
-          if (!live) return
-          if (fresh && fresh !== peerB64) t = await openMessage(msg, meId, fresh)
-        }
-        if (live) setSt(t == null ? { s: 'failed' } : { s: 'open', text: t })
-      } catch {
-        if (live) setSt({ s: 'failed' })
-      }
-    })()
-    return () => { live = false }
-  }, [msg.id, (msg as any).nonce, meId, (conv as any)?.id])
-  return st
-}
 
 const fmtDur = (s: number) => {
   if (!Number.isFinite(s) || s < 0) return '0:00'
@@ -142,9 +96,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onRetry?:(msg:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
-  const dec = useDecrypted(msg)
-  const locked = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
-  const shownText = locked ? (dec.s === 'open' ? dec.text : null) : content
   const meId = useAuthStore(s => s.user?.id)
   // View-once reveal state (recipient side only; the server burns on read).
   const [voText, setVoText] = useState<string | null>(null)
@@ -158,25 +109,15 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     try {
       const d = (await msgApi.viewOnce(msg.id))?.data
       if (!d || d.content == null) { setVoBurned(true); return }
-      let text = d.content as string
-      if (d.is_encrypted) {
-        const peerB64 = msg.sender_id != null ? await fetchPeerKey(msg.sender_id) : null
-        const open = peerB64 ? await openMessage({ content: d.content, nonce: d.nonce }, meId, peerB64) : null
-        if (open == null) return
-        text = open
-      }
-      setVoText(text)
+      setVoText(d.content as string)
     } catch (e: any) {
       if (e?.response?.status === 410) setVoBurned(true)
     } finally {
       setVoBusy(false)
     }
   }
-  // AI actions (summarize/translate/explain) must see readable text, never
-  // raw ciphertext: locked messages qualify only once actually decrypted.
-  // The copy is marked plain (is_encrypted cleared) so downstream handlers
-  // treat `content` as final instead of trying to decrypt it again.
-  const actionMsg = locked ? (dec.s === 'open' ? { ...msg, content: dec.text, is_encrypted: false } : null) : msg
+  // AI actions (summarize/translate/explain) operate on message content.
+  const actionMsg = msg
   const attachments = (msg.attachments || []).filter(Boolean)
   // mime_type/file_path can be NULL on legacy rows (the API passes them
   // through as null) — never let one bad attachment crash the whole view.
@@ -211,8 +152,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
 
   // Stickers (and pasted single-image links) arrive as a lone image URL in
   // the text body — render them as a sticker image, not as link text.
-  // Encrypted bodies are ciphertext: never treat them as links/images.
-  const trimmedContent = (!locked ? (content || '') : '').trim()
+  const trimmedContent = (content || '').trim()
   const loneImageUrl = !msg.is_deleted && /^https?:\/\/[^\s]+\.(png|jpe?g|gif|webp)(\?[^\s]*)?$/i.test(trimmedContent)
     ? trimmedContent
     : null
@@ -310,15 +250,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <span className="text-[11px] opacity-70">Deletes after viewing</span>
             </button>
           ) : voText != null ? (
-            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{msg.is_encrypted ? <span aria-label="End-to-end encrypted">🔒</span> : null} {voText}</p>
-          ) : locked ? (
-            dec.s === 'open' ? (
-              <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable"><span aria-label="End-to-end encrypted">🔒</span> {dec.text}</p>
-            ) : dec.s === 'failed' ? (
-              <p className="italic opacity-70 text-xs">🔒 Encrypted message — can't decrypt on this device</p>
-            ) : (
-              <p className="opacity-60 text-xs">🔒 Decrypting…</p>
-            )
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{voText}</p>
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}
@@ -394,15 +326,15 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <div className="w-px h-5 bg-border mx-1"/>
             <button onClick={()=>onReply(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Reply"><Reply className="w-3.5 h-3.5"/></button>
             <button onClick={()=>setShowMenu(!showMenu)} className="p-1.5 hover:bg-muted rounded-full" title="More"><MoreHorizontal className="w-3.5 h-3.5"/></button>
-            {isOwn && !msg.is_deleted && !locked && !(msg as any).view_once && <>
+            {isOwn && !msg.is_deleted && !(msg as any).view_once && <>
               <button onClick={()=>onEdit(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Edit"><Edit3 className="w-3.5 h-3.5"/></button>
               <button onClick={()=>onDelete(msg)} className="p-1.5 hover:bg-muted rounded-full text-destructive" title="Delete"><Trash2 className="w-3.5 h-3.5"/></button>
             </>}
           </div>
           {showMenu && (
             <div className={`absolute ${isOwn?'left-0' : 'right-0'} top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm`}>
-              <button onClick={()=>{ safeCopy(locked ? (dec.s === 'open' ? dec.text : '') : (content || '')); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
-              {!locked && <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>}
+              <button onClick={()=>{ safeCopy(content || ''); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
+              <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>

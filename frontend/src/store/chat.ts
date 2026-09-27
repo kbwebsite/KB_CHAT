@@ -148,26 +148,11 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     }
     if (extra?.view_once) (temp as any).view_once = true
     get().addOptimistic(temp)
-    // Seal 1-1 text with the peer's key when available; groups and media
-    // stay transport-encrypted in v1. (Sealing lives here — not in the
-    // ChatView — so retries reuse the exact same envelope.)
-    let body = content
+    // Plaintext sends (E2EE removed). Retries reuse the exact same body.
+    const body = content
     const finalExtra: NonNullable<ChatState['pendingSends'][number]['extra']> =
       extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}
     if (extra?.view_once) finalExtra.view_once = true
-    if (!attachmentIds?.length && (type || 'text') === 'text' && me?.id) {
-      const { sealForConversation } = await import('../utils/e2ee')
-      const sealed = await sealForConversation(
-        (get().conversations.find((c: any) => c.id === convId) ?? null) as any,
-        me.id, content,
-      )
-      if (sealed) {
-        body = sealed.content
-        finalExtra.is_encrypted = true
-        finalExtra.nonce = sealed.nonce
-        finalExtra.displayContent = content
-      }
-    }
     const stash = { convId, body, replyTo, attachmentIds, type: type || 'text', extra: finalExtra }
     set(state=> ({ pendingSends: { ...state.pendingSends, [tempId]: stash } }))
     try {

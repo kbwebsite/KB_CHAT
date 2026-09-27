@@ -1,4 +1,3 @@
-import base64
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import desc, asc, or_, func
@@ -319,34 +318,10 @@ def create_message(
         if _vo_conv is not None and _vo_conv.is_group:
             raise HTTPException(status_code=400, detail="View-once is 1-1 only in v1")
 
-    # E2EE v1 envelope validation (transport only — crypto happens on devices).
+    # E2EE removed: clients send plaintext. Flags still stored verbatim so
+    # legacy sealed rows keep their shape (previews mask them, see below).
     is_encrypted = bool(payload.is_encrypted)
     nonce = payload.nonce
-    if is_encrypted:
-        if msg_type != "text" or payload.attachment_ids:
-            raise HTTPException(
-                status_code=400,
-                detail="Only plain text messages can be encrypted (v1)",
-            )
-        from app.models.conversation import Conversation as _Conv
-
-        _conv = db.query(_Conv).filter_by(id=conv_id).first()
-        if _conv is not None and _conv.is_group:
-            raise HTTPException(
-                status_code=400,
-                detail="Encrypted messages are 1-1 only in v1",
-            )
-        if not nonce or not content:
-            raise HTTPException(
-                status_code=400, detail="Encrypted messages need content + nonce"
-            )
-        try:
-            raw_box = base64.b64decode(content, validate=True)
-            raw_nonce = base64.b64decode(nonce, validate=True)
-        except Exception:
-            raise HTTPException(status_code=400, detail="Invalid encrypted envelope")
-        if len(raw_nonce) != 24 or len(raw_box) < 17 or len(content) > 12000:
-            raise HTTPException(status_code=400, detail="Invalid encrypted envelope")
 
     msg = Message(
         conversation_id=conv_id,
