@@ -172,6 +172,7 @@ export function ChatView({
   }, [])
 
   const listRef = useRef<HTMLDivElement>(null)
+  const aiResultRef = useRef<HTMLDivElement>(null)
   const isLoadingMoreRef = useRef(false)
   const scrollSnapshotRef = useRef<{ prevHeight: number; prevTop: number; convId: number } | null>(null)
   const prevMsgLenRef = useRef(0)
@@ -282,6 +283,15 @@ export function ChatView({
     }
     catch (e: any) { toast('Failed to send — tap the message to retry. ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
   }
+
+  // Keep the newest AI output visible as it streams/grows, without yanking
+  // a user who scrolled up to re-read. Mirrors the message-list behavior.
+  useEffect(() => {
+    const el = aiResultRef.current
+    if (!el) return
+    const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120
+    if (nearBottom) el.scrollTo({ top: el.scrollHeight })
+  }, [aiResult?.text])
 
   const handleRefresh = async () => {
     if (showRefresh) return; setShowRefresh(true)
@@ -595,7 +605,7 @@ export function ChatView({
                   <span className="ml-1.5 normal-case font-medium text-amber-400/90" title="Answering from built-in tips. Set a live AI model on the server for real answers.">• offline tips</span>
                 )}
               </p>
-              <div className="max-h-[38vh] min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1">
+              <div ref={aiResultRef} className="max-h-[38vh] min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1">
                 <Suspense fallback={<p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>}>
                   <AiMarkdown text={aiResult.text} />
                 </Suspense>
