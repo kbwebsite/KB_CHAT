@@ -18,15 +18,29 @@ import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
+// Stable empty-array identity for selectors (see ChatView).
+const EMPTY_PAGE_MSGS: any[] = []
+
 export default function ChatPage() {
   const { user, logout } = useAuthStore()
   const toast = useToastStore(s => s.push)
   const settings = useSettingsStore()
   const nav = useNavigate()
-  const {
-    conversations, currentConversationId, messages, hasMore, loadingMessages, loadingConvs,
-    fetchConversations, setCurrent, fetchMessages, sendMessage, editMessage, deleteMessage, react, updateMessage
-  } = useChatStore() as any
+  // Selective subscriptions (see ChatView): whole-store subs re-render the
+  // entire page on every typing tick and every message in any chat.
+  const conversations = useChatStore((s: any) => s.conversations)
+  const currentConversationId = useChatStore((s: any) => s.currentConversationId)
+  const currentMessages = useChatStore((s: any) =>
+    (currentConversationId ? s.messages[currentConversationId] : undefined) ?? EMPTY_PAGE_MSGS,
+  )
+  const fetchConversations = useChatStore((s: any) => s.fetchConversations)
+  const setCurrent = useChatStore((s: any) => s.setCurrent)
+  const fetchMessages = useChatStore((s: any) => s.fetchMessages)
+  const sendMessage = useChatStore((s: any) => s.sendMessage)
+  const editMessage = useChatStore((s: any) => s.editMessage)
+  const deleteMessage = useChatStore((s: any) => s.deleteMessage)
+  const react = useChatStore((s: any) => s.react)
+  const updateMessage = useChatStore((s: any) => s.updateMessage)
 
   // Mobile-first navigation: 'list' shows conversation list, 'chat' shows active chat
   const [mobileView, setMobileView] = useState<'list' | 'chat'>('list')
@@ -228,7 +242,7 @@ export default function ChatPage() {
 
   // ─── React ───
   const handleReact = async (id: number, emoji: string) => {
-    const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
+    const currentMsgs = currentMessages
     const msg = currentMsgs.find((m: any) => m.id === id)
     if (!msg || !user) return
     const myReacts = (msg.reactions || []).filter((r: any) => r.user_id === user.id)
@@ -335,7 +349,7 @@ export default function ChatPage() {
   const handleAiPanelAction = async (action: string, targetLanguage?: string) => {
     setAiLoading(true); setAiError(null)
     try {
-      const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
+      const currentMsgs = currentMessages
       const parts: string[] = []
       for (const m of (currentMsgs as any[]).slice(-10)) {
         if (!m || m.is_deleted) continue

@@ -39,10 +39,15 @@ export function ChatSidebar({
   onSettings?: () => void
 }) {
   const { user } = useAuthStore()
-  const {
-    conversations, currentConversationId, messages, typingUsers,
-    loadingConvs, fetchConversations, setCurrent, fetchMessages
-  } = useChatStore() as any
+  // Selective subscriptions (see ChatView): whole-store subs re-render on
+  // every typing tick and every message anywhere.
+  const conversations = useChatStore((s: any) => s.conversations)
+  const currentConversationId = useChatStore((s: any) => s.currentConversationId)
+  const typingUsers = useChatStore((s: any) => s.typingUsers)
+  const loadingConvs = useChatStore((s: any) => s.loadingConvs)
+  const fetchConversations = useChatStore((s: any) => s.fetchConversations)
+  const setCurrent = useChatStore((s: any) => s.setCurrent)
+  const fetchMessages = useChatStore((s: any) => s.fetchMessages)
 
   const [search, setSearch] = useState('')
   const [showUserSearch, setShowUserSearch] = useState(false)

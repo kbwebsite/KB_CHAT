@@ -337,7 +337,8 @@ def create_message(
     db.add(msg)
     db.flush()
 
-    # attach attachments if any
+    # attach attachments if any (collect them for the echo below)
+    linked_atts = []
     if payload.attachment_ids:
         for aid in payload.attachment_ids:
             att = (
@@ -347,6 +348,7 @@ def create_message(
             )
             if att:
                 att.message_id = msg.id
+                linked_atts.append(att)
 
     # Voice messages may reference the audio attachment via voice_file_id
     # instead of (or in addition to) attachment_ids — link it if not already.
@@ -361,6 +363,7 @@ def create_message(
             )
             if voice_att:
                 voice_att.message_id = msg.id
+                linked_atts.append(voice_att)
 
     # Single commit for message + attachments + conversation updated_at
     from app.models.conversation import Conversation
@@ -371,30 +374,96 @@ def create_message(
         conv.updated_at = datetime.now(timezone.utc)
 
     db.commit()
+    # Columns only (id, server timestamps) — no joined reload. The echo is
+    # built from in-memory state below: a brand-new id is above every read
+    # cursor by construction, so its sender-side status is always "sent"
+    # and reactions are always empty. Saves 3 round trips per send.
     db.refresh(msg)
-
-    # Load relationships for broadcast
-    msg = _get_messages_query(db, conv_id).filter(Message.id == msg.id).first()
-    member_ids = _member_ids(db, conv_id)
-    msg_dict = _message_to_dict(msg, receipt_map(db, conv_id), current_user.id)
+    reply_content = None
+    if msg.reply_to_id:
+        replied = db.query(Message).filter_by(id=msg.reply_to_id).first()
+        if replied and not replied.is_deleted:
+            if replied.view_once and current_user.id != replied.sender_id:
+                reply_content = "👁 View-once message"
+            else:
+                reply_content = (
+                    "🔒 Encrypted message" if replied.is_encrypted else replied.content
+                )
+        elif replied and replied.is_deleted:
+            reply_content = "Message deleted"
+    voice_cloudinary_url = None
+    for a in linked_atts:
+        if a.mime_type and a.mime_type.startswith("audio/"):
+            voice_cloudinary_url = a.cloudinary_url
+            break
+    msg_dict = {
+        "id": msg.id,
+        "conversation_id": conv_id,
+        "sender_id": current_user.id,
+        "sender_username": current_user.username,
+        "sender_display_name": current_user.display_name,
+        "sender_avatar": current_user.avatar_url,
+        "content": content,
+        "message_type": msg_type,
+        "is_encrypted": is_encrypted,
+        "nonce": nonce,
+        "view_once": view_once,
+        "viewed_once": False,
+        "voice_duration": voice_duration,
+        "reply_to_id": msg.reply_to_id,
+        "reply_to_content": reply_content,
+        "is_deleted": False,
+        "is_edited": False,
+        "is_pinned": False,
+        "pinned_at": None,
+        "created_at": msg.created_at.isoformat() if msg.created_at else None,
+        "updated_at": msg.updated_at.isoformat() if msg.updated_at else None,
+        "attachments": [
+            {
+                "id": a.id,
+                "filename": a.filename,
+                "original_filename": a.original_filename,
+                "file_path": a.file_path,
+                "file_size": a.file_size,
+                "mime_type": a.mime_type,
+                "cloudinary_url": a.cloudinary_url,
+            }
+            for a in linked_atts
+        ],
+        "reactions": [],
+        "status": "sent",
+        "voice_cloudinary_url": voice_cloudinary_url,
+    }
+    is_view_once = view_once
 
     # Fan-out AFTER responding: slow/offline recipients must not delay the
     # sender's HTTP round-trip (this was adding seconds on production).
+    # Uses only plain-data locals: the request session may be closed.
+    _fanout_sender_id = current_user.id
+    _fanout_view_once = is_view_once
+
     async def _fanout():
+        from app.database.connection import SessionLocal
+
+        pdb = SessionLocal()
         try:
-            if msg.view_once:
+            member_ids = _member_ids(pdb, conv_id)
+        finally:
+            pdb.close()
+        try:
+            if _fanout_view_once:
                 # Never push view-once plaintext: the sender gets the full
                 # echo, everyone else an empty shell. Content is served only
                 # by the explicit view-once call, which burns it.
                 masked = {**msg_dict, "content": "", "nonce": None}
                 await manager.send_to_user(
-                    current_user.id,
+                    _fanout_sender_id,
                     {"type": "message.new", "payload": msg_dict},
                 )
                 await manager.broadcast_to_conversation(
                     conv_id,
                     {"type": "message.new", "payload": masked},
-                    member_ids=[m for m in member_ids if m != current_user.id],
+                    member_ids=[m for m in member_ids if m != _fanout_sender_id],
                 )
             else:
                 await manager.broadcast_to_conversation(
@@ -404,15 +473,14 @@ def create_message(
                 )
         except Exception as e:
             print(f"[messages] message.new fan-out failed: {e}")
-        # Push members with no live socket (fresh session: the request's db
-        # may already be closed once we respond).
+        # Push members with no live socket.
         try:
             from app.database.connection import SessionLocal
             from app.utils.fcm import notify_new_message
 
             pdb = SessionLocal()
             try:
-                await notify_new_message(pdb, conv_id, msg_dict, current_user.id)
+                await notify_new_message(pdb, conv_id, msg_dict, _fanout_sender_id)
             finally:
                 pdb.close()
         except Exception as e:

@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react'
+import { useRef, useEffect, useState, useMemo } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useSettingsStore } from '../store/settings'
@@ -17,6 +17,10 @@ import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
 import { Bell, Search as SearchIcon, Moon, Sun } from 'lucide-react'
+
+// Stable empty-array identity for selectors: returning a fresh [] literal
+// would re-render on every store change.
+const EMPTY_MSGS: any[] = []
 
 export function ChatView({
   onBack, onMobileViewChange, onCall, onProfile, onGroupInfo,
@@ -39,14 +43,26 @@ export function ChatView({
   const { user } = useAuthStore()
   const settings = useSettingsStore()
   const toast = useToastStore(s => s.push)
-  const {
-    currentConversationId, messages, hasMore, loadingMessages,
-    sendMessage, editMessage, deleteMessage, fetchMessages, fetchConversations, retryMessage
-  } = useChatStore() as any
-
-  const isCurrentLoading = currentConversationId ? loadingMessages[currentConversationId] : false
+  // Selective subscriptions: the whole store changes on every typing tick
+  // and every message in any chat — subscribing wholesale re-renders this
+  // entire view for all of that. Only the open conversation's slices here.
+  const currentConversationId = useChatStore((s: any) => s.currentConversationId)
+  const currentMsgs = useChatStore((s: any) =>
+    (currentConversationId ? s.messages[currentConversationId] : undefined) ?? EMPTY_MSGS,
+  )
+  const hasMoreForConv = useChatStore((s: any) =>
+    currentConversationId ? s.hasMore[currentConversationId] : undefined,
+  )
+  const isCurrentLoading = useChatStore((s: any) =>
+    (currentConversationId ? s.loadingMessages[currentConversationId] : undefined) ?? false,
+  )
+  const sendMessage = useChatStore((s: any) => s.sendMessage)
+  const editMessage = useChatStore((s: any) => s.editMessage)
+  const deleteMessage = useChatStore((s: any) => s.deleteMessage)
+  const fetchMessages = useChatStore((s: any) => s.fetchMessages)
+  const fetchConversations = useChatStore((s: any) => s.fetchConversations)
+  const retryMessage = useChatStore((s: any) => s.retryMessage)
   const currentConv = useChatStore(s => s.conversations.find((c: any) => c.id === currentConversationId))
-  const currentMsgs = currentConversationId ? (messages[currentConversationId] || []) : []
   const typingSet = useChatStore((s: any) => currentConversationId ? s.typingUsers[currentConversationId] : undefined)
 
   const [isAtBottom, setIsAtBottom] = useState(true)
@@ -173,7 +189,7 @@ export function ChatView({
     const atBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 100
     setIsAtBottom(atBottom)
     if (atBottom) setShowNewIndicator(false)
-    if (el.scrollTop < 80 && hasMore[currentConversationId!] && !isLoadingMoreRef.current && !isCurrentLoading) {
+    if (el.scrollTop < 80 && hasMoreForConv && !isLoadingMoreRef.current && !isCurrentLoading) {
       const firstId = currentMsgs[0]?.id; if (!firstId) return
       isLoadingMoreRef.current = true
       scrollSnapshotRef.current = { prevHeight: el.scrollHeight, prevTop: el.scrollTop, convId: currentConversationId! }
@@ -238,15 +254,16 @@ export function ChatView({
   }
 
   // Chronological flow: messages + polls + events interleaved so extras live
-  // in the chat itself, not only in the Extras panels.
-  const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = [
+  // in the chat itself, not only in the Extras panels. Memoized: rebuilding
+  // + sorting on every render wastes frames while typing/scrolling.
+  const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = useMemo(() => [
     ...currentMsgs.map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
     ...convPolls.map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
     ...convEvents.map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
   ].sort((a, b) => {
     const t = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     return t !== 0 ? t : (a.key < b.key ? -1 : 1)
-  })
+  }), [currentMsgs, convPolls, convEvents])
 
   const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => {
     if (!currentConversationId) return
@@ -477,7 +494,7 @@ export function ChatView({
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
             </div>
           )}
-          {hasMore[currentConversationId!] && (
+          {hasMoreForConv && (
             <div className="text-center py-2">
               <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full glass hover:opacity-80 transition-opacity">Load older</button>
             </div>
