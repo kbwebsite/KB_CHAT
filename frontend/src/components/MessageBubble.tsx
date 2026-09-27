@@ -5,6 +5,8 @@ import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
+import api from '../services/api'
+import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -96,6 +98,10 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onRetry?:(msg:Message)=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
+  // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
+  // stored key; otherwise show a placeholder instead of base64.
+  const legacySealed = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
+  const legacy = useLegacyDecrypted(msg)
   const meId = useAuthStore(s => s.user?.id)
   // View-once reveal state (recipient side only; the server burns on read).
   const [voText, setVoText] = useState<string | null>(null)
@@ -109,6 +115,23 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     try {
       const d = (await msgApi.viewOnce(msg.id))?.data
       if (!d || d.content == null) { setVoBurned(true); return }
+      if (d.is_encrypted) {
+        // Legacy sealed view-once: open with this device's stored key.
+        // The server already burned it, so failure means it is gone.
+        let text: string | null = null
+        try {
+          const sk = meId != null ? loadStoredPrivateKey(meId) : null
+          const peerB64 =
+            sk && msg.sender_id != null
+              ? (await api.get(`/api/users/keys/${msg.sender_id}`))?.data?.data
+                  ?.identity_pubkey ?? null
+              : null
+          text = sk ? openSealed(d.content, d.nonce, sk, peerB64) : null
+        } catch {}
+        if (text == null) { setVoBurned(true); return }
+        setVoText(text)
+        return
+      }
       setVoText(d.content as string)
     } catch (e: any) {
       if (e?.response?.status === 410) setVoBurned(true)
@@ -251,6 +274,14 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             </button>
           ) : voText != null ? (
             <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{voText}</p>
+          ) : legacySealed ? (
+            legacy.s === 'open' ? (
+              <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{legacy.text}</p>
+            ) : legacy.s === 'failed' ? (
+              <p className="italic opacity-70 text-xs">🔒 Encrypted message</p>
+            ) : (
+              <p className="opacity-60 text-xs">🔒 Decrypting…</p>
+            )
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}
