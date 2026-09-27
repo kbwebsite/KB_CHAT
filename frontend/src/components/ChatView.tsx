@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useMemo } from 'react'
+import { useRef, useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useSettingsStore } from '../store/settings'
@@ -21,6 +21,9 @@ import { Bell, Search as SearchIcon, Moon, Sun } from 'lucide-react'
 // Stable empty-array identity for selectors: returning a fresh [] literal
 // would re-render on every store change.
 const EMPTY_MSGS: any[] = []
+
+// Markdown renderer lives in its own chunk; plain text shows first.
+const AiMarkdown = lazy(() => import('./AiMarkdown'))
 
 export function ChatView({
   onBack, onMobileViewChange, onCall, onProfile, onGroupInfo,
@@ -592,7 +595,11 @@ export function ChatView({
                   <span className="ml-1.5 normal-case font-medium text-amber-400/90" title="Answering from built-in tips. Set a live AI model on the server for real answers.">• offline tips</span>
                 )}
               </p>
-              <p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>
+              <div className="max-h-[38vh] min-h-0 overflow-y-auto overscroll-contain touch-pan-y pr-1">
+                <Suspense fallback={<p className="text-sm whitespace-pre-wrap break-words">{aiResult.text}</p>}>
+                  <AiMarkdown text={aiResult.text} />
+                </Suspense>
+              </div>
             </div>
             <button onClick={() => setAiResult(null)} className="shrink-0 icon-btn w-7 h-7"><X className="w-3.5 h-3.5" /></button>
           </div>

@@ -1,7 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { Bot, Send, Sparkles, Trash2, Copy, Check } from 'lucide-react'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
+
+// Split the markdown renderer out of the route chunk; plain text shows first.
+const AiMarkdown = lazy(() => import('../components/AiMarkdown'))
 
 interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date }
 
@@ -122,8 +125,14 @@ export default function KBAIPage() {
         )}
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] group relative px-4 py-3 rounded-2xl text-sm whitespace-pre-wrap ${m.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md' : 'bg-secondary rounded-bl-md'}`}>
-              {m.content}
+            <div className={`max-w-[80%] min-w-0 group relative px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap' : 'bg-secondary rounded-bl-md'}`}>
+              {m.role === 'user' ? (
+                m.content
+              ) : (
+                <Suspense fallback={<span className="whitespace-pre-wrap break-words">{m.content}</span>}>
+                  <AiMarkdown text={m.content} />
+                </Suspense>
+              )}
               {m.role === 'assistant' && (
                 <button onClick={() => copyMessage(m.content, i)}
                   className="absolute -right-8 top-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary text-muted-foreground transition-opacity">

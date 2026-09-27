@@ -1,7 +1,9 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { Bot, Send, Sparkles, MessageCircle, Loader2, Plus } from 'lucide-react'
 import { agentApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
+
+const AiMarkdown = lazy(() => import('./AiMarkdown'))
 
 const AGENT_CONV_KEY = 'kb_agent_conv_id'
 
@@ -243,12 +245,18 @@ export function AgentPanel({
         )}
         {messages.map((m, i) => (
           <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[85%] px-3 py-2 rounded-xl text-sm whitespace-pre-wrap ${
+            <div className={`max-w-[85%] min-w-0 px-3 py-2 rounded-xl text-sm ${
               m.role === 'user'
-                ? 'bg-primary text-primary-foreground rounded-br-md'
+                ? 'bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap'
                 : 'bg-secondary rounded-bl-md'
             }`}>
-              {m.content}
+              {m.role === 'user' ? (
+                m.content
+              ) : (
+                <Suspense fallback={<span className="whitespace-pre-wrap break-words">{m.content}</span>}>
+                  <AiMarkdown text={m.content} />
+                </Suspense>
+              )}
             </div>
           </div>
         ))}
