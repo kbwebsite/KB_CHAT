@@ -204,6 +204,31 @@ def test_user_search_and_conversation_flow():
     assert any(m["content"] == "Hi Alice!" for m in r9.json()["data"]["messages"])
 
 
+def test_send_echoes_client_id_without_storing():
+    # Client dedupe key: echoed in HTTP + WS payloads, never persisted.
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a = f"cid{s}"
+    b = f"cidb{s}"
+    signup_user(a, f"{a}@ex.com", "Cid A")
+    signup_user(b, f"{b}@ex.com", "Cid B")
+    ha = _login(a)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    r = client.post(
+        f"/api/conversations/{cid}/messages",
+        json={"content": "hi", "client_id": "c-test-123"},
+        headers=ha,
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["client_id"] == "c-test-123"
+    # history carries no client_id (never stored)
+    rh = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    got = [m for m in rh.json()["data"]["messages"] if m["content"] == "hi"][0]
+    assert "client_id" not in got
+
+
 def test_message_edit_delete():
     import time
 

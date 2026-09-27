@@ -306,6 +306,10 @@ def create_message(
 
     voice_duration = payload.voice_duration
 
+    # Client dedupe key: echoed in the HTTP response and the WS broadcast
+    # so the sender reconciles its optimistic row. Never stored (no schema).
+    client_id = (payload.client_id or "").strip() or None
+
     # View-once v1: plain 1-1 text only. Groups stay out because a single
     # global burn flag cannot express per-recipient viewing.
     view_once = bool(payload.view_once)
@@ -433,6 +437,7 @@ def create_message(
         "reactions": [],
         "status": "sent",
         "voice_cloudinary_url": voice_cloudinary_url,
+        "client_id": client_id,
     }
     is_view_once = view_once
 

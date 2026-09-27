@@ -92,6 +92,8 @@ export interface Message {
   attachments: Attachment[];
   reactions: Reaction[];
   status?: string;
+  /** Client-generated dedupe key: matches the optimistic row to the echo. */
+  client_id?: string | null;
 }
 
 export interface ApiResponse<T> {

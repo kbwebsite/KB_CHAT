@@ -23,6 +23,11 @@ class MessageCreate(BaseModel):
     view_once: bool = Field(
         default=False, description="Burn after first explicit view (1-1 text only)"
     )
+    client_id: Optional[str] = Field(
+        default=None,
+        max_length=64,
+        description="Client-generated dedupe key echoed back, never stored",
+    )
 
 
 class MessageUpdate(BaseModel):

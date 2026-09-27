@@ -21,7 +21,7 @@ interface ChatState {
   persistedRead: Record<number, number>
   // Unsent payloads keyed by optimistic temp id — kept so a failed send
   // can be retried verbatim (including the sealed E2EE body).
-  pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean} }>
+  pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, clientId:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean} }>
   // actions
   fetchConversations: (search?:string)=>Promise<void>
   setCurrent: (id:number|null)=>void
@@ -43,6 +43,17 @@ interface ChatState {
   searchMessages: (q:string, convId?:number)=>Promise<Message[]>
   markRead: (convId:number, lastId:number)=>void
   setMessageStatus: (convId:number, msgId:number, status:string)=>void
+}
+
+/** Per-process sequence so two sends in the same millisecond (rapid
+ * 1..10 taps, double-Enter) never share a temp id and eat each other. */
+let tempSeq = 0
+function makeTempId(): number {
+  return -(Date.now() * 1000 + (tempSeq++ % 1000))
+}
+/** Stable dedupe key linking optimistic row -> HTTP echo -> WS echo. */
+function makeClientId(): string {
+  return `c${Date.now().toString(36)}${(tempSeq++).toString(36)}${Math.random().toString(36).slice(2, 6)}`
 }
 
 /** Tick order is monotonic: a message must never move backwards
@@ -136,9 +147,10 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     // Optimistic UI: show the message instantly (server round-trips can take
     // seconds on cold production instances), then reconcile with the real row.
     const me = useAuthStore.getState().user
-    const tempId = -Date.now()
+    const tempId = makeTempId()
+    const clientId = makeClientId()
     const temp: Message = {
-      id: tempId, conversation_id: convId,
+      id: tempId, conversation_id: convId, client_id: clientId,
       sender_id: me?.id ?? null, sender_username: me?.username ?? null,
       sender_display_name: me?.display_name ?? null, sender_avatar: me?.avatar_url ?? null,
       content: extra?.displayContent ?? content, message_type: type, reply_to_id: replyTo ?? null,
@@ -153,10 +165,10 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     const finalExtra: NonNullable<ChatState['pendingSends'][number]['extra']> =
       extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}
     if (extra?.view_once) finalExtra.view_once = true
-    const stash = { convId, body, replyTo, attachmentIds, type: type || 'text', extra: finalExtra }
+    const stash = { convId, body, replyTo, attachmentIds, type: type || 'text', clientId, extra: finalExtra }
     set(state=> ({ pendingSends: { ...state.pendingSends, [tempId]: stash } }))
     try {
-      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(finalExtra.voice_duration != null ? { voice_duration: finalExtra.voice_duration } : {}), ...(finalExtra.is_encrypted ? { is_encrypted: true, nonce: finalExtra.nonce } : {}), ...(finalExtra.view_once ? { view_once: true } : {}) })
+      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, client_id: clientId, ...(finalExtra.voice_duration != null ? { voice_duration: finalExtra.voice_duration } : {}), ...(finalExtra.is_encrypted ? { is_encrypted: true, nonce: finalExtra.nonce } : {}), ...(finalExtra.view_once ? { view_once: true } : {}) })
       if (res.success) {
         set(state=> {
           const pending = { ...state.pendingSends }
@@ -178,10 +190,10 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   retryMessage: async (tempId)=>{
     const stash = get().pendingSends[tempId]
     if (!stash) return
-    const { convId, body, replyTo, attachmentIds, type, extra } = stash
+    const { convId, body, replyTo, attachmentIds, type, clientId, extra } = stash
     get().setMessageStatus(convId, tempId, 'sending')
     try {
-      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}) })
+      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, client_id: clientId, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}) })
       if (res.success) {
         set(state=> {
           const pending = { ...state.pendingSends }
@@ -213,8 +225,13 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   replaceMessage: (tempId, real)=>{
     set(state=>{
       const list = state.messages[real.conversation_id] || []
-      // Drop the optimistic placeholder; add real unless WS already delivered it.
-      const withoutTemp = list.filter(m=> m.id !== tempId)
+      // Drop the optimistic placeholder, matched by temp id OR by the
+      // stable client_id (covers the case where the WS echo already
+      // adopted the temp row and the negative id is gone).
+      const rc = (real as Message).client_id
+      let at = list.findIndex(m=> m.id === tempId)
+      if (at < 0 && rc) at = list.findIndex(m=> (m as Message).client_id === rc)
+      const withoutTemp = at >= 0 ? list.filter((_, i)=> i !== at) : [...list]
       const dup = withoutTemp.find(m=> m.id === real.id)
       if (dup) {
         // WS echo won the race: keep its fields, but never lose a newer tick.
@@ -222,7 +239,12 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
         if (s === dup.status) return { messages: { ...state.messages, [real.conversation_id]: withoutTemp } }
         return { messages: { ...state.messages, [real.conversation_id]: withoutTemp.map(m=> m.id === real.id ? { ...real, status: s } : m) } }
       }
-      return { messages: { ...state.messages, [real.conversation_id]: [...withoutTemp, real] } }
+      // Insert where the placeholder was so the bubble never jumps position.
+      const row = { ...real }
+      const out = at >= 0
+        ? [...withoutTemp.slice(0, at), row, ...withoutTemp.slice(at)]
+        : [...withoutTemp, row]
+      return { messages: { ...state.messages, [real.conversation_id]: out } }
     })
     // refresh the conversation preview with the authoritative message
     // (ciphertext never leaks into previews — bubbles decrypt separately).
@@ -244,9 +266,6 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     })
   },
   addMessage: (msg)=>{
-    // Ignore our own optimistic echoes arriving back over the socket before
-    // the HTTP response reconciles them (matched by content+type proximity
-    // is unreliable, so the replace step handles the temp row instead).
     if (msg.id < 0) return
     set(state=>{
       const list = state.messages[msg.conversation_id] || []
@@ -260,6 +279,20 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
         const next = [...list]
         next[idx] = { ...cur, status: s }
         return { messages: {...state.messages, [msg.conversation_id]: next} }
+      }
+      // Server echo of our own optimistic row (same client_id, WS won the
+      // race ahead of the HTTP response): adopt it IN PLACE so the bubble
+      // never appears twice and never jumps position.
+      const mc = (msg as Message).client_id
+      if (mc) {
+        const ti = list.findIndex(m=> m.id < 0 && (m as Message).client_id === mc)
+        if (ti>=0) {
+          const cur = list[ti]
+          const s = mergeStatus(cur.status, (msg as Message).status) ?? (msg as Message).status
+          const next = [...list]
+          next[ti] = { ...msg, status: s }
+          return { messages: {...state.messages, [msg.conversation_id]: next} }
+        }
       }
       return { messages: {...state.messages, [msg.conversation_id]: [...list, msg]} }
     })
@@ -290,9 +323,12 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       return { conversations: convs }
     })
     // if message is in current conv, auto mark read (never for optimistic
-    // placeholders — negative temp ids would corrupt the read cursor)
+    // placeholders — negative temp ids would corrupt the read cursor; never
+    // for our own sends — the server excludes them from unread already, so
+    // the extra HTTP POST only adds latency).
     const cur = get().currentConversationId
-    if (cur===msg.conversation_id && msg.id > 0) {
+    const meId = useAuthStore.getState().user?.id
+    if (cur===msg.conversation_id && msg.id > 0 && msg.sender_id !== meId) {
       get().markRead(cur, msg.id)
     }
   },
