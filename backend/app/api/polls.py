@@ -145,7 +145,11 @@ def _batched_polls(db: Session, conv_id: int):
         .all()
     )
     if not polls:
-        return success_response([])
+        # Plain list: callers embed this inside their own response envelope.
+        # Returning success_response here once shipped the whole envelope
+        # as a "poll", crashing the chat view's poll flow (.map is not
+        # a function on an object).
+        return []
     # Batch: options, votes, and creators in a fixed handful of queries
     # instead of ~3 per option per poll.
     from collections import defaultdict

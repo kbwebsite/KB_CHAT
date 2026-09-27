@@ -1472,6 +1472,23 @@ def test_extras_single_call_shape():
     assert len(data["polls"]) == 1 and data["polls"][0]["question"] == "Go?"
     assert data["events"] == []
     assert len(data["pinned"]) == 1 and data["pinned"][0]["id"] == mid
+    # Poll-less conversation: polls must still be a plain list, never a
+    # nested envelope (the client spreads extras into the message flow and
+    # crashes on .map otherwise).
+    rc2 = client.post(
+        "/api/conversations",
+        json={"is_group": True, "title": "No Polls", "member_usernames": [b]},
+        headers=ha,
+    )
+    assert rc2.status_code == 200, rc2.text
+    cid2 = rc2.json()["data"]["id"]
+    re2 = client.get(f"/api/conversations/{cid2}/extras", headers=ha)
+    assert re2.status_code == 200, re2.text
+    data2 = re2.json()["data"]
+    assert data2["polls"] == []
+    assert isinstance(data2["polls"], list)
+    assert isinstance(data2["events"], list)
+    assert isinstance(data2["pinned"], list)
     # Non-member gets 403, not data.
     s2 = str(int(time.time() * 1000))[-6:]
     c = f"exo{s2}"

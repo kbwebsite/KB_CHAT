@@ -117,7 +117,10 @@ export function ChatView({
     // One round trip for polls + events + pins (was three serial calls).
     extrasApi.get(cid).then((r: any) => {
       if (r?.success && currentConversationId === cid) {
-        setConvPolls(r.data?.polls || [])
+        // Backend once shipped an envelope object here instead of a list;
+        // never let a non-array into state (it crashes the flow's .map).
+        const polls = r.data?.polls
+        setConvPolls(Array.isArray(polls) ? polls : [])
         const evs = r.data?.events
         setConvEvents(Array.isArray(evs) ? evs : (evs?.events || []))
         setPinnedMessages(r.data?.pinned || [])
