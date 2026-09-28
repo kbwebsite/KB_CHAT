@@ -1,14 +1,14 @@
 import { useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { uploadApi, usersApi } from '../services/api'
-import { X, Camera, QrCode, Trash2, Eye, BadgeCheck } from 'lucide-react'
+import { X, Camera, QrCode, Trash2, Eye, BadgeCheck, LogOut, AtSign } from 'lucide-react'
 import { initials } from '../utils/format'
 import QRProfile from './QRProfile'
 
 const ABOUT_MAX = 140
 
 export function ProfilePanel({ onClose }: { onClose:()=>void }) {
-  const { user, setUser } = useAuthStore()
+  const { user, setUser, logout } = useAuthStore()
   const [displayName, setDisplayName]=useState(user?.display_name || '')
   const [about, setAbout]=useState(user?.about || '')
   const [saving, setSaving]=useState(false)
@@ -58,6 +58,11 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
     }
   }
 
+  const handleLogout=async ()=>{
+    await logout()
+    window.location.href='/login'
+  }
+
   const handleRemove=async ()=>{
     if (!user?.avatar_url) return
     if (!confirm('Remove profile photo?')) return
@@ -89,6 +94,9 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
       <div className="relative shrink-0 h-24 bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
         <div className="absolute -bottom-10 -left-6 w-36 h-36 rounded-full bg-black/20 blur-2xl" />
+        <span className="absolute bottom-1.5 left-5 flex items-center gap-1 text-white/70 text-xs font-semibold tracking-wide" aria-hidden="true">
+          <AtSign className="w-3 h-3"/> {user.username}
+        </span>
         <button onClick={onClose} className="absolute top-3 right-3 p-2 rounded-full bg-black/30 text-white hover:bg-black/50 transition active:scale-95" aria-label="Close profile">
           <X className="w-4 h-4"/>
         </button>
@@ -141,6 +149,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
 
         {/* Editable info card */}
         <div className="px-6 mt-5">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Profile info</p>
           <div className="rounded-2xl border bg-muted/40 p-4 space-y-4">
             <div>
               <label className="text-xs font-medium text-muted-foreground">Display Name</label>
@@ -165,6 +174,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
 
         {/* QR card */}
         <div className="px-6 mt-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Share</p>
           <button onClick={()=> setShowQR(!showQR)} className="w-full flex items-center justify-between px-4 py-3 rounded-2xl border bg-muted/40 hover:bg-muted transition min-h-[52px]">
             <span className="flex items-center gap-2 text-sm font-medium"><QrCode className="w-4 h-4" /> Share QR Code</span>
             <span className="text-xs text-muted-foreground">{showQR ? 'Hide' : 'Show'}</span>
@@ -178,6 +188,14 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
 
         <div className="px-6 mt-4 text-xs text-muted-foreground text-center">
           Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'recently'}
+        </div>
+
+        {/* Danger zone */}
+        <div className="px-6 mt-4">
+          <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Account</p>
+          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium bg-destructive/10 border border-destructive/20 text-destructive hover:bg-destructive/20 transition active:scale-[0.98] min-h-[48px]">
+            <LogOut className="w-4 h-4"/> Log out
+          </button>
         </div>
       </div>
 
