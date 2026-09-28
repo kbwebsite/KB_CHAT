@@ -5,6 +5,8 @@ export interface WallpaperDef {
   id: string
   label: string
   css: CSSProperties
+  /** Optional animation class (see kb-wall-drift in index.css). */
+  className?: string
 }
 
 export interface ThemePack {
@@ -134,6 +136,57 @@ export const WALLPAPERS: WallpaperDef[] = [
         'radial-gradient(circle 26px at 18% 24%, rgba(251,191,36,0.16), transparent 70%), radial-gradient(circle 38px at 78% 18%, rgba(251,146,60,0.13), transparent 70%), radial-gradient(circle 22px at 62% 72%, rgba(253,224,71,0.14), transparent 70%), radial-gradient(circle 30px at 28% 82%, rgba(244,114,182,0.10), transparent 70%), radial-gradient(circle 18px at 88% 58%, rgba(251,191,36,0.15), transparent 70%)',
     },
   },
+  {
+    id: 'noir',
+    label: 'Noir',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(ellipse 100% 70% at 50% 0%, rgba(255,255,255,0.05), transparent 60%), radial-gradient(ellipse 120% 100% at 50% 50%, transparent 50%, rgba(0,0,0,0.5) 100%)',
+    },
+  },
+  {
+    id: 'royal',
+    label: 'Royal',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(ellipse 55% 40% at 20% 15%, rgba(168,85,247,0.16), transparent 70%), radial-gradient(ellipse 45% 35% at 85% 80%, rgba(251,191,36,0.13), transparent 70%), radial-gradient(ellipse 70% 50% at 50% 50%, rgba(76,29,149,0.10), transparent 75%)',
+    },
+  },
+  {
+    id: 'tide',
+    label: 'Tide · live',
+    className: 'kb-wall-drift',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(ellipse 70% 50% at 20% 30%, rgba(34,211,238,0.14), transparent 70%), radial-gradient(ellipse 70% 50% at 80% 75%, rgba(59,130,246,0.13), transparent 70%)',
+      backgroundSize: '180% 180%, 180% 180%',
+    },
+  },
+  {
+    id: 'ember',
+    label: 'Ember · live',
+    className: 'kb-wall-drift',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(ellipse 55% 40% at 30% 85%, rgba(249,115,22,0.15), transparent 70%), radial-gradient(ellipse 45% 35% at 72% 90%, rgba(244,63,94,0.12), transparent 70%)',
+      backgroundSize: '180% 180%, 180% 180%',
+    },
+  },
+  {
+    id: 'prism',
+    label: 'Prism · live',
+    className: 'kb-wall-drift',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'linear-gradient(115deg, rgba(34,211,238,0.10), rgba(167,139,250,0.12) 30%, rgba(244,114,182,0.10) 55%, rgba(253,224,71,0.08) 75%, rgba(34,211,238,0.10))',
+      backgroundSize: '300% 300%',
+    },
+  },
 ]
 
 /** One-tap theme packs: mode + accent + wallpaper applied together. */
@@ -192,6 +245,60 @@ export const THEME_PACKS: ThemePack[] = [
     wallpaper: 'sunset',
     preview: { backgroundImage: 'linear-gradient(135deg, #fff7ed, #fda4af 55%, #fb923c)' },
   },
+  {
+    id: 'tidal-drift',
+    label: 'Tidal Drift',
+    desc: 'Slow animated ocean currents',
+    theme: 'dark',
+    accent: 'blue',
+    wallpaper: 'tide',
+    preview: { backgroundImage: 'linear-gradient(135deg, #04121f, #0e7490 55%, #3b82f6)' },
+  },
+  {
+    id: 'ember-rise',
+    label: 'Ember Rise',
+    desc: 'Rising premiere-night embers',
+    theme: 'dark',
+    accent: 'amber',
+    wallpaper: 'ember',
+    preview: { backgroundImage: 'linear-gradient(135deg, #170c06, #9a3412 55%, #fbbf24)' },
+  },
+  {
+    id: 'prism-flow',
+    label: 'Prism Flow',
+    desc: 'Slow-shifting pastel light',
+    theme: 'dark',
+    accent: 'violet',
+    wallpaper: 'prism',
+    preview: { backgroundImage: 'linear-gradient(135deg, #0d0716, #6d28d9 50%, #f0abfc)' },
+  },
+  {
+    id: 'noir-premiere',
+    label: 'Noir Premiere',
+    desc: 'Pure cinema black',
+    theme: 'dark',
+    accent: 'rose',
+    wallpaper: 'noir',
+    preview: { backgroundImage: 'linear-gradient(135deg, #000000, #3f3f46 60%, #fb7185)' },
+  },
+  {
+    id: 'royal-velvet',
+    label: 'Royal Velvet',
+    desc: 'Purple reign with gold trim',
+    theme: 'dark',
+    accent: 'gold',
+    wallpaper: 'royal',
+    preview: { backgroundImage: 'linear-gradient(135deg, #12071f, #6b21a8 50%, #fbbf24)' },
+  },
+  {
+    id: 'mint-fresh',
+    label: 'Mint Fresh',
+    desc: 'Bright airy daylight',
+    theme: 'light',
+    accent: 'emerald',
+    wallpaper: 'waves',
+    preview: { backgroundImage: 'linear-gradient(135deg, #f0fdf4, #6ee7b7 55%, #34d399)' },
+  },
 ]
 
 export const CUSTOM_WALLPAPER_KEY = 'kb_wallpaper_custom'
@@ -202,6 +309,11 @@ export function customWallpaperUrl(): string | null {
   } catch {
     return null
   }
+}
+
+/** Animation class for a wallpaper id ('' when static). */
+export function wallpaperClass(id: string | null | undefined): string {
+  return WALLPAPERS.find((w) => w.id === id)?.className ?? ''
 }
 
 /** Resolve the message-list background for a wallpaper id. */

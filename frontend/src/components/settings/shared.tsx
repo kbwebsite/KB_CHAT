@@ -180,7 +180,7 @@ export function WallpaperPicker() {
           <button
             key={w.id}
             onClick={() => update({ chat_wallpaper: w.id })}
-            className={`settings-wallpaper-btn h-16 p-2 ${wallpaper === w.id ? 'active' : ''}`}
+            className={`settings-wallpaper-btn h-16 p-2 ${w.className ?? ''} ${wallpaper === w.id ? 'active' : ''}`}
             style={w.css}
           >
             <span className="text-xs bg-card/80 px-1.5 py-0.5 rounded">{w.label}</span>

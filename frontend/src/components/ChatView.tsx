@@ -12,7 +12,7 @@ import { EventCard } from './EventPanel'
 import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
-import { wallpaperStyle } from '../utils/wallpapers'
+import { wallpaperStyle, wallpaperClass } from '../utils/wallpapers'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
@@ -501,7 +501,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className="message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
+        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${wallpaperClass((settings as any)?.chat_wallpaper)}`} ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
