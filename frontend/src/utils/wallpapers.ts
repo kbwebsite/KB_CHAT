@@ -1,9 +1,20 @@
 import type { CSSProperties } from 'react'
+import type { UserSettings } from '../store/settings'
 
 export interface WallpaperDef {
   id: string
   label: string
   css: CSSProperties
+}
+
+export interface ThemePack {
+  id: string
+  label: string
+  desc: string
+  theme: UserSettings['theme']
+  accent: string
+  wallpaper: string
+  preview: CSSProperties
 }
 
 const PATTERN_BASE: CSSProperties = {
@@ -77,6 +88,109 @@ export const WALLPAPERS: WallpaperDef[] = [
       backgroundImage:
         'repeating-linear-gradient(45deg, rgba(148,163,255,0.06) 0 2px, transparent 2px 14px)',
     },
+  },
+  {
+    id: 'cinema',
+    label: 'Cinema',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(ellipse 90% 55% at 50% 115%, rgba(249,115,22,0.16), transparent 65%), radial-gradient(ellipse 80% 50% at 50% -15%, rgba(34,211,238,0.12), transparent 65%), radial-gradient(ellipse 120% 100% at 50% 50%, transparent 55%, rgba(0,0,0,0.35) 100%)',
+    },
+  },
+  {
+    id: 'aurora',
+    label: 'Aurora',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'linear-gradient(115deg, transparent 20%, rgba(52,211,153,0.10) 38%, rgba(34,211,238,0.12) 50%, rgba(167,139,250,0.12) 62%, transparent 80%), radial-gradient(ellipse 60% 35% at 80% 0%, rgba(52,211,153,0.10), transparent 70%)',
+    },
+  },
+  {
+    id: 'synthwave',
+    label: 'Synthwave 3D',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(circle at 50% 108%, rgba(244,114,182,0.20), transparent 42%), linear-gradient(transparent 52%, rgba(34,211,238,0.10) 78%, rgba(244,114,182,0.12)), repeating-linear-gradient(90deg, rgba(34,211,238,0.09) 0 2px, transparent 2px 44px)',
+    },
+  },
+  {
+    id: 'galaxy',
+    label: 'Galaxy',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(circle at 12% 18%, rgba(255,255,255,0.20) 0 1px, transparent 2px), radial-gradient(circle at 68% 8%, rgba(255,255,255,0.16) 0 1px, transparent 2px), radial-gradient(circle at 84% 42%, rgba(255,255,255,0.18) 0 1px, transparent 2px), radial-gradient(circle at 32% 64%, rgba(255,255,255,0.14) 0 1px, transparent 2px), radial-gradient(circle at 55% 88%, rgba(255,255,255,0.16) 0 1px, transparent 2px), radial-gradient(ellipse 55% 40% at 75% 70%, rgba(168,85,247,0.14), transparent 70%), radial-gradient(ellipse 45% 35% at 20% 80%, rgba(34,211,238,0.10), transparent 70%)',
+    },
+  },
+  {
+    id: 'bokeh',
+    label: 'Bokeh',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(circle 26px at 18% 24%, rgba(251,191,36,0.16), transparent 70%), radial-gradient(circle 38px at 78% 18%, rgba(251,146,60,0.13), transparent 70%), radial-gradient(circle 22px at 62% 72%, rgba(253,224,71,0.14), transparent 70%), radial-gradient(circle 30px at 28% 82%, rgba(244,114,182,0.10), transparent 70%), radial-gradient(circle 18px at 88% 58%, rgba(251,191,36,0.15), transparent 70%)',
+    },
+  },
+]
+
+/** One-tap theme packs: mode + accent + wallpaper applied together. */
+export const THEME_PACKS: ThemePack[] = [
+  {
+    id: 'midnight-cinema',
+    label: 'Midnight Cinema',
+    desc: 'Dark room, red seats, projector glow',
+    theme: 'dark',
+    accent: 'crimson',
+    wallpaper: 'cinema',
+    preview: { backgroundImage: 'linear-gradient(135deg, #0b0b14, #7f1d1d 55%, #f97316)' },
+  },
+  {
+    id: 'neon-horizon',
+    label: 'Neon Horizon 3D',
+    desc: 'Synthwave grid over a neon dusk',
+    theme: 'dark',
+    accent: 'cyan',
+    wallpaper: 'synthwave',
+    preview: { backgroundImage: 'linear-gradient(135deg, #050514, #164e63 50%, #ec4899)' },
+  },
+  {
+    id: 'aurora-veil',
+    label: 'Aurora Veil',
+    desc: 'Northern lights on deep night',
+    theme: 'dark',
+    accent: 'fuchsia',
+    wallpaper: 'aurora',
+    preview: { backgroundImage: 'linear-gradient(135deg, #07130f, #065f46 45%, #a855f7)' },
+  },
+  {
+    id: 'golden-reel',
+    label: 'Golden Reel',
+    desc: 'Warm premiere-night gold bokeh',
+    theme: 'dark',
+    accent: 'gold',
+    wallpaper: 'bokeh',
+    preview: { backgroundImage: 'linear-gradient(135deg, #14100a, #92400e 55%, #fbbf24)' },
+  },
+  {
+    id: 'deep-galaxy',
+    label: 'Deep Galaxy',
+    desc: 'Starfield drift in indigo space',
+    theme: 'dark',
+    accent: 'indigo',
+    wallpaper: 'galaxy',
+    preview: { backgroundImage: 'linear-gradient(135deg, #050510, #312e81 55%, #22d3ee)' },
+  },
+  {
+    id: 'porcelain-glow',
+    label: 'Porcelain Glow',
+    desc: 'Bright and airy sunset light',
+    theme: 'light',
+    accent: 'rose',
+    wallpaper: 'sunset',
+    preview: { backgroundImage: 'linear-gradient(135deg, #fff7ed, #fda4af 55%, #fb923c)' },
   },
 ]
 

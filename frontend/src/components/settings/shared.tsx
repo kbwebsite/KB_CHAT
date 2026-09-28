@@ -3,6 +3,7 @@ import { Moon, Sun, Monitor, Wallpaper, Upload, Trash2 } from 'lucide-react'
 import { useSettingsStore, type UserSettings } from '../../store/settings'
 import {
   WALLPAPERS,
+  THEME_PACKS,
   CUSTOM_WALLPAPER_KEY,
   customWallpaperUrl,
   imageFileToWallpaper,
@@ -89,6 +90,10 @@ const ACCENTS = [
   { id: 'rose', color: 'bg-rose-600' },
   { id: 'amber', color: 'bg-amber-500' },
   { id: 'indigo', color: 'bg-indigo-600' },
+  { id: 'crimson', color: 'bg-red-700' },
+  { id: 'cyan', color: 'bg-cyan-400' },
+  { id: 'fuchsia', color: 'bg-fuchsia-500' },
+  { id: 'gold', color: 'bg-yellow-400' },
 ] as const
 
 const VISIBILITY_OPTS = [
@@ -124,7 +129,7 @@ export function AccentPicker() {
   const accent = useSettingsStore((s) => s.accent_color)
   const update = useSettingsStore((s) => s.update)
   return (
-    <div className="flex gap-2">
+    <div className="flex flex-wrap gap-2">
       {ACCENTS.map((a) => (
         <button
           key={a.id}
@@ -241,9 +246,50 @@ export function NotificationPermissionRow() {
   )
 }
 
+export function ThemePackPicker() {
+  const theme = useSettingsStore((s) => s.theme)
+  const accent = useSettingsStore((s) => s.accent_color)
+  const wallpaper = useSettingsStore((s) => s.chat_wallpaper)
+  const update = useSettingsStore((s) => s.update)
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {THEME_PACKS.map((p) => {
+        const active = theme === p.theme && accent === p.accent && wallpaper === p.wallpaper
+        return (
+          <button
+            key={p.id}
+            onClick={() => update({ theme: p.theme, accent_color: p.accent, chat_wallpaper: p.wallpaper })}
+            className={`relative h-20 overflow-hidden rounded-xl border text-left transition-all active:scale-[0.98] ${
+              active
+                ? 'border-primary ring-2 ring-primary/40 shadow-lg shadow-primary/20'
+                : 'border-transparent hover:border-[var(--k-border)]'
+            }`}
+            style={p.preview}
+            title={p.desc}
+          >
+            <span className="absolute inset-x-0 bottom-0 px-2 py-1 text-[11px] font-semibold text-white bg-black/45">
+              {p.label}
+            </span>
+            {active && (
+              <span className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">
+                On
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
 export function AppearanceSettings() {
   return (
     <div className="space-y-3">
+      <div>
+        <p className="text-xs font-medium mb-2">Theme packs</p>
+        <p className="text-xs text-muted-foreground mb-2">One tap sets mode, accent and wallpaper together</p>
+        <ThemePackPicker />
+      </div>
       <ThemePicker />
       <div>
         <p className="text-xs font-medium mb-2">Accent color</p>

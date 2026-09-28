@@ -131,6 +131,10 @@ function applyAccent(color: string) {
     rose: '346 77% 49%',
     amber: '38 92% 50%',
     indigo: '263 70% 50%',
+    crimson: '348 83% 47%',
+    cyan: '190 90% 45%',
+    fuchsia: '292 84% 60%',
+    gold: '45 93% 47%',
   }
   document.documentElement.style.setProperty('--primary', hues[color] || hues.violet)
 }
