@@ -501,7 +501,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className="message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)}>
+        <div className="message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>

@@ -13,6 +13,8 @@ export interface UserSettings {
   last_seen_visible: string
   enter_to_send: boolean
   media_auto_download: boolean
+  chat_font_size: 'small' | 'medium' | 'large'
+  vibrate_enabled: boolean
 }
 
 const defaults: UserSettings = {
@@ -27,6 +29,8 @@ const defaults: UserSettings = {
   last_seen_visible: 'everyone',
   enter_to_send: true,
   media_auto_download: true,
+  chat_font_size: 'medium',
+  vibrate_enabled: true,
 }
 
 interface SettingsState extends UserSettings {
@@ -73,6 +77,12 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({ theme: localTheme })
         applyTheme(localTheme)
       }
+      try {
+        const localFont = localStorage.getItem('kb_setting_chat_font_size')
+        if (localFont) set({ chat_font_size: JSON.parse(localFont) as any })
+        const localVibrate = localStorage.getItem('kb_setting_vibrate_enabled')
+        if (localVibrate !== null) set({ vibrate_enabled: JSON.parse(localVibrate) })
+      } catch {}
       const token = localStorage.getItem('kb_token')
       if (!token) return
       const res = await settingsApi.get()

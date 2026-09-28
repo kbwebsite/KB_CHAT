@@ -4,7 +4,7 @@ import { useAuthStore } from '../store/auth'
 import { extendedApi, settingsApi, sessionsApi, storageApi } from '../services/api'
 import { WALLPAPERS, CUSTOM_WALLPAPER_KEY, customWallpaperUrl, imageFileToWallpaper } from '../utils/wallpapers'
 import { blockApi } from '../services/api'
-import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Upload, Trash2, Bell, Shield, Lock, MessageSquare, HardDrive, Ban } from 'lucide-react'
+import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Upload, Trash2, Bell, Shield, Lock, MessageSquare, HardDrive, Ban, Vibrate, Info, Trash, RefreshCw, ChevronDown } from 'lucide-react'
 import PrivacyCenter from './PrivacyCenter'
 
 export function SettingsPanel({ onClose }: { onClose:()=>void }) {
@@ -48,6 +48,26 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
     {id:'rose', color:'bg-rose-600'},
     {id:'amber', color:'bg-amber-500'},
     {id:'indigo', color:'bg-indigo-600'},
+  ]
+
+  const themeOptions = [
+    {id:'light', label:'Light', icon: Sun},
+    {id:'dark', label:'Dark', icon: Moon},
+    {id:'system', label:'System', icon: Monitor},
+  ] as const
+
+  const privacyOptions = [
+    {key:'online_status_visible', label:'Online Status', desc:'Who can see when you\'re online', type:'select', options:[
+      {id:'everyone', label:'Everyone'},
+      {id:'contacts', label:'Contacts Only'},
+      {id:'nobody', label:'Nobody'},
+    ]},
+    {key:'read_receipts', label:'Read Receipts', desc:'Let others know you\'ve read their messages', type:'toggle'},
+    {key:'last_seen_visible', label:'Last Seen', desc:'Who can see your last active time', type:'select', options:[
+      {id:'everyone', label:'Everyone'},
+      {id:'contacts', label:'Contacts Only'},
+      {id:'nobody', label:'Nobody'},
+    ]},
   ]
 
   const fileRef = useRef<HTMLInputElement>(null)
@@ -95,11 +115,7 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
         <section>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Palette className="w-3 h-3"/> Appearance</h3>
           <div className="grid grid-cols-3 gap-2 mb-3">
-            {([
-              {id:'light', label:'Light', icon: Sun},
-              {id:'dark', label:'Dark', icon: Moon},
-              {id:'system', label:'System', icon: Monitor},
-            ] as const).map(opt=> (
+            {themeOptions.map(opt=> (
               <button key={opt.id} onClick={()=>settings.update({theme: opt.id as any})} className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${settings.theme===opt.id ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20' : 'bg-muted hover:bg-accent border-transparent hover:border-[var(--k-border)]'}`}>
                 <opt.icon className="w-5 h-5"/>
                 <span className="text-xs font-medium">{opt.label}</span>

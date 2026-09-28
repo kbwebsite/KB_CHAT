@@ -13,6 +13,15 @@ let inflight: Promise<void> | null = null
 // must not override an explicit opt-out; toggling back on clears it.
 let disabledByPref = false
 
+/** Short vibration burst for new messages (mobile; no-op where unsupported). */
+export function vibrateNewMessage(): void {
+  try {
+    if (typeof navigator !== 'undefined' && 'vibrate' in navigator) {
+      navigator.vibrate(60)
+    }
+  } catch {}
+}
+
 /** Short, dependency-free new-message blip (no audio asset needed). */
 export function playPing(): void {
   try {

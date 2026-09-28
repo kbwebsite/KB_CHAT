@@ -519,8 +519,11 @@ export function initChatWS() {
     if (document.hidden || useChatStore.getState().currentConversationId !== msg.conversation_id) {
       try {
         const prefs = useSettingsStore.getState()
-        if (prefs.sound_enabled) {
-          import('../utils/push').then(m => m.playPing()).catch(() => {})
+        if (prefs.sound_enabled || prefs.vibrate_enabled) {
+          import('../utils/push').then(m => {
+            if (prefs.sound_enabled) m.playPing()
+            if (prefs.vibrate_enabled) m.vibrateNewMessage()
+          }).catch(() => {})
         }
         if (prefs.message_notifications && prefs.desktop_notifications
             && 'Notification' in window && Notification.permission==='granted') {
