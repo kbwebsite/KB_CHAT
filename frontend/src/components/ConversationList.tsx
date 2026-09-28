@@ -1,6 +1,7 @@
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
 import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare } from 'lucide-react'
+import { useSettingsStore } from '../store/settings'
 
 const avatarGradients = [
   'linear-gradient(135deg, #6366f1, #8b5cf6)',
@@ -27,6 +28,8 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
   const isMuted = (conv as any).is_muted
   const isArchived = (conv as any).is_archived
   const isOwnLast = last?.sender_id === currentUserId
+  const showTypingIndicators = useSettingsStore(s => s.typing_indicators)
+  const typing = isTyping && showTypingIndicators
 
   return (
     <div
@@ -59,8 +62,8 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
           </span>
         </div>
         <div className="conv-bottom-row">
-          <span className={`conv-preview ${isTyping ? 'conv-typing' : ''}`}>
-            {isTyping ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (last.content?.slice(0, 45) || '📎 Attachment') : isGroup ? `${(conv.members || []).length} members` : 'Start conversation'}
+          <span className={`conv-preview ${typing ? 'conv-typing' : ''}`}>
+            {typing ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (last.content?.slice(0, 45) || '📎 Attachment') : isGroup ? `${(conv.members || []).length} members` : 'Start conversation'}
           </span>
           {hasUnread && (
             <span className={`conv-unread ${isMuted ? 'opacity-60' : ''}`}>

@@ -80,9 +80,7 @@ def _login_token(identifier, password="password123"):
         db.commit()
     finally:
         db.close()
-    r2 = client.post(
-        "/api/auth/verify-login", json={"email": email, "code": "123456"}
-    )
+    r2 = client.post("/api/auth/verify-login", json={"email": email, "code": "123456"})
     assert r2.status_code == 200, r2.text
     return r2.json()["data"]["access_token"]
 
@@ -1571,3 +1569,122 @@ def test_unread_clears_on_first_open_and_survives_refresh():
     )
     assert rm2.status_code == 200, rm2.text
     assert unread_of() == 1
+
+
+def test_settings_exposes_mute_and_previews():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    u = f"st{s}"
+    signup_user(u, f"{u}@ex.com", "Settings U")
+    h = _login(u)
+    r = client.get("/api/settings", headers=h)
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert "is_muted" in data and "notification_previews" in data, data
+    p = client.patch(
+        "/api/settings",
+        json={"is_muted": True, "notification_previews": False},
+        headers=h,
+    )
+    assert p.status_code == 200, p.text
+    assert p.json()["data"]["is_muted"] is True
+    assert p.json()["data"]["notification_previews"] is False
+    # round-trips on GET too
+    r2 = client.get("/api/settings", headers=h)
+    assert r2.json()["data"]["is_muted"] is True
+    assert r2.json()["data"]["notification_previews"] is False
+
+
+def test_presence_visibility_nobody_masks_search_and_profile():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"pv{s}", f"pw{s}"
+    signup_user(a, f"{a}@ex.com", "Presence A")
+    signup_user(b, f"{b}@ex.com", "Presence B")
+    ha, hb = _login(a), _login(b)
+    # A hides presence from everyone
+    r = client.patch(
+        "/api/settings",
+        json={"online_status_visible": "nobody", "last_seen_visible": "nobody"},
+        headers=ha,
+    )
+    assert r.status_code == 200, r.text
+    # B shares no conversation with A: sees nothing
+    rs = client.get(f"/api/users/search?q={a}", headers=hb)
+    assert rs.status_code == 200, rs.text
+    hit = next(x for x in rs.json()["data"] if x["username"] == a)
+    assert hit["is_online"] is False, hit
+    assert hit["last_seen"] is None, hit
+    rp = client.get(f"/api/users/{a}", headers=hb)
+    assert rp.status_code == 200, rp.text
+    assert rp.json()["data"]["is_online"] is False
+    assert rp.json()["data"]["last_seen"] is None
+    # A still sees her own full presence
+    me = client.get("/api/users/me/profile", headers=ha)
+    assert me.status_code == 200, me.text
+    assert "is_online" in me.json()["data"]
+
+
+def test_presence_visibility_contacts_vs_stranger():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b, c = f"ca{s}", f"cb{s}", f"cc{s}"
+    for u in (a, b, c):
+        signup_user(u, f"{u}@ex.com", u.upper())
+    ha, hb, hc = _login(a), _login(b), _login(c)
+    # A and B share a conversation; C is a stranger
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    assert rc.status_code == 200, rc.text
+    r = client.patch(
+        "/api/settings",
+        json={"online_status_visible": "contacts", "last_seen_visible": "contacts"},
+        headers=ha,
+    )
+    assert r.status_code == 200, r.text
+    hit_b = next(
+        x
+        for x in client.get(f"/api/users/search?q={a}", headers=hb).json()["data"]
+        if x["username"] == a
+    )
+    assert hit_b["last_seen"] is not None, hit_b
+    hit_c = next(
+        x
+        for x in client.get(f"/api/users/search?q={a}", headers=hc).json()["data"]
+        if x["username"] == a
+    )
+    assert hit_c["last_seen"] is None, hit_c
+    assert hit_c["is_online"] is False, hit_c
+
+
+def test_read_receipts_opt_out_hides_blue_ticks():
+    import time
+
+    s = str(int(time.time() * 1000))[-6:]
+    a, b = f"ro{s}", f"rp{s}"
+    signup_user(a, f"{a}@ex.com", "Receipt A")
+    signup_user(b, f"{b}@ex.com", "Receipt B")
+    ha, hb = _login(a), _login(b)
+    rc = client.post("/api/conversations", json={"participant_username": b}, headers=ha)
+    cid = rc.json()["data"]["id"]
+    r1 = client.post(
+        f"/api/conversations/{cid}/messages", json={"content": "ping"}, headers=ha
+    )
+    mid = r1.json()["data"]["id"]
+    # B opts out of read receipts
+    r = client.patch("/api/settings", json={"read_receipts": False}, headers=hb)
+    assert r.status_code == 200, r.text
+    # B's read acks are swallowed: still 200, but A's view never upgrades
+    rr = client.post(f"/api/messages/{mid}/read", headers=hb)
+    assert rr.status_code == 200, rr.text
+    ra = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    mine = [m for m in ra.json()["data"]["messages"] if m["id"] == mid][0]
+    assert mine["status"] != "read", mine
+    # Delivery acks still work (grey ticks survive the opt-out)
+    rd = client.post(f"/api/messages/{mid}/delivered", headers=hb)
+    assert rd.status_code == 200, rd.text
+    ra2 = client.get(f"/api/conversations/{cid}/messages", headers=ha)
+    mine2 = [m for m in ra2.json()["data"]["messages"] if m["id"] == mid][0]
+    assert mine2["status"] == "delivered", mine2

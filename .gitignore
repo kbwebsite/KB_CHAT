@@ -46,3 +46,5 @@ opencode.json.bak.*
 verify_users.py
 results.txt
 todos_final.md
+# Local snapshot backups (contain .env secrets; never commit)
+KB-CHAT-backup-*.zip

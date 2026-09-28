@@ -160,6 +160,11 @@ async def _handle_read_receipt(user_id: int, payload: dict):
         return
     db = SessionLocal()
     try:
+        from app.utils.privacy import receipts_allowed
+
+        if not receipts_allowed(db, user_id):
+            # Opted out: never store or broadcast read cursors.
+            return
         member = (
             db.query(ConversationMember)
             .filter_by(conversation_id=conv_id, user_id=user_id)

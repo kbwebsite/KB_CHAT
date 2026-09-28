@@ -2712,3 +2712,32 @@ body {
 .auth-marquee {
   max-width: 100%;
 }
+
+/* ═══════════════════════════════════════════════════════════════
+   SETTINGS-DRIVEN CHAT STYLES — wired to data-fontsize / data-density
+   on .message-list (ChatView). Every settings toggle ships CSS.
+   ═══════════════════════════════════════════════════════════════ */
+
+/* Chat font size (default tailwind text-sm ≈ 14px stays for medium). */
+.message-list[data-fontsize='small'] .msg-text {
+  font-size: 13px;
+  line-height: 1.45;
+}
+.message-list[data-fontsize='large'] .msg-text {
+  font-size: 16.5px;
+  line-height: 1.6;
+}
+
+/* Message density. */
+.message-list[data-density='compact'] {
+  padding: 4px 0;
+  gap: 0;
+}
+.message-list[data-density='compact'] .msg-group {
+  padding: 0 8px;
+  gap: 0;
+}
+.message-list[data-density='compact'] .msg-text {
+  padding-top: 6px;
+  padding-bottom: 6px;
+}

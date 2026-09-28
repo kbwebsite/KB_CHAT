@@ -123,6 +123,15 @@ class ConnectionManager:
         }
         db = SessionLocal()
         try:
+            # Opted out: stay silent, nobody is told.
+            from app.utils.privacy import get_settings
+
+            scope = (
+                getattr(get_settings(db, user_id), "online_status_visible", None)
+                or "everyone"
+            ).lower()
+            if scope == "nobody":
+                return
             conv_ids = [
                 c[0]
                 for c in db.query(ConversationMember.conversation_id)

@@ -177,7 +177,7 @@ export function ChatView({
   const scrollSnapshotRef = useRef<{ prevHeight: number; prevTop: number; convId: number } | null>(null)
   const prevMsgLenRef = useRef(0)
 
-  const typingNames = typingSet ? Array.from(typingSet).map((uid: any) => {
+  const typingNames = typingSet && settings.typing_indicators ? Array.from(typingSet).map((uid: any) => {
     const mem = currentConv?.members?.find((m: any) => m.user_id === uid)
     return mem?.display_name || 'Someone'
   }).join(', ') : ''
@@ -501,7 +501,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className="message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size}>
+        <div className="message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0" ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>

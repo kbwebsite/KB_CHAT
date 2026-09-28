@@ -9,6 +9,7 @@ from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message, Attachment
 from app.auth.security import hash_password, verify_password
 from app.schemas.common import success_response
+from app.utils.privacy import presence_for_viewer
 import json
 
 router = APIRouter(prefix="/api", tags=["extended"])
@@ -58,7 +59,8 @@ async def forward_message(
         # forwarding stays plaintext-only in v1 — copy/paste the decrypted
         # text instead.
         raise HTTPException(
-            status_code=400, detail="Encrypted messages cannot be forwarded. Copy the text instead."
+            status_code=400,
+            detail="Encrypted messages cannot be forwarded. Copy the text instead.",
         )
     # check current user is member of original conversation
     if (
@@ -499,18 +501,19 @@ def get_favorites(
     )
     user_ids = list(set(m.user_id for m in other_members))
     users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
-    return success_response(
-        [
+    out = []
+    for u in users:
+        presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
+        out.append(
             {
                 "id": u.id,
                 "username": u.username,
                 "display_name": u.display_name,
                 "avatar_url": u.avatar_url,
-                "is_online": u.is_online,
+                "is_online": presence["is_online"],
             }
-            for u in users
-        ]
-    )
+        )
+    return success_response(out)
 
 
 # Get contacts (all users that have had conversation with current user or all users)
@@ -537,6 +540,7 @@ def get_contacts(
     users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
     result = []
     for u in users:
+        presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
         result.append(
             {
                 "id": u.id,
@@ -544,8 +548,8 @@ def get_contacts(
                 "display_name": u.display_name,
                 "avatar_url": u.avatar_url,
                 "about": u.about,
-                "is_online": u.is_online,
-                "last_seen": u.last_seen.isoformat() if u.last_seen else None,
+                "is_online": presence["is_online"],
+                "last_seen": presence["last_seen"],
             }
         )
     return success_response(result)
@@ -612,13 +616,14 @@ def recently_contacted(
     for c in convs:
         u = users.get(first_other_by_conv.get(c.id))
         if u:
+            presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
             result.append(
                 {
                     "id": u.id,
                     "username": u.username,
                     "display_name": u.display_name,
                     "avatar_url": u.avatar_url,
-                    "is_online": u.is_online,
+                    "is_online": presence["is_online"],
                 }
             )
     return success_response(result)

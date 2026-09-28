@@ -9,6 +9,7 @@ from app.auth.security import verify_password, hash_password
 from app.models.user import User
 from app.schemas.user import UserUpdate
 from app.schemas.common import success_response
+from app.utils.privacy import presence_for_viewer
 
 
 class ChangePasswordRequest(BaseModel):
@@ -36,14 +37,15 @@ def search_users(
     )
     result = []
     for u in users:
+        presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
         result.append(
             {
                 "id": u.id,
                 "username": u.username,
                 "display_name": u.display_name,
                 "avatar_url": u.avatar_url,
-                "is_online": u.is_online,
-                "last_seen": u.last_seen.isoformat() if u.last_seen else None,
+                "is_online": presence["is_online"],
+                "last_seen": presence["last_seen"],
             }
         )
     return success_response(result)
@@ -208,6 +210,7 @@ def get_user_by_username(
     user = db.query(User).filter(User.username == username.lower()).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
+    presence = presence_for_viewer(db, viewer_id=current_user.id, target=user)
     return success_response(
         {
             "id": user.id,
@@ -215,8 +218,8 @@ def get_user_by_username(
             "display_name": user.display_name,
             "avatar_url": user.avatar_url,
             "about": user.about,
-            "is_online": user.is_online,
-            "last_seen": user.last_seen.isoformat() if user.last_seen else None,
+            "is_online": presence["is_online"],
+            "last_seen": presence["last_seen"],
             "created_at": user.created_at.isoformat() if user.created_at else None,
         }
     )

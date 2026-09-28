@@ -734,6 +734,13 @@ def mark_read(
         )
         if last_msg:
             last_id = last_msg.id
+    from app.utils.privacy import receipts_allowed
+
+    if not receipts_allowed(db, current_user.id):
+        # Opted out: acknowledge locally only, never store or broadcast.
+        return success_response(
+            {"last_read_message_id": last_id}, "Read receipts disabled"
+        )
     membership = (
         db.query(ConversationMember)
         .filter_by(conversation_id=conv_id, user_id=current_user.id)

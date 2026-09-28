@@ -674,6 +674,12 @@ def mark_message_read(
     if not _is_member(db, msg.conversation_id, current_user.id):
         raise HTTPException(status_code=403, detail="Not a member")
     from app.models.conversation import ConversationMember
+    from app.utils.privacy import receipts_allowed
+
+    if not receipts_allowed(db, current_user.id):
+        # Opted out: acknowledge locally only, never store or broadcast.
+        # Delivery acks still flow via /delivered, so senders keep grey ticks.
+        return success_response(None, "Read receipts disabled")
 
     membership = (
         db.query(ConversationMember)

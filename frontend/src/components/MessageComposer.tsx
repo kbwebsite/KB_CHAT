@@ -32,6 +32,14 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const lastTyping = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const enterToSend = useSettingsStore(s => s.enter_to_send)
+  const typingEnabled = useSettingsStore(s => s.typing_indicators)
+
+  // Typing signals honor the user's indicator preference: when off, peers
+  // never see us typing (and we never see them — see ChatView/List).
+  const emitTyping = (isTyping: boolean) => {
+    onTyping(isTyping)
+    if (typingEnabled) wsService.sendTyping(conversationId, isTyping)
+  }
 
   // Auto-resize textarea
   const autoResize = useCallback(() => {
@@ -49,15 +57,13 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     const isTyping = v.length > 0
     if (isTyping !== lastTyping.current) {
       lastTyping.current = isTyping
-      onTyping(isTyping)
-      wsService.sendTyping(conversationId, isTyping)
+      emitTyping(isTyping)
     }
     if (typingTimeout.current) clearTimeout(typingTimeout.current)
     typingTimeout.current = setTimeout(() => {
       if (lastTyping.current) {
         lastTyping.current = false
-        onTyping(false)
-        wsService.sendTyping(conversationId, false)
+        emitTyping(false)
       }
     }, 2000)
   }
@@ -72,8 +78,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setText('')
     onCancelReply()
     lastTyping.current = false
-    onTyping(false)
-    wsService.sendTyping(conversationId, false)
+    emitTyping(false)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     // Call onSend and reset sending state after a delay (onSend is void, not async)
     onSend(body, undefined, 'text', undefined, vo ? { view_once: true } : undefined)

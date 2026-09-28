@@ -1,14 +1,22 @@
-import { useEffect, useRef, useState } from 'react'
-import { useSettingsStore } from '../store/settings'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/auth'
-import { extendedApi, settingsApi, sessionsApi, storageApi } from '../services/api'
-import { WALLPAPERS, CUSTOM_WALLPAPER_KEY, customWallpaperUrl, imageFileToWallpaper } from '../utils/wallpapers'
+import { extendedApi, sessionsApi, storageApi } from '../services/api'
 import { blockApi } from '../services/api'
-import { X, LogOut, Moon, Sun, Monitor, Palette, Wallpaper, Upload, Trash2, Bell, Shield, Lock, MessageSquare, HardDrive, Ban, Vibrate, Info, Trash, RefreshCw, ChevronDown } from 'lucide-react'
+import { X, LogOut, Palette, Bell, Shield, Lock, MessageSquare, HardDrive, Ban } from 'lucide-react'
 import PrivacyCenter from './PrivacyCenter'
+import {
+  AppearanceSettings,
+  NotificationSettings,
+  PrivacyQuickSettings,
+  ChatSettings,
+} from './settings/shared'
 
+/**
+ * Desktop sidebar settings. Preference sections are shared with
+ * SettingsPage (see ./settings/shared) — add a control there once and
+ * both surfaces get it, wired to the same store.
+ */
 export function SettingsPanel({ onClose }: { onClose:()=>void }) {
-  const settings = useSettingsStore()
   const { logout, user } = useAuthStore()
   const [currentPwd, setCurrentPwd]=useState('')
   const [newPwd, setNewPwd]=useState('')
@@ -41,58 +49,11 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
     } catch (e:any) { setPwdMsg(e.response?.data?.detail || e.response?.data?.message || 'Failed') }
   }
 
-  const accentOptions = [
-    {id:'violet', color:'bg-violet-600'},
-    {id:'blue', color:'bg-blue-600'},
-    {id:'emerald', color:'bg-emerald-600'},
-    {id:'rose', color:'bg-rose-600'},
-    {id:'amber', color:'bg-amber-500'},
-    {id:'indigo', color:'bg-indigo-600'},
-  ]
-
-  const themeOptions = [
-    {id:'light', label:'Light', icon: Sun},
-    {id:'dark', label:'Dark', icon: Moon},
-    {id:'system', label:'System', icon: Monitor},
-  ] as const
-
-  const privacyOptions = [
-    {key:'online_status_visible', label:'Online Status', desc:'Who can see when you\'re online', type:'select', options:[
-      {id:'everyone', label:'Everyone'},
-      {id:'contacts', label:'Contacts Only'},
-      {id:'nobody', label:'Nobody'},
-    ]},
-    {key:'read_receipts', label:'Read Receipts', desc:'Let others know you\'ve read their messages', type:'toggle'},
-    {key:'last_seen_visible', label:'Last Seen', desc:'Who can see your last active time', type:'select', options:[
-      {id:'everyone', label:'Everyone'},
-      {id:'contacts', label:'Contacts Only'},
-      {id:'nobody', label:'Nobody'},
-    ]},
-  ]
-
-  const fileRef = useRef<HTMLInputElement>(null)
-  const [wallpaperMsg, setWallpaperMsg] = useState<string | null>(null)
-  const [, bumpWallpaper] = useState(0)
-  const hasCustom = customWallpaperUrl() !== null
-
-  const handleWallpaperFile = async (f: File | undefined) => {
-    if (!f) return
-    setWallpaperMsg(null)
+  const handleDeleteSession=async (id:number)=>{
     try {
-      const dataUrl = await imageFileToWallpaper(f)
-      localStorage.setItem(CUSTOM_WALLPAPER_KEY, dataUrl)
-      settings.update({ chat_wallpaper: 'custom' })
-      bumpWallpaper(n => n + 1)
-    } catch (e: any) {
-      setWallpaperMsg(e?.message || 'Could not use image')
-    }
-    if (fileRef.current) fileRef.current.value = ''
-  }
-
-  const removeCustomWallpaper = () => {
-    try { localStorage.removeItem(CUSTOM_WALLPAPER_KEY) } catch {}
-    if (settings.chat_wallpaper === 'custom') settings.update({ chat_wallpaper: 'default' })
-    bumpWallpaper(n => n + 1)
+      await sessionsApi.remove(id)
+      setSessions(s=> s.filter((x:any)=> x.id !== id))
+    } catch {}
   }
 
   return (
@@ -114,98 +75,34 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
         {/* Appearance */}
         <section>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Palette className="w-3 h-3"/> Appearance</h3>
-          <div className="grid grid-cols-3 gap-2 mb-3">
-            {themeOptions.map(opt=> (
-              <button key={opt.id} onClick={()=>settings.update({theme: opt.id as any})} className={`p-3 rounded-xl border flex flex-col items-center gap-1.5 transition-all ${settings.theme===opt.id ? 'bg-primary text-primary-foreground border-primary shadow-lg shadow-primary/20' : 'bg-muted hover:bg-accent border-transparent hover:border-[var(--k-border)]'}`}>
-                <opt.icon className="w-5 h-5"/>
-                <span className="text-xs font-medium">{opt.label}</span>
-              </button>
-            ))}
-          </div>
-          <p className="text-xs font-medium mb-2">Accent Color</p>
-          <div className="flex gap-2 mb-3">
-            {accentOptions.map(a=> (
-              <button key={a.id} onClick={()=> settings.update({accent_color: a.id})} className={`settings-accent-dot ${a.color} ${settings.accent_color===a.id ? 'active' : ''}`} title={a.id}/>
-            ))}
-          </div>
-          <p className="text-xs font-medium mb-2 flex items-center gap-1"><Wallpaper className="w-3 h-3"/> Wallpaper</p>
-          <div className="grid grid-cols-3 gap-2">
-            {WALLPAPERS.map(w=> (
-              <button key={w.id} onClick={()=> settings.update({chat_wallpaper: w.id})} className={`settings-wallpaper-btn h-16 p-2 ${settings.chat_wallpaper===w.id ? 'active' : ''}`} style={w.css}>
-                <span className="text-xs bg-card/80 px-1.5 py-0.5 rounded">{w.label}</span>
-              </button>
-            ))}
-            <button
-              onClick={()=> fileRef.current?.click()}
-              className={`settings-wallpaper-btn h-16 p-2 overflow-hidden ${settings.chat_wallpaper==='custom' ? 'active' : ''}`}
-              style={hasCustom && customWallpaperUrl() ? { backgroundImage: `url(${customWallpaperUrl()})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
-              title="Upload a custom wallpaper"
-            >
-              <span className="text-xs bg-card/80 px-1.5 py-0.5 rounded flex items-center gap-1"><Upload className="w-3 h-3"/> Custom</span>
-            </button>
-          </div>
-          <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e=> handleWallpaperFile(e.target.files?.[0])} />
-          <div className="flex items-center gap-2 mt-1.5">
-            {hasCustom && (
-              <button onClick={removeCustomWallpaper} className="text-[11px] text-muted-foreground hover:text-destructive flex items-center gap-1"><Trash2 className="w-3 h-3"/> Remove custom</button>
-            )}
-            {wallpaperMsg && <span className="text-[11px] text-destructive">{wallpaperMsg}</span>}
-          </div>
+          <AppearanceSettings />
         </section>
 
         {/* Notifications */}
         <section>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Bell className="w-3 h-3"/> Notifications</h3>
-          <div className="space-y-2">
-            {[
-              {key:'message_notifications', label:'Message notifications', desc:'Show new message alerts'},
-              {key:'sound_enabled', label:'Sound', desc:'Play sound on new message'},
-              {key:'desktop_notifications', label:'Desktop notifications', desc:'Browser notifications'},
-            ].map(item=> (
-              <label key={item.key} className="settings-section flex items-center justify-between cursor-pointer">
-                <div><p className="text-sm font-medium">{item.label}</p><p className="text-xs text-muted-foreground">{item.desc}</p></div>
-                <input type="checkbox" checked={(settings as any)[item.key]} onChange={e=> {
-                  const checked = e.target.checked
-                  settings.update({[item.key]: checked} as any)
-                  // Push lifecycle follows the desktop-notifications toggle:
-                  // opting out removes this device token server-side.
-                  if (item.key === 'desktop_notifications') {
-                    import('../utils/push').then(m => {
-                      if (checked) m.initWebPush({ desktop: true })
-                      else m.unregisterWebPush()
-                    }).catch(() => {})
-                  }
-                }} className="settings-toggle"/>
-              </label>
-            ))}
-            <button onClick={()=>{
-              if ('Notification' in window) {
-                if (Notification.permission==='default') Notification.requestPermission()
-                else alert(`Permission: ${Notification.permission}`)
-              }
-            }} className="settings-section w-full text-left hover:border-[var(--k-primary)]/20 transition-colors">
-              <p className="text-sm font-medium">Request notification permission</p>
-              <p className="text-xs text-muted-foreground">Current: {typeof Notification !== 'undefined' ? Notification.permission : 'unsupported'}</p>
-            </button>
-          </div>
+          <NotificationSettings />
         </section>
 
         {/* Privacy */}
         <section>
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Shield className="w-3 h-3"/> Privacy Center</h3>
-          {showPrivacy ? (
-            <div className="settings-section overflow-hidden p-0">
-              <div className="p-2 flex justify-end">
-                <button onClick={()=>setShowPrivacy(false)} className="text-xs px-2 py-1 rounded-lg bg-background border border-[var(--k-border)] hover:bg-muted transition-colors">Close</button>
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Shield className="w-3 h-3"/> Privacy</h3>
+          <div className="space-y-2">
+            <PrivacyQuickSettings />
+            {showPrivacy ? (
+              <div className="settings-section overflow-hidden p-0">
+                <div className="p-2 flex justify-end">
+                  <button onClick={()=>setShowPrivacy(false)} className="text-xs px-2 py-1 rounded-lg bg-background border border-[var(--k-border)] hover:bg-muted transition-colors">Close</button>
+                </div>
+                <PrivacyCenter />
               </div>
-              <PrivacyCenter />
-            </div>
-          ) : (
-            <button onClick={()=>setShowPrivacy(true)} className="settings-section w-full text-left hover:border-[var(--k-primary)]/20 transition-colors">
-              <p className="text-sm font-medium">Open Privacy Center</p>
-              <p className="text-xs text-muted-foreground">Manage who can see your info</p>
-            </button>
-          )}
+            ) : (
+              <button onClick={()=>setShowPrivacy(true)} className="settings-section w-full text-left hover:border-[var(--k-primary)]/20 transition-colors">
+                <p className="text-sm font-medium">Open Privacy Center</p>
+                <p className="text-xs text-muted-foreground">Profile, status and contact visibility</p>
+              </button>
+            )}
+          </div>
         </section>
 
         {/* Blocked contacts */}
@@ -246,12 +143,14 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
               <p className="text-sm font-medium mb-2">Active sessions</p>
               {sessions.length===0 && <p className="text-xs text-muted-foreground">No sessions found</p>}
               {sessions.map((s:any)=> (
-                <div key={s.id} className="flex justify-between items-center py-1.5 border-b border-[var(--k-border)]/40 last:border-0">
-                  <div>
+                <div key={s.id} className="flex justify-between items-center gap-2 py-1.5 border-b border-[var(--k-border)]/40 last:border-0">
+                  <div className="min-w-0">
                     <span className="text-xs font-medium">{s.device_info || 'Unknown device'}</span>
                     <span className="text-xs text-muted-foreground ml-2">{s.browser_info || ''}</span>
                   </div>
-                  <span className="text-xs text-muted-foreground">{s.is_current ? '✓ Current' : new Date(s.last_active).toLocaleDateString()}</span>
+                  {s.is_current
+                    ? <span className="text-xs text-muted-foreground shrink-0">✓ Current</span>
+                    : <button onClick={()=>handleDeleteSession(s.id)} className="text-xs px-2 py-0.5 rounded-lg bg-background border border-[var(--k-border)] hover:text-destructive hover:border-destructive/40 transition-colors shrink-0">Revoke</button>}
                 </div>
               ))}
               {sessions.length > 1 && (
@@ -261,7 +160,7 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
           </div>
         </section>
 
-        {/* Chat */}
+        {/* Storage */}
         <section>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><HardDrive className="w-3 h-3"/> Storage</h3>
           {storage && (
@@ -278,16 +177,7 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
         {/* Chat */}
         <section>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><MessageSquare className="w-3 h-3"/> Chat</h3>
-          <div className="space-y-2">
-            <label className="settings-section flex items-center justify-between cursor-pointer">
-              <div><p className="text-sm font-medium">Enter to send</p><p className="text-xs text-muted-foreground">Enter sends, Shift+Enter new line</p></div>
-              <input type="checkbox" checked={settings.enter_to_send} onChange={e=> settings.update({enter_to_send: e.target.checked})} className="settings-toggle"/>
-            </label>
-            <label className="settings-section flex items-center justify-between cursor-pointer">
-              <div><p className="text-sm font-medium">Media auto-download</p><p className="text-xs text-muted-foreground">Automatically download images</p></div>
-              <input type="checkbox" checked={settings.media_auto_download} onChange={e=> settings.update({media_auto_download: e.target.checked})} className="settings-toggle"/>
-            </label>
-          </div>
+          <ChatSettings />
         </section>
 
         <button onClick={async ()=>{ await logout(); window.location.href='/login' }} className="settings-logout-btn w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-white font-medium">

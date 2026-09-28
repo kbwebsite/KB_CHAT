@@ -1,10 +1,11 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
+import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
 
@@ -180,6 +181,14 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     ? trimmedContent
     : null
 
+  // Media auto-download: off => heavy inline media stays unloaded behind a
+  // tap-to-load placeholder (files were always manual; voice streams on play).
+  const autoDownload = useSettingsStore(s => s.media_auto_download)
+  const showLinkPreviews = useSettingsStore(s => s.link_previews)
+  const [mediaRevealed, setMediaRevealed] = useState(false)
+  const mediaGated = !autoDownload && !mediaRevealed && !msg.is_deleted
+    && (imgAtts.length > 0 || videoAtts.length > 0 || !!loneImageUrl)
+
   return (
     <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 min-w-0 max-w-full overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`}>
       <div className="flex items-center mr-1 shrink-0">
@@ -197,8 +206,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
-          {imgAtts.length>0 && !msg.is_deleted && (
+        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
+          {imgAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
                 const url = resolveAttUrl(img)
@@ -206,7 +215,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               })}
             </div>
           )}
-          {videoAtts.length>0 && !msg.is_deleted && (
+          {videoAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className="flex flex-col gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden">
               {videoAtts.map((v, vi) => {
                 const url = resolveAttUrl(v)
@@ -282,6 +291,24 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             ) : (
               <p className="opacity-60 text-xs">🔒 Decrypting…</p>
             )
+          ) : mediaGated ? (
+            <>
+              <button
+                onClick={(e) => { e.stopPropagation(); setMediaRevealed(true) }}
+                className="flex items-center gap-2.5 py-3 px-4 my-1 rounded-xl border border-dashed border-current opacity-80 hover:opacity-100 transition-opacity"
+              >
+                <Download className="w-5 h-5 shrink-0" />
+                <span className="text-left">
+                  <span className="block text-sm font-medium">
+                    {imgAtts.length + videoAtts.length + (loneImageUrl ? 1 : 0)} media file{(imgAtts.length + videoAtts.length + (loneImageUrl ? 1 : 0)) === 1 ? '' : 's'}
+                  </span>
+                  <span className="block text-xs opacity-70">Auto-download off — tap to load</span>
+                </span>
+              </button>
+              {!loneImageUrl && !!content && (
+                <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
+              )}
+            </>
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}
@@ -317,7 +344,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <span className="font-medium">Transcription:</span> {transcription}
             </div>
           )}
-          {!msg.is_deleted && !loneImageUrl && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
+          {showLinkPreviews && !msg.is_deleted && !loneImageUrl && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
           {(msg as any).is_pinned && (
             <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>
           )}

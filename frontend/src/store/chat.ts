@@ -452,6 +452,11 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       const convs = state.conversations.map(c=> c.id===convId? {...c, unread_count:0}: c)
       return { conversations: convs }
     })
+    // Read receipts off: clear the badge locally only, never tell the
+    // server (no blue ticks for others). Delivery acks are unaffected.
+    try {
+      if (useSettingsStore.getState().read_receipts === false) return
+    } catch {}
     wsService.markRead(convId, lastId)
     // Durable persist: the WS event is fire-and-forget and vanishes when
     // the socket is down; without this the next fetchConversations
@@ -519,15 +524,25 @@ export function initChatWS() {
     if (document.hidden || useChatStore.getState().currentConversationId !== msg.conversation_id) {
       try {
         const prefs = useSettingsStore.getState()
+        // Own messages (e.g. sent from another device) never notify.
+        const me = useAuthStore.getState().user?.id
+        if (me != null && msg.sender_id === me) return
+        // Do-not-disturb and the master switch silence everything.
+        if (prefs.is_muted || !prefs.message_notifications) return
         if (prefs.sound_enabled || prefs.vibrate_enabled) {
           import('../utils/push').then(m => {
             if (prefs.sound_enabled) m.playPing()
             if (prefs.vibrate_enabled) m.vibrateNewMessage()
           }).catch(() => {})
         }
-        if (prefs.message_notifications && prefs.desktop_notifications
+        if (prefs.desktop_notifications
             && 'Notification' in window && Notification.permission==='granted') {
-          new Notification('Kryzen', { body: `New message from ${(payload as any).sender_display_name || 'someone'}` })
+          const name = (payload as any).sender_display_name || 'someone'
+          const text = typeof (msg as any).content === 'string' ? (msg as any).content : ''
+          const body = prefs.notification_previews && text
+            ? `${name}: ${text.slice(0, 120)}`
+            : 'New message'
+          new Notification('Kryzen', { body })
         }
       } catch {}
     }
