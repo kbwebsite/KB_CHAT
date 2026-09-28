@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
     CORS_ORIGINS: str = (
-        "http://localhost:5173,http://localhost:3000,https://kb-chat-jqdk.onrender.com"
+        "http://localhost:5173,http://localhost:3000,https://kb-chat-1.onrender.com"
     )
     UPLOAD_DIR: str = "./uploads"
     MAX_UPLOAD_SIZE_MB: int = 15
@@ -40,7 +40,7 @@ class Settings(BaseSettings):
     # Unset locally/tests: sends are skipped with a log line (fail-soft).
     RESEND_API_KEY: str = ""
     RESEND_FROM: str = "Kryzen <onboarding@resend.dev>"
-    FRONTEND_URL: str = "https://kb-chat-jqdk.onrender.com"
+    FRONTEND_URL: str = "https://kb-chat-1.onrender.com"
     # Domain-free fallback: Gmail SMTP with an App Password (Google account
     # -> Security -> 2-Step Verification -> App passwords). Sends to any
     # address, no domain needed. Used only when RESEND_API_KEY is unset.
