@@ -7,10 +7,6 @@ services:
     plan: starter
     healthCheckPath: /api/health
     autoDeploy: true
-    disk:
-      name: kb-chat-data
-      mountPath: /app/backend/data
-      sizeGB: 1
     envVars:
       - key: APP_ENV
         value: production
@@ -75,12 +71,10 @@ services:
         value: Kryzen <onboarding@resend.dev>
       - key: FRONTEND_URL
         value: https://kb-chat-1.onrender.com
-      # Persistent storage (single disk; app subdirs below are auto-created).
-      # Requires a paid instance (Starter+) — disks are unavailable on Free.
-      - key: UPLOAD_DIR
-        value: /app/backend/data/uploads
-      - key: VECTOR_STORE_PATH
-        value: /app/backend/data/vector_store
+      # Free plan has no persistent disk: uploads persist via Cloudinary
+      # (needs CLOUDINARY_API_SECRET in dashboard) and the AI code index
+      # rebuilds itself on boot when empty (REINDEX_ON_BOOT, default true).
+      # Local ./uploads and ./vector_store are cache only and may reset.
       # Domain-free SMTP fallback (used only when RESEND_API_KEY is unset).
       - key: SMTP_HOST
         sync: false

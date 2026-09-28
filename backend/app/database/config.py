@@ -79,6 +79,9 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL: str = "sentence-transformers/all-MiniLM-L6-v2"
     VECTOR_STORE_PATH: str = "./vector_store"
     CODE_INDEX_ENABLED: bool = True
+    # Rebuild the AI code index in the background on boot when the vector
+    # store is empty (ephemeral filesystem, e.g. Render Free with no disk).
+    REINDEX_ON_BOOT: bool = True
     AGENT_MAX_ITERATIONS: int = 10
     AGENT_MAX_CONTEXT_TOKENS: int = 8000
 

@@ -41,10 +41,47 @@ async def lifespan(app):
             await asyncio.sleep(30)
 
     task = asyncio.create_task(_check())
+
+    # Self-heal the AI code index on ephemeral filesystems (Render Free has
+    # no persistent disk, so vectors.db vanishes on redeploy): if the store
+    # is empty, reindex the shipped codebase in the background without
+    # blocking readiness. Skipped when REINDEX_ON_BOOT is false.
+    async def _reindex_if_empty():
+        try:
+            if not settings.REINDEX_ON_BOOT:
+                return
+            from app.ai.vector_store import get_vector_store
+
+            store = await asyncio.to_thread(get_vector_store)
+            if await asyncio.to_thread(store.count) > 0:
+                return
+            print("[index] vector store empty — reindexing codebase in background")
+
+            def _run():
+                try:
+                    from pathlib import Path
+
+                    from app.ai.indexer import CodeIndexer
+
+                    project_root = Path(__file__).resolve().parents[2]
+                    indexer = CodeIndexer(str(project_root))
+                    chunks = indexer.index_directory()
+                    store.clear()
+                    store.add_chunks(chunks)
+                    print(f"[index] reindex complete: {len(chunks)} chunks")
+                except Exception as e:
+                    print(f"[index] background reindex skipped: {e}")
+
+            await asyncio.to_thread(_run)
+        except Exception as e:
+            print(f"[index] background reindex skipped: {e}")
+
+    reindex_task = asyncio.create_task(_reindex_if_empty())
     try:
         yield
     finally:
         task.cancel()
+        reindex_task.cancel()
 
 
 app = FastAPI(
