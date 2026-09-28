@@ -86,7 +86,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
   return (
     <div className="h-full flex flex-col bg-card">
       {/* Cover header */}
-      <div className="relative shrink-0 h-28 bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 overflow-hidden">
+      <div className="relative shrink-0 h-24 bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
         <div className="absolute -bottom-10 -left-6 w-36 h-36 rounded-full bg-black/20 blur-2xl" />
         <button onClick={onClose} className="absolute top-3 right-3 p-2 rounded-full bg-black/30 text-white hover:bg-black/50 transition active:scale-95" aria-label="Close profile">
@@ -94,10 +94,10 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto overscroll-contain">
-        {/* Identity block overlapping the cover */}
-        <div className="px-6">
-          <div className="relative w-fit -mt-12">
+      <div className="flex-1 overflow-y-auto overscroll-contain pb-4">
+        {/* Identity block below the cover */}
+        <div className="px-6 pt-4">
+          <div className="relative w-fit">
             <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg ring-4 ring-card">
               {avatarSrc ? <img src={avatarSrc} alt="" className={`w-full h-full ${fit==='cover'?'object-cover':'object-contain bg-muted'}`} /> : initials(user.display_name)}
             </div>
@@ -179,12 +179,12 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
         <div className="px-6 mt-4 text-xs text-muted-foreground text-center">
           Joined {user.created_at ? new Date(user.created_at).toLocaleDateString() : 'recently'}
         </div>
+      </div>
 
-        {/* Sticky save bar */}
-        <div className="sticky bottom-0 px-6 py-3 mt-2 bg-gradient-to-t from-card via-card to-transparent">
-          {msg && <p className="text-xs text-center py-2 px-3 mb-2 rounded-lg bg-muted animate-slideUp">{msg}</p>}
-          <button onClick={handleSave} disabled={saving || !dirty} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-40 shadow-sm active:scale-[0.98] transition">{saving?'Saving...':'Save changes'}</button>
-        </div>
+      {/* Save bar footer */}
+      <div className="shrink-0 px-6 py-3 border-t bg-card">
+        {msg && <p className="text-xs text-center py-2 px-3 mb-2 rounded-lg bg-muted animate-slideUp">{msg}</p>}
+        <button onClick={handleSave} disabled={saving || !dirty} className="w-full py-2.5 rounded-xl bg-primary text-primary-foreground font-medium hover:bg-primary/90 disabled:opacity-40 shadow-sm active:scale-[0.98] transition">{saving?'Saving...':'Save changes'}</button>
       </div>
 
       {showPreview && avatarSrc && (
