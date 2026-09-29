@@ -87,7 +87,7 @@ export default function KBAIPage() {
       {/* Header */}
       <div className="shrink-0 p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/20">
+          <div className="w-10 h-10 rounded-xl kryzen-accent-gradient flex items-center justify-center shadow-lg">
             <Bot className="w-5 h-5 text-white" />
           </div>
           <div>
@@ -106,8 +106,8 @@ export default function KBAIPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-violet-500/20 to-indigo-600/20 flex items-center justify-center shadow-lg shadow-violet-500/10">
-              <Bot className="w-8 h-8 text-violet-500" />
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shadow-lg">
+              <Bot className="w-8 h-8 text-primary" />
             </div>
             <div>
               <p className="text-sm font-medium">Hi {user?.display_name || 'there'}! 👋</p>

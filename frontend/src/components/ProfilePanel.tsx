@@ -91,7 +91,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
   return (
     <div className="h-full flex flex-col bg-card">
       {/* Cover header */}
-      <div className="relative shrink-0 h-24 bg-gradient-to-br from-violet-600 via-indigo-600 to-cyan-500 overflow-hidden">
+      <div className="relative shrink-0 h-24 kryzen-accent-cover overflow-hidden">
         <div className="absolute -top-8 -right-8 w-40 h-40 rounded-full bg-white/10 blur-2xl" />
         <div className="absolute -bottom-10 -left-6 w-36 h-36 rounded-full bg-black/20 blur-2xl" />
         <span className="absolute bottom-1.5 left-5 flex items-center gap-1 text-white/70 text-xs font-semibold tracking-wide" aria-hidden="true">
@@ -106,7 +106,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
         {/* Identity block below the cover */}
         <div className="px-6 pt-4">
           <div className="relative w-fit">
-            <div className="w-24 h-24 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center text-white text-xl font-bold shadow-lg ring-4 ring-card">
+            <div className="w-24 h-24 rounded-full overflow-hidden kryzen-accent-gradient flex items-center justify-center text-white text-xl font-bold shadow-lg ring-4 ring-card">
               {avatarSrc ? <img src={avatarSrc} alt="" className={`w-full h-full ${fit==='cover'?'object-cover':'object-contain bg-muted'}`} /> : initials(user.display_name)}
             </div>
             <label className={`absolute bottom-0 right-0 w-10 h-10 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md ring-2 ring-card transition active:scale-95 ${uploading ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:bg-primary/90'}`} aria-label="Change profile photo">

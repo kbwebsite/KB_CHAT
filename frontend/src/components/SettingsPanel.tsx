@@ -115,7 +115,7 @@ export function SettingsPanel({ onClose }: { onClose:()=>void }) {
               <p className="text-xs text-muted-foreground">Nobody blocked. Block someone from their contact info to stop exchanging messages.</p>
             ) : blocked.map((b: any) => (
               <div key={b.user_id} className="flex items-center gap-2.5 py-1.5 border-b border-[var(--k-border)]/40 last:border-0">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center overflow-hidden text-xs font-bold shrink-0">
+                <div className="w-8 h-8 rounded-full kryzen-accent-gradient text-white flex items-center justify-center overflow-hidden text-xs font-bold shrink-0">
                   {b.avatar_url ? <img src={b.avatar_url} alt="" className="w-full h-full object-cover"/> : (b.display_name || b.username || '?')[0]}
                 </div>
                 <div className="flex-1 min-w-0">

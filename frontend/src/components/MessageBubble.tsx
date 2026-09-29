@@ -46,7 +46,7 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
       <button
         onClick={toggle}
         aria-label={playing ? 'Pause voice message' : 'Play voice message'}
-        className={`w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform active:scale-95 ${isOwn ? 'bg-white/25 hover:bg-white/35 text-white' : 'bg-violet-500/20 hover:bg-violet-500/30 text-violet-300'}`}
+        className={`w-9 h-9 shrink-0 flex items-center justify-center rounded-full transition-transform active:scale-95 ${isOwn ? 'bg-white/25 hover:bg-white/35 text-white' : 'bg-primary/20 hover:bg-primary/30 text-primary'}`}
       >
         {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
       </button>
@@ -196,7 +196,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
       </div>
       <div className={`max-w-[85%] sm:max-w-[78%] md:max-w-[68%] lg:max-w-[62%] xl:max-w-[60%] relative min-w-0 ${isOwn?'items-end':'items-start'} flex flex-col`}>
         {isGroup && !isOwn && showAvatar && (
-          <span className="text-[11px] font-semibold text-violet-600 dark:text-violet-400 mb-1 ml-1 flex items-center gap-1.5">
+          <span className="text-[11px] font-semibold text-primary mb-1 ml-1 flex items-center gap-1.5">
             {(msg as any).sender_avatar ? <img src={(msg as any).sender_avatar} alt="" className="w-5 h-5 rounded-full object-cover kryzen-avatar-tiny" /> : null}
             {msg.sender_display_name}
           </span>
@@ -206,7 +206,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', color: 'white', boxShadow: '0 4px 20px rgba(124,92,252,0.4), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
+        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
@@ -335,12 +335,12 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               } catch { setTranscription('Transcription failed') }
               setTranscribing(false)
             }} disabled={transcribing}
-              className="mt-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-violet-500/10 text-violet-600 dark:text-violet-400 text-xs hover:bg-violet-500/20 disabled:opacity-50 transition-colors">
+              className="mt-2 flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-primary/10 text-primary text-xs hover:bg-primary/20 disabled:opacity-50 transition-colors">
               <Mic className="w-3 h-3"/> {transcribing ? 'Transcribing...' : 'Transcribe'}
             </button>
           )}
           {transcription && (
-            <div className="mt-2 p-2 rounded-lg bg-violet-500/5 border border-violet-500/20 text-xs text-violet-700 dark:text-violet-300">
+            <div className="mt-2 p-2 rounded-lg bg-primary/5 border border-primary/20 text-xs text-primary">
               <span className="font-medium">Transcription:</span> {transcription}
             </div>
           )}
@@ -399,9 +399,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               {onAIAction && actionMsg && content && !msg.is_deleted && (
                 <>
                   <div className="border-t my-1"/>
-                  <button onClick={()=>{ onAIAction(actionMsg, 'summarize'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Sparkles className="w-3.5 h-3.5"/> Summarize</button>
-                  <button onClick={()=>{ onTranslateAction?.(actionMsg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><Languages className="w-3.5 h-3.5"/> Translate</button>
-                  <button onClick={()=>{ onAIAction(actionMsg, 'explain'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-violet-600 dark:text-violet-400"><FileText className="w-3.5 h-3.5"/> Explain</button>
+                  <button onClick={()=>{ onAIAction(actionMsg, 'summarize'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-primary"><Sparkles className="w-3.5 h-3.5"/> Summarize</button>
+                  <button onClick={()=>{ onTranslateAction?.(actionMsg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-primary"><Languages className="w-3.5 h-3.5"/> Translate</button>
+                  <button onClick={()=>{ onAIAction(actionMsg, 'explain'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-primary"><FileText className="w-3.5 h-3.5"/> Explain</button>
                 </>
               )}
               <div className="border-t my-1"/>

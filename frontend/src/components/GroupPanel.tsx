@@ -219,7 +219,7 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
           <div className="mt-3 space-y-2">
             {members.map(m=> (
               <div key={m.user_id} className="flex items-center gap-3 p-2 rounded-xl hover:bg-muted">
-                <div className="w-8 h-8 rounded-full bg-gradient-to-br from-blue-500 to-violet-500 text-white flex items-center justify-center text-xs font-bold overflow-hidden">
+                <div className="w-8 h-8 rounded-full kryzen-accent-gradient text-white flex items-center justify-center text-xs font-bold overflow-hidden">
                   {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt=""/> : m.display_name[0]}
                 </div>
                 <div className="flex-1 min-w-0">

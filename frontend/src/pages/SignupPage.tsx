@@ -160,7 +160,7 @@ export default function SignupPage() {
 
         <p className="text-sm text-center text-muted-foreground mt-4 auth-form-entrance">Already have an account? <Link to="/login" className="text-primary font-semibold hover:underline">Sign in</Link></p>
       </div>
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 auth-hero-panel items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 kryzen-accent-cover auth-hero-panel items-center justify-center p-12 relative overflow-hidden">
         <div className="auth-mesh-bg" />
         <div className="relative max-w-md text-white hero-entrance-delay">
           <h2 className="text-3xl font-bold leading-tight">Connect with everyone<br/>you care about.</h2>

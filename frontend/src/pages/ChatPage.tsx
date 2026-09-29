@@ -511,8 +511,8 @@ export default function ChatPage() {
   return (
     <ChatLayout>
       {/* Ambient 3D background orbs */}
-      <div className="ambient-bg" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: 'radial-gradient(ellipse at 25% 15%, rgba(124,92,252,0.12) 0%, transparent 55%), radial-gradient(ellipse at 75% 85%, rgba(34,211,238,0.08) 0%, transparent 55%), radial-gradient(ellipse at 50% 50%, rgba(244,114,182,0.05) 0%, transparent 60%), #06060e' }}>
-        <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(124,92,252,0.18), transparent 70%)', top: -120, right: -120, filter: 'blur(80px)', animation: 'ambientDrift 14s ease-in-out infinite' }} />
+      <div className="ambient-bg" style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', overflow: 'hidden', background: 'radial-gradient(ellipse at 25% 15%, rgba(var(--accent-rgb), 0.12) 0%, transparent 55%), radial-gradient(ellipse at 75% 85%, rgba(var(--cyan-rgb), 0.08) 0%, transparent 55%), radial-gradient(ellipse at 50% 50%, rgba(var(--pink-rgb), 0.05) 0%, transparent 60%), #06060e' }}>
+        <div style={{ position: 'absolute', width: 400, height: 400, borderRadius: '50%', background: 'radial-gradient(circle, rgba(var(--accent-rgb), 0.18), transparent 70%)', top: -120, right: -120, filter: 'blur(80px)', animation: 'ambientDrift 14s ease-in-out infinite' }} />
         <div style={{ position: 'absolute', width: 320, height: 320, borderRadius: '50%', background: 'radial-gradient(circle, rgba(34,211,238,0.12), transparent 70%)', bottom: '12%', left: -80, filter: 'blur(80px)', animation: 'ambientDrift 18s ease-in-out infinite reverse' }} />
         <div style={{ position: 'absolute', width: 260, height: 260, borderRadius: '50%', background: 'radial-gradient(circle, rgba(244,114,182,0.10), transparent 70%)', bottom: -60, right: '28%', filter: 'blur(80px)', animation: 'ambientDrift 12s ease-in-out infinite' }} />
       </div>

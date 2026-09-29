@@ -359,6 +359,9 @@ export const useThemeStore = create<ThemeState>((set, get) => ({
     root.style.setProperty('--bg-surface', c.bgSurface)
     root.style.setProperty('--bg-elevated', c.bgElevated)
     root.style.setProperty('--accent', c.accent)
+    // Keep Tailwind primary followers (bg-primary, text-primary…) on the preset too.
+    root.style.setProperty('--primary', c.accent)
+    root.style.setProperty('--ring', c.accent)
     root.style.setProperty('--accent-primary', c.accentPrimary)
     root.style.setProperty('--accent-secondary', c.accentSecondary)
     root.style.setProperty('--accent-tertiary', c.accentTertiary)

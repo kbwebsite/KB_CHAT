@@ -96,7 +96,7 @@ export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClo
           const unread = unreadByUser[u.id] || 0
           return (
           <div key={u.id} className="panel-row flex items-center gap-3 p-2.5 rounded-xl hover:bg-muted">
-            <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-violet-500 to-indigo-600 text-white flex items-center justify-center overflow-visible shrink-0">
+            <div className="relative w-10 h-10 rounded-full kryzen-accent-gradient text-white flex items-center justify-center overflow-visible shrink-0">
               <div className="w-full h-full rounded-full flex items-center justify-center overflow-hidden">
                 {u.avatar_url ? <img src={u.avatar_url} loading="lazy" decoding="async" className="w-full h-full object-cover" alt=""/> : initials(u.display_name)}
               </div>

@@ -29,11 +29,11 @@ export function MobileNav({ active, onTabChange, unreadCounts }: {
               className={`bottom-nav-item ${isActive ? 'active' : ''}`}
               aria-label={tab.label}
               aria-current={isActive ? 'page' : undefined}
-              style={isActive ? { color: '#7c5cfc' } : undefined}
+              style={isActive ? { color: 'var(--accent-primary)' } : undefined}
             >
-              {isActive && <div style={{ position: 'absolute', inset: 0, background: 'rgba(124,92,252,0.08)', borderRadius: 0 }} />}
-              {isActive && <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)', width: 32, height: 3, borderRadius: '0 0 4px 4px', background: 'linear-gradient(180deg, #7c5cfc, #a855f7)', boxShadow: '0 2px 12px rgba(124,92,252,0.5), 0 0 24px rgba(124,92,252,0.25)' }} />}
-              <Icon className="bottom-nav-icon" style={isActive ? { transform: 'scale(1.15) translateY(-1px)', filter: 'drop-shadow(0 2px 8px rgba(124,92,252,0.5))' } : undefined} />
+              {isActive && <div style={{ position: 'absolute', inset: 0, background: 'rgba(var(--accent-rgb), 0.08)', borderRadius: 0 }} />}
+              {isActive && <div style={{ position: 'absolute', top: -1, left: '50%', transform: 'translateX(-50%)', width: 32, height: 3, borderRadius: '0 0 4px 4px', background: 'linear-gradient(180deg, var(--accent-primary), var(--accent-secondary))', boxShadow: '0 2px 12px var(--accent-glow), 0 0 24px var(--accent-subtle)' }} />}
+              <Icon className="bottom-nav-icon" style={isActive ? { transform: 'scale(1.15) translateY(-1px)', filter: 'drop-shadow(0 2px 8px var(--accent-glow))' } : undefined} />
               <span>{tab.label}</span>
               {badge && (
                 <span className="bottom-nav-badge" aria-label={`${badge} unread`}>

@@ -96,7 +96,7 @@ export function Leaderboard({ onClose }: { onClose: () => void }) {
       {/* Winner Celebration Modal */}
       {showWinner && winner && (
         <div className="fixed inset-0 z-[60] flex items-center justify-center p-6" style={{ background: 'rgba(0,0,0,0.8)' }}>
-          <div className="relative max-w-sm w-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.2), rgba(168,85,247,0.2))', border: '1px solid rgba(255,255,255,0.1)' }}>
+          <div className="relative max-w-sm w-full rounded-3xl overflow-hidden" style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb), 0.2), rgba(var(--accent-secondary-rgb), 0.2))', border: '1px solid rgba(255,255,255,0.1)' }}>
             {/* Confetti particles */}
             <div className="absolute inset-0 overflow-hidden pointer-events-none">
               {Array.from({ length: 20 }).map((_, i) => (
@@ -164,7 +164,7 @@ export function Leaderboard({ onClose }: { onClose: () => void }) {
 
       {/* Week Timer */}
       {data && (
-        <div className="shrink-0 p-4 border-b border-border" style={{ background: 'linear-gradient(135deg, rgba(124,92,252,0.08), rgba(168,85,247,0.05))' }}>
+        <div className="shrink-0 p-4 border-b border-border" style={{ background: 'linear-gradient(135deg, rgba(var(--accent-rgb), 0.08), rgba(var(--accent-secondary-rgb), 0.05))' }}>
           <div className="flex items-center justify-center gap-2 mb-2">
             <Clock className="w-4 h-4 text-primary" />
             <span className="text-xs font-medium text-muted-foreground">
@@ -180,7 +180,7 @@ export function Leaderboard({ onClose }: { onClose: () => void }) {
                 { val: timeLeft.seconds, label: 'Sec' },
               ].map((item, i) => (
                 <div key={i} className="text-center">
-                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold" style={{ background: 'rgba(124,92,252,0.15)', color: 'var(--accent-primary)' }}>
+                  <div className="w-12 h-12 rounded-xl flex items-center justify-center text-lg font-bold" style={{ background: 'rgba(var(--accent-rgb), 0.15)', color: 'var(--accent-primary)' }}>
                     {String(item.val).padStart(2, '0')}
                   </div>
                   <p className="text-[10px] text-muted-foreground mt-1">{item.label}</p>

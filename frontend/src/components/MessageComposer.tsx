@@ -246,7 +246,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           className="composer-action-btn"
           aria-label="View once"
           title={viewOnce ? 'View-once ON: message deletes after first view' : 'Send as view-once'}
-          style={viewOnce ? { color: '#a855f7', background: 'rgba(168,85,247,0.15)' } : undefined}
+          style={viewOnce ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
         >
           <Eye className="w-5 h-5" />
         </button>
@@ -260,7 +260,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             onClick={handleSend}
             disabled={uploading || sending}
             className="composer-send-btn"
-            style={{ background: 'linear-gradient(135deg, #7c5cfc, #a855f7)', boxShadow: '0 4px 20px rgba(124,92,252,0.5), 0 0 0 1px rgba(124,92,252,0.2)' }}
+            style={{ background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', boxShadow: '0 4px 20px var(--accent-glow), 0 0 0 1px var(--border-accent)' }}
             aria-label="Send message"
           >
             <Send className="w-5 h-5" />

@@ -391,7 +391,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       <div className="relative z-10 flex flex-col items-center gap-4">
         {!connected && (
           <>
-            <div className="call-avatar-ring w-28 h-28 rounded-full overflow-hidden bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-3xl font-bold shadow-xl">
+            <div className="call-avatar-ring w-28 h-28 rounded-full overflow-hidden kryzen-accent-gradient flex items-center justify-center text-3xl font-bold shadow-xl">
               {peerAvatar ? <img src={peerAvatar} alt="" className="w-full h-full object-cover"/> : peerName[0]?.toUpperCase()}
             </div>
             <h2 className="text-2xl font-semibold tracking-tight">{peerName}</h2>

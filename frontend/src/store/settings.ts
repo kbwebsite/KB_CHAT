@@ -123,20 +123,80 @@ function applyTheme(theme: string) {
   document.documentElement.classList.toggle('dark', resolved === 'dark')
 }
 
-function applyAccent(color: string) {
-  const hues: Record<string, string> = {
-    violet: '221 83% 53%',
-    blue: '217 91% 60%',
-    emerald: '142 76% 36%',
-    rose: '346 77% 49%',
-    amber: '38 92% 50%',
-    indigo: '263 70% 50%',
-    crimson: '348 83% 47%',
-    cyan: '190 90% 45%',
-    fuchsia: '292 84% 60%',
-    gold: '45 93% 47%',
+function hslToRgb(h: number, s: number, l: number): [number, number, number] {
+  s /= 100
+  l /= 100
+  const c = (1 - Math.abs(2 * l - 1)) * s
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1))
+  const m = l - c / 2
+  let r = 0, g = 0, b = 0
+  if (h < 60) { r = c; g = x }
+  else if (h < 120) { r = x; g = c }
+  else if (h < 180) { g = c; b = x }
+  else if (h < 240) { g = x; b = c }
+  else if (h < 300) { r = x; b = c }
+  else { r = c; b = x }
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]
+}
+
+/** Relative luminance (0..1) for picking readable text on the accent. */
+function luminance([r, g, b]: [number, number, number]): number {
+  const f = (v: number) => {
+    const c = v / 255
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4)
   }
-  document.documentElement.style.setProperty('--primary', hues[color] || hues.violet)
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b)
+}
+
+interface AccentHsl { h: number; s: number; l: number }
+
+/**
+ * Single writer for the whole accent family: every accent-colored surface
+ * (buttons, bubbles, gradients, glows, rings, cyan/pink pops) derives from
+ * the chosen hue, so theme packs recolor the entire app.
+ */
+function applyAccent(color: string) {
+  const hues: Record<string, AccentHsl> = {
+    violet: { h: 221, s: 83, l: 53 },
+    blue: { h: 217, s: 91, l: 60 },
+    emerald: { h: 142, s: 76, l: 36 },
+    rose: { h: 346, s: 77, l: 49 },
+    amber: { h: 38, s: 92, l: 50 },
+    indigo: { h: 263, s: 70, l: 50 },
+    crimson: { h: 348, s: 83, l: 47 },
+    cyan: { h: 190, s: 90, l: 45 },
+    fuchsia: { h: 292, s: 84, l: 60 },
+    gold: { h: 45, s: 93, l: 47 },
+  }
+  const P = hues[color] || hues.violet
+  const rot = (h: number, d: number) => (h + d + 360) % 360
+  const S = { h: rot(P.h, 28), s: P.s, l: Math.min(P.l + 6, 74) }
+  const T = { h: rot(P.h, 56), s: P.s, l: Math.min(P.l + 12, 82) }
+  const C = { h: rot(P.h, 180), s: P.s, l: P.l }
+  const Pi = { h: rot(P.h, 300), s: P.s, l: P.l }
+  const tri = (c: AccentHsl) => `${c.h} ${c.s}% ${c.l}%`
+  const hsl = (c: AccentHsl) => `hsl(${c.h} ${c.s}% ${c.l}%)`
+  const hsla = (c: AccentHsl, a: number) => `hsla(${c.h}, ${c.s}%, ${c.l}%, ${a})`
+  const rgb = (c: AccentHsl) => hslToRgb(c.h, c.s, c.l).join(', ')
+  const root = document.documentElement.style
+  root.setProperty('--primary', tri(P))
+  root.setProperty('--ring', tri(P))
+  root.setProperty('--accent-primary', hsl(P))
+  root.setProperty('--accent-secondary', hsl(S))
+  root.setProperty('--accent-tertiary', hsl(T))
+  root.setProperty('--accent-rgb', rgb(P))
+  root.setProperty('--accent-secondary-rgb', rgb(S))
+  root.setProperty('--cyan', hsl(C))
+  root.setProperty('--cyan-rgb', rgb(C))
+  root.setProperty('--pink', hsl(Pi))
+  root.setProperty('--pink-rgb', rgb(Pi))
+  root.setProperty('--accent-glow', hsla(P, 0.4))
+  root.setProperty('--accent-subtle', hsla(P, 0.1))
+  root.setProperty('--border-accent', hsla(P, 0.25))
+  root.setProperty('--cyan-glow', hsla(C, 0.35))
+  root.setProperty('--pink-glow', hsla(Pi, 0.3))
+  // Readable text on top of the accent (white, or near-black for light accents like gold).
+  root.setProperty('--accent-contrast', luminance(hslToRgb(P.h, P.s, P.l)) > 0.35 ? '#1a1204' : '#ffffff')
 }
 
 /** Push lifecycle follows the desktop toggle (shared by Panel + Page). */

@@ -187,7 +187,7 @@ export default function ForgotPasswordPage() {
         )}
       </div>
 
-      <div className="hidden lg:flex flex-1 bg-gradient-to-br from-violet-600 via-indigo-600 to-blue-600 auth-hero-panel items-center justify-center p-12 relative overflow-hidden">
+      <div className="hidden lg:flex flex-1 kryzen-accent-cover auth-hero-panel items-center justify-center p-12 relative overflow-hidden">
         <div className="auth-mesh-bg" />
         <div className="relative max-w-md text-white">
           <MessageCircle className="w-12 h-12 mb-4 opacity-90" />

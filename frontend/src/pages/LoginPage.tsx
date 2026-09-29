@@ -117,7 +117,7 @@ function DemoChat({ idPrefix }: { idPrefix: string }) {
           type="button"
           onClick={send}
           aria-label="Send demo message"
-          className="w-9 h-9 shrink-0 rounded-full bg-gradient-to-br from-cyan-400 to-violet-500 flex items-center justify-center text-white shadow-lg hover:scale-110 active:scale-90 transition-transform"
+          className="w-9 h-9 shrink-0 rounded-full kryzen-accent-gradient flex items-center justify-center text-white shadow-lg hover:scale-110 active:scale-90 transition-transform"
         >
           <Send className="w-4 h-4" />
         </button>
@@ -448,7 +448,7 @@ export default function LoginPage() {
 
       {/* ── Right: animated showcase (desktop) ─────── */}
       <div className="hidden lg:flex flex-1 items-center justify-center p-10 relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-br from-violet-700/80 via-indigo-700/60 to-cyan-600/50" />
+        <div className="absolute inset-0 kryzen-accent-cover opacity-80" />
         <div className="auth-mesh-bg" />
         <div className="auth-marquee-ring absolute w-[560px] h-[560px] rounded-full opacity-20 blur-sm" />
         <div className="auth-spin-slow absolute w-[440px] h-[440px] rounded-full border border-dashed border-white/20" />
@@ -470,7 +470,7 @@ export default function LoginPage() {
                 <p className="text-sm font-medium">Absolutely! Can't wait 🎉</p>
                 <p className="text-[11px] text-slate-400 mt-1 text-right">10:43 AM ✓✓</p>
               </div>
-              <div className="w-9 h-9 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 shrink-0" />
+              <div className="w-9 h-9 rounded-full kryzen-accent-gradient shrink-0" />
             </div>
           </div>
 

@@ -44,7 +44,8 @@ export default function App() {
   const init = useAuthStore(s=> s.init)
   const [boot, setBoot] = useState(true)
   const endBoot = useCallback(() => setBoot(false), [])
-  useEffect(()=>{ init(); initTheme() }, [])
+  // Preset engine first so the settings accent (init) wins deterministically on boot.
+  useEffect(()=>{ initTheme(); init() }, [])
 
   return (
     <ErrorBoundary>
