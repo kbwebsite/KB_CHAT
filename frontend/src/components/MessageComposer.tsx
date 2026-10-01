@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2 } from 'lucide-react'
 import { fireEffect, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
+import { useAuthStore } from '../store/auth'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -26,6 +27,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [progress, setProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const { user } = useAuthStore()
+
+  const sendChallenge = () => {
+    const name = user?.display_name || user?.username || 'Someone'
+    onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
+  }
   // Ref mirror: state updates are async, so a fast double-Enter would read
   // stale `sending === false` twice and fire two sends. The ref blocks that.
   const sendingRef = useRef(false)
@@ -288,6 +295,14 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             </div>
           )}
         </div>
+        <button
+          onClick={sendChallenge}
+          className="composer-action-btn"
+          aria-label="Start tic-tac-toe game"
+          title="Challenge chat to tic-tac-toe"
+        >
+          <Gamepad2 className="w-5 h-5" />
+        </button>
         <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false) }} className="composer-action-btn" aria-label="Stickers">
           <Image className="w-5 h-5" />
         </button>

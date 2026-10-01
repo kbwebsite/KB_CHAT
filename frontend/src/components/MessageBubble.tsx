@@ -8,6 +8,8 @@ import { useAuthStore } from '../store/auth'
 import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
+import { fireEffect } from '../utils/messageEffects'
+import { TicTacToeGame, GameMoveChip, isTTTChallenge, isTTTTMove } from './TicTacToeGame'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -87,7 +89,7 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
@@ -96,9 +98,12 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onAIAction?:(msg:Message, action:string)=>void,
   onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void,
-  onRetry?:(msg:Message)=>void
+  onRetry?:(msg:Message)=>void,
+  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:()=>void
 }) {
   const content = msg.is_deleted ? 'Message deleted' : msg.content
+  const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
+  const isMove = !msg.is_deleted && isTTTTMove(msg.content)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
   // stored key; otherwise show a placeholder instead of base64.
   const legacySealed = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
@@ -206,7 +211,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
+        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }} onDoubleClick={(e)=>{ e.stopPropagation(); if (!msg.is_deleted) fireEffect('hearts') }}>
           {imgAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
@@ -309,6 +314,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                 <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
               )}
             </>
+          ) : isChallenge ? (
+            <TicTacToeGame
+              challenge={msg}
+              msgs={gameMsgs || []}
+              meId={meId}
+              onMove={(c, pos) => onGameMove?.(c, pos)}
+              onRematch={() => onGameRematch?.()}
+            />
+          ) : isMove ? (
+            <GameMoveChip msg={msg} />
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}

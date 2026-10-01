@@ -335,6 +335,19 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
+  const sendChallenge = async () => {
+    if (!currentConversationId) return
+    const name = user?.display_name || user?.username || 'Someone'
+    await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
+  }
+
+  const handleGameMove = async (challenge: any, pos: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    const name = user?.display_name || user?.username || 'Someone'
+    const cells = ['top-left', 'top-center', 'top-right', 'middle-left', 'center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
+    await sendMessage(currentConversationId, `🎮TTT:move:${challenge.id}:${pos}\n${name} takes ${cells[pos] || `cell ${pos + 1}`}.`)
+  }
+
   const handleRefresh = async () => {
     if (showRefresh) return; setShowRefresh(true)
     try { await fetchConversations(); if (currentConversationId) await fetchMessages(currentConversationId) } catch {}
@@ -625,6 +638,9 @@ export function ChatView({
                       onRetry={(m: any) => retryMessage(m.id)}
                       onTranslateAction={handleTranslateClick}
                       onMobileMore={(m: any) => onMobileMore(m)}
+                      gameMsgs={currentMsgs}
+                      onGameMove={handleGameMove}
+                      onGameRematch={sendChallenge}
                     />
                   </div>
                 </div>
