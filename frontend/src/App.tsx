@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useAuthStore } from './store/auth'
 import { initTheme } from './store/theme'
+import { useLockStore } from './store/lock'
+import { LockScreen } from './components/LockScreen'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 import { ToastContainer } from './components/Toast'
@@ -46,6 +48,35 @@ export default function App() {
   const endBoot = useCallback(() => setBoot(false), [])
   // Preset engine first so the settings accent (init) wins deterministically on boot.
   useEffect(()=>{ initTheme(); init() }, [])
+  const lockEnabled = useLockStore(s => s.enabled)
+  const unlocked = useLockStore(s => s.unlocked)
+
+  // Auto-lock: tab hidden for 60s+ relocks (only when a lock is set up).
+  useEffect(() => {
+    let t: ReturnType<typeof setTimeout> | null = null
+    const onVis = () => {
+      const st = useLockStore.getState()
+      if (document.hidden) {
+        if (st.enabled && st.unlocked) t = setTimeout(() => useLockStore.getState().lock(), 60000)
+      } else if (t) {
+        clearTimeout(t)
+        t = null
+      }
+    }
+    document.addEventListener('visibilitychange', onVis)
+    return () => {
+      document.removeEventListener('visibilitychange', onVis)
+      if (t) clearTimeout(t)
+    }
+  }, [])
+
+  if (lockEnabled && !unlocked) {
+    return (
+      <ErrorBoundary>
+        <LockScreen />
+      </ErrorBoundary>
+    )
+  }
 
   return (
     <ErrorBoundary>

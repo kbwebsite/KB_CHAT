@@ -10,6 +10,7 @@ import {
   NotificationSettings,
   PrivacyQuickSettings,
   ChatSettings,
+  AppLockSettings,
 } from '../components/settings/shared'
 import { blockApi } from '../services/api'
 
@@ -148,6 +149,7 @@ export default function SettingsPage() {
           <section>
             <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3 flex items-center gap-1.5"><Lock className="w-3 h-3"/> Security</h2>
             <div className="space-y-3">
+              <AppLockSettings />
               <div className="settings-section space-y-2">
                 <p className="text-sm font-medium">Change password</p>
                 <input type="password" value={currentPwd} onChange={e=> setCurrentPwd(e.target.value)} placeholder="Current password" className="auth-input w-full px-3 py-2 rounded-lg text-sm"/>

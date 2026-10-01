@@ -9,7 +9,8 @@ import { ContactsPanel } from './ContactsPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { CallsPanel } from './CallsPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock } from 'lucide-react'
+import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
 
@@ -59,6 +60,8 @@ export function ChatSidebar({
   const [groupMembers, setGroupMembers] = useState<any[]>([])
   const [showMenu, setShowMenu] = useState(false)
   const settings = useSettingsStore()
+  const lockEnabled = useLockStore((s) => s.enabled)
+  const lockNow = useLockStore((s) => s.lock)
   const closeMenu = () => setShowMenu(false)
   const menuFire = (fn?: () => void) => () => { closeMenu(); fn?.() }
 
@@ -185,6 +188,12 @@ export function ChatSidebar({
                   <button role="menuitem" onClick={menuFire(onSettings)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Settings className="w-4 h-4 text-primary" />
                     Settings
+                  </button>
+                )}
+                {lockEnabled && (
+                  <button role="menuitem" onClick={menuFire(lockNow)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Lock className="w-4 h-4 text-primary" />
+                    Lock now
                   </button>
                 )}
               </div>

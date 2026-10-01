@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
-import { Moon, Sun, Monitor, Wallpaper, Upload, Trash2 } from 'lucide-react'
+import { Moon, Sun, Monitor, Wallpaper, Upload, Trash2, Lock, Unlock } from 'lucide-react'
 import { useSettingsStore, type UserSettings } from '../../store/settings'
+import { useLockStore, PIN_RE } from '../../store/lock'
 import {
   WALLPAPERS,
   THEME_PACKS,
@@ -334,6 +335,98 @@ export function NotificationSettings() {
       <ToggleRow k="desktop_notifications" label="Desktop notifications" desc="Browser popup when chat is in background" />
       <ToggleRow k="notification_previews" label="Show message previews" desc="Include sender + text in popups; off shows just “New message”" />
       <NotificationPermissionRow />
+    </div>
+  )
+}
+
+export function AppLockSettings() {
+  const hasPin = useLockStore((s) => s.hasPin)
+  const enabled = useLockStore((s) => s.enabled)
+  const setupPin = useLockStore((s) => s.setupPin)
+  const setEnabled = useLockStore((s) => s.setEnabled)
+  const clearPin = useLockStore((s) => s.clearPin)
+  const lock = useLockStore((s) => s.lock)
+  const [settingUp, setSettingUp] = useState(false)
+  const [pin, setPin] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const save = async () => {
+    if (!PIN_RE.test(pin)) {
+      setMsg('PIN must be 4–6 digits')
+      return
+    }
+    setBusy(true)
+    try {
+      await setupPin(pin)
+      setPin('')
+      setSettingUp(false)
+      setMsg('App lock is on')
+    } catch (e: any) {
+      setMsg(e?.message || 'Could not set PIN')
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="settings-section space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium flex items-center gap-1.5">
+            {enabled ? <Lock className="w-3.5 h-3.5 text-primary" /> : <Unlock className="w-3.5 h-3.5" />}
+            App lock
+          </p>
+          <p className="text-xs text-muted-foreground">PIN gate on boot + auto-lock when away 1 min</p>
+        </div>
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={!hasPin}
+          onChange={(e) => setEnabled(e.target.checked)}
+          className="settings-toggle"
+          aria-label="App lock"
+        />
+      </div>
+      {!hasPin || settingUp ? (
+        <div className="space-y-2 pt-1">
+          <input
+            type="password"
+            inputMode="numeric"
+            maxLength={6}
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))}
+            placeholder={hasPin ? 'New 4–6 digit PIN' : 'Choose a 4–6 digit PIN'}
+            className="auth-input w-full px-3 py-2 rounded-lg text-sm tracking-[0.3em] text-center"
+          />
+          <div className="flex gap-2">
+            <button onClick={save} disabled={busy} className="auth-submit-btn flex-1 py-2 rounded-lg text-white text-sm font-medium disabled:opacity-50">
+              {busy ? 'Saving…' : hasPin ? 'Change PIN' : 'Turn on app lock'}
+            </button>
+            {hasPin && (
+              <button onClick={() => { setSettingUp(false); setPin(''); setMsg(null) }} className="px-3 py-2 rounded-lg bg-background border border-[var(--k-border)] text-sm">
+                Cancel
+              </button>
+            )}
+          </div>
+        </div>
+      ) : (
+        <div className="flex gap-2 pt-1">
+          <button onClick={() => { setSettingUp(true); setMsg(null) }} className="flex-1 py-1.5 rounded-lg bg-background border border-[var(--k-border)] text-xs hover:bg-muted transition-colors">
+            Change PIN
+          </button>
+          <button onClick={() => lock()} className="flex-1 py-1.5 rounded-lg bg-background border border-[var(--k-border)] text-xs hover:bg-muted transition-colors">
+            Lock now
+          </button>
+          <button
+            onClick={() => { if (confirm('Remove the app lock PIN from this device?')) { clearPin(); setMsg(null) } }}
+            className="flex-1 py-1.5 rounded-lg bg-background border border-[var(--k-border)] text-xs text-destructive hover:bg-destructive/10 transition-colors"
+          >
+            Remove
+          </button>
+        </div>
+      )}
+      {msg && <p className="text-xs text-center p-1.5 rounded-lg bg-background">{msg}</p>}
     </div>
   )
 }
