@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles } from 'lucide-react'
+import { fireEffect, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
@@ -17,6 +18,8 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 }) {
   const [text, setText] = useState('')
   const [viewOnce, setViewOnce] = useState(false)
+  const [effect, setEffect] = useState<EffectKind | null>(null)
+  const [showEffects, setShowEffects] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
   const [showStickers, setShowStickers] = useState(false)
   const [uploading, setUploading] = useState(false)
@@ -74,7 +77,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setSending(true)
     const body = text.trim()
     const vo = viewOnce
+    const fx = effect
     setViewOnce(false)
+    setEffect(null)
+    setShowEffects(false)
     setText('')
     onCancelReply()
     lastTyping.current = false
@@ -82,6 +88,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     // Call onSend and reset sending state after a delay (onSend is void, not async)
     onSend(body, undefined, 'text', undefined, vo ? { view_once: true } : undefined)
+    if (fx) setTimeout(() => fireEffect(fx), 250)
     setTimeout(() => { sendingRef.current = false; setSending(false) }, 1500)
   }
 
@@ -171,7 +178,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false) }
   }
 
   return (
@@ -237,7 +244,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         />
 
         {/* Right side buttons */}
-        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false) }} className="composer-action-btn" aria-label="Emoji">
+        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false) }} className="composer-action-btn" aria-label="Emoji">
           <Smile className="w-5 h-5" />
         </button>
         {/* View-once: burns after first view (1-1 text only) */}
@@ -250,7 +257,38 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         >
           <Eye className="w-5 h-5" />
         </button>
-        <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false) }} className="composer-action-btn" aria-label="Stickers">
+        {/* Send-with-effect picker */}
+        <div className="relative">
+          <button
+            onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false) }}
+            className="composer-action-btn"
+            aria-label="Send with effect"
+            title={effect ? `Effect: ${effect} (tap to change)` : 'Send with effect'}
+            style={effect ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
+          >
+            <Sparkles className="w-5 h-5" />
+          </button>
+          {showEffects && (
+            <div className="absolute bottom-12 right-0 z-30 w-44 rounded-2xl border bg-card p-1.5 shadow-xl">
+              <button
+                onClick={() => { setEffect(null); setShowEffects(false) }}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${!effect ? 'text-primary font-medium' : ''}`}
+              >
+                <span className="w-5 text-center">🚫</span> None
+              </button>
+              {EFFECT_OPTIONS.map(o => (
+                <button
+                  key={o.kind}
+                  onClick={() => { setEffect(o.kind); setShowEffects(false) }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${effect === o.kind ? 'text-primary font-medium' : ''}`}
+                >
+                  <span className="w-5 text-center text-base">{o.emoji}</span> {o.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+        <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false) }} className="composer-action-btn" aria-label="Stickers">
           <Image className="w-5 h-5" />
         </button>
 

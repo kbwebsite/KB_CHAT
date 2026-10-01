@@ -1,9 +1,9 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download } from 'lucide-react'
 import { useState } from 'react'
 
-export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights'
+export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export'
 
 export function ChatHeader({
   conv,
@@ -52,6 +52,7 @@ export function ChatHeader({
     { key: 'pinned', label: 'Pinned messages', icon: Pin },
     { key: 'schedule', label: 'Scheduled', icon: Clock3 },
     { key: 'insights', label: 'Insights', icon: Lightbulb },
+    { key: 'export', label: 'Export chat (.txt)', icon: Download },
   ] : []
   const title = conv?.title || 'Unknown'
   const members = conv?.members || []

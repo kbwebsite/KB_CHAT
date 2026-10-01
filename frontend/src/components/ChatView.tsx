@@ -13,6 +13,8 @@ import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { wallpaperStyle, wallpaperClass } from '../utils/wallpapers'
+import { fireEffect, effectForText } from '../utils/messageEffects'
+import { EffectOverlay } from './EffectOverlay'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
@@ -176,6 +178,7 @@ export function ChatView({
   const isLoadingMoreRef = useRef(false)
   const scrollSnapshotRef = useRef<{ prevHeight: number; prevTop: number; convId: number } | null>(null)
   const prevMsgLenRef = useRef(0)
+  const lastFxIdRef = useRef<number | null>(null)
 
   const typingNames = typingSet && settings.typing_indicators ? Array.from(typingSet).map((uid: any) => {
     const mem = currentConv?.members?.find((m: any) => m.user_id === uid)
@@ -227,11 +230,50 @@ export function ChatView({
       else setShowNewIndicator(true)
     }
     prevMsgLenRef.current = len
+    // Celebration effects: a brand-new incoming message (not history load,
+    // not our own echo) whose text matches a trigger phrase plays fullscreen.
+    const last = currentMsgs[currentMsgs.length - 1]
+    if (last && last.id !== lastFxIdRef.current) {
+      const firstSight = lastFxIdRef.current !== null
+      lastFxIdRef.current = last.id
+      if (firstSight && last.id > 0 && last.sender_id !== user?.id) {
+        const created = last.created_at ? new Date(last.created_at).getTime() : 0
+        if (!created || Date.now() - created < 120000) {
+          const kind = effectForText(last.is_encrypted ? '' : (last.content || ''))
+          if (kind) setTimeout(() => fireEffect(kind), 450)
+        }
+      }
+    }
   }, [currentMsgs.length])
 
   useEffect(() => {
     setIsAtBottom(true); setShowNewIndicator(false); setTimeout(() => scrollToBottom(false), 100)
+    lastFxIdRef.current = null
   }, [currentConversationId])
+
+  const exportChat = () => {
+    if (!currentMsgs.length) return
+    const lines = currentMsgs
+      .filter((m: any) => !m.is_deleted)
+      .map((m: any) => {
+        const who = m.sender_id === user?.id ? 'You' : (m.sender_display_name || m.sender_username || 'Unknown')
+        const when = m.created_at ? new Date(m.created_at).toLocaleString() : ''
+        const body = m.is_encrypted
+          ? '🔒 Encrypted message'
+          : (m.content || (m.attachments?.length ? `[${m.attachments.length} attachment(s)]` : ''))
+        return `[${when}] ${who}: ${body}`
+      })
+    const title = (currentConv as any)?.title || (currentConv as any)?.name || 'chat'
+    const blob = new Blob(
+      [`Kryzen export — ${title}\nExported ${new Date().toLocaleString()}\n\n${lines.join('\n')}`],
+      { type: 'text/plain;charset=utf-8' }
+    )
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = `kryzen-${String(title).replace(/[^\w-]+/g, '_')}.txt`
+    a.click()
+    setTimeout(() => URL.revokeObjectURL(a.href), 4000)
+  }
 
   const handlePollVote = async (pollId: number, opts: number[]) => {
     try {
@@ -431,6 +473,7 @@ export function ChatView({
             else if (key === 'pinned') setShowPinned(true)
             else if (key === 'schedule') setShowSchedule(true)
             else if (key === 'insights') setShowInsights(true)
+            else if (key === 'export') exportChat()
           }}
         />
 
@@ -696,6 +739,8 @@ export function ChatView({
             </div>
           </>
         )}
+
+        <EffectOverlay />
 
         <MessageComposer
           onSend={handleSend}
