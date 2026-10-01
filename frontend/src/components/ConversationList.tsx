@@ -1,5 +1,6 @@
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
+import { stripFxMarker } from '../utils/messageEffects'
 import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
 
@@ -63,7 +64,7 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
         </div>
         <div className="conv-bottom-row">
           <span className={`conv-preview ${typing ? 'conv-typing' : ''}`}>
-            {typing ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (last.content?.slice(0, 45) || '📎 Attachment') : isGroup ? `${(conv.members || []).length} members` : 'Start conversation'}
+            {typing ? 'typing...' : last ? (isGroup && !isOwnLast && last.sender_username ? `${last.sender_username}: ` : '') + (stripFxMarker(last.content)?.slice(0, 45) || '📎 Attachment') : isGroup ? `${(conv.members || []).length} members` : 'Start conversation'}
           </span>
           {hasUnread && (
             <span className={`conv-unread ${isMuted ? 'opacity-60' : ''}`}>

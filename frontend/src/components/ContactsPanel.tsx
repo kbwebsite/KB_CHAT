@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { extendedApi, usersApi } from '../services/api'
 import { Contact, Search, MessageCircle, X, Users } from 'lucide-react'
 import { initials } from '../utils/format'
+import { stripFxMarker } from '../utils/messageEffects'
 import { useDebounce } from '../hooks/useDebounce'
 import { useChatStore } from '../store/chat'
 import { useAuthStore } from '../store/auth'
@@ -83,7 +84,7 @@ export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClo
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">{g.title}</p>
-                  <p className="text-xs text-muted-foreground truncate">{(g.members || []).length} members{g.unread_count > 0 ? ` • ${g.unread_count} new` : g.last_message?.content ? ` • ${(g.last_message.content as string).slice(0, 30)}` : ''}</p>
+                  <p className="text-xs text-muted-foreground truncate">{(g.members || []).length} members{g.unread_count > 0 ? ` • ${g.unread_count} new` : g.last_message?.content ? ` • ${stripFxMarker(g.last_message.content as string).slice(0, 30)}` : ''}</p>
                 </div>
               </button>
             ))}

@@ -10,6 +10,7 @@ import { PollPanel } from './PollPanel'
 import EventPanel from './EventPanel'
 import ScheduleMessage from './ScheduleMessage'
 import ChatInsights from './ChatInsights'
+import { stripFxMarker } from '../utils/messageEffects'
 import { AgentPanel } from './AgentPanel'
 import { Leaderboard } from './Leaderboard'
 import { ThemePicker } from './ThemePicker'
@@ -80,7 +81,7 @@ export function ChatPanels({
             ) : pinnedMessages.map((msg: any) => (
               <div key={msg.id} className="p-3 rounded-xl bg-muted border border-border text-sm cursor-pointer hover:bg-muted/80 transition-colors" onClick={() => setShowPinned(false)}>
                 <p className="text-xs text-muted-foreground">{msg.sender_display_name} • {new Date(msg.pinned_at || msg.created_at).toLocaleString()}</p>
-                <p className="mt-1 line-clamp-3">{msg.content}</p>
+                <p className="mt-1 line-clamp-3">{stripFxMarker(msg.content)}</p>
               </div>
             ))}
           </div>

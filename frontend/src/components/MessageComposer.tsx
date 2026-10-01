@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2 } from 'lucide-react'
-import { fireEffect, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
+import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
@@ -93,8 +93,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     lastTyping.current = false
     emitTyping(false)
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
-    // Call onSend and reset sending state after a delay (onSend is void, not async)
-    onSend(body, undefined, 'text', undefined, vo ? { view_once: true } : undefined)
+    // Call onSend and reset sending state after a delay (onSend is void, not async).
+    // A chosen effect rides along as a marker tag so the RECEIVER celebrates
+    // too; it still plays locally for the sender right away.
+    onSend(fx ? withFxMarker(body, fx) : body, undefined, 'text', undefined, vo ? { view_once: true } : undefined)
     if (fx) setTimeout(() => fireEffect(fx), 250)
     setTimeout(() => { sendingRef.current = false; setSending(false) }, 1500)
   }

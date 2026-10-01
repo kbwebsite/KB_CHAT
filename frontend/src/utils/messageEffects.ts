@@ -47,6 +47,26 @@ export function effectForText(text: string | null | undefined): EffectKind | nul
   return hit ? hit.kind : null
 }
 
+/** Trailing tag carrying a sender-chosen effect to the receiver, e.g. ` [fx:confetti]`.
+ * Always stripped before display (see stripFxMarker). */
+const FX_MARKER_RE = / \[fx:(confetti|hearts|fireworks|slam)\]\s*$/
+
+export function withFxMarker(body: string, kind: EffectKind): string {
+  return `${body.replace(/\s+$/, '')} [fx:${kind}]`
+}
+
+/** Effect requested by the sender via marker tag, if any. */
+export function parseFxMarker(text: string | null | undefined): EffectKind | null {
+  if (!text) return null
+  const m = FX_MARKER_RE.exec(text)
+  return m ? (m[1] as EffectKind) : null
+}
+
+/** Display text with any effect marker removed. Safe on any input. */
+export function stripFxMarker(text: any): any {
+  return typeof text === 'string' ? text.replace(FX_MARKER_RE, '') : text
+}
+
 export const EFFECT_OPTIONS: { kind: EffectKind; emoji: string; label: string }[] = [
   { kind: 'confetti', emoji: '🎉', label: 'Confetti' },
   { kind: 'hearts', emoji: '💕', label: 'Hearts' },

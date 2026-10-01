@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useChatStore } from '../store/chat'
 import { Bell, X, CheckCheck } from 'lucide-react'
 import { extendedApi } from '../services/api'
+import { stripFxMarker } from '../utils/messageEffects'
 
 export function NotificationPanel({ onClose, onSelect }: { onClose:()=>void, onSelect:(cid:number)=>void }) {
   const conversations = useChatStore(s=> s.conversations)
@@ -29,7 +30,7 @@ export function NotificationPanel({ onClose, onSelect }: { onClose:()=>void, onS
         ) : unread.map(c=> (
           <button key={c.id} onClick={()=> onSelect(c.id)} className="w-full text-left p-3 rounded-xl bg-muted hover:bg-accent border">
             <p className="text-sm font-medium">{c.title}</p>
-            <p className="text-xs text-muted-foreground truncate">{c.last_message?.content?.slice(0,60)}</p>
+            <p className="text-xs text-muted-foreground truncate">{stripFxMarker(c.last_message?.content)?.slice(0,60)}</p>
             <p className="text-[11px] mt-1 px-2 py-0.5 rounded-full bg-gradient-to-r from-red-500 to-orange-500 text-white font-bold inline-block shadow-[0_0_10px_3px_rgba(239,68,68,0.5)]">{c.unread_count} new</p>
           </button>
         ))}

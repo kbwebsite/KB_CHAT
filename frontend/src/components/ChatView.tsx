@@ -13,7 +13,7 @@ import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { wallpaperStyle, wallpaperClass } from '../utils/wallpapers'
-import { fireEffect, effectForText } from '../utils/messageEffects'
+import { fireEffect, effectForText, parseFxMarker, stripFxMarker } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { Message } from '../types'
 
@@ -239,7 +239,9 @@ export function ChatView({
       if (firstSight && last.id > 0 && last.sender_id !== user?.id) {
         const created = last.created_at ? new Date(last.created_at).getTime() : 0
         if (!created || Date.now() - created < 120000) {
-          const kind = effectForText(last.is_encrypted ? '' : (last.content || ''))
+          const raw = last.is_encrypted ? '' : (last.content || '')
+          // Sender-chosen effect (marker tag) wins; otherwise keyword fallback.
+          const kind = parseFxMarker(raw) ?? effectForText(raw)
           if (kind) setTimeout(() => fireEffect(kind), 450)
         }
       }
@@ -260,7 +262,7 @@ export function ChatView({
         const when = m.created_at ? new Date(m.created_at).toLocaleString() : ''
         const body = m.is_encrypted
           ? '🔒 Encrypted message'
-          : (m.content || (m.attachments?.length ? `[${m.attachments.length} attachment(s)]` : ''))
+          : (stripFxMarker(m.content) || (m.attachments?.length ? `[${m.attachments.length} attachment(s)]` : ''))
         return `[${when}] ${who}: ${body}`
       })
     const title = (currentConv as any)?.title || (currentConv as any)?.name || 'chat'
@@ -524,7 +526,7 @@ export function ChatView({
                 {searchResults.map((m: any) => (
                   <button key={m.id} onClick={() => jumpToMessage(m)} className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-muted flex items-center gap-2 min-w-0">
                     <span className="text-xs font-medium text-primary shrink-0 max-w-[90px] truncate">{m.sender_display_name || m.sender_username || 'Unknown'}</span>
-                    <span className="text-xs truncate flex-1">{m.is_encrypted ? '🔒 Encrypted message' : (m.content || '').slice(0, 80)}</span>
+                    <span className="text-xs truncate flex-1">{m.is_encrypted ? '🔒 Encrypted message' : (stripFxMarker(m.content) || '').slice(0, 80)}</span>
                     <span className="text-[10px] text-muted-foreground shrink-0">{m.created_at ? formatTime(m.created_at) : ''}</span>
                   </button>
                 ))}
@@ -622,7 +624,7 @@ export function ChatView({
                       isOwn={!!isOwn}
                       isGroup={!!currentConv?.is_group}
                       showAvatar={showAvatar}
-                      onReply={(m: any) => setReplyTo({ id: m.id, content: m.is_encrypted ? '🔒 Encrypted message' : (m.view_once && !m.content ? '👁 View-once message' : (m.content || '')), sender: m.sender_display_name || 'Unknown' })}
+                      onReply={(m: any) => setReplyTo({ id: m.id, content: m.is_encrypted ? '🔒 Encrypted message' : (m.view_once && !m.content ? '👁 View-once message' : (stripFxMarker(m.content) || '')), sender: m.sender_display_name || 'Unknown' })}
                       onEdit={(m: any) => { if (m.is_encrypted || m.view_once) return; setEditTarget(m); setEditText(m.content || '') }}
                       onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
                       onReact={onReact}
