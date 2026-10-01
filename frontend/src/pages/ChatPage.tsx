@@ -9,6 +9,7 @@ import { ChatPanels } from '../components/ChatPanels'
 import { ChatModals } from '../components/ChatModals'
 import { MobileNav } from '../components/MobileNav'
 import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
+import { fireEffect } from '../utils/messageEffects'
 import { msgPinApi, aiApi, agentApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../services/api'
 import { useToastStore } from '../store/toast'
@@ -714,6 +715,7 @@ export default function ChatPage() {
                 label={pinnedMessages.some((p: any) => p.id === mobileActionSheet.msg?.id) ? 'Unpin' : 'Pin'} onClick={() => { if (mobileActionSheet.msg) { handlePin(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Sparkles className="w-5 h-5" />} label="Summarize" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
+              <BottomSheetAction icon={<span className="text-lg">💕</span>} label="Blast" onClick={() => { fireEffect('hearts'); setMobileActionSheet({ open: false }) }} />
               {mobileActionSheet.msg.sender_id === user?.id && (
                 <>
                   <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg && !(mobileActionSheet.msg as any).is_encrypted && !(mobileActionSheet.msg as any).view_once) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
