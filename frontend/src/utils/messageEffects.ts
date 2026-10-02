@@ -72,9 +72,10 @@ export function stripFxMarker(text: any): any {
 export function prettyPreview(text: any): any {
   if (typeof text !== 'string' || !text) return text
   const clean = stripFxMarker(text)
-  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'
+  if (clean.startsWith('🎮C4:new')) return '🔴 Connect Four'
   return clean
 }
 
@@ -88,9 +89,14 @@ export function isRpsMove(text: unknown): boolean {
   return typeof text === 'string' && text.startsWith('🎮RPS:move:')
 }
 
+/** True for Connect Four drop messages (hidden the same way). */
+export function isC4Move(text: unknown): boolean {
+  return typeof text === 'string' && text.startsWith('🎮C4:move:')
+}
+
 /** True for any hidden game-state message (any game). */
 export function isGameMoveMsg(text: unknown): boolean {
-  return isTTTTMove(text) || isRpsMove(text)
+  return isTTTTMove(text) || isRpsMove(text) || isC4Move(text)
 }
 
 export const EFFECT_OPTIONS: { kind: EffectKind; emoji: string; label: string }[] = [

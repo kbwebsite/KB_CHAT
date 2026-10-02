@@ -359,14 +359,22 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async (kind: 'ttt' | 'rps' = 'ttt') => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
       await sendMessage(currentConversationId, `🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`)
+    } else if (kind === 'c4') {
+      await sendMessage(currentConversationId, `🎮C4:new\n${name} started Connect Four — tap a column to drop!`)
     } else {
       await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
     }
+  }
+
+  const handleC4Move = async (challenge: any, col: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    // Marker only — drops stay out of history (filtered above).
+    await sendMessage(currentConversationId, `🎮C4:move:${challenge.id}:${col}`)
   }
 
   const handleRpsThrow = async (challenge: any, choice: RpsChoice) => {
@@ -763,6 +771,7 @@ export function ChatView({
                       onGameMove={handleGameMove}
                       onGameRematch={(kind) => sendChallenge(kind)}
                       onRpsThrow={handleRpsThrow}
+                      onC4Move={handleC4Move}
                       convTitle={(currentConv as any)?.title || 'Chat'}
                     />
                   </div>
