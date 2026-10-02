@@ -3,6 +3,7 @@ import { useAuthStore } from '../store/auth'
 import { uploadApi, usersApi } from '../services/api'
 import { X, Camera, QrCode, Trash2, Eye, BadgeCheck, LogOut, AtSign } from 'lucide-react'
 import { initials } from '../utils/format'
+import { totalXp, sentCount, levelFor } from '../utils/levels'
 import QRProfile from './QRProfile'
 
 const ABOUT_MAX = 140
@@ -145,6 +146,23 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
             )}
           </div>
           <p className="mt-2 text-[11px] text-muted-foreground">Photos are stored securely and sync across your devices.</p>
+          {(() => {
+            const xp = totalXp()
+            const { level, into, need } = levelFor(xp)
+            const pct = Math.min(100, Math.round((into / Math.max(need, 1)) * 100))
+            return (
+              <div className="mt-3 w-full rounded-2xl border bg-muted/40 p-3.5">
+                <div className="flex items-center justify-between">
+                  <p className="text-sm font-semibold">🔥 Level {level}</p>
+                  <p className="text-[11px] text-muted-foreground">{xp} XP • {sentCount()} sent</p>
+                </div>
+                <div className="mt-2 h-2 rounded-full bg-muted overflow-hidden">
+                  <div className="h-full rounded-full kryzen-accent-gradient transition-all" style={{ width: `${pct}%` }} />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1.5">{need - into} XP to Level {level + 1} — keep chatting!</p>
+              </div>
+            )
+          })()}
         </div>
 
         {/* Editable info card */}

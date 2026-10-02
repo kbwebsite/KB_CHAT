@@ -18,6 +18,7 @@ import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setCo
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg, checkChatMilestone } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import type { RpsChoice } from './RockPaperScissors'
+import { addXp, countSent } from '../utils/levels'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
@@ -251,6 +252,7 @@ export function ChatView({
         // Sender-chosen effect (marker tag) wins; otherwise keyword fallback.
         const kind = parseFxMarker(raw) ?? effectForText(raw)
         if (kind) setTimeout(() => fireEffect(kind), 450)
+        awardActivity(false)
       }
       // Milestone party: every fresh 100th message in this chat.
       if (firstSight && fresh && currentConversationId != null) {
@@ -343,6 +345,17 @@ export function ChatView({
     return t !== 0 ? t : (a.key < b.key ? -1 : 1)
   }), [currentMsgs, convPolls, convEvents])
 
+  const awardActivity = (mine: boolean) => {
+    try {
+      if (mine) countSent()
+      const r = addXp(mine ? 10 : 2)
+      if (r.leveledUp) {
+        toast(`🎉 Level ${r.level}! You're on fire!`, 'success')
+        setTimeout(() => fireEffect('confetti'), 400)
+      }
+    } catch {}
+  }
+
   const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => {
     if (!currentConversationId) return
     if (editTarget) {
@@ -354,6 +367,7 @@ export function ChatView({
         voiceDuration != null ? { voice_duration: voiceDuration } : {}
       if (opts?.view_once) extra.view_once = true
       await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type, extra)
+      awardActivity(true)
     }
     catch (e: any) { toast('Failed to send — tap the message to retry. ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
   }
@@ -711,7 +725,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).className}`} ref={listRef} onScroll={handleMessageScroll} style={Object.assign({}, convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).style, convAccent ? getAccentVars(convAccent) : null)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
+        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).className}`} ref={listRef} onScroll={handleMessageScroll} style={Object.assign({}, convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).style, convAccent ? getAccentVars(convAccent) : null)} data-fontsize={settings.chat_font_size} data-density={settings.message_density} data-bubble={settings.bubble_style}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>

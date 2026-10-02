@@ -2765,6 +2765,20 @@ body {
   padding-bottom: 6px;
 }
 
+/* Bubble skins (data-bubble on .message-list; cozy is the default shape) */
+.message-list[data-bubble='sharp'] .msg-text {
+  border-radius: 8px !important;
+}
+.message-list[data-bubble='cloud'] .msg-text {
+  border-radius: 24px !important;
+}
+.message-list[data-bubble='pop'] .msg-text.rounded-br-md {
+  border-radius: 20px 20px 5px 20px !important;
+}
+.message-list[data-bubble='pop'] .msg-text.rounded-bl-md {
+  border-radius: 20px 20px 20px 5px !important;
+}
+
 /* Animated chat wallpapers: slow ambient drift of the layered gradients.
    Oversized background-size on the wallpaper itself gives the room to roam. */
 @keyframes kb-wall-drift {

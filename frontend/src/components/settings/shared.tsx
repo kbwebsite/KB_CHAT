@@ -339,6 +339,17 @@ export function AppearanceSettings() {
           { id: 'compact', label: 'Compact' },
         ]}
       />
+      <SelectRow
+        k="bubble_style"
+        label="Bubble style"
+        desc="Shape of message bubbles"
+        options={[
+          { id: 'cozy', label: 'Cozy' },
+          { id: 'sharp', label: 'Sharp' },
+          { id: 'cloud', label: 'Cloud' },
+          { id: 'pop', label: 'Pop' },
+        ]}
+      />
     </div>
   )
 }

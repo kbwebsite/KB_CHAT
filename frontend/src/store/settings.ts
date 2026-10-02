@@ -36,6 +36,7 @@ import { settingsApi } from '../services/api'
 export type Theme = 'light' | 'dark' | 'system'
 export type ChatFontSize = 'small' | 'medium' | 'large'
 export type MessageDensity = 'comfortable' | 'compact'
+export type BubbleStyle = 'cozy' | 'sharp' | 'cloud' | 'pop'
 export type Visibility = 'everyone' | 'contacts' | 'nobody'
 
 export interface UserSettings {
@@ -44,6 +45,7 @@ export interface UserSettings {
   chat_wallpaper: string
   chat_font_size: ChatFontSize
   message_density: MessageDensity
+  bubble_style: BubbleStyle
   message_notifications: boolean
   sound_enabled: boolean
   vibrate_enabled: boolean
@@ -65,6 +67,7 @@ const defaults: UserSettings = {
   chat_wallpaper: 'default',
   chat_font_size: 'medium',
   message_density: 'comfortable',
+  bubble_style: 'cozy',
   message_notifications: true,
   sound_enabled: true,
   vibrate_enabled: true,
