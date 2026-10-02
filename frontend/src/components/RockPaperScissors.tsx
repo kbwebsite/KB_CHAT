@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fireEffect } from '../utils/messageEffects'
+import { ShareWinButton } from './ShareWinButton'
 
 /**
  * Rock-paper-scissors played through chat messages — no protocol change.
@@ -166,15 +167,27 @@ export function RpsGame({
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-[11px] opacity-80">{status}</p>
         {revealed && !settingUp && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onRematch()
-            }}
-            className="text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary font-medium hover:bg-primary/25 transition shrink-0"
-          >
-            Rematch
-          </button>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <ShareWinButton
+              title="Kryzen Rock-Paper-Scissors"
+              text={
+                iWon && myThrow
+                  ? `🏆 I just won Rock-Paper-Scissors on Kryzen Chat with ${EMOJI[myThrow.choice]}! Think you can beat me?`
+                  : result === 'draw'
+                    ? `🤝 Rock-Paper-Scissors draw on Kryzen Chat — ${EMOJI[throws[0].choice]} vs ${EMOJI[throws[1].choice]}!`
+                    : `😅 ${(result === 'a' ? throws[0] : throws[1]).senderName} beat me at Rock-Paper-Scissors on Kryzen Chat — I want a rematch!`
+              }
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onRematch()
+              }}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary font-medium hover:bg-primary/25 transition shrink-0"
+            >
+              Rematch
+            </button>
+          </span>
         )}
       </div>
     </div>

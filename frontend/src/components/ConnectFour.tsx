@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fireEffect } from '../utils/messageEffects'
+import { ShareWinButton } from './ShareWinButton'
 
 /**
  * Connect Four played through chat messages — no protocol change.
@@ -173,15 +174,27 @@ export function ConnectFourGame({
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-[11px] opacity-80">{status}</p>
         {over && !settingUp && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onRematch()
-            }}
-            className="text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary font-medium hover:bg-primary/25 transition shrink-0"
-          >
-            Rematch
-          </button>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <ShareWinButton
+              title="Kryzen Connect Four"
+              text={
+                result && iWon
+                  ? `🏆 I just won Connect Four in ${moves.length} discs on Kryzen Chat! Think you can beat me?`
+                  : draw
+                    ? `🤝 We filled the whole Connect Four board on Kryzen Chat — draw!`
+                    : `😅 ${moves.find((m) => result && m.disc === result.winner)?.senderName || 'Someone'} beat me at Connect Four on Kryzen Chat — I want a rematch!`
+              }
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onRematch()
+              }}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary font-medium hover:bg-primary/25 transition shrink-0"
+            >
+              Rematch
+            </button>
+          </span>
         )}
       </div>
     </div>

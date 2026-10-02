@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import { X, Send } from 'lucide-react'
+import { X, Send, Share2 } from 'lucide-react'
+import { shareFile } from '../utils/share'
 
 /**
  * Meme maker: classic top/bottom-caption meme baked onto a photo via canvas,
@@ -20,6 +21,8 @@ export function MemeMaker({
   const [img, setImg] = useState<HTMLImageElement | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const [sharing, setSharing] = useState(false)
+  const [msg, setMsg] = useState<string | null>(null)
 
   useEffect(() => {
     const url = URL.createObjectURL(file)
@@ -65,22 +68,55 @@ export function MemeMaker({
     }
   }, [img, top, bottom])
 
-  const handleSend = () => {
-    const canvas = canvasRef.current
-    if (!canvas || !img || sending) return
+  const bakeMeme = (): Promise<File | null> =>
+    new Promise((resolve) => {
+      const canvas = canvasRef.current
+      if (!canvas || !img) {
+        resolve(null)
+        return
+      }
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) {
+            setError('Could not bake meme')
+            resolve(null)
+            return
+          }
+          resolve(new File([blob], 'kryzen-meme.jpg', { type: 'image/jpeg' }))
+        },
+        'image/jpeg',
+        0.9,
+      )
+    })
+
+  const handleSend = async () => {
+    if (sending) return
     setSending(true)
-    canvas.toBlob(
-      (blob) => {
-        setSending(false)
-        if (!blob) {
-          setError('Could not bake meme')
-          return
-        }
-        onSend(new File([blob], 'meme.jpg', { type: 'image/jpeg' }))
-      },
-      'image/jpeg',
-      0.9,
-    )
+    try {
+      const file = await bakeMeme()
+      if (file) onSend(file)
+    } finally {
+      setSending(false)
+    }
+  }
+
+  const handleShareOut = async () => {
+    if (sharing || sending) return
+    setSharing(true)
+    try {
+      const file = await bakeMeme()
+      if (!file) return
+      const r = await shareFile(file, 'Kryzen meme', 'Made with Kryzen Chat 😂')
+      setMsg(
+        r === 'shared'
+          ? 'Shared!'
+          : r === 'downloaded'
+            ? 'Saved — share it anywhere!'
+            : 'Sharing not supported here',
+      )
+    } finally {
+      setSharing(false)
+    }
   }
 
   return (
@@ -120,13 +156,24 @@ export function MemeMaker({
             maxLength={60}
             className="w-full px-3 py-2 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm font-bold tracking-wide"
           />
-          <button
-            onClick={handleSend}
-            disabled={!img || sending}
-            className="w-full py-2.5 rounded-xl btn-gradient font-medium flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition"
-          >
-            <Send className="w-4 h-4" /> {sending ? 'Baking…' : 'Send meme'}
-          </button>
+          {msg && <p className="text-xs text-center text-primary">{msg}</p>}
+          <div className="flex gap-2">
+            <button
+              onClick={handleSend}
+              disabled={!img || sending || sharing}
+              className="flex-1 py-2.5 rounded-xl btn-gradient font-medium flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition"
+            >
+              <Send className="w-4 h-4" /> {sending ? 'Baking…' : 'Send meme'}
+            </button>
+            <button
+              onClick={handleShareOut}
+              disabled={!img || sending || sharing}
+              className="flex-1 py-2.5 rounded-xl bg-muted hover:bg-accent font-medium flex items-center justify-center gap-2 disabled:opacity-50 active:scale-[0.98] transition"
+              title="Share to other apps"
+            >
+              <Share2 className="w-4 h-4" /> {sharing ? 'Sharing…' : 'Share'}
+            </button>
+          </div>
         </div>
       </div>
     </div>

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { fireEffect } from '../utils/messageEffects'
+import { ShareWinButton } from './ShareWinButton'
 
 /**
  * Tic-tac-toe played entirely through chat messages — no protocol change.
@@ -151,15 +152,27 @@ export function TicTacToeGame({
       <div className="mt-2 flex items-center justify-between gap-2">
         <p className="text-[11px] opacity-80">{status}</p>
         {over && !settingUp && (
-          <button
-            onClick={(e) => {
-              e.stopPropagation()
-              onRematch()
-            }}
-            className="text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary font-medium hover:bg-primary/25 transition"
-          >
-            Rematch
-          </button>
+          <span className="flex items-center gap-1.5 shrink-0">
+            <ShareWinButton
+              title="Kryzen Tic-Tac-Toe"
+              text={
+                winner && iWon
+                  ? `🏆 I just won Tic-Tac-Toe in ${moves.length} moves on Kryzen Chat! Think you can beat me?`
+                  : draw
+                    ? `🤝 We drew a ${moves.length}-move Tic-Tac-Toe battle on Kryzen Chat!`
+                    : `😅 ${moves.find((m) => winner && m.symbol === winner)?.senderName || 'Someone'} beat me at Tic-Tac-Toe on Kryzen Chat — I want a rematch!`
+              }
+            />
+            <button
+              onClick={(e) => {
+                e.stopPropagation()
+                onRematch()
+              }}
+              className="text-[11px] px-2.5 py-1.5 rounded-lg bg-primary/15 text-primary font-medium hover:bg-primary/25 transition shrink-0"
+            >
+              Rematch
+            </button>
+          </span>
         )}
       </div>
     </div>
