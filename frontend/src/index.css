@@ -1343,6 +1343,22 @@ body {
 
 .composer-picker {
   margin-top: 6px;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: clip;
+}
+/* Keep third-party emoji panel inside the composer on narrow screens */
+.composer-picker .EmojiPickerReact,
+.composer-picker .epr-main {
+  width: 100% !important;
+  max-width: 100% !important;
+}
+.composer-picker .epr-category-nav {
+  overflow-x: auto !important;
+  scrollbar-width: none;
+}
+.composer-picker .epr-category-nav::-webkit-scrollbar {
+  display: none;
 }
 
 /* ═══════════════════════════════════════════════════════════════

@@ -2,7 +2,7 @@ import { Message } from '../types'
 import { formatTime } from '../utils/format'
 import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
-import EmojiPicker from 'emoji-picker-react'
+import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
@@ -552,6 +552,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                   width={300}
                   skinTonesDisabled
                   searchDisabled
+                  theme={document.documentElement.classList.contains('dark') ? EmojiTheme.DARK : EmojiTheme.LIGHT}
                 />
               </div>
             )}

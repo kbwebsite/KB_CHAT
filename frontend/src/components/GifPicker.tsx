@@ -54,12 +54,12 @@ export function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
       ) : items.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-6">No GIFs found</p>
       ) : (
-        <div className="grid grid-cols-3 gap-1.5 overflow-y-auto pr-0.5">
+        <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1.5 overflow-y-auto overflow-x-hidden pr-0.5 min-h-0 min-w-0">
           {items.map((g: any) => (
             <button
               key={g.id}
               onClick={() => pick(g)}
-              className="rounded-lg overflow-hidden bg-muted hover:opacity-85 transition active:scale-95"
+              className="rounded-lg overflow-hidden bg-muted hover:opacity-85 transition active:scale-95 min-w-0"
               title={g.title || 'GIF'}
             >
               <img

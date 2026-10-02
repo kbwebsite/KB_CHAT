@@ -3,7 +3,7 @@ import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh,
 import { MemeMaker } from './MemeMaker'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
-import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
+import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
 import { uploadApi } from '../services/api'
@@ -452,7 +452,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Emoji picker */}
       {showEmoji && (
         <div className="composer-picker">
-          <EmojiPicker onEmojiClick={handleEmoji} height={280} width="100%" />
+          <EmojiPicker onEmojiClick={handleEmoji} height={280} width="100%" theme={document.documentElement.classList.contains('dark') ? EmojiTheme.DARK : EmojiTheme.LIGHT} />
         </div>
       )}
 
