@@ -1,6 +1,6 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise } from 'lucide-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
@@ -9,6 +9,8 @@ import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
 import { fireEffect, prettyPreview } from '../utils/messageEffects'
+import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
+import { useToastStore } from '../store/toast'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
@@ -89,7 +91,7 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, convTitle }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
@@ -99,7 +101,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void,
   onRetry?:(msg:Message)=>void,
-  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:()=>void
+  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:()=>void,
+  convTitle?:string
 }) {
   const content = msg.is_deleted ? 'Message deleted' : prettyPreview(msg.content)
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
@@ -163,6 +166,15 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isSaved = savedIds?.has(msg.id)
   const [showMenu, setShowMenu]=useState(false)
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))
+  const toast = useToastStore((s) => s.push)
+  const remind = (when: 'hour' | 'morning') => {
+    scheduleMessageReminder(
+      { convId: (msg as any).conversation_id ?? null, convTitle: convTitle || 'Chat', msg },
+      when,
+    )
+      .then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success'))
+      .catch(() => toast('Could not set reminder', 'error'))
+  }
   const safeForward = onForward || (()=>{})
   const safeSave = onSave || (()=>{})
   const safeSelect = onSelect || (()=>{})
@@ -409,6 +421,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>
               <button onClick={()=>{ fireEffect('hearts'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><span className="w-3.5 h-3.5 text-center">💕</span> Blast</button>
+              <button onClick={()=>{ remind('hour'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Clock className="w-3.5 h-3.5"/> In 1 hour</button>
+              <button onClick={()=>{ remind('morning'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Sunrise className="w-3.5 h-3.5"/> At 9 AM</button>
               {onAIAction && actionMsg && content && !msg.is_deleted && (
                 <>
                   <div className="border-t my-1"/>

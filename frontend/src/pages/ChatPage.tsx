@@ -15,7 +15,8 @@ import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../servic
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
-import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin } from 'lucide-react'
+import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise } from 'lucide-react'
+import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -716,6 +717,8 @@ export default function ChatPage() {
               <BottomSheetAction icon={<Sparkles className="w-5 h-5" />} label="Summarize" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<span className="text-lg">💕</span>} label="Blast" onClick={() => { fireEffect('hearts'); setMobileActionSheet({ open: false }) }} />
+              <BottomSheetAction icon={<Clock className="w-5 h-5" />} label="In 1 hour" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'hour').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
+              <BottomSheetAction icon={<Sunrise className="w-5 h-5" />} label="At 9 AM" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'morning').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
               {mobileActionSheet.msg.sender_id === user?.id && (
                 <>
                   <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg && !(mobileActionSheet.msg as any).is_encrypted && !(mobileActionSheet.msg as any).view_once) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />

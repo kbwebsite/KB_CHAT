@@ -4,6 +4,8 @@ import { useAuthStore } from './store/auth'
 import { initTheme } from './store/theme'
 import { useLockStore } from './store/lock'
 import { LockScreen } from './components/LockScreen'
+import { useToastStore } from './store/toast'
+import { popDueReminders } from './utils/reminders'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 import { ToastContainer } from './components/Toast'
@@ -68,6 +70,38 @@ export default function App() {
       document.removeEventListener('visibilitychange', onVis)
       if (t) clearTimeout(t)
     }
+  }, [])
+
+  // Reminder ticker: fires due message reminders as a popup + toast,
+  // then clears them. Runs app-wide so it works from any screen.
+  useEffect(() => {
+    const tick = () => {
+      let fired: ReturnType<typeof popDueReminders> = []
+      try {
+        fired = popDueReminders(Date.now())
+      } catch {}
+      for (const r of fired) {
+        try {
+          if ('Notification' in window && Notification.permission === 'granted') {
+            const n = new Notification('⏰ Reminder', {
+              body: `${r.sender} in ${r.convTitle}: ${r.snippet}`,
+            })
+            n.onclick = () => {
+              try {
+                window.focus()
+              } catch {}
+              n.close()
+            }
+          }
+        } catch {}
+        try {
+          useToastStore.getState().push(`⏰ Reminder — ${r.sender}: ${r.snippet}`, 'info')
+        } catch {}
+      }
+    }
+    tick()
+    const t = setInterval(tick, 30000)
+    return () => clearInterval(t)
   }, [])
 
   if (lockEnabled && !unlocked) {

@@ -718,6 +718,7 @@ export function ChatView({
                       gameMsgs={currentMsgs}
                       onGameMove={handleGameMove}
                       onGameRematch={sendChallenge}
+                      convTitle={(currentConv as any)?.title || 'Chat'}
                     />
                   </div>
                 </div>
