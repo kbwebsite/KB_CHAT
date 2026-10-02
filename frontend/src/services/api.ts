@@ -117,6 +117,13 @@ export const groupInviteApi = {
   join: (token:string) => api.post(`/api/groups/join/${encodeURIComponent(token)}`).then(r=>r.data),
 }
 
+export const broadcastApi = {
+  list: () => api.get(`/api/broadcasts`).then(r=>r.data),
+  create: (data:{name:string, member_usernames?:string[]}) => api.post(`/api/broadcasts`, data).then(r=>r.data),
+  remove: (id:number) => api.delete(`/api/broadcasts/${id}`).then(r=>r.data),
+  send: (id:number, content:string) => api.post(`/api/broadcasts/${id}/send`, {content}).then(r=>r.data),
+}
+
 export const msgApi = {
   list: (cid:number, params:any={}) => {
     const q = new URLSearchParams()

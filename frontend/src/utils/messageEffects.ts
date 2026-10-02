@@ -75,6 +75,25 @@ export function parseFxMarker(text: string | null | undefined): EffectKind | nul
   return m ? (m[1] as EffectKind) : null
 }
 
+export interface ContactCard {
+  user_id?: number
+  username?: string
+  display_name?: string
+  avatar_url?: string | null
+}
+
+/** Parsed contact card (`type: 'contact'` messages carry JSON content). */
+export function parseContactCard(text: any): ContactCard | null {
+  if (typeof text !== 'string' || !text.startsWith('{')) return null
+  try {
+    const o = JSON.parse(text)
+    if (o && typeof o === 'object' && o.contact && typeof o.contact === 'object') {
+      return o.contact as ContactCard
+    }
+  } catch {}
+  return null
+}
+
 /** Display text with any effect marker removed. Safe on any input. */
 export function stripFxMarker(text: any): any {
   return typeof text === 'string' ? text.replace(FX_MARKER_RE, '') : text
@@ -85,6 +104,12 @@ export function stripFxMarker(text: any): any {
 export function prettyPreview(text: any): any {
   if (typeof text !== 'string' || !text) return text
   const clean = stripFxMarker(text)
+  const contact = parseContactCard(clean)
+  if (contact) {
+    return `👤 ${contact.display_name || contact.username || 'Contact'}${
+      contact.username && contact.display_name !== contact.username ? ` (@${contact.username})` : ''
+    }`
+  }
   if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'

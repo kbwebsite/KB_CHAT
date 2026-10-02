@@ -8,8 +8,9 @@ import { StatusPanel } from './StatusPanel'
 import { ContactsPanel } from './ContactsPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { CallsPanel } from './CallsPanel'
+import { BroadcastPanel } from './BroadcastPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock, Megaphone } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -55,6 +56,8 @@ export function ChatSidebar({
   const [showContacts, setShowContacts] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [showCalls, setShowCalls] = useState(false)
+  const [showBroadcasts, setShowBroadcasts] = useState(false)
+  const [shareContact, setShareContact] = useState<any | null>(null)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [groupTitle, setGroupTitle] = useState('')
   const [groupMembers, setGroupMembers] = useState<any[]>([])
@@ -190,6 +193,10 @@ export function ChatSidebar({
                     Settings
                   </button>
                 )}
+                <button role="menuitem" onClick={menuFire(() => setShowBroadcasts(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <Megaphone className="w-4 h-4 text-primary" />
+                  Broadcast lists
+                </button>
                 {lockEnabled && (
                   <button role="menuitem" onClick={menuFire(lockNow)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Lock className="w-4 h-4 text-primary" />
@@ -220,7 +227,7 @@ export function ChatSidebar({
       </div>
 
       {/* Search */}
-      {!showContacts && !showSaved && !showCalls && (
+      {!showContacts && !showSaved && !showCalls && !showBroadcasts && (
         <div className="search-bar" style={{ background: 'rgba(20,20,42,0.6)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)' }}>
           <Search className="w-4 h-4 text-tertiary" />
           <input
@@ -235,11 +242,13 @@ export function ChatSidebar({
       {/* Content */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {showContacts ? (
-          <ContactsPanel onClose={() => setShowContacts(false)} onChat={handleStartChat} onSelectConversation={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowContacts(false); onMobileViewChange('chat') }} />
+          <ContactsPanel onClose={() => setShowContacts(false)} onChat={handleStartChat} onShare={(u: any) => setShareContact(u)} onSelectConversation={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowContacts(false); onMobileViewChange('chat') }} />
         ) : showSaved ? (
           <SavedMessagesPanel onClose={() => setShowSaved(false)} onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowSaved(false); onMobileViewChange('chat') }} />
         ) : showCalls ? (
           <CallsPanel onClose={() => setShowCalls(false)} />
+        ) : showBroadcasts ? (
+          <BroadcastPanel onClose={() => setShowBroadcasts(false)} />
         ) : (
           <>
             {showUserSearch && (
@@ -299,6 +308,46 @@ export function ChatSidebar({
               />
             </div>
           </>
+        )}
+        {shareContact && (
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 modal-entrance">
+            <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-border kryzen-glass-strong modal-entrance">
+              <div className="p-4 border-b border-border">
+                <h3 className="font-semibold">Share contact</h3>
+                <p className="text-sm text-muted-foreground truncate">
+                  {shareContact.display_name} (@{shareContact.username})
+                </p>
+              </div>
+              <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                {conversations.map((c: any) => (
+                  <label key={c.id} className="flex items-center gap-3 p-2 hover:bg-muted rounded-xl cursor-pointer transition-colors">
+                    <input type="checkbox" id={`sharec-${c.id}`} className="w-4 h-4" />
+                    <div className="w-8 h-8 rounded-full kryzen-accent-gradient text-white flex items-center justify-center text-xs font-bold shrink-0">
+                      {(c.title || '?')[0]}
+                    </div>
+                    <span className="text-sm font-medium flex-1 truncate">{c.title}</span>
+                  </label>
+                ))}
+              </div>
+              <div className="p-3 border-t border-border flex gap-2">
+                <button onClick={() => setShareContact(null)} className="flex-1 py-2 rounded-xl bg-muted transition-colors hover:bg-muted/80">Cancel</button>
+                <button onClick={async () => {
+                  const ids: number[] = []
+                  conversations.forEach((c: any) => {
+                    const el = document.getElementById(`sharec-${c.id}`) as HTMLInputElement
+                    if (el?.checked) ids.push(c.id)
+                  })
+                  if (ids.length === 0 || !shareContact) return
+                  const body = JSON.stringify({ contact: { user_id: shareContact.id, username: shareContact.username, display_name: shareContact.display_name, avatar_url: shareContact.avatar_url || null } })
+                  const st = useChatStore.getState()
+                  for (const cid of ids) {
+                    try { await st.sendMessage(cid, body, undefined, undefined, 'contact') } catch {}
+                  }
+                  setShareContact(null)
+                }} className="flex-1 py-2 rounded-xl bg-primary text-primary-foreground font-medium transition-colors hover:bg-primary/90">Share</button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

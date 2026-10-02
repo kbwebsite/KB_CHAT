@@ -125,6 +125,7 @@ from app.database.connection import create_tables
 # Import all models to register them with Base.metadata before create_all()
 from app.models.user import User
 from app.models.conversation import Conversation, ConversationMember
+from app.models.broadcast import BroadcastList
 from app.models.message import Message, MessageReaction, Attachment
 from app.models.settings import UserSettings
 from app.models.saved import SavedMessage
@@ -148,6 +149,7 @@ from app.api.conversations import router as conv_router
 from app.api.messages import router as msg_router
 from app.api.uploads import router as upload_router
 from app.api.groups import router as groups_router
+from app.api.broadcasts import router as broadcasts_router
 from app.api.saved import router as saved_router
 from app.api.calls import router as calls_router
 from app.api.settings import router as settings_router
@@ -196,6 +198,7 @@ app.include_router(conv_router)
 app.include_router(msg_router)
 app.include_router(upload_router)
 app.include_router(groups_router)
+app.include_router(broadcasts_router)
 app.include_router(saved_router)
 app.include_router(calls_router)
 app.include_router(settings_router)

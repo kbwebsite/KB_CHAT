@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
 import { extendedApi, usersApi } from '../services/api'
-import { Contact, Search, MessageCircle, X, Users } from 'lucide-react'
+import { Contact, Search, MessageCircle, MessageSquareShare, X, Users } from 'lucide-react'
 import { initials } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 import { useDebounce } from '../hooks/useDebounce'
 import { useChatStore } from '../store/chat'
 import { useAuthStore } from '../store/auth'
 
-export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClose:()=>void, onChat:(user:any)=>void, onSelectConversation?:(cid:number)=>void }) {
+export function ContactsPanel({ onClose, onChat, onSelectConversation, onShare }: { onClose:()=>void, onChat:(user:any)=>void, onSelectConversation?:(cid:number)=>void, onShare?:(user:any)=>void }) {
   const [contacts, setContacts]=useState<any[]>([])
   const [q, setQ]=useState('')
   const debounced=useDebounce(q, 300)
@@ -111,7 +111,14 @@ export function ContactsPanel({ onClose, onChat, onSelectConversation }: { onClo
               <p className="text-sm font-medium truncate">{u.display_name}</p>
               <p className="text-xs text-muted-foreground truncate">@{u.username} • {u.is_online ? 'Online' : 'Offline'}</p>
             </div>
-            <button onClick={()=> onChat(u)} className="p-2 rounded-full bg-primary text-primary-foreground" aria-label={`Chat with ${u.display_name}`}><MessageCircle className="w-4 h-4"/></button>
+            <div className="flex items-center gap-1 shrink-0">
+              {onShare && (
+                <button onClick={()=> onShare(u)} className="p-2 rounded-full hover:bg-muted text-muted-foreground hover:text-foreground transition" aria-label={`Share ${u.display_name}`} title="Share contact">
+                  <MessageSquareShare className="w-4 h-4"/>
+                </button>
+              )}
+              <button onClick={()=> onChat(u)} className="p-2 rounded-full bg-primary text-primary-foreground" aria-label={`Chat with ${u.display_name}`}><MessageCircle className="w-4 h-4"/></button>
+            </div>
           </div>
           )
         })}

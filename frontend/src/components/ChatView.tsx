@@ -867,6 +867,7 @@ export function ChatView({
                       onGameRematch={(kind) => sendChallenge(kind)}
                       onRpsThrow={handleRpsThrow}
                       onC4Move={handleC4Move}
+                      onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}
                     />
                   </div>

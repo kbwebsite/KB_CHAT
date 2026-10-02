@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
@@ -127,6 +127,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       </button>
       <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="Stickers">
         <Image className="w-5 h-5" />
+      </button>
+      <button onClick={handleLocationShare} className="composer-action-btn" aria-label="Share location" title="Share current location">
+        <MapPin className="w-5 h-5" />
       </button>
     </>
   )
@@ -262,6 +265,23 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         if (fileRef.current) fileRef.current.value = ''
       }
     }
+  }
+
+  const handleLocationShare = () => {
+    if (!('geolocation' in navigator)) {
+      setUploadError('Geolocation not supported in this browser')
+      return
+    }
+    setUploadError(null)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = pos.coords.latitude.toFixed(5)
+        const lon = pos.coords.longitude.toFixed(5)
+        onSend(`📍 Location\nhttps://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`, undefined, 'text')
+      },
+      () => setUploadError('Location unavailable — allow location access and retry'),
+      { timeout: 15000 },
+    )
   }
 
   const probeAudioDuration = (file: File): Promise<number | undefined> => {

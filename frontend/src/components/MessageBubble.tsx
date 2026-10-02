@@ -12,6 +12,7 @@ import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/l
 import { fireEffect, fireEmojiBurst, prettyPreview } from '../utils/messageEffects'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useToastStore } from '../store/toast'
+import { parseContactCard } from '../utils/messageEffects'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 import { RpsGame, isRpsChallenge, type RpsChoice } from './RockPaperScissors'
 import { ConnectFourGame, isC4Challenge } from './ConnectFour'
@@ -188,7 +189,7 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, convTitle }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onContactChat, convTitle }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
@@ -200,9 +201,11 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onRetry?:(msg:Message)=>void,
   gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4')=>void,
   onRpsThrow?:(challenge:any, choice:RpsChoice)=>void, onC4Move?:(challenge:any, col:number)=>void,
+  onContactChat?:(u:{id?:number, username?:string, display_name?:string, avatar_url?:string|null})=>void,
   convTitle?:string
 }) {
   const content = msg.is_deleted ? 'Message deleted' : prettyPreview(msg.content)
+  const contact = (msg as any).message_type === 'contact' && !msg.is_deleted ? parseContactCard(msg.content) : null
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
   const isRps = !msg.is_deleted && isRpsChallenge(msg.content)
   const isC4 = !msg.is_deleted && isC4Challenge(msg.content)
@@ -450,6 +453,22 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               onMove={(c, col) => onC4Move?.(c, col)}
               onRematch={() => onGameRematch?.('c4')}
             />
+          ) : contact ? (
+            <div className="flex items-center gap-3 min-w-[210px] max-w-[260px]">
+              <div className="w-11 h-11 rounded-full kryzen-accent-gradient text-white flex items-center justify-center text-sm font-bold overflow-hidden shrink-0">
+                {contact.avatar_url ? <img src={contact.avatar_url} alt="" className="w-full h-full object-cover" /> : (contact.display_name || contact.username || '?')[0]}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{contact.display_name || contact.username}</p>
+                <p className="text-xs opacity-70 truncate">{contact.username ? `@${contact.username}` : 'Contact'}</p>
+              </div>
+              <button
+                onClick={(e) => { e.stopPropagation(); onContactChat?.(contact) }}
+                className="px-3 py-1.5 rounded-full bg-white/20 hover:bg-white/30 text-white text-xs font-medium shrink-0 transition"
+              >
+                Chat
+              </button>
+            </div>
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}
