@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react'
-import { fireEffect } from '../utils/messageEffects'
+
 import { ShareWinButton } from './ShareWinButton'
 
 /**
@@ -97,15 +96,6 @@ export function RpsGame({
   // Seat enforcement lives in collectRpsThrows (first throw per side wins);
   // here it's enough that I haven't thrown yet.
   const playable = !settingUp && !revealed && !myThrow
-
-  const firedRef = useRef(false)
-  useEffect(() => {
-    // Celebrate exactly once per game — and only on the winner's device.
-    if (iWon && !firedRef.current) {
-      firedRef.current = true
-      setTimeout(() => fireEffect('confetti'), 350)
-    }
-  }, [iWon])
 
   const status = settingUp
     ? 'Setting up…'

@@ -46,17 +46,21 @@ export function fireEmojiBurst(emojis: string[]): void {
   emit({ emojis: emojis.slice(0, 8) })
 }
 
-const KEYWORDS: { kind: EffectKind; test: RegExp }[] = [
-  { kind: 'confetti', test: /congrat|celebrat|happy birthday|party\b|cheers|well done|promotion|graduat/i },
-  { kind: 'hearts', test: /i love you|love you|❤|💕|xoxo|miss you|anniversary|valentine/i },
-  { kind: 'fireworks', test: /\bwow\b|amazing|awesome|incredible|mind ?blown|🎆|🎇|new year/i },
-  { kind: 'slam', test: /\burgent\b|breaking|asap|emergency|important!/i },
+/** Small greetings that auto-celebrate on arrival (short texts only). */
+const GREETINGS: { kind: EffectKind; test: RegExp }[] = [
+  { kind: 'fireworks', test: /^good\s?night\b/i },
+  {
+    kind: 'confetti',
+    test: /^(hi+|hello+|hey+|he+y+|good\s?(morning|afternoon|evening)|morning|welcome|vanakkam|namaste)\b/i,
+  },
 ]
 
 /** Returns the effect a message text should trigger, if any. */
 export function effectForText(text: string | null | undefined): EffectKind | null {
   if (!text) return null
-  const hit = KEYWORDS.find((k) => k.test.test(text))
+  const t = text.trim()
+  if (t.length === 0 || t.length > 30) return null
+  const hit = GREETINGS.find((k) => k.test.test(t))
   return hit ? hit.kind : null
 }
 

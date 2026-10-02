@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react'
-import { fireEffect } from '../utils/messageEffects'
+
 import { ShareWinButton } from './ShareWinButton'
 
 /**
@@ -116,15 +115,6 @@ export function ConnectFourGame({
   const canPlay = !settingUp && !over && (turn === 'C' ? isChallenger : !isChallenger)
   const winCells = new Set((result?.line || []).map(([r, c]) => `${r}:${c}`))
   const iWon = !!result && moves.some((m) => m.disc === result.winner && m.senderId === meId)
-
-  const firedRef = useRef(false)
-  useEffect(() => {
-    // Celebrate exactly once per game — and only on the winner's device.
-    if (iWon && !firedRef.current) {
-      firedRef.current = true
-      setTimeout(() => fireEffect('confetti'), 350)
-    }
-  }, [iWon])
 
   const status = settingUp
     ? 'Setting up…'

@@ -75,10 +75,6 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
     const res = await pollApi.vote(pollId, optionIds)
     if (res.success) {
       setPolls(polls.map(p => p.id === pollId ? res.data : p))
-      if (quizHit(res.data, optionIds)) {
-        const { fireEffect } = await import('../utils/messageEffects')
-        setTimeout(() => fireEffect('confetti'), 250)
-      }
     }
   }
 
@@ -229,7 +225,7 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
       )}
       {revealed && (
         <p className={`text-xs font-medium ${iWasRight ? 'text-emerald-500' : 'text-muted-foreground'}`}>
-          {iWasRight ? 'Correct! 🎉' : 'Not quite — answer revealed above'}
+          {iWasRight ? 'Correct!' : 'Not quite — answer revealed above'}
         </p>
       )}
       {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (

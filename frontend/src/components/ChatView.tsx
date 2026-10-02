@@ -15,7 +15,7 @@ import { pollApi, eventApi, extrasApi, convApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
-import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg, checkChatMilestone } from '../utils/messageEffects'
+import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
 import { hiddenIds, hideMessage } from '../utils/hidden'
@@ -270,14 +270,6 @@ export function ChatView({
         if (kind) setTimeout(() => fireEffect(kind), 450)
         awardActivity(false)
       }
-      // Milestone party: every fresh 100th message in this chat.
-      if (firstSight && fresh && currentConversationId != null) {
-        const hit = checkChatMilestone(currentConversationId, len)
-        if (hit) {
-          toast(`🎉 ${hit} messages in this chat!`, 'success')
-          setTimeout(() => fireEffect('confetti'), 600)
-        }
-      }
     }
   }, [currentMsgs.length])
 
@@ -332,8 +324,7 @@ export function ChatView({
         setConvPolls(ps => ps.map(p => p.id === pollId ? res.data : p))
         const { quizHit } = await import('./PollPanel')
         if (quizHit(res.data, opts)) {
-          toast('Correct! 🎉', 'success')
-          setTimeout(() => fireEffect('confetti'), 250)
+          toast('Correct!', 'success')
         }
       }
     } catch {}
@@ -381,7 +372,6 @@ export function ChatView({
       const r = addXp(mine ? 10 : 2)
       if (r.leveledUp) {
         toast(`🎉 Level ${r.level}! You're on fire!`, 'success')
-        setTimeout(() => fireEffect('confetti'), 400)
       }
     } catch {}
   }

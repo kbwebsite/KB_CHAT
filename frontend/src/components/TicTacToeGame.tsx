@@ -1,5 +1,4 @@
-import { useEffect, useRef } from 'react'
-import { fireEffect } from '../utils/messageEffects'
+
 import { ShareWinButton } from './ShareWinButton'
 
 /**
@@ -101,17 +100,6 @@ export function TicTacToeGame({
   const isChallenger = meId != null && challenge.sender_id === meId
   const settingUp = !(challenge.id > 0)
   const canPlay = !settingUp && !over && (turn === 'X' ? isChallenger : !isChallenger)
-  const iWon = winner != null && moves.some((m) => m.symbol === winner && m.senderId === meId)
-
-  const firedRef = useRef(false)
-  useEffect(() => {
-    // Celebrate exactly once per game — and only on the winner's device.
-    if (iWon && !firedRef.current) {
-      firedRef.current = true
-      setTimeout(() => fireEffect('confetti'), 350)
-    }
-  }, [iWon])
-
   const status = settingUp
     ? 'Setting up…'
     : winner
@@ -156,7 +144,7 @@ export function TicTacToeGame({
             <ShareWinButton
               title="Kryzen Tic-Tac-Toe"
               text={
-                winner && iWon
+                winner && moves.some((m) => m.symbol === winner && m.senderId === meId)
                   ? `🏆 I just won Tic-Tac-Toe in ${moves.length} moves on Kryzen Chat! Think you can beat me?`
                   : draw
                     ? `🤝 We drew a ${moves.length}-move Tic-Tac-Toe battle on Kryzen Chat!`
