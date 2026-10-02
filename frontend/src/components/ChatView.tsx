@@ -15,7 +15,7 @@ import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
-import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
+import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg, checkChatMilestone } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import type { RpsChoice } from './RockPaperScissors'
 import { Message } from '../types'
@@ -244,13 +244,20 @@ export function ChatView({
     if (last && last.id !== lastFxIdRef.current) {
       const firstSight = lastFxIdRef.current !== null
       lastFxIdRef.current = last.id
-      if (firstSight && last.id > 0 && last.sender_id !== user?.id) {
-        const created = last.created_at ? new Date(last.created_at).getTime() : 0
-        if (!created || Date.now() - created < 120000) {
-          const raw = last.is_encrypted ? '' : (last.content || '')
-          // Sender-chosen effect (marker tag) wins; otherwise keyword fallback.
-          const kind = parseFxMarker(raw) ?? effectForText(raw)
-          if (kind) setTimeout(() => fireEffect(kind), 450)
+      const created = last.created_at ? new Date(last.created_at).getTime() : 0
+      const fresh = last.id > 0 && (!created || Date.now() - created < 120000)
+      if (firstSight && fresh && last.sender_id !== user?.id) {
+        const raw = last.is_encrypted ? '' : (last.content || '')
+        // Sender-chosen effect (marker tag) wins; otherwise keyword fallback.
+        const kind = parseFxMarker(raw) ?? effectForText(raw)
+        if (kind) setTimeout(() => fireEffect(kind), 450)
+      }
+      // Milestone party: every fresh 100th message in this chat.
+      if (firstSight && fresh && currentConversationId != null) {
+        const hit = checkChatMilestone(currentConversationId, len)
+        if (hit) {
+          toast(`🎉 ${hit} messages in this chat!`, 'success')
+          setTimeout(() => fireEffect('confetti'), 600)
         }
       }
     }

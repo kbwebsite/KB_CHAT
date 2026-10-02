@@ -112,6 +112,38 @@ export function isGameMoveMsg(text: unknown): boolean {
   return isTTTTMove(text) || isRpsMove(text) || isC4Move(text)
 }
 
+const MILESTONE_KEY = 'kb_msg_milestones'
+
+/** Chat milestones: every 100 messages earns one celebration.
+ * Returns the crossed hundred (e.g. 300) when a genuinely NEW arrival
+ * pushes past it, else null. First sight only sets the baseline silently.
+ * Survives reloads via localStorage. */
+export function checkChatMilestone(convId: number, len: number): number | null {
+  try {
+    const raw = localStorage.getItem(MILESTONE_KEY)
+    const map = raw ? JSON.parse(raw) : {}
+    const prev = typeof map[String(convId)] === 'number' ? map[String(convId)] as number : null
+    if (prev == null) {
+      map[String(convId)] = len
+      localStorage.setItem(MILESTONE_KEY, JSON.stringify(map))
+      return null
+    }
+    const crossed = Math.floor(len / 100) * 100
+    if (crossed > prev && crossed > 0) {
+      map[String(convId)] = len
+      localStorage.setItem(MILESTONE_KEY, JSON.stringify(map))
+      return crossed
+    }
+    if (len > prev) {
+      map[String(convId)] = len
+      localStorage.setItem(MILESTONE_KEY, JSON.stringify(map))
+    }
+    return null
+  } catch {
+    return null
+  }
+}
+
 export const EFFECT_OPTIONS: { kind: EffectKind; emoji: string; label: string }[] = [
   { kind: 'confetti', emoji: '🎉', label: 'Confetti' },
   { kind: 'hearts', emoji: '💕', label: 'Hearts' },

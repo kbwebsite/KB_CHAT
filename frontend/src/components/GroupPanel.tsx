@@ -2,7 +2,8 @@ import { useEffect, useState } from 'react'
 import { convApi, extendedApi, blockApi, groupInviteApi } from '../services/api'
 import { Conversation } from '../types'
 import { useAuthStore } from '../store/auth'
-import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check } from 'lucide-react'
+import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check, Share2 } from 'lucide-react'
+import { shareText } from '../utils/share'
 import { UserSearch } from './UserSearch'
 
 export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:Conversation, onClose:()=>void, onUpdated:()=>void }) {
@@ -53,6 +54,16 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
     if (!inviteLink) return
     try { await navigator.clipboard.writeText(inviteLink); setCopied(true); setTimeout(()=>setCopied(false), 2000) }
     catch { setMsg('Copy failed — long-press the link') }
+  }
+  const handleInviteShare=async ()=>{
+    if (!inviteLink) return
+    const r = await shareText(
+      `Join ${conversation.title || 'my group'} on Kryzen`,
+      `Come hang out with us on Kryzen Chat — one tap to join:\n${inviteLink}`,
+    )
+    if (r === 'shared') setMsg('Invite shared!')
+    else if (r === 'copied') { setCopied(true); setTimeout(()=>setCopied(false), 2000) }
+    else setMsg('Sharing not supported here — copy the link instead')
   }
   const handleInviteDisable=async ()=>{
     if (!canManage || !confirm('Disable the invite link?')) return
@@ -202,6 +213,7 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
                 <p className="text-xs px-2 py-1.5 rounded-lg bg-muted break-all select-all">{inviteLink}</p>
                 <div className="flex gap-2">
                   <button onClick={handleInviteCopy} disabled={inviteBusy} className="flex-1 py-1.5 rounded-lg bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50 flex items-center justify-center gap-1">{copied ? <Check className="w-3 h-3"/> : <Copy className="w-3 h-3"/>}{copied ? 'Copied!' : 'Copy link'}</button>
+                  <button onClick={handleInviteShare} disabled={inviteBusy} title="Share invite to other apps" className="px-2.5 py-1.5 rounded-lg bg-muted hover:bg-accent text-xs flex items-center gap-1 disabled:opacity-50"><Share2 className="w-3 h-3"/>Share</button>
                   <button onClick={handleInviteNew} disabled={inviteBusy} title="New link (old one stops working)" className="px-2.5 py-1.5 rounded-lg bg-muted hover:bg-accent text-xs flex items-center gap-1 disabled:opacity-50"><RefreshCw className="w-3 h-3"/>New</button>
                   <button onClick={handleInviteDisable} disabled={inviteBusy} title="Disable invite link" className="px-2.5 py-1.5 rounded-lg bg-destructive/10 text-destructive hover:bg-destructive hover:text-destructive-foreground text-xs disabled:opacity-50">Off</button>
                 </div>
