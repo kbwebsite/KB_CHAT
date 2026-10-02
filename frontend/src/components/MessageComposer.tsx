@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2 } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus } from 'lucide-react'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
@@ -27,12 +27,71 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [progress, setProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
+  const [showMore, setShowMore] = useState(false)
   const { user } = useAuthStore()
 
   const sendChallenge = () => {
     const name = user?.display_name || user?.username || 'Someone'
     onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
   }
+
+  // Extra actions: inline on desktop, behind ＋ on mobile.
+  const renderExtras = () => (
+    <>
+      {/* View-once: burns after first view (1-1 text only) */}
+      <button
+        onClick={() => setViewOnce(v => !v)}
+        className="composer-action-btn"
+        aria-label="View once"
+        title={viewOnce ? 'View-once ON: message deletes after first view' : 'Send as view-once'}
+        style={viewOnce ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
+      >
+        <Eye className="w-5 h-5" />
+      </button>
+      {/* Send-with-effect picker */}
+      <div className="relative">
+        <button
+          onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false) }}
+          className="composer-action-btn"
+          aria-label="Send with effect"
+          title={effect ? `Effect: ${effect} (tap to change)` : 'Send with effect'}
+          style={effect ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
+        >
+          <Sparkles className="w-5 h-5" />
+        </button>
+        {showEffects && (
+          <div className="absolute bottom-12 right-0 z-30 w-44 rounded-2xl border bg-card p-1.5 shadow-xl">
+            <button
+              onClick={() => { setEffect(null); setShowEffects(false) }}
+              className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${!effect ? 'text-primary font-medium' : ''}`}
+            >
+              <span className="w-5 text-center">🚫</span> None
+            </button>
+            {EFFECT_OPTIONS.map(o => (
+              <button
+                key={o.kind}
+                onClick={() => { setEffect(o.kind); setShowEffects(false) }}
+                className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${effect === o.kind ? 'text-primary font-medium' : ''}`}
+              >
+                <span className="w-5 text-center text-base">{o.emoji}</span> {o.label}
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+      <button
+        onClick={sendChallenge}
+        className="composer-action-btn"
+        aria-label="Start tic-tac-toe game"
+        title="Challenge chat to tic-tac-toe"
+      >
+        <Gamepad2 className="w-5 h-5" />
+      </button>
+      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false) }} className="composer-action-btn" aria-label="Stickers">
+        <Image className="w-5 h-5" />
+      </button>
+    </>
+  )
   // Ref mirror: state updates are async, so a fast double-Enter would read
   // stale `sending === false` twice and fire two sends. The ref blocks that.
   const sendingRef = useRef(false)
@@ -187,7 +246,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false) }
   }
 
   return (
@@ -253,61 +312,22 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         />
 
         {/* Right side buttons */}
-        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false) }} className="composer-action-btn" aria-label="Emoji">
+        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false); setShowMore(false) }} className="composer-action-btn" aria-label="Emoji">
           <Smile className="w-5 h-5" />
         </button>
-        {/* View-once: burns after first view (1-1 text only) */}
-        <button
-          onClick={() => setViewOnce(v => !v)}
-          className="composer-action-btn"
-          aria-label="View once"
-          title={viewOnce ? 'View-once ON: message deletes after first view' : 'Send as view-once'}
-          style={viewOnce ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
-        >
-          <Eye className="w-5 h-5" />
-        </button>
-        {/* Send-with-effect picker */}
-        <div className="relative">
-          <button
-            onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false) }}
-            className="composer-action-btn"
-            aria-label="Send with effect"
-            title={effect ? `Effect: ${effect} (tap to change)` : 'Send with effect'}
-            style={effect ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
-          >
-            <Sparkles className="w-5 h-5" />
+        {/* Extra actions: inline on desktop… */}
+        <div className="hidden sm:flex sm:items-center">{renderExtras()}</div>
+        {/* …behind ＋ on mobile: attach, typing, emoji, voice stay in the row */}
+        <div className="sm:hidden relative">
+          <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
+            <Plus className="w-5 h-5" />
           </button>
-          {showEffects && (
-            <div className="absolute bottom-12 right-0 z-30 w-44 rounded-2xl border bg-card p-1.5 shadow-xl">
-              <button
-                onClick={() => { setEffect(null); setShowEffects(false) }}
-                className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${!effect ? 'text-primary font-medium' : ''}`}
-              >
-                <span className="w-5 text-center">🚫</span> None
-              </button>
-              {EFFECT_OPTIONS.map(o => (
-                <button
-                  key={o.kind}
-                  onClick={() => { setEffect(o.kind); setShowEffects(false) }}
-                  className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${effect === o.kind ? 'text-primary font-medium' : ''}`}
-                >
-                  <span className="w-5 text-center text-base">{o.emoji}</span> {o.label}
-                </button>
-              ))}
+          {showMore && (
+            <div className="absolute bottom-12 right-0 z-30 rounded-2xl border bg-card p-2 shadow-xl flex items-center gap-1">
+              {renderExtras()}
             </div>
           )}
         </div>
-        <button
-          onClick={sendChallenge}
-          className="composer-action-btn"
-          aria-label="Start tic-tac-toe game"
-          title="Challenge chat to tic-tac-toe"
-        >
-          <Gamepad2 className="w-5 h-5" />
-        </button>
-        <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false) }} className="composer-action-btn" aria-label="Stickers">
-          <Image className="w-5 h-5" />
-        </button>
 
         {/* Voice recorder - shown when empty, send when has text */}
         {text.trim() ? (

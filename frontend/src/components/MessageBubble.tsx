@@ -8,7 +8,7 @@ import { useAuthStore } from '../store/auth'
 import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
-import { fireEffect, stripFxMarker } from '../utils/messageEffects'
+import { fireEffect, prettyPreview } from '../utils/messageEffects'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
@@ -101,7 +101,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onRetry?:(msg:Message)=>void,
   gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:()=>void
 }) {
-  const content = msg.is_deleted ? 'Message deleted' : stripFxMarker(msg.content)
+  const content = msg.is_deleted ? 'Message deleted' : prettyPreview(msg.content)
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
   // stored key; otherwise show a placeholder instead of base64.

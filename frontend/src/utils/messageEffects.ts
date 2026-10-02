@@ -67,6 +67,16 @@ export function stripFxMarker(text: any): any {
   return typeof text === 'string' ? text.replace(FX_MARKER_RE, '') : text
 }
 
+/** Sidebar/preview-safe text: effect markers stripped, game messages
+ * (including ones sent before moves were hidden) shown as pretty labels. */
+export function prettyPreview(text: any): any {
+  if (typeof text !== 'string' || !text) return text
+  const clean = stripFxMarker(text)
+  if (clean.startsWith('🎮TTT:move:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
+  return clean
+}
+
 /** True for tic-tac-toe move messages (hidden from history, live on the board). */
 export function isTTTTMove(text: unknown): boolean {
   return typeof text === 'string' && text.startsWith('🎮TTT:move:')
