@@ -150,25 +150,26 @@ function luminance([r, g, b]: [number, number, number]): number {
 
 interface AccentHsl { h: number; s: number; l: number }
 
+const ACCENT_HUES: Record<string, AccentHsl> = {
+  violet: { h: 221, s: 83, l: 53 },
+  blue: { h: 217, s: 91, l: 60 },
+  emerald: { h: 142, s: 76, l: 36 },
+  rose: { h: 346, s: 77, l: 49 },
+  amber: { h: 38, s: 92, l: 50 },
+  indigo: { h: 263, s: 70, l: 50 },
+  crimson: { h: 348, s: 83, l: 47 },
+  cyan: { h: 190, s: 90, l: 45 },
+  fuchsia: { h: 292, s: 84, l: 60 },
+  gold: { h: 45, s: 93, l: 47 },
+}
+
 /**
- * Single writer for the whole accent family: every accent-colored surface
- * (buttons, bubbles, gradients, glows, rings, cyan/pink pops) derives from
- * the chosen hue, so theme packs recolor the entire app.
+ * Derive the whole accent family (primary, secondary, complements, glows,
+ * contrast text) from one hue id. Pure — usable for the global theme AND
+ * per-conversation overrides.
  */
-function applyAccent(color: string) {
-  const hues: Record<string, AccentHsl> = {
-    violet: { h: 221, s: 83, l: 53 },
-    blue: { h: 217, s: 91, l: 60 },
-    emerald: { h: 142, s: 76, l: 36 },
-    rose: { h: 346, s: 77, l: 49 },
-    amber: { h: 38, s: 92, l: 50 },
-    indigo: { h: 263, s: 70, l: 50 },
-    crimson: { h: 348, s: 83, l: 47 },
-    cyan: { h: 190, s: 90, l: 45 },
-    fuchsia: { h: 292, s: 84, l: 60 },
-    gold: { h: 45, s: 93, l: 47 },
-  }
-  const P = hues[color] || hues.violet
+export function getAccentVars(color: string): Record<string, string> {
+  const P = ACCENT_HUES[color] || ACCENT_HUES.violet
   const rot = (h: number, d: number) => (h + d + 360) % 360
   const S = { h: rot(P.h, 28), s: P.s, l: Math.min(P.l + 6, 74) }
   const T = { h: rot(P.h, 56), s: P.s, l: Math.min(P.l + 12, 82) }
@@ -178,25 +179,64 @@ function applyAccent(color: string) {
   const hsl = (c: AccentHsl) => `hsl(${c.h} ${c.s}% ${c.l}%)`
   const hsla = (c: AccentHsl, a: number) => `hsla(${c.h}, ${c.s}%, ${c.l}%, ${a})`
   const rgb = (c: AccentHsl) => hslToRgb(c.h, c.s, c.l).join(', ')
+  return {
+    '--primary': tri(P),
+    '--ring': tri(P),
+    '--accent-primary': hsl(P),
+    '--accent-secondary': hsl(S),
+    '--accent-tertiary': hsl(T),
+    '--accent-rgb': rgb(P),
+    '--accent-secondary-rgb': rgb(S),
+    '--cyan': hsl(C),
+    '--cyan-rgb': rgb(C),
+    '--pink': hsl(Pi),
+    '--pink-rgb': rgb(Pi),
+    '--accent-glow': hsla(P, 0.4),
+    '--accent-subtle': hsla(P, 0.1),
+    '--border-accent': hsla(P, 0.25),
+    '--cyan-glow': hsla(C, 0.35),
+    '--pink-glow': hsla(Pi, 0.3),
+    // Readable text on top of the accent (white, or near-black for light accents like gold).
+    '--accent-contrast': luminance(hslToRgb(P.h, P.s, P.l)) > 0.35 ? '#1a1204' : '#ffffff',
+  }
+}
+
+/**
+ * Single writer for the whole accent family: every accent-colored surface
+ * (buttons, bubbles, gradients, glows, rings, cyan/pink pops) derives from
+ * the chosen hue, so theme packs recolor the entire app.
+ */
+function applyAccent(color: string) {
+  const vars = getAccentVars(color)
   const root = document.documentElement.style
-  root.setProperty('--primary', tri(P))
-  root.setProperty('--ring', tri(P))
-  root.setProperty('--accent-primary', hsl(P))
-  root.setProperty('--accent-secondary', hsl(S))
-  root.setProperty('--accent-tertiary', hsl(T))
-  root.setProperty('--accent-rgb', rgb(P))
-  root.setProperty('--accent-secondary-rgb', rgb(S))
-  root.setProperty('--cyan', hsl(C))
-  root.setProperty('--cyan-rgb', rgb(C))
-  root.setProperty('--pink', hsl(Pi))
-  root.setProperty('--pink-rgb', rgb(Pi))
-  root.setProperty('--accent-glow', hsla(P, 0.4))
-  root.setProperty('--accent-subtle', hsla(P, 0.1))
-  root.setProperty('--border-accent', hsla(P, 0.25))
-  root.setProperty('--cyan-glow', hsla(C, 0.35))
-  root.setProperty('--pink-glow', hsla(Pi, 0.3))
-  // Readable text on top of the accent (white, or near-black for light accents like gold).
-  root.setProperty('--accent-contrast', luminance(hslToRgb(P.h, P.s, P.l)) > 0.35 ? '#1a1204' : '#ffffff')
+  for (const [k, v] of Object.entries(vars)) root.setProperty(k, v)
+}
+
+/** Per-conversation accent overrides: { [convId]: accentId }. Absent =
+ * follow the global theme accent. Local only (never synced). */
+const CONV_ACCENT_KEY = 'kb_accent_conv'
+
+export function getConvAccent(convId: number | null | undefined): string | null {
+  if (convId == null) return null
+  try {
+    const raw = localStorage.getItem(CONV_ACCENT_KEY)
+    const map = raw ? JSON.parse(raw) : {}
+    const v = map && typeof map === 'object' ? map[String(convId)] : null
+    return typeof v === 'string' && ACCENT_HUES[v] ? v : null
+  } catch {
+    return null
+  }
+}
+
+export function setConvAccent(convId: number, accentId: string | null): void {
+  try {
+    const raw = localStorage.getItem(CONV_ACCENT_KEY)
+    const map = raw ? JSON.parse(raw) : {}
+    const m = map && typeof map === 'object' ? map : {}
+    if (!accentId || !ACCENT_HUES[accentId]) delete m[String(convId)]
+    else m[String(convId)] = accentId
+    localStorage.setItem(CONV_ACCENT_KEY, JSON.stringify(m))
+  } catch {}
 }
 
 /** Push lifecycle follows the desktop toggle (shared by Panel + Page). */

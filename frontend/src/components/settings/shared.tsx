@@ -86,7 +86,7 @@ const THEMES = [
   { id: 'system', label: 'System', icon: Monitor },
 ] as const
 
-const ACCENTS = [
+export const ACCENTS = [
   { id: 'violet', color: 'bg-violet-600' },
   { id: 'blue', color: 'bg-blue-600' },
   { id: 'emerald', color: 'bg-emerald-600' },

@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
-import { useSettingsStore } from '../store/settings'
+import { useSettingsStore, getAccentVars, getConvAccent, setConvAccent } from '../store/settings'
+import { ACCENTS } from './settings/shared'
 import { useToastStore } from '../store/toast'
 import { MessageBubble } from './MessageBubble'
 import { MessageComposer } from './MessageComposer'
@@ -75,6 +76,7 @@ export function ChatView({
   const [showWallpaper, setShowWallpaper] = useState(false)
   const [convWp, setConvWp] = useState<string | null>(null)
   const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
+  const [convAccent, setConvAccentState] = useState<string | null>(null)
   const convWpFileRef = useRef<HTMLInputElement>(null)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
@@ -257,6 +259,7 @@ export function ChatView({
     setIsAtBottom(true); setShowNewIndicator(false); setTimeout(() => scrollToBottom(false), 100)
     lastFxIdRef.current = null
     setConvWp(getConvWallpaper(currentConversationId))
+    setConvAccentState(getConvAccent(currentConversationId))
   }, [currentConversationId])
 
   // Wallpaper slideshow: rotate the global wallpaper every 45s (local only,
@@ -588,6 +591,23 @@ export function ChatView({
               )}
               {convWpMsg && <span className="text-[11px] text-destructive">{convWpMsg}</span>}
             </div>
+            <p className="text-xs text-muted-foreground mt-2">Chat accent — this conversation only</p>
+            <div className="flex gap-2 overflow-x-auto mt-1.5 pb-1 items-center">
+              <button
+                onClick={() => { setConvAccent(currentConversationId, null); setConvAccentState(null) }}
+                className={`shrink-0 px-2.5 h-8 rounded-lg border text-xs bg-muted hover:bg-accent transition ${!convAccent ? 'border-primary ring-2 ring-primary/40' : 'border-transparent'}`}
+              >
+                Global
+              </button>
+              {ACCENTS.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => { setConvAccent(currentConversationId, a.id); setConvAccentState(a.id) }}
+                  className={`settings-accent-dot shrink-0 ${a.color} ${convAccent === a.id ? 'active' : ''}`}
+                  title={a.id}
+                />
+              ))}
+            </div>
           </div>
         )}
 
@@ -658,7 +678,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).className}`} ref={listRef} onScroll={handleMessageScroll} style={convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).style} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
+        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).className}`} ref={listRef} onScroll={handleMessageScroll} style={Object.assign({}, convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).style, convAccent ? getAccentVars(convAccent) : null)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
