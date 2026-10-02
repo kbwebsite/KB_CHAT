@@ -1,8 +1,11 @@
+import { useEffect, useState } from 'react'
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
-import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare } from 'lucide-react'
+import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare, Lock } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
+import { useLockStore } from '../store/lock'
+import { LockScreen } from './LockScreen'
 
 const avatarGradients = [
   'linear-gradient(135deg, #6366f1, #8b5cf6)',
@@ -80,9 +83,29 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
 export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading }: {
   conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean
 }) {
+  const lockedIds = useLockStore((s) => s.lockedIds)
+  const chatsRevealed = useLockStore((s) => s.chatsRevealed)
+  const unlocked = useLockStore((s) => s.unlocked)
+  const setChatsRevealed = useLockStore((s) => s.setChatsRevealed)
+  const [lockPrompt, setLockPrompt] = useState(false)
+  // PIN verified while the prompt is open -> reveal locked chats for this session.
+  useEffect(() => {
+    if (lockPrompt && unlocked) {
+      setChatsRevealed(true)
+      setLockPrompt(false)
+    }
+  }, [lockPrompt, unlocked, setChatsRevealed])
+  const hiddenLocked = chatsRevealed ? [] : conversations.filter((c) => lockedIds.includes(c.id))
+  const visible = chatsRevealed ? conversations : conversations.filter((c) => !lockedIds.includes(c.id))
+  const hiddenUnread = hiddenLocked.reduce((n, c) => n + (c.unread_count || 0), 0)
   return (
     <div className="flex flex-col h-full min-h-0 overflow-hidden">
       <div className="conv-list flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+        {lockPrompt && (
+          <div className="fixed inset-0 z-[90]">
+            <LockScreen />
+          </div>
+        )}
         {loading ? (
           <div className="p-4 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
@@ -95,7 +118,7 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
               </div>
             ))}
           </div>
-        ) : conversations.length === 0 ? (
+        ) : visible.length === 0 && hiddenLocked.length === 0 ? (
           <div className="empty-state">
             <div className="empty-state-icon">
               <MessageSquare className="w-7 h-7" />
@@ -104,19 +127,37 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
             <p className="empty-state-text">Search for users to start chatting</p>
           </div>
         ) : (
-          conversations.map(c => (
-            <ConversationItem
-              key={c.id}
-              conv={c}
-              active={c.id === activeId}
-              onClick={() => onSelect(c.id)}
-              isTyping={!!typingMap?.[c.id]?.size}
-              currentUserId={currentUserId}
-              onPin={onPin}
-              onMute={onMute}
-              onArchive={onArchive}
-            />
-          ))
+          <>
+            {visible.map(c => (
+              <ConversationItem
+                key={c.id}
+                conv={c}
+                active={c.id === activeId}
+                onClick={() => onSelect(c.id)}
+                isTyping={!!typingMap?.[c.id]?.size}
+                currentUserId={currentUserId}
+                onPin={onPin}
+                onMute={onMute}
+                onArchive={onArchive}
+              />
+            ))}
+            {hiddenLocked.length > 0 && (
+              <button
+                onClick={() => setLockPrompt(true)}
+                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-muted transition-colors text-left"
+              >
+                <span className="w-[52px] h-[52px] rounded-[16px] bg-muted flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5 text-muted-foreground" />
+                </span>
+                <span className="flex-1 min-w-0">
+                  <span className="block text-sm font-medium">Locked chats</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {hiddenLocked.length} hidden{hiddenUnread > 0 ? ` • ${hiddenUnread} unread` : ''} — tap to unlock
+                  </span>
+                </span>
+              </button>
+            )}
+          </>
         )}
       </div>
     </div>

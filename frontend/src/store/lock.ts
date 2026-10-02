@@ -9,6 +9,23 @@ import { create } from 'zustand'
 const HASH_KEY = 'kb_pin_hash'
 const SALT_KEY = 'kb_pin_salt'
 const ON_KEY = 'kb_pin_enabled'
+const LOCKED_KEY = 'kb_locked_chats'
+
+function readLockedIds(): number[] {
+  try {
+    const raw = localStorage.getItem(LOCKED_KEY)
+    const parsed = raw ? JSON.parse(raw) : []
+    return Array.isArray(parsed) ? parsed.filter((x) => typeof x === 'number') : []
+  } catch {
+    return []
+  }
+}
+
+function writeLockedIds(ids: number[]): void {
+  try {
+    localStorage.setItem(LOCKED_KEY, JSON.stringify(ids))
+  } catch {}
+}
 
 export const PIN_RE = /^\d{4,6}$/
 
@@ -59,6 +76,13 @@ interface LockState {
   setEnabled: (v: boolean) => void
   lock: () => void
   clearPin: () => void
+  /** Chats hidden behind the PIN (persisted). */
+  lockedIds: number[]
+  /** Locked chats visible this session (PIN verified). Never persisted. */
+  chatsRevealed: boolean
+  lockChat: (id: number) => void
+  unlockChat: (id: number) => void
+  setChatsRevealed: (v: boolean) => void
 }
 
 const storedHash = readLS(HASH_KEY)
@@ -68,6 +92,8 @@ export const useLockStore = create<LockState>((set) => ({
   hasPin: !!storedHash,
   enabled: storedOn,
   unlocked: !storedOn,
+  lockedIds: readLockedIds(),
+  chatsRevealed: false,
 
   setupPin: async (pin: string) => {
     if (!PIN_RE.test(pin)) throw new Error('PIN must be 4–6 digits')
@@ -95,12 +121,31 @@ export const useLockStore = create<LockState>((set) => ({
   },
 
   lock: () => {
-    if (readLS(ON_KEY) === '1' && readLS(HASH_KEY)) set({ unlocked: false })
+    if (readLS(ON_KEY) === '1' && readLS(HASH_KEY)) set({ unlocked: false, chatsRevealed: false })
   },
 
   clearPin: () => {
     writeLS(HASH_KEY, null)
     writeLS(ON_KEY, null)
-    set({ hasPin: false, enabled: false, unlocked: true })
+    // Without a PIN nothing can ever be revealed again — release all chats.
+    writeLockedIds([])
+    set({ hasPin: false, enabled: false, unlocked: true, lockedIds: [], chatsRevealed: true })
   },
+
+  lockChat: (id: number) => {
+    const ids = readLockedIds()
+    if (!ids.includes(id)) {
+      const next = [...ids, id]
+      writeLockedIds(next)
+      set({ lockedIds: next })
+    }
+  },
+
+  unlockChat: (id: number) => {
+    const next = readLockedIds().filter((x) => x !== id)
+    writeLockedIds(next)
+    set({ lockedIds: next })
+  },
+
+  setChatsRevealed: (v: boolean) => set({ chatsRevealed: v }),
 }))

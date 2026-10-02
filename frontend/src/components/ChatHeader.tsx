@@ -1,9 +1,10 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock } from 'lucide-react'
+import { useLockStore } from '../store/lock'
 import { useState } from 'react'
 
-export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper'
+export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock'
 
 export function ChatHeader({
   conv,
@@ -46,6 +47,7 @@ export function ChatHeader({
     ...(onSettings ? [{ label: 'Settings', icon: Settings, run: onSettings }] : []),
     ...(onMute ? [{ label: muted ? 'Unmute chat' : 'Mute chat', icon: muted ? Bell : BellOff, run: onMute }] : []),
   ]
+  const chatLocked = useLockStore((s) => (conv ? s.lockedIds.includes(conv.id) : false))
   const extrasItems: { key: ExtrasKey; label: string; icon: any }[] = onExtras ? [
     { key: 'polls', label: 'Polls', icon: BarChart3 },
     { key: 'events', label: 'Events', icon: CalendarDays },
@@ -54,6 +56,7 @@ export function ChatHeader({
     { key: 'insights', label: 'Insights', icon: Lightbulb },
     { key: 'export', label: 'Export chat (.txt)', icon: Download },
     { key: 'wallpaper', label: 'Chat wallpaper', icon: Image },
+    { key: 'lock', label: chatLocked ? 'Unlock chat' : 'Lock chat', icon: chatLocked ? Unlock : Lock },
   ] : []
   const title = conv?.title || 'Unknown'
   const members = conv?.members || []

@@ -2,6 +2,7 @@ import { useRef, useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useSettingsStore, getAccentVars, getConvAccent, setConvAccent } from '../store/settings'
+import { useLockStore } from '../store/lock'
 import { ACCENTS } from './settings/shared'
 import { useToastStore } from '../store/toast'
 import { MessageBubble } from './MessageBubble'
@@ -417,6 +418,22 @@ export function ChatView({
     }
   }
 
+  const toggleChatLock = () => {
+    if (currentConversationId == null) return
+    const st = useLockStore.getState()
+    if (st.lockedIds.includes(currentConversationId)) {
+      st.unlockChat(currentConversationId)
+      toast('Chat unlocked', 'success')
+    } else {
+      if (!st.hasPin) {
+        toast('Set up an app lock PIN in Settings → Security first', 'error')
+        return
+      }
+      st.lockChat(currentConversationId)
+      toast('Chat locked — hidden from the list', 'success')
+    }
+  }
+
   const handleRefresh = async () => {
     if (showRefresh) return; setShowRefresh(true)
     try { await fetchConversations(); if (currentConversationId) await fetchMessages(currentConversationId) } catch {}
@@ -557,6 +574,7 @@ export function ChatView({
             else if (key === 'insights') setShowInsights(true)
             else if (key === 'export') exportChat()
             else if (key === 'wallpaper') setShowWallpaper((v) => !v)
+            else if (key === 'lock') toggleChatLock()
           }}
         />
 
