@@ -171,6 +171,34 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }, [])
 
   useEffect(() => { autoResize() }, [text, autoResize])
+  useEffect(() => {
+    setText(readDraft(conversationId))
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId])
+  useEffect(() => {
+    const t = setTimeout(() => writeDraft(conversationId, text), 500)
+    return () => clearTimeout(t)
+  }, [text, conversationId])
+
+  // Unsent text is kept per conversation (survives chat switches + reloads).
+  const readDraft = (cid: number): string => {
+    try {
+      const m = JSON.parse(localStorage.getItem('kb_drafts') || '{}')
+      const v = m && typeof m === 'object' ? m[String(cid)] : ''
+      return typeof v === 'string' ? v : ''
+    } catch {
+      return ''
+    }
+  }
+  const writeDraft = (cid: number, v: string) => {
+    try {
+      const m = JSON.parse(localStorage.getItem('kb_drafts') || '{}')
+      const o = m && typeof m === 'object' ? m : {}
+      if (v.trim()) o[String(cid)] = v
+      else delete o[String(cid)]
+      localStorage.setItem('kb_drafts', JSON.stringify(o))
+    } catch {}
+  }
 
   const handleChange = (v: string) => {
     setText(v)
@@ -199,6 +227,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setEffect(null)
     setShowEffects(false)
     setText('')
+    writeDraft(conversationId, '')
     onCancelReply()
     lastTyping.current = false
     emitTyping(false)
@@ -271,6 +300,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           const fallback = isImage ? (text || 'Image') : isVoice ? `Voice${voiceDur != null ? ` ${Math.floor(voiceDur / 60)}:${String(voiceDur % 60).padStart(2, '0')}` : ` ${Math.round(att.file_size / 1024)}KB`}` : `File: ${att.original_filename}`
           onSend(fallback, [att.id], type as any, voiceDur)
           setText('')
+          if (isImage) writeDraft(conversationId, '')
         }
       } catch (err: any) {
         if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') setUploadError('Upload cancelled')

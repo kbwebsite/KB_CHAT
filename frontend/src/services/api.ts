@@ -252,6 +252,7 @@ export const pollApi = {
   create: (cid:number, data:any) => api.post(`/api/conversations/${cid}/polls`, data).then(r=>r.data),
   vote: (pid:number, optionIds:number[]) => api.post(`/api/polls/${pid}/vote`, {option_ids:optionIds}).then(r=>r.data),
   delete: (pid:number) => api.delete(`/api/polls/${pid}`).then(r=>r.data),
+  close: (pid:number) => api.post(`/api/polls/${pid}/close`).then(r=>r.data),
 }
 
 export const msgPinApi = {

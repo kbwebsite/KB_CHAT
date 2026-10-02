@@ -18,6 +18,7 @@ interface Poll {
   closes_at: string | null
   total_votes: number
   options: PollOption[]
+  creator_id: number | null
   creator_name: string
 }
 
@@ -48,12 +49,24 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
 
   const handleVote = async (pollId: number, optionIds: number[]) => {
     const res = await pollApi.vote(pollId, optionIds)
-    if (res.success) setPolls(polls.map(p => p.id === pollId ? res.data : p))
+    if (res.success) {
+      setPolls(polls.map(p => p.id === pollId ? res.data : p))
+      const { fireEffect } = await import('../utils/messageEffects')
+      setTimeout(() => fireEffect('confetti'), 250)
+    }
   }
 
   const handleDelete = async (pollId: number) => {
     const res = await pollApi.delete(pollId)
     if (res.success) setPolls(polls.filter(p => p.id !== pollId))
+  }
+
+  const handleClose = async (pollId: number) => {
+    if (!confirm('Close this poll? No more votes will be accepted.')) return
+    try {
+      const res = await pollApi.close(pollId)
+      if (res.success) setPolls(polls.map(p => p.id === pollId ? res.data : p))
+    } catch {}
   }
 
   return (
@@ -92,14 +105,14 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
           </div>
         )}
         {polls.map(poll => (
-          <PollCard key={poll.id} poll={poll} userId={user?.id} onVote={handleVote} onDelete={handleDelete} />
+          <PollCard key={poll.id} poll={poll} userId={user?.id} onVote={handleVote} onDelete={handleDelete} onClosePoll={handleClose} />
         ))}
       </div>
     </div>
   )
 }
 
-export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userId?: number, onVote: (id: number, opts: number[]) => void, onDelete: (id: number) => void }) {
+export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll: Poll, userId?: number, onVote: (id: number, opts: number[]) => void, onDelete: (id: number) => void, onClosePoll?: (id: number) => void }) {
   const pollOptions = Array.isArray(poll.options) ? poll.options : []
   const myVotes = pollOptions.filter(o => (o.voter_ids || []).includes(userId!)).map(o => o.id)
   const [selected, setSelected] = useState<number[]>(myVotes)
@@ -119,11 +132,21 @@ export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userI
 
   return (
     <div className="p-3 rounded-xl border bg-background space-y-2">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-medium">{poll.question}</p>
-        {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (
-          <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Voted</span>
-        )}
+        <span className="flex items-center gap-1.5 shrink-0">
+          {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary">Voted</span>
+          )}
+          {!isClosed && userId != null && poll.creator_id === userId && onClosePoll && (
+            <button onClick={() => onClosePoll(poll.id)} className="text-[10px] px-1.5 py-0.5 rounded bg-muted hover:bg-accent text-muted-foreground transition" title="Close poll">
+              Close
+            </button>
+          )}
+          {isClosed && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground">Closed</span>
+          )}
+        </span>
       </div>
       <p className="text-[11px] text-muted-foreground">{poll.total_votes} vote{poll.total_votes !== 1 ? 's' : ''}{poll.is_multiple_choice ? ' • Multiple choice' : ''}</p>
       <div className="space-y-1.5">
@@ -135,7 +158,7 @@ export function PollCard({ poll, userId, onVote, onDelete }: { poll: Poll, userI
             <button key={opt.id} onClick={() => toggleOption(opt.id)} className={`w-full relative rounded-lg p-2.5 text-left text-sm border transition ${isSelected && !hasVoted ? 'border-primary bg-primary/5' : isMyVote ? 'border-primary bg-primary/10' : 'border-muted hover:border-primary/50'}`}>
               {(hasVoted || isClosed) && (
                 <div className="absolute inset-0 rounded-lg overflow-hidden">
-                  <div className={`h-full ${isMyVote ? 'bg-primary/15' : 'bg-muted/50'}`} style={{ width: `${pct}%` }} />
+                  <div className={`h-full transition-[width] duration-700 ease-out ${isMyVote ? 'bg-primary/15' : 'bg-muted/50'}`} style={{ width: `${pct}%` }} />
                 </div>
               )}
               <span className="relative flex items-center justify-between">

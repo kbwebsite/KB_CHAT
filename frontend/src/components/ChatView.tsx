@@ -328,6 +328,16 @@ export function ChatView({
   const handlePollVote = async (pollId: number, opts: number[]) => {
     try {
       const res = await pollApi.vote(pollId, opts)
+      if (res?.success && res.data) {
+        setConvPolls(ps => ps.map(p => p.id === pollId ? res.data : p))
+        setTimeout(() => fireEffect('confetti'), 250)
+      }
+    } catch {}
+  }
+  const handlePollClose = async (pollId: number) => {
+    if (!confirm('Close this poll? No more votes will be accepted.')) return
+    try {
+      const res = await pollApi.close(pollId)
       if (res?.success && res.data) setConvPolls(ps => ps.map(p => p.id === pollId ? res.data : p))
     } catch {}
   }
@@ -812,7 +822,7 @@ export function ChatView({
                     {dateSep}
                     <div className="mb-3 px-2 sm:px-4 min-w-0 max-w-full overflow-hidden">
                       <p className="text-[11px] font-semibold text-primary mb-1">📊 Poll • {poll.creator_name || 'Unknown'}</p>
-                      <PollCard poll={poll} userId={user?.id} onVote={handlePollVote} onDelete={handlePollDelete} />
+                      <PollCard poll={poll} userId={user?.id} onVote={handlePollVote} onDelete={handlePollDelete} onClosePoll={handlePollClose} />
                     </div>
                   </div>
                 )

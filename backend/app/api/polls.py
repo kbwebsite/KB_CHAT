@@ -279,3 +279,33 @@ def delete_poll(
         )
     )
     return success_response(None, "Poll deleted")
+
+
+@router.post("/polls/{poll_id}/close")
+def close_poll(
+    poll_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from datetime import datetime, timezone
+
+    poll = db.query(Poll).filter_by(id=poll_id).first()
+    if not poll:
+        raise HTTPException(status_code=404, detail="Poll not found")
+    if poll.creator_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only creator can close")
+    poll.closes_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(poll)
+    member_ids = _member_ids(db, poll.conversation_id)
+    manager.spawn(
+        manager.broadcast_to_conversation(
+            poll.conversation_id,
+            {
+                "type": "poll.updated",
+                "payload": _poll_to_dict(db, poll),
+            },
+            member_ids=member_ids,
+        )
+    )
+    return success_response(_poll_to_dict(db, poll), "Poll closed")
