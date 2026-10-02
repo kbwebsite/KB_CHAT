@@ -8,6 +8,8 @@ import {
   CUSTOM_WALLPAPER_KEY,
   customWallpaperUrl,
   imageFileToWallpaper,
+  isSlideshowOn,
+  setSlideshowOn,
 } from '../../utils/wallpapers'
 
 /**
@@ -149,6 +151,7 @@ export function WallpaperPicker() {
   const fileRef = useRef<HTMLInputElement>(null)
   const [msg, setMsg] = useState<string | null>(null)
   const [, bump] = useState(0)
+  const [slideshow, setSlideshow] = useState(isSlideshowOn)
   const customUrl = customWallpaperUrl()
   const hasCustom = customUrl !== null
 
@@ -220,6 +223,21 @@ export function WallpaperPicker() {
         )}
         {msg && <span className="text-[11px] text-destructive">{msg}</span>}
       </div>
+      <label className="flex items-center justify-between gap-2 mt-2 cursor-pointer">
+        <span className="text-xs font-medium">
+          Slideshow <span className="text-muted-foreground font-normal">· rotate every 45s</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={slideshow}
+          onChange={(e) => {
+            setSlideshowOn(e.target.checked)
+            setSlideshow(e.target.checked)
+          }}
+          className="settings-toggle"
+          aria-label="Wallpaper slideshow"
+        />
+      </label>
     </div>
   )
 }

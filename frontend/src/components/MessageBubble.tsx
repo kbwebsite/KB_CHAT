@@ -1,6 +1,7 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus } from 'lucide-react'
+import EmojiPicker from 'emoji-picker-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
@@ -26,6 +27,16 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   const [current, setCurrent] = useState(0)
   const [total, setTotal] = useState(duration ?? 0)
   const [loadError, setLoadError] = useState(false)
+  const [rate, setRate] = useState(1)
+  const SPEEDS = [1, 1.25, 1.5, 2]
+
+  const cycleRate = () => {
+    setRate((r) => {
+      const next = SPEEDS[(SPEEDS.indexOf(r) + 1) % SPEEDS.length]
+      if (audioRef.current) audioRef.current.playbackRate = next
+      return next
+    })
+  }
 
   const toggle = () => {
     const el = audioRef.current
@@ -67,10 +78,18 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
             if (el && Number.isFinite(v)) { el.currentTime = v; setCurrent(v) }
           }}
           aria-label="Seek voice message"
-          className="w-full h-1 cursor-pointer accent-violet-400"
+          className="w-full h-1 cursor-pointer accent-[var(--accent-primary)]"
         />
-        <div className={`text-[11px] tabular-nums ${isOwn ? 'text-white/80' : 'text-muted-foreground'}`}>
-          {fmtDur(current)} / {fmtDur(total)}
+        <div className={`text-[11px] tabular-nums flex items-center justify-between gap-2 ${isOwn ? 'text-white/80' : 'text-muted-foreground'}`}>
+          <span>{fmtDur(current)} / {fmtDur(total)}</span>
+          <button
+            onClick={(e) => { e.stopPropagation(); cycleRate() }}
+            className="px-1.5 py-0.5 rounded-md font-bold hover:bg-black/10 dark:hover:bg-white/10 transition"
+            title="Playback speed"
+            aria-label="Playback speed"
+          >
+            {rate}x
+          </button>
         </div>
       </div>
       <audio
@@ -165,6 +184,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     a?.cloudinary_url || (a as any)?.url || ((typeof a?.file_path === 'string' && a.file_path.startsWith('/api')) ? a.file_path : `/api/uploads/file/${a?.filename || ''}`)
   const isSaved = savedIds?.has(msg.id)
   const [showMenu, setShowMenu]=useState(false)
+  const [showCustomReact, setShowCustomReact]=useState(false)
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))
   const toast = useToastStore((s) => s.push)
   const remind = (when: 'hour' | 'morning') => {
@@ -405,6 +425,18 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             {REACTIONS.slice(0,3).map(e=> (
               <button key={e} onClick={()=>onReact(msg.id,e)} className="p-1.5 hover:bg-muted rounded-full text-xs">{e}</button>
             ))}
+            <button onClick={()=>setShowCustomReact(v=>!v)} className="p-1.5 hover:bg-muted rounded-full" title="Custom reaction"><SmilePlus className="w-3.5 h-3.5"/></button>
+            {showCustomReact && (
+              <div className="absolute bottom-full mb-2 right-0 z-30 shadow-xl rounded-2xl overflow-hidden" onClick={(e)=> e.stopPropagation()}>
+                <EmojiPicker
+                  onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowCustomReact(false) }}
+                  height={320}
+                  width={300}
+                  skinTonesDisabled
+                  searchDisabled
+                />
+              </div>
+            )}
             <div className="w-px h-5 bg-border mx-1"/>
             <button onClick={()=>onReply(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Reply"><Reply className="w-3.5 h-3.5"/></button>
             <button onClick={()=>setShowMenu(!showMenu)} className="p-1.5 hover:bg-muted rounded-full" title="More"><MoreHorizontal className="w-3.5 h-3.5"/></button>

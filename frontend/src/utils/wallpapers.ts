@@ -376,6 +376,31 @@ export function convWallpaperView(
   return { style: wallpaperStyle(id), className: wallpaperClass(id) }
 }
 
+/** Slideshow mode: rotate the global wallpaper every 45s (local only). */
+const SLIDESHOW_KEY = 'kb_wallpaper_slideshow'
+
+export function isSlideshowOn(): boolean {
+  try {
+    return localStorage.getItem(SLIDESHOW_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setSlideshowOn(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(SLIDESHOW_KEY, '1')
+    else localStorage.removeItem(SLIDESHOW_KEY)
+  } catch {}
+}
+
+/** Next wallpaper id in rotation order (wraps around). */
+export function nextSlideshowId(currentId: string | null | undefined): string {
+  const ids = WALLPAPERS.map((w) => w.id)
+  const i = ids.indexOf(currentId || '')
+  return ids[(i + 1) % ids.length]
+}
+
 export const CUSTOM_WALLPAPER_KEY = 'kb_wallpaper_custom'
 
 export function customWallpaperUrl(): string | null {

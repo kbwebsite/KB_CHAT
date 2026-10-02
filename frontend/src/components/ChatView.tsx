@@ -12,7 +12,7 @@ import { EventCard } from './EventPanel'
 import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
-import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper } from '../utils/wallpapers'
+import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isTTTTMove } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { Message } from '../types'
@@ -257,6 +257,19 @@ export function ChatView({
     lastFxIdRef.current = null
     setConvWp(getConvWallpaper(currentConversationId))
   }, [currentConversationId])
+
+  // Wallpaper slideshow: rotate the global wallpaper every 45s (local only,
+  // per-chat overrides keep winning while set).
+  useEffect(() => {
+    const t = setInterval(() => {
+      try {
+        if (!isSlideshowOn()) return
+        const st = useSettingsStore.getState()
+        st.setLocal({ chat_wallpaper: nextSlideshowId(st.chat_wallpaper) })
+      } catch {}
+    }, 45000)
+    return () => clearInterval(t)
+  }, [])
 
   const exportChat = () => {
     if (!currentMsgs.length) return
