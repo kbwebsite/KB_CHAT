@@ -20,6 +20,10 @@ interface ChatState {
   // The WS read event alone is not durable (dropped when the socket is
   // down), so acks also go over HTTP — at most one request per advance.
   persistedRead: Record<number, number>
+  // Bumps whenever locally-hidden ("delete for me") messages change, so
+  // list memos recompute (localStorage itself isn't reactive).
+  hiddenTick: number
+  bumpHiddenTick: ()=>void
   // Unsent payloads keyed by optimistic temp id — kept so a failed send
   // can be retried verbatim (including the sealed E2EE body).
   pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, clientId:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean} }>
@@ -94,6 +98,8 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   onlineUsers: new Set(),
   searchQuery: '',
   persistedRead: {},
+  hiddenTick: 0,
+  bumpHiddenTick: ()=> set(state=> ({ hiddenTick: state.hiddenTick + 1 })),
   pendingSends: {},
   fetchConversations: async (search)=>{
     set({loadingConvs:true})
@@ -534,7 +540,7 @@ export function initChatWS() {
         if (prefs.is_muted || !prefs.message_notifications) return
         if (prefs.sound_enabled || prefs.vibrate_enabled) {
           import('../utils/push').then(m => {
-            if (prefs.sound_enabled) m.playPing()
+            if (prefs.sound_enabled) m.playPing((prefs as any).sound_tone)
             if (prefs.vibrate_enabled) m.vibrateNewMessage()
           }).catch(() => {})
         }

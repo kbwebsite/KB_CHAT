@@ -17,6 +17,8 @@ import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg, checkChatMilestone } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
+import { DeleteDialog } from './DeleteDialog'
+import { hiddenIds, hideMessage } from '../utils/hidden'
 import type { RpsChoice } from './RockPaperScissors'
 import { addXp, countSent } from '../utils/levels'
 import { Message } from '../types'
@@ -79,6 +81,8 @@ export function ChatView({
   const [convWp, setConvWp] = useState<string | null>(null)
   const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
   const [convAccent, setConvAccentState] = useState<string | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+  const hiddenTick = useChatStore((s: any) => s.hiddenTick)
   const convWpFileRef = useRef<HTMLInputElement>(null)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
@@ -337,13 +341,13 @@ export function ChatView({
   // in the chat itself, not only in the Extras panels. Memoized: rebuilding
   // + sorting on every render wastes frames while typing/scrolling.
   const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = useMemo(() => [
-    ...currentMsgs.filter((m: any) => !isGameMoveMsg(m.content)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
+    ...currentMsgs.filter((m: any) => !isGameMoveMsg(m.content) && !hiddenIds(currentConversationId).has(m.id)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
     ...convPolls.map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
     ...convEvents.map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
   ].sort((a, b) => {
     const t = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     return t !== 0 ? t : (a.key < b.key ? -1 : 1)
-  }), [currentMsgs, convPolls, convEvents])
+  }), [currentMsgs, convPolls, convEvents, currentConversationId, hiddenTick])
 
   const awardActivity = (mine: boolean) => {
     try {
@@ -792,7 +796,7 @@ export function ChatView({
                       showAvatar={showAvatar}
                       onReply={(m: any) => setReplyTo({ id: m.id, content: m.is_encrypted ? '🔒 Encrypted message' : (m.view_once && !m.content ? '👁 View-once message' : (prettyPreview(m.content) || '')), sender: m.sender_display_name || 'Unknown' })}
                       onEdit={(m: any) => { if (m.is_encrypted || m.view_once) return; setEditTarget(m); setEditText(m.content || '') }}
-                      onDelete={async (m: any) => { if (confirm('Delete?')) await deleteMessage(m.id) }}
+                      onDelete={(m: any) => setDeleteTarget(m)}
                       onReact={onReact}
                       onCopy={(t: string) => navigator.clipboard.writeText(t)}
                       onForward={(m: any) => setForwardMsg(m)}
@@ -928,6 +932,21 @@ export function ChatView({
         )}
 
         <EffectOverlay />
+
+        {deleteTarget && (
+          <DeleteDialog
+            onForMe={() => {
+              if (currentConversationId != null) {
+                hideMessage(currentConversationId, deleteTarget.id)
+                useChatStore.getState().bumpHiddenTick()
+              }
+            }}
+            onForEveryone={() => {
+              deleteMessage(deleteTarget.id).catch(() => toast('Delete failed', 'error'))
+            }}
+            onClose={() => setDeleteTarget(null)}
+          />
+        )}
 
         <MessageComposer
           onSend={handleSend}

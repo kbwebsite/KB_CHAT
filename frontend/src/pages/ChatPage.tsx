@@ -10,6 +10,8 @@ import { ChatModals } from '../components/ChatModals'
 import { MobileNav } from '../components/MobileNav'
 import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
 import { fireEffect, fireEmojiBurst } from '../utils/messageEffects'
+import { DeleteDialog } from '../components/DeleteDialog'
+import { hideMessage } from '../utils/hidden'
 import { msgPinApi, aiApi, agentApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../services/api'
 import { useToastStore } from '../store/toast'
@@ -92,6 +94,7 @@ export default function ChatPage() {
   const [aiResult, setAiResult] = useState<{ text: string; action: string; provider?: string } | null>(null)
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
   const [mobileActionSheet, setMobileActionSheet] = useState<{ open: boolean; msg?: Message }>({ open: false })
+  const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -722,12 +725,27 @@ export default function ChatPage() {
               {mobileActionSheet.msg.sender_id === user?.id && (
                 <>
                   <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg && !(mobileActionSheet.msg as any).is_encrypted && !(mobileActionSheet.msg as any).view_once) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
-                  <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg && confirm('Delete?')) { deleteMessage(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
+                  <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg) { setDeleteTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
                 </>
               )}
             </>
           )}
         </BottomSheet>
+
+        {deleteTarget && (
+          <DeleteDialog
+            onForMe={() => {
+              if (deleteTarget.conversation_id != null) {
+                hideMessage(deleteTarget.conversation_id, deleteTarget.id)
+                useChatStore.getState().bumpHiddenTick()
+              }
+            }}
+            onForEveryone={() => {
+              deleteMessage(deleteTarget.id).catch(() => toast('Delete failed', 'error'))
+            }}
+            onClose={() => setDeleteTarget(null)}
+          />
+        )}
       </div>
     </ChatLayout>
   )

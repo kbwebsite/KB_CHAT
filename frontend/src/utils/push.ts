@@ -22,24 +22,39 @@ export function vibrateNewMessage(): void {
   } catch {}
 }
 
-/** Short, dependency-free new-message blip (no audio asset needed). */
-export function playPing(): void {
+export type PingTone = 'blip' | 'chime' | 'pop' | 'marimba'
+
+function toneAt(ctx: AudioContext, freq: number, at: number, dur: number, vol = 0.22): void {
+  const osc = ctx.createOscillator()
+  const gain = ctx.createGain()
+  osc.type = 'sine'
+  osc.frequency.value = freq
+  const t = ctx.currentTime + at
+  gain.gain.setValueAtTime(0.0001, t)
+  gain.gain.exponentialRampToValueAtTime(vol, t + 0.02)
+  gain.gain.exponentialRampToValueAtTime(0.0001, t + dur)
+  osc.connect(gain)
+  gain.connect(ctx.destination)
+  osc.start(t)
+  osc.stop(t + dur + 0.05)
+}
+
+/** Dependency-free notification tones (no audio assets needed). */
+export function playPing(tone: PingTone | string = 'blip'): void {
   try {
     const Ctx = window.AudioContext || (window as any).webkitAudioContext
     if (!Ctx) return
     const ctx = new Ctx()
-    const osc = ctx.createOscillator()
-    const gain = ctx.createGain()
-    osc.type = 'sine'
-    osc.frequency.value = 880
-    gain.gain.setValueAtTime(0.0001, ctx.currentTime)
-    gain.gain.exponentialRampToValueAtTime(0.25, ctx.currentTime + 0.02)
-    gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.18)
-    osc.connect(gain)
-    gain.connect(ctx.destination)
-    osc.start()
-    osc.stop(ctx.currentTime + 0.2)
-    osc.onended = () => ctx.close().catch(() => {})
+    const notes: Record<string, number[][]> = {
+      blip: [[880, 0, 0.18]],
+      chime: [[660, 0, 0.16], [880, 0.12, 0.22]],
+      pop: [[1240, 0, 0.08]],
+      marimba: [[523, 0, 0.14], [659, 0.1, 0.14], [784, 0.2, 0.2]],
+    }
+    const seq = notes[tone] || notes.blip
+    seq.forEach(([f, at, dur]) => toneAt(ctx, f, at, dur))
+    const total = Math.max(...seq.map(([, at, dur]) => at + dur))
+    setTimeout(() => ctx.close().catch(() => {}), (total + 0.3) * 1000)
   } catch {}
 }
 

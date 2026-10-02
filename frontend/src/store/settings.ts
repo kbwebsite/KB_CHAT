@@ -48,6 +48,7 @@ export interface UserSettings {
   bubble_style: BubbleStyle
   message_notifications: boolean
   sound_enabled: boolean
+  sound_tone: string
   vibrate_enabled: boolean
   desktop_notifications: boolean
   is_muted: boolean
@@ -70,6 +71,7 @@ const defaults: UserSettings = {
   bubble_style: 'cozy',
   message_notifications: true,
   sound_enabled: true,
+  sound_tone: 'blip',
   vibrate_enabled: true,
   desktop_notifications: false,
   is_muted: false,

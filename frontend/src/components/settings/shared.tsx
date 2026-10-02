@@ -359,7 +359,17 @@ export function NotificationSettings() {
     <div className="space-y-2">
       <ToggleRow k="is_muted" label="Do not disturb" desc="Silence all sounds, vibration and popups" />
       <ToggleRow k="message_notifications" label="Message notifications" desc="Master switch for new-message alerts" />
-      <ToggleRow k="sound_enabled" label="Sound" desc="Play a blip on new message" />
+      <ToggleRow k="sound_enabled" label="Sound" desc="Play a tone on new message" />
+      <SelectRow
+        k="sound_tone"
+        label="Notification tone"
+        options={[
+          { id: 'blip', label: 'Blip' },
+          { id: 'chime', label: 'Chime' },
+          { id: 'pop', label: 'Pop' },
+          { id: 'marimba', label: 'Marimba' },
+        ]}
+      />
       <ToggleRow k="vibrate_enabled" label="Vibration" desc="Short buzz on new message (mobile)" />
       <ToggleRow k="desktop_notifications" label="Desktop notifications" desc="Browser popup when chat is in background" />
       <ToggleRow k="notification_previews" label="Show message previews" desc="Include sender + text in popups; off shows just “New message”" />
