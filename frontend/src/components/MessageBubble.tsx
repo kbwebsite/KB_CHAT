@@ -9,7 +9,7 @@ import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
 import { fireEffect, stripFxMarker } from '../utils/messageEffects'
-import { TicTacToeGame, GameMoveChip, isTTTChallenge, isTTTTMove } from './TicTacToeGame'
+import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -103,7 +103,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
 }) {
   const content = msg.is_deleted ? 'Message deleted' : stripFxMarker(msg.content)
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
-  const isMove = !msg.is_deleted && isTTTTMove(msg.content)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
   // stored key; otherwise show a placeholder instead of base64.
   const legacySealed = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
@@ -281,7 +280,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           {voGoneUi ? (
             <p className="italic opacity-70 text-xs">👁 Opened — this message is gone</p>
           ) : voShell ? (
-            <button onClick={revealOnce} disabled={voBusy} className="flex flex-col items-center gap-1 py-3 px-6 disabled:opacity-60">
+            <button onClick={(e) => { e.stopPropagation(); revealOnce() }} disabled={voBusy} className="flex flex-col items-center gap-1 py-3 px-6 disabled:opacity-60">
               <span className="text-2xl">👁</span>
               <span className="text-sm font-medium">{voBusy ? 'Opening…' : 'Tap to view'}</span>
               <span className="text-[11px] opacity-70">Deletes after viewing</span>
@@ -322,8 +321,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               onMove={(c, pos) => onGameMove?.(c, pos)}
               onRematch={() => onGameRematch?.()}
             />
-          ) : isMove ? (
-            <GameMoveChip msg={msg} />
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}

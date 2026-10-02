@@ -13,7 +13,7 @@ import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { wallpaperStyle, wallpaperClass } from '../utils/wallpapers'
-import { fireEffect, effectForText, parseFxMarker, stripFxMarker } from '../utils/messageEffects'
+import { fireEffect, effectForText, parseFxMarker, stripFxMarker, isTTTTMove } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { Message } from '../types'
 
@@ -256,7 +256,7 @@ export function ChatView({
   const exportChat = () => {
     if (!currentMsgs.length) return
     const lines = currentMsgs
-      .filter((m: any) => !m.is_deleted)
+      .filter((m: any) => !m.is_deleted && !isTTTTMove(m.content))
       .map((m: any) => {
         const who = m.sender_id === user?.id ? 'You' : (m.sender_display_name || m.sender_username || 'Unknown')
         const when = m.created_at ? new Date(m.created_at).toLocaleString() : ''
@@ -305,7 +305,7 @@ export function ChatView({
   // in the chat itself, not only in the Extras panels. Memoized: rebuilding
   // + sorting on every render wastes frames while typing/scrolling.
   const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = useMemo(() => [
-    ...currentMsgs.map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
+    ...currentMsgs.filter((m: any) => !isTTTTMove(m.content)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
     ...convPolls.map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
     ...convEvents.map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
   ].sort((a, b) => {
@@ -345,9 +345,8 @@ export function ChatView({
 
   const handleGameMove = async (challenge: any, pos: number) => {
     if (!currentConversationId || !(challenge.id > 0)) return
-    const name = user?.display_name || user?.username || 'Someone'
-    const cells = ['top-left', 'top-center', 'top-right', 'middle-left', 'center', 'middle-right', 'bottom-left', 'bottom-center', 'bottom-right']
-    await sendMessage(currentConversationId, `🎮TTT:move:${challenge.id}:${pos}\n${name} takes ${cells[pos] || `cell ${pos + 1}`}.`)
+    // Marker only — move messages stay out of history (filtered below).
+    await sendMessage(currentConversationId, `🎮TTT:move:${challenge.id}:${pos}`)
   }
 
   const handleRefresh = async () => {

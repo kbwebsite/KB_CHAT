@@ -67,6 +67,11 @@ export function stripFxMarker(text: any): any {
   return typeof text === 'string' ? text.replace(FX_MARKER_RE, '') : text
 }
 
+/** True for tic-tac-toe move messages (hidden from history, live on the board). */
+export function isTTTTMove(text: unknown): boolean {
+  return typeof text === 'string' && text.startsWith('🎮TTT:move:')
+}
+
 export const EFFECT_OPTIONS: { kind: EffectKind; emoji: string; label: string }[] = [
   { kind: 'confetti', emoji: '🎉', label: 'Confetti' },
   { kind: 'hearts', emoji: '💕', label: 'Hearts' },

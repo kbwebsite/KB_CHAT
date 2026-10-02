@@ -15,10 +15,6 @@ export function isTTTChallenge(text: unknown): boolean {
   return typeof text === 'string' && text.startsWith(CHALLENGE_PREFIX)
 }
 
-export function isTTTTMove(text: unknown): boolean {
-  return typeof text === 'string' && text.startsWith('🎮TTT:move:')
-}
-
 export function parseTTTTMove(text: string): { challengeId: number; pos: number } | null {
   const m = MOVE_RE.exec(text || '')
   if (!m) return null
@@ -104,15 +100,16 @@ export function TicTacToeGame({
   const isChallenger = meId != null && challenge.sender_id === meId
   const settingUp = !(challenge.id > 0)
   const canPlay = !settingUp && !over && (turn === 'X' ? isChallenger : !isChallenger)
-  const iPlay = moves.some((m) => m.senderId === meId) || isChallenger
+  const iWon = winner != null && moves.some((m) => m.symbol === winner && m.senderId === meId)
 
   const firedRef = useRef(false)
   useEffect(() => {
-    if (over && iPlay && !firedRef.current) {
+    // Celebrate exactly once per game — and only on the winner's device.
+    if (iWon && !firedRef.current) {
       firedRef.current = true
-      setTimeout(() => fireEffect(winner ? 'confetti' : 'fireworks'), 350)
+      setTimeout(() => fireEffect('confetti'), 350)
     }
-  }, [over, iPlay, winner])
+  }, [iWon])
 
   const status = settingUp
     ? 'Setting up…'
@@ -169,16 +166,3 @@ export function TicTacToeGame({
   )
 }
 
-/** Compact one-liner for move messages (the live board lives on the challenge). */
-export function GameMoveChip({ msg }: { msg: any }) {
-  const p = parseTTTTMove(msg.content || '')
-  const who = msg.sender_display_name || msg.sender_username || 'Someone'
-  return (
-    <p className="text-xs opacity-90 flex items-center gap-1.5">
-      <span>🎮</span>
-      <span>
-        {who} takes <b>{p ? cellName(p.pos) : 'a square'}</b>
-      </span>
-    </p>
-  )
-}
