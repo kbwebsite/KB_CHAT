@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { statusApi, extendedApi } from '../services/api'
 import { formatTime } from '../utils/format'
-import { X, Plus, Eye, Trash2, Image as ImageIcon, Video, Type, Send } from 'lucide-react'
+import { X, Plus, Eye, Trash2, Image as ImageIcon, Video, Type, Send, Music } from 'lucide-react'
+import { VoiceRecorder } from './VoiceRecorder'
 import { useAuthStore } from '../store/auth'
 
 export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:(statuses:any[], idx:number)=>void }) {
@@ -140,7 +141,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
 }
 
 function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()=>void }) {
-  const [tab, setTab]=useState<'text'|'image'|'video'>('text')
+  const [tab, setTab]=useState<'text'|'image'|'video'|'audio'>('text')
   const [content, setContent]=useState('')
   const [caption, setCaption]=useState('')
   const [bg, setBg]=useState('bg-gradient-to-br from-violet-600 to-indigo-600')
@@ -201,9 +202,9 @@ function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()
   return (
     <div className="mt-3 p-3 rounded-2xl bg-card border space-y-3">
       <div className="flex gap-2">
-        {(['text','image','video'] as const).map(t=> (
+        {(['text','image','video','audio'] as const).map(t=> (
           <button key={t} onClick={()=> setTab(t)} className={`flex-1 py-1.5 rounded-full text-xs font-medium flex items-center justify-center gap-1 ${tab===t?'bg-primary text-primary-foreground':'bg-muted'}`}>
-            {t==='text' ? <Type className="w-3 h-3"/> : t==='image' ? <ImageIcon className="w-3 h-3"/> : <Video className="w-3 h-3"/>}{t}
+            {t==='text' ? <Type className="w-3 h-3"/> : t==='image' ? <ImageIcon className="w-3 h-3"/> : t==='video' ? <Video className="w-3 h-3"/> : <Music className="w-3 h-3"/>}{t}
           </button>
         ))}
       </div>
@@ -219,9 +220,20 @@ function StatusComposer({ onCreated, onClose }: { onCreated:()=>void, onClose:()
         </>
       )}
 
-      {tab!=='text' && (
+      {tab!=='text' && tab!=='audio' && (
         <>
           <input type="file" accept={tab==='image' ? 'image/*' : 'video/*'} onChange={e=> setFile(e.target.files?.[0]||null)} className="w-full text-sm" />
+          <input value={caption} onChange={e=> setCaption(e.target.value)} placeholder="Caption..." className="w-full px-3 py-2 rounded-xl bg-muted border outline-none text-sm" />
+          {file && <p className="text-xs text-muted-foreground">{file.name} • {(file.size/1024).toFixed(1)}KB</p>}
+        </>
+      )}
+
+      {tab==='audio' && (
+        <>
+          <VoiceRecorder onSend={(blob) => {
+            const ext = (blob.type || '').includes('mp4') ? 'm4a' : 'webm'
+            setFile(new File([blob], `voice-note.${ext}`, { type: blob.type || 'audio/webm' }))
+          }} />
           <input value={caption} onChange={e=> setCaption(e.target.value)} placeholder="Caption..." className="w-full px-3 py-2 rounded-xl bg-muted border outline-none text-sm" />
           {file && <p className="text-xs text-muted-foreground">{file.name} • {(file.size/1024).toFixed(1)}KB</p>}
         </>

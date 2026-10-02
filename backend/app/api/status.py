@@ -211,6 +211,18 @@ async def create_status_with_media(
         raise HTTPException(status_code=400, detail="Invalid image type")
     if media_type == "video" and ext not in (".mp4", ".webm", ".mov"):
         raise HTTPException(status_code=400, detail="Invalid video type")
+    if media_type == "audio" and ext not in (
+        ".m4a",
+        ".mp3",
+        ".wav",
+        ".ogg",
+        ".amr",
+        ".aac",
+        ".webm",
+        ".mp4",
+        ".opus",
+    ):
+        raise HTTPException(status_code=400, detail="Invalid audio type")
     stored = generate_stored_filename(safe)
     upload_dir = settings.upload_dir_abs
     os.makedirs(upload_dir, exist_ok=True)

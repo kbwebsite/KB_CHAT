@@ -13,7 +13,7 @@ export function StatusViewer({ statuses, startIndex, onClose }: { statuses:any[]
     if (!cur) return
     setProgress(0)
     if (paused) return
-    const duration = cur.media_type==='video' ? 15000 : 5000
+    const duration = cur.media_type==='video' ? 15000 : cur.media_type==='audio' ? 30000 : 5000
     const start=Date.now()
     timerRef.current=setInterval(()=>{
       const elapsed=Date.now()-start
@@ -81,6 +81,12 @@ export function StatusViewer({ statuses, startIndex, onClose }: { statuses:any[]
             <p className="text-white text-xl font-semibold p-8 text-center break-words">{cur.content}</p>
           ) : cur.media_type==='image' ? (
             <img src={cur.media_url} alt="" className="w-full h-full object-contain" />
+          ) : cur.media_type==='audio' ? (
+            <div className="flex flex-col items-center gap-4 p-8 w-full">
+              <span className="text-5xl">🎙</span>
+              <audio src={cur.media_url} controls autoPlay className="w-full max-w-xs" />
+              {cur.caption && <p className="text-white/80 text-sm text-center break-words">{cur.caption}</p>}
+            </div>
           ) : (
             <video src={cur.media_url} controls autoPlay playsInline className="w-full h-full object-contain" />
           )}
