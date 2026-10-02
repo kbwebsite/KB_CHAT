@@ -5,7 +5,10 @@
 
 export type EffectKind = 'confetti' | 'hearts' | 'fireworks' | 'slam'
 
-type Listener = (kind: EffectKind) => void
+/** A fixed celebration, or a custom emoji burst (e.g. the reacted emoji). */
+export type EffectPayload = { kind: EffectKind } | { emojis: string[] }
+
+type Listener = (payload: EffectPayload) => void
 
 const listeners = new Set<Listener>()
 
@@ -16,7 +19,7 @@ export function onEffect(fn: Listener): () => void {
   }
 }
 
-export function fireEffect(kind: EffectKind): void {
+function emit(payload: EffectPayload): void {
   try {
     if (
       typeof window !== 'undefined' &&
@@ -27,10 +30,20 @@ export function fireEffect(kind: EffectKind): void {
     }
     listeners.forEach((fn) => {
       try {
-        fn(kind)
+        fn(payload)
       } catch {}
     })
   } catch {}
+}
+
+export function fireEffect(kind: EffectKind): void {
+  emit({ kind })
+}
+
+/** Burst of arbitrary emoji (e.g. explosion of the exact reacted emoji). */
+export function fireEmojiBurst(emojis: string[]): void {
+  if (!emojis.length) return
+  emit({ emojis: emojis.slice(0, 8) })
 }
 
 const KEYWORDS: { kind: EffectKind; test: RegExp }[] = [

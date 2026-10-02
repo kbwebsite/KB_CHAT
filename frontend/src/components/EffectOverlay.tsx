@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { onEffect, type EffectKind } from '../utils/messageEffects'
+import { onEffect, type EffectKind, type EffectPayload } from '../utils/messageEffects'
 
 const SETS: Record<EffectKind, string[]> = {
   confetti: ['🎉', '🎊', '✨', '🥳', '🎈', '⭐', '🥂'],
@@ -20,14 +20,16 @@ interface Particle {
 
 interface Burst {
   id: number
-  kind: EffectKind
+  kind: EffectKind | null
+  custom: string[] | null
 }
 
 let seq = 0
 
-function makeParticles(kind: EffectKind): Particle[] {
-  const set = SETS[kind]
-  const n = kind === 'slam' ? 0 : 36
+function makeParticles(kind: EffectKind | null, custom: string[] | null): Particle[] {
+  const set = custom && custom.length > 0 ? custom : kind ? SETS[kind] : SETS.confetti
+  const slam = !custom && kind === 'slam'
+  const n = slam ? 0 : custom ? 24 : 36
   return Array.from({ length: n }, (_, i) => ({
     i,
     emoji: set[(Math.random() * set.length) | 0],
@@ -39,8 +41,9 @@ function makeParticles(kind: EffectKind): Particle[] {
   }))
 }
 
-function BurstView({ kind }: { kind: EffectKind }) {
-  const [parts] = useState(() => makeParticles(kind))
+function BurstView({ burst }: { burst: Burst }) {
+  const { kind, custom } = burst
+  const [parts] = useState(() => makeParticles(kind, custom))
   if (kind === 'slam') {
     return (
       <div className="kryzen-fx-shake absolute inset-0 flex items-center justify-center">
@@ -50,7 +53,7 @@ function BurstView({ kind }: { kind: EffectKind }) {
       </div>
     )
   }
-  const rise = kind === 'hearts'
+  const rise = kind === 'hearts' || !!custom
   return (
     <div className="absolute inset-0">
       {parts.map((p) => (
@@ -80,9 +83,13 @@ export function EffectOverlay() {
   const [bursts, setBursts] = useState<Burst[]>([])
   useEffect(
     () =>
-      onEffect((kind) => {
+      onEffect((payload: EffectPayload) => {
         const id = ++seq
-        setBursts((b) => [...b.slice(-2), { id, kind }])
+        const burst: Burst =
+          'emojis' in payload
+            ? { id, kind: null, custom: payload.emojis }
+            : { id, kind: payload.kind, custom: null }
+        setBursts((b) => [...b.slice(-2), burst])
         setTimeout(() => setBursts((b) => b.filter((x) => x.id !== id)), 2600)
       }),
     []
@@ -91,7 +98,7 @@ export function EffectOverlay() {
   return (
     <div className="pointer-events-none fixed inset-0 z-[100] overflow-hidden" aria-hidden="true">
       {bursts.map((b) => (
-        <BurstView key={b.id} kind={b.kind} />
+        <BurstView key={b.id} burst={b} />
       ))}
     </div>
   )

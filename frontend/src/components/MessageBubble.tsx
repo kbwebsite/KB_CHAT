@@ -9,7 +9,7 @@ import { useAuthStore } from '../store/auth'
 import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
-import { fireEffect, prettyPreview } from '../utils/messageEffects'
+import { fireEffect, fireEmojiBurst, prettyPreview } from '../utils/messageEffects'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useToastStore } from '../store/toast'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
@@ -29,6 +29,7 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   const [current, setCurrent] = useState(0)
   const [total, setTotal] = useState(duration ?? 0)
   const [loadError, setLoadError] = useState(false)
+  const [peaks, setPeaks] = useState<number[]>([])
   const [rate, setRate] = useState(1)
   const SPEEDS = [1, 1.25, 1.5, 2]
 
@@ -45,6 +46,50 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
     if (!el || loadError) return
     if (playing) el.pause()
     else el.play().catch(() => setLoadError(true))
+  }
+
+  // Waveform peaks decoded once per voice note (cached per mount).
+  useEffect(() => {
+    let cancelled = false
+    ;(async () => {
+      try {
+        const AC = window.AudioContext || (window as any).webkitAudioContext
+        if (!AC) return
+        const blob = await fetch(src).then((r) => r.blob())
+        const buf = await blob.arrayBuffer()
+        const ctx = new AC()
+        try {
+          const audio = await ctx.decodeAudioData(buf)
+          const ch = audio.getChannelData(0)
+          const N = 36
+          const step = Math.max(1, Math.floor(ch.length / N))
+          const out: number[] = []
+          for (let i = 0; i < N; i++) {
+            let max = 0
+            const start = i * step
+            for (let j = start; j < Math.min(start + step, ch.length); j += 7) {
+              const v = Math.abs(ch[j])
+              if (v > max) max = v
+            }
+            out.push(max)
+          }
+          if (!cancelled && out.some((v) => v > 0)) setPeaks(out)
+        } finally {
+          ctx.close().catch(() => {})
+        }
+      } catch {}
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [src])
+
+  const seekToFraction = (f: number) => {
+    const el = audioRef.current
+    if (!el || !Number.isFinite(total) || total <= 0) return
+    const v = Math.min(Math.max(f, 0), 1) * total
+    el.currentTime = v
+    setCurrent(v)
   }
 
   if (loadError) {
@@ -68,20 +113,51 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
         {playing ? <Pause className="w-4 h-4" /> : <Play className="w-4 h-4 ml-0.5" />}
       </button>
       <div className="flex-1 min-w-0">
-        <input
-          type="range"
-          min={0}
-          max={Math.max(total, 0.1)}
-          step={0.1}
-          value={Math.min(current, total || 0)}
-          onChange={(e) => {
-            const el = audioRef.current
-            const v = Number(e.target.value)
-            if (el && Number.isFinite(v)) { el.currentTime = v; setCurrent(v) }
-          }}
-          aria-label="Seek voice message"
-          className="w-full h-1 cursor-pointer accent-[var(--accent-primary)]"
-        />
+        {peaks.length > 0 ? (
+          <div
+            className="flex items-center gap-[2px] h-8 cursor-pointer"
+            role="slider"
+            aria-label="Seek voice message"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(total)}
+            aria-valuenow={Math.round(current)}
+            onClick={(e) => {
+              e.stopPropagation()
+              const r = (e.currentTarget as HTMLDivElement).getBoundingClientRect()
+              seekToFraction((e.clientX - r.left) / Math.max(r.width, 1))
+            }}
+          >
+            {peaks.map((p, i) => {
+              const played = total > 0 && (i + 0.5) / peaks.length <= current / total
+              return (
+                <span
+                  key={i}
+                  className="flex-1 rounded-full min-w-[2px]"
+                  style={{
+                    height: `${Math.max(12, Math.round(p * 100))}%`,
+                    background: played ? 'var(--accent-primary)' : 'currentColor',
+                    opacity: played ? 1 : 0.35,
+                  }}
+                />
+              )
+            })}
+          </div>
+        ) : (
+          <input
+            type="range"
+            min={0}
+            max={Math.max(total, 0.1)}
+            step={0.1}
+            value={Math.min(current, total || 0)}
+            onChange={(e) => {
+              const el = audioRef.current
+              const v = Number(e.target.value)
+              if (el && Number.isFinite(v)) { el.currentTime = v; setCurrent(v) }
+            }}
+            aria-label="Seek voice message"
+            className="w-full h-1 cursor-pointer accent-[var(--accent-primary)]"
+          />
+        )}
         <div className={`text-[11px] tabular-nums flex items-center justify-between gap-2 ${isOwn ? 'text-white/80' : 'text-muted-foreground'}`}>
           <span>{fmtDur(current)} / {fmtDur(total)}</span>
           <button
@@ -444,13 +520,13 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           </div>
           <div className={`absolute ${isOwn?'left-0 -translate-x-full':'right-0 translate-x-full'} top-1/2 -translate-y-1/2 hidden sm:group-hover:flex items-center gap-1 p-1 rounded-full kryzen-msg-actions z-10`}>
             {REACTIONS.slice(0,3).map(e=> (
-              <button key={e} onClick={()=>onReact(msg.id,e)} className="p-1.5 hover:bg-muted rounded-full text-xs">{e}</button>
+              <button key={e} onClick={()=>{ onReact(msg.id,e); fireEmojiBurst([e]) }} className="p-1.5 hover:bg-muted rounded-full text-xs">{e}</button>
             ))}
             <button onClick={()=>setShowCustomReact(v=>!v)} className="p-1.5 hover:bg-muted rounded-full" title="Custom reaction"><SmilePlus className="w-3.5 h-3.5"/></button>
             {showCustomReact && (
               <div className="absolute bottom-full mb-2 right-0 z-30 shadow-xl rounded-2xl overflow-hidden" onClick={(e)=> e.stopPropagation()}>
                 <EmojiPicker
-                  onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowCustomReact(false) }}
+                  onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); fireEmojiBurst([e.emoji]); setShowCustomReact(false) }}
                   height={320}
                   width={300}
                   skinTonesDisabled
@@ -486,7 +562,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               )}
               <div className="border-t my-1"/>
               <div className="px-3 py-1 flex gap-1">
-                {REACTIONS.map(e=> <button key={e} onClick={()=>{onReact(msg.id,e); setShowMenu(false)}} className="flex-1 p-1 hover:bg-muted rounded text-xs">{e}</button>)}
+                {REACTIONS.map(e=> <button key={e} onClick={()=>{onReact(msg.id,e); fireEmojiBurst([e]); setShowMenu(false)}} className="flex-1 p-1 hover:bg-muted rounded text-xs">{e}</button>)}
               </div>
             </div>
           )}

@@ -9,7 +9,7 @@ import { ChatPanels } from '../components/ChatPanels'
 import { ChatModals } from '../components/ChatModals'
 import { MobileNav } from '../components/MobileNav'
 import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
-import { fireEffect } from '../utils/messageEffects'
+import { fireEffect, fireEmojiBurst } from '../utils/messageEffects'
 import { msgPinApi, aiApi, agentApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../services/api'
 import { useToastStore } from '../store/toast'
@@ -706,7 +706,7 @@ export default function ChatPage() {
         <BottomSheet open={mobileActionSheet.open} onClose={() => setMobileActionSheet({ open: false })} title="Message Actions">
           {mobileActionSheet.msg && (
             <>
-              <BottomSheetAction icon={<span className="text-lg">👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({ open: false }) }} />
+              <BottomSheetAction icon={<span className="text-lg">👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) { handleReact(mobileActionSheet.msg.id, '👍'); fireEmojiBurst(['👍']) } setMobileActionSheet({ open: false }) }} />
               <BottomSheetAction icon={<Reply className="w-5 h-5" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Copy className="w-5 h-5" />} label="Copy" onClick={() => { if (mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({ open: false }) }} />
               <BottomSheetAction icon={<Forward className="w-5 h-5" />} label="Forward" onClick={() => { if (mobileActionSheet.msg) { setForwardMsg(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
