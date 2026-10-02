@@ -330,6 +330,52 @@ export function setConvWallpaper(convId: number, wallpaperId: string): void {
   } catch {}
 }
 
+/** Per-conversation custom uploads (data URLs, same quota-safe pipeline
+ * as the global custom wallpaper). Quota errors surface to the caller. */
+const CONV_CUSTOM_KEY = 'kb_wallpaper_conv_custom'
+
+function readConvCustom(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CONV_CUSTOM_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function getConvCustomUrl(convId: number | null | undefined): string | null {
+  if (convId == null) return null
+  return readConvCustom()[String(convId)] || null
+}
+
+export function setConvCustomUrl(convId: number, dataUrl: string | null): void {
+  const map = readConvCustom()
+  if (dataUrl) map[String(convId)] = dataUrl
+  else delete map[String(convId)]
+  localStorage.setItem(CONV_CUSTOM_KEY, JSON.stringify(map))
+}
+
+/** Resolved background for a conversation:
+ * per-chat custom upload > per-chat preset > global wallpaper. */
+export function convWallpaperView(
+  convId: number | null | undefined,
+  globalId: string | null | undefined,
+): { style: CSSProperties; className: string } {
+  const override = getConvWallpaper(convId)
+  if (override === 'custom') {
+    const url = getConvCustomUrl(convId)
+    if (url) {
+      return {
+        style: { backgroundImage: `url(${url})`, backgroundSize: 'cover', backgroundPosition: 'center' },
+        className: '',
+      }
+    }
+  }
+  const id = override || globalId
+  return { style: wallpaperStyle(id), className: wallpaperClass(id) }
+}
+
 export const CUSTOM_WALLPAPER_KEY = 'kb_wallpaper_custom'
 
 export function customWallpaperUrl(): string | null {

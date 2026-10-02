@@ -12,7 +12,7 @@ import { EventCard } from './EventPanel'
 import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
-import { wallpaperStyle, wallpaperClass, WALLPAPERS, getConvWallpaper, setConvWallpaper } from '../utils/wallpapers'
+import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isTTTTMove } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { Message } from '../types'
@@ -73,6 +73,8 @@ export function ChatView({
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showWallpaper, setShowWallpaper] = useState(false)
   const [convWp, setConvWp] = useState<string | null>(null)
+  const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
+  const convWpFileRef = useRef<HTMLInputElement>(null)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
   // In-conversation message search.
@@ -352,6 +354,34 @@ export function ChatView({
     await sendMessage(currentConversationId, `🎮TTT:move:${challenge.id}:${pos}`)
   }
 
+  const handleConvCustomFile = async (f: File | undefined) => {
+    if (!f || currentConversationId == null) return
+    setConvWpMsg(null)
+    try {
+      const dataUrl = await imageFileToWallpaper(f)
+      setConvCustomUrl(currentConversationId, dataUrl)
+      setConvWallpaper(currentConversationId, 'custom')
+      setConvWp('custom')
+    } catch (e: any) {
+      setConvWpMsg(e?.message || 'Could not use image')
+    }
+    if (convWpFileRef.current) convWpFileRef.current.value = ''
+  }
+
+  const removeConvCustom = () => {
+    if (currentConversationId == null) return
+    try {
+      setConvCustomUrl(currentConversationId, null)
+    } catch {
+      setConvWpMsg('Storage full — custom photo not removed')
+      return
+    }
+    if (convWp === 'custom') {
+      setConvWallpaper(currentConversationId, 'default')
+      setConvWp(null)
+    }
+  }
+
   const handleRefresh = async () => {
     if (showRefresh) return; setShowRefresh(true)
     try { await fetchConversations(); if (currentConversationId) await fetchMessages(currentConversationId) } catch {}
@@ -516,6 +546,23 @@ export function ChatView({
                   <span className="text-[11px] bg-card/80 px-1.5 py-0.5 rounded">{w.label}</span>
                 </button>
               ))}
+              <button
+                onClick={() => convWpFileRef.current?.click()}
+                className={`shrink-0 settings-wallpaper-btn h-12 min-w-[72px] p-1.5 overflow-hidden ${convWp === 'custom' ? 'active' : ''}`}
+                style={getConvCustomUrl(currentConversationId) ? { backgroundImage: `url(${getConvCustomUrl(currentConversationId)})`, backgroundSize: 'cover', backgroundPosition: 'center' } : undefined}
+                title="Upload a custom wallpaper for this chat"
+              >
+                <span className="text-[11px] bg-card/80 px-1.5 py-0.5 rounded">Custom</span>
+              </button>
+            </div>
+            <input ref={convWpFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleConvCustomFile(e.target.files?.[0])} />
+            <div className="flex items-center gap-2 mt-1.5">
+              {getConvCustomUrl(currentConversationId) && (
+                <button onClick={removeConvCustom} className="text-[11px] text-muted-foreground hover:text-destructive">
+                  Remove custom
+                </button>
+              )}
+              {convWpMsg && <span className="text-[11px] text-destructive">{convWpMsg}</span>}
             </div>
           </div>
         )}
@@ -587,7 +634,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${wallpaperClass(convWp || (settings as any)?.chat_wallpaper)}`} ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle(convWp || (settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
+        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).className}`} ref={listRef} onScroll={handleMessageScroll} style={convWallpaperView(currentConversationId, (settings as any)?.chat_wallpaper).style} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>
