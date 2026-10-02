@@ -82,6 +82,15 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
     } catch (e:any) { setMsg(e.response?.data?.message||'Failed to add') }
   }
 
+  const handleRole=async (uid:number, role:'admin'|'member')=>{
+    if (myRole!=='owner') return setMsg('Only the owner can change roles')
+    try {
+      await convApi.setMemberRole(conversation.id, uid, role)
+      setMsg(role==='admin' ? 'Promoted to admin' : 'Demoted to member')
+      onUpdated()
+    } catch (e:any) { setMsg(e.response?.data?.message||'Failed') }
+  }
+
   const handleRemove=async (uid:number)=>{
     if (!canManage) return setMsg('Only admins can remove')
     if (!confirm('Remove member?')) return
@@ -226,6 +235,15 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
                   <p className="text-sm font-medium truncate">{m.display_name} {m.role==='owner' && <span className="text-[10px] px-1 py-0.5 rounded bg-amber-500 text-white ml-1">OWNER</span>} {m.role==='admin' && <span className="text-[10px] px-1 py-0.5 rounded bg-blue-500 text-white ml-1">ADMIN</span>}</p>
                   <p className="text-xs text-muted-foreground truncate">@{m.username} {m.is_online ? '• Online' : ''}</p>
                 </div>
+                {myRole==='owner' && m.role!=='owner' && m.user_id!==user?.id && (
+                  <button
+                    onClick={()=>handleRole(m.user_id, m.role==='admin' ? 'member' : 'admin')}
+                    className="p-1.5 hover:bg-background rounded-full text-primary"
+                    title={m.role==='admin' ? 'Demote to member' : 'Promote to admin'}
+                  >
+                    <Shield className="w-4 h-4"/>
+                  </button>
+                )}
                 {canManage && m.role!=='owner' && m.user_id!==user?.id && <button onClick={()=>handleRemove(m.user_id)} className="p-1.5 hover:bg-background rounded-full text-destructive"><Trash2 className="w-4 h-4"/></button>}
               </div>
             ))}

@@ -104,6 +104,7 @@ export const convApi = {
   updateGroup: (id:number, data:any) => api.patch(`/api/conversations/groups/${id}`, data).then(r=>r.data),
   addMembers: (id:number, data:any) => api.post(`/api/conversations/groups/${id}/members`, data).then(r=>r.data),
   removeMember: (cid:number, uid:number) => api.delete(`/api/conversations/groups/${cid}/members/${uid}`).then(r=>r.data),
+  setMemberRole: (cid:number, uid:number, role:'admin'|'member') => api.patch(`/api/conversations/groups/${cid}/members/${uid}`, {role}).then(r=>r.data),
   pin: (id:number, pinned?:boolean) => api.post(`/api/conversations/${id}/pin`, {pinned}).then(r=>r.data),
   archive: (id:number, archived?:boolean) => api.post(`/api/conversations/${id}/archive`, {archived}).then(r=>r.data),
 }

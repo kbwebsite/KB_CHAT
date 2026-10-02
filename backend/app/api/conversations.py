@@ -712,6 +712,47 @@ def remove_group_member(
     )
 
 
+@router.patch("/groups/{conv_id}/members/{user_id}")
+def set_group_member_role(
+    conv_id: int,
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Group not found")
+    my_mem = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv_id, user_id=current_user.id)
+        .first()
+    )
+    # Only the owner hands out / revokes the admin shield.
+    if not my_mem or my_mem.role != "owner":
+        raise HTTPException(
+            status_code=403, detail="Only the group owner can change roles"
+        )
+    role = (payload.get("role") or "").lower()
+    if role not in ("admin", "member"):
+        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'member'")
+    target = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv_id, user_id=user_id)
+        .first()
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Member not found")
+    if target.role == "owner" or target.user_id == current_user.id:
+        raise HTTPException(status_code=403, detail="Owner role cannot be changed")
+    target.role = role
+    db.commit()
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id),
+        f"Member is now {role}",
+    )
+
+
 @router.post("/{conv_id}/read")
 def mark_read(
     conv_id: int,
