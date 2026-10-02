@@ -9,8 +9,9 @@ import { ContactsPanel } from './ContactsPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { CallsPanel } from './CallsPanel'
 import { BroadcastPanel } from './BroadcastPanel'
+import { CommunitiesPanel } from './CommunitiesPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock, Megaphone } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock, Megaphone, Network } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -57,6 +58,7 @@ export function ChatSidebar({
   const [showSaved, setShowSaved] = useState(false)
   const [showCalls, setShowCalls] = useState(false)
   const [showBroadcasts, setShowBroadcasts] = useState(false)
+  const [showCommunities, setShowCommunities] = useState(false)
   const [shareContact, setShareContact] = useState<any | null>(null)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [groupTitle, setGroupTitle] = useState('')
@@ -197,6 +199,10 @@ export function ChatSidebar({
                   <Megaphone className="w-4 h-4 text-primary" />
                   Broadcast lists
                 </button>
+                <button role="menuitem" onClick={menuFire(() => setShowCommunities(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <Network className="w-4 h-4 text-primary" />
+                  Communities
+                </button>
                 {lockEnabled && (
                   <button role="menuitem" onClick={menuFire(lockNow)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Lock className="w-4 h-4 text-primary" />
@@ -227,7 +233,7 @@ export function ChatSidebar({
       </div>
 
       {/* Search */}
-      {!showContacts && !showSaved && !showCalls && !showBroadcasts && (
+      {!showContacts && !showSaved && !showCalls && !showBroadcasts && !showCommunities && (
         <div className="search-bar" style={{ background: 'rgba(20,20,42,0.6)', border: '1px solid rgba(255,255,255,0.06)', backdropFilter: 'blur(12px)', boxShadow: 'inset 0 1px 0 rgba(255,255,255,0.02)' }}>
           <Search className="w-4 h-4 text-tertiary" />
           <input
@@ -249,6 +255,12 @@ export function ChatSidebar({
           <CallsPanel onClose={() => setShowCalls(false)} />
         ) : showBroadcasts ? (
           <BroadcastPanel onClose={() => setShowBroadcasts(false)} />
+        ) : showCommunities ? (
+          <CommunitiesPanel
+            onClose={() => setShowCommunities(false)}
+            conversations={conversations}
+            onOpenChat={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowCommunities(false); onMobileViewChange('chat') }}
+          />
         ) : (
           <>
             {showUserSearch && (

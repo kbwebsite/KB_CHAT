@@ -157,6 +157,15 @@ export const broadcastApi = {
   send: (id:number, content:string) => api.post(`/api/broadcasts/${id}/send`, {content}).then(r=>r.data),
 }
 
+export const communityApi = {
+  list: () => api.get(`/api/communities`).then(r=>r.data),
+  create: (data:{name:string, description?:string}) => api.post(`/api/communities`, data).then(r=>r.data),
+  remove: (id:number) => api.delete(`/api/communities/${id}`).then(r=>r.data),
+  addGroup: (id:number, conversation_id:number) => api.post(`/api/communities/${id}/groups`, {conversation_id}).then(r=>r.data),
+  removeGroup: (id:number, convId:number) => api.delete(`/api/communities/${id}/groups/${convId}`).then(r=>r.data),
+  announce: (id:number, content:string) => api.post(`/api/communities/${id}/announce`, {content}).then(r=>r.data),
+}
+
 export const msgApi = {
   list: (cid:number, params:any={}) => {
     const q = new URLSearchParams()
