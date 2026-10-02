@@ -42,6 +42,20 @@ async def lifespan(app):
 
     task = asyncio.create_task(_check())
 
+    # Disappearing messages sweeper (every 60 seconds is plenty granular
+    # for 24h/7d/90d timers and cheap: no-op without any timer set).
+    async def _sweep():
+        while True:
+            try:
+                from app.api.disappearing import sweep_disappearing_messages
+
+                await sweep_disappearing_messages()
+            except Exception:
+                pass
+            await asyncio.sleep(60)
+
+    sweep_task = asyncio.create_task(_sweep())
+
     # Self-heal the AI code index on ephemeral filesystems (Render Free has
     # no persistent disk, so vectors.db vanishes on redeploy): if the store
     # is empty, reindex the shipped codebase in the background without
@@ -81,6 +95,7 @@ async def lifespan(app):
         yield
     finally:
         task.cancel()
+        sweep_task.cancel()
         reindex_task.cancel()
 
 

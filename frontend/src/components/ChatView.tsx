@@ -11,7 +11,7 @@ import { ChatHeader } from './ChatHeader'
 import { DragDropZone } from './DragDropZone'
 import { PollCard } from './PollPanel'
 import { EventCard } from './EventPanel'
-import { pollApi, eventApi, extrasApi } from '../services/api'
+import { pollApi, eventApi, extrasApi, convApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
@@ -20,6 +20,17 @@ import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
 import { hiddenIds, hideMessage } from '../utils/hidden'
 import type { RpsChoice } from './RockPaperScissors'
+
+const TIMER_OPTIONS: { id: string; label: string; seconds: number | null }[] = [
+  { id: 'off', label: 'Off', seconds: null },
+  { id: '24h', label: '24 hours', seconds: 86400 },
+  { id: '7d', label: '7 days', seconds: 604800 },
+  { id: '90d', label: '90 days', seconds: 7776000 },
+]
+
+function timerLabel(seconds: number | null | undefined): string {
+  return TIMER_OPTIONS.find((o) => o.seconds === seconds)?.label || 'Off'
+}
 import { addXp, countSent } from '../utils/levels'
 import { Message } from '../types'
 
@@ -78,6 +89,7 @@ export function ChatView({
 
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showWallpaper, setShowWallpaper] = useState(false)
+  const [showTimer, setShowTimer] = useState(false)
   const [convWp, setConvWp] = useState<string | null>(null)
   const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
   const [convAccent, setConvAccentState] = useState<string | null>(null)
@@ -459,6 +471,17 @@ export function ChatView({
     }
   }
 
+  const setTimer = async (seconds: number | null) => {
+    if (currentConversationId == null) return
+    try {
+      await convApi.setDisappearing(currentConversationId, seconds)
+      await fetchConversations()
+      setShowTimer(false)
+    } catch (e: any) {
+      toast(e.response?.data?.message || 'Could not update timer', 'error')
+    }
+  }
+
   const handleRefresh = async () => {
     if (showRefresh) return; setShowRefresh(true)
     try { await fetchConversations(); if (currentConversationId) await fetchMessages(currentConversationId) } catch {}
@@ -600,6 +623,7 @@ export function ChatView({
             else if (key === 'export') exportChat()
             else if (key === 'wallpaper') setShowWallpaper((v) => !v)
             else if (key === 'lock') toggleChatLock()
+            else if (key === 'timer') setShowTimer((v) => !v)
           }}
         />
 
@@ -657,6 +681,34 @@ export function ChatView({
                   className={`settings-accent-dot shrink-0 ${a.color} ${convAccent === a.id ? 'active' : ''}`}
                   title={a.id}
                 />
+              ))}
+            </div>
+          </div>
+        )}
+
+        {(currentConv as any)?.disappearing_seconds ? (
+          <div className="px-3 py-1.5 border-b border-border shrink-0 flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
+            <span>⏲</span>
+            <span>Disappearing messages: {timerLabel((currentConv as any).disappearing_seconds)} — new messages vanish</span>
+          </div>
+        ) : null}
+
+        {showTimer && currentConversationId && (
+          <div className="px-3 py-2 border-b border-border shrink-0">
+            <p className="text-xs text-muted-foreground">Disappearing messages — auto-delete new messages after</p>
+            <div className="flex gap-2 overflow-x-auto mt-2 pb-1">
+              {TIMER_OPTIONS.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => setTimer(o.seconds)}
+                  className={`shrink-0 px-3 h-9 rounded-xl border text-xs transition ${
+                    ((currentConv as any)?.disappearing_seconds || null) === o.seconds
+                      ? 'border-primary ring-2 ring-primary/40 bg-primary/10 font-medium'
+                      : 'bg-muted hover:bg-accent border-transparent'
+                  }`}
+                >
+                  {o.label}
+                </button>
               ))}
             </div>
           </div>

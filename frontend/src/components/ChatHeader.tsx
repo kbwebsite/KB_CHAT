@@ -1,10 +1,10 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 import { useState } from 'react'
 
-export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock'
+export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock' | 'timer'
 
 export function ChatHeader({
   conv,
@@ -56,6 +56,7 @@ export function ChatHeader({
     { key: 'insights', label: 'Insights', icon: Lightbulb },
     { key: 'export', label: 'Export chat (.txt)', icon: Download },
     { key: 'wallpaper', label: 'Chat wallpaper', icon: Image },
+    { key: 'timer', label: 'Disappearing', icon: Timer },
     { key: 'lock', label: chatLocked ? 'Unlock chat' : 'Lock chat', icon: chatLocked ? Unlock : Lock },
   ] : []
   const title = conv?.title || 'Unknown'

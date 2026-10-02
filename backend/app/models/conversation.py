@@ -30,6 +30,9 @@ class Conversation(Base):
     # Group invite links: unguessable token; NULL = disabled. Nullable so the
     # online migration adds it safely; NULLs never collide in a unique index.
     invite_token = Column(String(64), nullable=True, unique=True, index=True)
+    # Disappearing messages: auto-delete new messages after this many
+    # seconds. NULL = off. Nullable so the online migration adds it safely.
+    disappearing_seconds = Column(Integer, nullable=True)
 
     members = relationship(
         "ConversationMember",

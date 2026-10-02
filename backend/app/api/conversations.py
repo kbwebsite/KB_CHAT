@@ -164,6 +164,7 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         "is_favorite": my_membership.is_favorite
         if my_membership and hasattr(my_membership, "is_favorite")
         else False,
+        "disappearing_seconds": getattr(conv, "disappearing_seconds", None),
     }
 
 
@@ -346,6 +347,7 @@ def list_conversations(
             "is_pinned": my_membership.is_pinned if my_membership else False,
             "is_archived": my_membership.is_archived if my_membership else False,
             "is_favorite": my_membership.is_favorite if my_membership else False,
+            "disappearing_seconds": getattr(c, "disappearing_seconds", None),
         }
 
     # Hide 1-1 chats with blocked users (either direction) from the list.
@@ -750,6 +752,45 @@ def set_group_member_role(
     return success_response(
         conversation_to_dict(db, conv, current_user.id),
         f"Member is now {role}",
+    )
+
+
+DISAPPEARING_CHOICES = (86400, 604800, 7776000)  # 24h, 7 days, 90 days
+
+
+@router.patch("/{conv_id}/disappearing")
+def set_disappearing(
+    conv_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    conv = db.query(Conversation).filter_by(id=conv_id).first()
+    if not conv:
+        raise HTTPException(status_code=404, detail="Conversation not found")
+    membership = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=conv_id, user_id=current_user.id)
+        .first()
+    )
+    if not membership:
+        raise HTTPException(status_code=403, detail="Not a participant")
+    seconds = payload.get("seconds")
+    if seconds is not None:
+        try:
+            seconds = int(seconds)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid timer value")
+        if seconds not in DISAPPEARING_CHOICES:
+            raise HTTPException(
+                status_code=400, detail="Timer must be 24 hours, 7 days or 90 days"
+            )
+    conv.disappearing_seconds = seconds
+    db.commit()
+    db.refresh(conv)
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id),
+        "Disappearing timer updated",
     )
 
 
