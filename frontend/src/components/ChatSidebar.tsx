@@ -296,6 +296,7 @@ export function ChatSidebar({
               <ConversationList
                 conversations={filteredByTab}
                 activeId={currentConversationId}
+                onChanged={() => fetchConversations()}
                 onSelect={(id: number) => handleSelect(id)}
                 search={search}
                 onSearch={setSearch}

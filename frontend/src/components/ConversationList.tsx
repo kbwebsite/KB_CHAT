@@ -4,6 +4,7 @@ import { formatTime, initials } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare, Lock } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
+import { convApi } from '../services/api'
 import { useLockStore } from '../store/lock'
 import { LockScreen } from './LockScreen'
 
@@ -80,8 +81,8 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
   )
 }
 
-export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading }: {
-  conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean
+export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading, onChanged }: {
+  conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean, onChanged?: () => void
 }) {
   const lockedIds = useLockStore((s) => s.lockedIds)
   const chatsRevealed = useLockStore((s) => s.chatsRevealed)
@@ -95,6 +96,32 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
       setLockPrompt(false)
     }
   }, [lockPrompt, unlocked, setChatsRevealed])
+  const [archived, setArchived] = useState<any[]>([])
+  const [showArchived, setShowArchived] = useState(false)
+  const loadArchived = () => {
+    convApi
+      .list(undefined, { include_archived: true })
+      .then((r: any) => {
+        if (r?.success) setArchived((r.data || []).filter((c: any) => c.is_archived))
+      })
+      .catch(() => {})
+  }
+  useEffect(() => {
+    loadArchived()
+  }, [])
+  const unarchive = (id: number) => {
+    convApi
+      .archive(id, false)
+      .then(() => {
+        loadArchived()
+        onChanged?.()
+      })
+      .catch(() => {})
+  }
+  const openArchived = () => {
+    loadArchived()
+    setShowArchived(true)
+  }
   const hiddenLocked = chatsRevealed ? [] : conversations.filter((c) => lockedIds.includes(c.id))
   const visible = chatsRevealed ? conversations : conversations.filter((c) => !lockedIds.includes(c.id))
   const hiddenUnread = hiddenLocked.reduce((n, c) => n + (c.unread_count || 0), 0)
@@ -106,7 +133,42 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
             <LockScreen />
           </div>
         )}
-        {loading ? (
+        {showArchived ? (
+          <>
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-border sticky top-0 bg-card z-10">
+              <p className="text-sm font-semibold flex items-center gap-2">
+                <Archive className="w-4 h-4 text-muted-foreground" /> Archived
+              </p>
+              <button onClick={() => setShowArchived(false)} className="text-xs text-primary font-medium px-2 py-1">
+                Done
+              </button>
+            </div>
+            {archived.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-8">No archived chats</p>
+            ) : (
+              archived.map((c) => (
+                <div key={c.id} className="flex items-center gap-1 pr-2">
+                  <div className="flex-1 min-w-0">
+                    <ConversationItem
+                      conv={c}
+                      active={c.id === activeId}
+                      onClick={() => onSelect(c.id)}
+                      isTyping={!!typingMap?.[c.id]?.size}
+                      currentUserId={currentUserId}
+                    />
+                  </div>
+                  <button
+                    onClick={() => unarchive(c.id)}
+                    className="text-[11px] px-2 py-1 rounded-lg bg-muted hover:bg-accent text-muted-foreground shrink-0"
+                    title="Unarchive chat"
+                  >
+                    Unarchive
+                  </button>
+                </div>
+              ))
+            )}
+          </>
+        ) : loading ? (
           <div className="p-4 space-y-3">
             {Array.from({ length: 6 }).map((_, i) => (
               <div key={i} className="flex gap-3 animate-pulse">
@@ -128,6 +190,18 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
           </div>
         ) : (
           <>
+            {archived.length > 0 && (
+              <button
+                onClick={openArchived}
+                className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-muted transition-colors text-left border-b border-border/50"
+              >
+                <span className="w-8 h-8 rounded-full bg-muted flex items-center justify-center shrink-0">
+                  <Archive className="w-4 h-4 text-muted-foreground" />
+                </span>
+                <span className="flex-1 text-sm font-medium">Archived</span>
+                <span className="text-xs text-muted-foreground">{archived.length}</span>
+              </button>
+            )}
             {visible.map(c => (
               <ConversationItem
                 key={c.id}

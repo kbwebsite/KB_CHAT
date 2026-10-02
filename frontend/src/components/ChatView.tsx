@@ -486,6 +486,18 @@ export function ChatView({
     }
   }
 
+  const toggleArchive = async () => {
+    if (currentConversationId == null) return
+    const wasArchived = !!(currentConv as any)?.is_archived
+    try {
+      await convApi.archive(currentConversationId, !wasArchived)
+      await fetchConversations()
+      toast(wasArchived ? 'Chat unarchived' : 'Chat archived', 'success')
+    } catch (e: any) {
+      toast(e.response?.data?.message || 'Could not update archive', 'error')
+    }
+  }
+
   const handleRefresh = async () => {
     if (showRefresh) return; setShowRefresh(true)
     try { await fetchConversations(); if (currentConversationId) await fetchMessages(currentConversationId) } catch {}
@@ -628,6 +640,7 @@ export function ChatView({
             else if (key === 'wallpaper') setShowWallpaper((v) => !v)
             else if (key === 'lock') toggleChatLock()
             else if (key === 'timer') setShowTimer((v) => !v)
+            else if (key === 'archive') toggleArchive()
           }}
         />
 
