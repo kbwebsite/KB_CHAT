@@ -12,7 +12,7 @@ import { EventCard } from './EventPanel'
 import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
-import { wallpaperStyle, wallpaperClass } from '../utils/wallpapers'
+import { wallpaperStyle, wallpaperClass, WALLPAPERS, getConvWallpaper, setConvWallpaper } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isTTTTMove } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { Message } from '../types'
@@ -71,6 +71,8 @@ export function ChatView({
   const typingSet = useChatStore((s: any) => currentConversationId ? s.typingUsers[currentConversationId] : undefined)
 
   const [isAtBottom, setIsAtBottom] = useState(true)
+  const [showWallpaper, setShowWallpaper] = useState(false)
+  const [convWp, setConvWp] = useState<string | null>(null)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
   const [showRefresh, setShowRefresh] = useState(false)
   // In-conversation message search.
@@ -251,6 +253,7 @@ export function ChatView({
   useEffect(() => {
     setIsAtBottom(true); setShowNewIndicator(false); setTimeout(() => scrollToBottom(false), 100)
     lastFxIdRef.current = null
+    setConvWp(getConvWallpaper(currentConversationId))
   }, [currentConversationId])
 
   const exportChat = () => {
@@ -488,8 +491,34 @@ export function ChatView({
             else if (key === 'schedule') setShowSchedule(true)
             else if (key === 'insights') setShowInsights(true)
             else if (key === 'export') exportChat()
+            else if (key === 'wallpaper') setShowWallpaper((v) => !v)
           }}
         />
+
+        {showWallpaper && currentConversationId && (
+          <div className="px-3 py-2 border-b border-border shrink-0">
+            <p className="text-xs text-muted-foreground">Chat wallpaper — this conversation only</p>
+            <div className="flex gap-2 overflow-x-auto mt-2 pb-1">
+              <button
+                onClick={() => { setConvWallpaper(currentConversationId, 'default'); setConvWp(null) }}
+                className={`shrink-0 h-12 min-w-[72px] px-2 rounded-xl border text-xs bg-muted hover:bg-accent transition ${!convWp ? 'border-primary ring-2 ring-primary/40' : 'border-transparent'}`}
+              >
+                Global
+              </button>
+              {WALLPAPERS.map((w) => (
+                <button
+                  key={w.id}
+                  onClick={() => { setConvWallpaper(currentConversationId, w.id); setConvWp(w.id) }}
+                  className={`shrink-0 settings-wallpaper-btn h-12 min-w-[72px] p-1.5 ${w.className ?? ''} ${convWp === w.id ? 'active' : ''}`}
+                  style={w.css}
+                  title={w.label}
+                >
+                  <span className="text-[11px] bg-card/80 px-1.5 py-0.5 rounded">{w.label}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {showMessageSearch && (
           <div className="px-3 py-2 border-b border-border shrink-0" style={{ background: 'rgba(var(--accent-rgb), 0.06)' }}>
@@ -558,7 +587,7 @@ export function ChatView({
           </div>
         )}
 
-        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${wallpaperClass((settings as any)?.chat_wallpaper)}`} ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle((settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
+        <div className={`message-list flex-1 overflow-y-auto relative min-h-0 isolate z-0 ${wallpaperClass(convWp || (settings as any)?.chat_wallpaper)}`} ref={listRef} onScroll={handleMessageScroll} style={wallpaperStyle(convWp || (settings as any)?.chat_wallpaper)} data-fontsize={settings.chat_font_size} data-density={settings.message_density}>
           {isCurrentLoading && (
             <div className="sticky top-0 z-10 flex justify-center py-2">
               <span className="text-xs px-3 py-1 rounded-full glass animate-pulse">Loading older...</span>

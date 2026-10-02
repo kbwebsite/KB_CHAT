@@ -301,6 +301,35 @@ export const THEME_PACKS: ThemePack[] = [
   },
 ]
 
+/** Per-conversation wallpaper overrides: { [convId]: wallpaperId | 'default' }.
+ * 'default' (or missing) means follow the global theme wallpaper. */
+const CONV_WALLPAPER_KEY = 'kb_wallpaper_conv'
+
+function readConvMap(): Record<string, string> {
+  try {
+    const raw = localStorage.getItem(CONV_WALLPAPER_KEY)
+    const parsed = raw ? JSON.parse(raw) : {}
+    return parsed && typeof parsed === 'object' ? parsed : {}
+  } catch {
+    return {}
+  }
+}
+
+export function getConvWallpaper(convId: number | null | undefined): string | null {
+  if (convId == null) return null
+  const v = readConvMap()[String(convId)]
+  return v && v !== 'default' ? v : null
+}
+
+export function setConvWallpaper(convId: number, wallpaperId: string): void {
+  try {
+    const map = readConvMap()
+    if (!wallpaperId || wallpaperId === 'default') delete map[String(convId)]
+    else map[String(convId)] = wallpaperId
+    localStorage.setItem(CONV_WALLPAPER_KEY, JSON.stringify(map))
+  } catch {}
+}
+
 export const CUSTOM_WALLPAPER_KEY = 'kb_wallpaper_custom'
 
 export function customWallpaperUrl(): string | null {

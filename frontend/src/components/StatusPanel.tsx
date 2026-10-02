@@ -44,7 +44,7 @@ export function StatusPanel({ onClose, onViewer }: { onClose:()=>void, onViewer:
         <div>
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">My Status</h3>
           <button onClick={()=> setShowComposer(!showComposer)} className="panel-row w-full flex items-center gap-3 p-3 rounded-2xl bg-muted hover:bg-accent border border-dashed">
-            <div className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-600 to-indigo-600 flex items-center justify-center text-white"><Plus className="w-6 h-6"/></div>
+            <div className="w-12 h-12 rounded-full kryzen-accent-gradient flex items-center justify-center text-white"><Plus className="w-6 h-6"/></div>
             <div className="text-left">
               <p className="text-sm font-medium">Add Status</p>
               <p className="text-xs text-muted-foreground">Tap to share</p>
