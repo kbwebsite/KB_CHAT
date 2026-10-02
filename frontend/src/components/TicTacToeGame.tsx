@@ -122,9 +122,9 @@ export function TicTacToeGame({
           : `${turn === 'X' ? 'X' : 'O'} to move…`
 
   return (
-    <div className="min-w-[220px] max-w-[260px]">
+    <div className="w-full max-w-[240px] min-w-0 overflow-hidden">
       <p className="text-xs font-semibold mb-2 flex items-center gap-1.5">🎮 Tic-Tac-Toe</p>
-      <div className="grid grid-cols-3 gap-1.5">
+      <div className="grid grid-cols-3 gap-1.5 w-full min-w-0">
         {board.map((cell, i) => (
           <button
             key={i}
@@ -134,7 +134,7 @@ export function TicTacToeGame({
               onMove(challenge, i)
             }}
             aria-label={`Play ${cellName(i)}`}
-            className={`min-h-[48px] min-w-[48px] rounded-xl text-xl font-bold flex items-center justify-center transition active:scale-95 ${
+            className={`aspect-square w-full min-w-0 min-h-[44px] rounded-xl text-xl font-bold flex items-center justify-center transition active:scale-95 ${
               cell === 'X'
                 ? 'text-primary'
                 : cell === 'O'
