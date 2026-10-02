@@ -750,6 +750,58 @@ def mark_message_delivered(
     return success_response(None, "Marked delivered")
 
 
+@router.get("/messages/{message_id}/receipts")
+def message_receipts(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """WhatsApp-style message info: who read / received / hasn't yet.
+
+    Derived from per-member read/delivery cursors (no per-message rows to
+    store). Only the sender may view.
+    """
+    from app.models.conversation import ConversationMember
+    from app.models.user import User as UserModel
+
+    msg = db.query(Message).filter_by(id=message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Message not found")
+    if not _is_member(db, msg.conversation_id, current_user.id):
+        raise HTTPException(status_code=403, detail="Not a member")
+    if msg.sender_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Only the sender can view receipts")
+    members = (
+        db.query(ConversationMember)
+        .filter_by(conversation_id=msg.conversation_id)
+        .all()
+    )
+    other_ids = [m.user_id for m in members if m.user_id != current_user.id]
+    users = (
+        {u.id: u for u in db.query(UserModel).filter(UserModel.id.in_(other_ids)).all()}
+        if other_ids
+        else {}
+    )
+    read, delivered, sent = [], [], []
+    for m in members:
+        if m.user_id == current_user.id:
+            continue
+        u = users.get(m.user_id)
+        entry = {
+            "user_id": m.user_id,
+            "display_name": u.display_name if u else None,
+            "username": u.username if u else None,
+            "avatar_url": u.avatar_url if u else None,
+        }
+        if (m.last_read_message_id or 0) >= message_id:
+            read.append(entry)
+        elif (m.last_delivered_message_id or 0) >= message_id:
+            delivered.append(entry)
+        else:
+            sent.append(entry)
+    return success_response({"read": read, "delivered": delivered, "sent": sent})
+
+
 @router.post("/messages/{message_id}/view-once")
 def view_once_message(
     message_id: int,

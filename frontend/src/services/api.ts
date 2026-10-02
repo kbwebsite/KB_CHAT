@@ -140,6 +140,7 @@ export const msgApi = {
   markRead: (mid:number) => api.post(`/api/messages/${mid}/read`).then(r=>r.data),
   react: (mid:number, emoji:string) => api.post(`/api/messages/${mid}/reactions`, { emoji }).then(r=>r.data),
   removeReaction: (mid:number, emoji:string) => api.delete(`/api/messages/${mid}/reactions?emoji=${encodeURIComponent(emoji)}`).then(r=>r.data),
+  receipts: (mid:number) => api.get(`/api/messages/${mid}/receipts`).then(r=>r.data),
   search: (q:string, cid?:number) => api.get(`/api/messages/search?q=${encodeURIComponent(q)}${cid?`&conversation_id=${cid}`:''}`).then(r=>r.data),
 }
 

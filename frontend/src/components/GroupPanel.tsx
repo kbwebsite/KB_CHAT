@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react'
-import { convApi, extendedApi, blockApi, groupInviteApi } from '../services/api'
+import { useEffect, useRef, useState } from 'react'
+import { convApi, extendedApi, blockApi, groupInviteApi, uploadApi } from '../services/api'
 import { Conversation } from '../types'
 import { useAuthStore } from '../store/auth'
-import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check, Share2 } from 'lucide-react'
+import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check, Share2, Camera } from 'lucide-react'
 import { shareText } from '../utils/share'
 import { UserSearch } from './UserSearch'
 
@@ -32,6 +32,24 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
 
   const myRole = members.find(m=> m.user_id===user?.id)?.role
   const canManage = myRole==='owner' || myRole==='admin'
+  const photoRef = useRef<HTMLInputElement>(null)
+  const [uploadingPhoto, setUploadingPhoto] = useState(false)
+
+  const handlePhoto=async (e:React.ChangeEvent<HTMLInputElement>)=>{
+    const file = e.target.files?.[0]
+    if (!file || !canManage) return
+    setUploadingPhoto(true)
+    try {
+      const res = await uploadApi.upload(file)
+      if (res.success) {
+        const att = res.data
+        const url = att.cloudinary_url || `/api/uploads/file/${att.filename}`
+        const up = await convApi.updateGroup(conversation.id, { avatar_url: url })
+        if (up.success) { setMsg('Group photo updated'); onUpdated() }
+      }
+    } catch (err:any) { setMsg(err.response?.data?.message || 'Photo upload failed') }
+    finally { setUploadingPhoto(false); if (photoRef.current) photoRef.current.value='' }
+  }
 
   useEffect(()=>{
     if (!conversation.is_group || !canManage) { setInviteToken(undefined); return }
@@ -174,8 +192,18 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
       </div>
       <div className="flex-1 overflow-y-auto p-4 space-y-5">
         <div className="flex flex-col items-center">
-          <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white">
-            <Users className="w-8 h-8"/>
+          <div className="relative">
+            <div className="w-20 h-20 rounded-2xl overflow-hidden kryzen-accent-gradient flex items-center justify-center text-white">
+              {conversation.avatar_url
+                ? <img src={conversation.avatar_url} alt="" className="w-full h-full object-cover"/>
+                : <Users className="w-8 h-8"/>}
+            </div>
+            {conversation.is_group && canManage && (
+              <label className={`absolute bottom-0 right-0 w-8 h-8 rounded-full bg-primary text-primary-foreground flex items-center justify-center shadow-md ring-2 ring-card transition active:scale-95 ${uploadingPhoto ? 'opacity-60 pointer-events-none' : 'cursor-pointer hover:bg-primary/90'}`} aria-label="Change group photo">
+                <Camera className="w-4 h-4"/>
+                <input ref={photoRef} type="file" className="hidden" accept="image/*" onChange={handlePhoto} disabled={uploadingPhoto} />
+              </label>
+            )}
           </div>
           <p className="font-semibold mt-2">{conversation.title}</p>
           <p className="text-xs text-muted-foreground">{members.length} members • {myRole} {myRole==='owner' && <Shield className="w-3 h-3 inline"/>}</p>

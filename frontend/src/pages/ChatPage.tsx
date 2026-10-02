@@ -17,7 +17,8 @@ import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../servic
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
-import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise } from 'lucide-react'
+import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise, Info } from 'lucide-react'
+import { MessageInfo } from '../components/MessageInfo'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
@@ -95,6 +96,7 @@ export default function ChatPage() {
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
   const [mobileActionSheet, setMobileActionSheet] = useState<{ open: boolean; msg?: Message }>({ open: false })
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+  const [infoMsgId, setInfoMsgId] = useState<number | null>(null)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState<string | null>(null)
@@ -724,6 +726,7 @@ export default function ChatPage() {
               <BottomSheetAction icon={<Sunrise className="w-5 h-5" />} label="At 9 AM" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'morning').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
               {mobileActionSheet.msg.sender_id === user?.id && (
                 <>
+                  <BottomSheetAction icon={<Info className="w-5 h-5" />} label="Info" onClick={() => { if (mobileActionSheet.msg) { setInfoMsgId(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
                   <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg && !(mobileActionSheet.msg as any).is_encrypted && !(mobileActionSheet.msg as any).view_once) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
                   <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg) { setDeleteTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
                 </>
@@ -731,6 +734,10 @@ export default function ChatPage() {
             </>
           )}
         </BottomSheet>
+
+        {infoMsgId != null && (
+          <MessageInfo msgId={infoMsgId} onClose={() => setInfoMsgId(null)} />
+        )}
 
         {deleteTarget && (
           <DeleteDialog

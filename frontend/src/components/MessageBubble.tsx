@@ -1,6 +1,7 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info } from 'lucide-react'
+import { MessageInfo } from './MessageInfo'
 import EmojiPicker from 'emoji-picker-react'
 import { useState, useRef, useEffect } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
@@ -269,6 +270,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isSaved = savedIds?.has(msg.id)
   const [showMenu, setShowMenu]=useState(false)
   const [showCustomReact, setShowCustomReact]=useState(false)
+  const [showInfo, setShowInfo]=useState(false)
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))
   const toast = useToastStore((s) => s.push)
   const remind = (when: 'hour' | 'morning') => {
@@ -569,6 +571,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>
               <button onClick={()=>{ fireEffect('hearts'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><span className="w-3.5 h-3.5 text-center">💕</span> Blast</button>
+              {isOwn && !msg.is_deleted && (
+                <button onClick={()=>{ setShowInfo(true); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Info className="w-3.5 h-3.5"/> Info</button>
+              )}
               <button onClick={()=>{ remind('hour'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Clock className="w-3.5 h-3.5"/> In 1 hour</button>
               <button onClick={()=>{ remind('morning'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Sunrise className="w-3.5 h-3.5"/> At 9 AM</button>
               {onAIAction && actionMsg && content && !msg.is_deleted && (
@@ -587,6 +592,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           )}
         </div>
       </div>
+      {showInfo && isOwn && !msg.is_deleted && (
+        <MessageInfo msgId={msg.id} onClose={() => setShowInfo(false)} />
+      )}
     </div>
   )
 }
