@@ -330,7 +330,11 @@ export function ChatView({
       const res = await pollApi.vote(pollId, opts)
       if (res?.success && res.data) {
         setConvPolls(ps => ps.map(p => p.id === pollId ? res.data : p))
-        setTimeout(() => fireEffect('confetti'), 250)
+        const { quizHit } = await import('./PollPanel')
+        if (quizHit(res.data, opts)) {
+          toast('Correct! 🎉', 'success')
+          setTimeout(() => fireEffect('confetti'), 250)
+        }
       }
     } catch {}
   }

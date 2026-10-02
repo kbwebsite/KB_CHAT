@@ -16,10 +16,18 @@ interface Poll {
   question: string
   is_multiple_choice: boolean
   closes_at: string | null
+  correct_option_id: number | null
   total_votes: number
   options: PollOption[]
   creator_id: number | null
   creator_name: string
+}
+
+/** True when this vote hit the quiz answer (no quiz = always celebrate). */
+export function quizHit(pollData: any, optionIds: number[]): boolean {
+  const correct = pollData?.correct_option_id
+  if (correct == null) return true
+  return optionIds.includes(correct)
 }
 
 export function PollPanel({ conversationId, onClose }: { conversationId: number, onClose: () => void }) {
@@ -29,6 +37,8 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
   const [question, setQuestion] = useState('')
   const [options, setOptions] = useState(['', ''])
   const [isMultiple, setIsMultiple] = useState(false)
+  const [isQuiz, setIsQuiz] = useState(false)
+  const [correctPos, setCorrectPos] = useState(0)
   const [loading, setLoading] = useState(false)
 
   useEffect(() => { loadPolls() }, [conversationId])
@@ -39,11 +49,25 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
   }
 
   const handleCreate = async () => {
-    if (!question.trim() || options.filter(o => o.trim()).length < 2) return
+    const clean = options.filter(o => o.trim())
+    if (!question.trim() || clean.length < 2) return
     setLoading(true)
     try {
-      const res = await pollApi.create(conversationId, { question: question.trim(), options: options.filter(o => o.trim()), is_multiple_choice: isMultiple })
-      if (res.success) { setPolls([res.data, ...polls]); setQuestion(''); setOptions(['', '']); setShowCreate(false) }
+      const safePos = Math.min(correctPos, clean.length - 1)
+      const res = await pollApi.create(conversationId, {
+        question: question.trim(),
+        options: clean,
+        is_multiple_choice: isMultiple,
+        ...(isQuiz ? { correct_position: safePos } : {}),
+      })
+      if (res.success) {
+        setPolls([res.data, ...polls])
+        setQuestion('')
+        setOptions(['', ''])
+        setIsQuiz(false)
+        setCorrectPos(0)
+        setShowCreate(false)
+      }
     } finally { setLoading(false) }
   }
 
@@ -51,8 +75,10 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
     const res = await pollApi.vote(pollId, optionIds)
     if (res.success) {
       setPolls(polls.map(p => p.id === pollId ? res.data : p))
-      const { fireEffect } = await import('../utils/messageEffects')
-      setTimeout(() => fireEffect('confetti'), 250)
+      if (quizHit(res.data, optionIds)) {
+        const { fireEffect } = await import('../utils/messageEffects')
+        setTimeout(() => fireEffect('confetti'), 250)
+      }
     }
   }
 
@@ -95,6 +121,26 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
                 Allow multiple choices
               </label>
             </div>
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <input type="checkbox" checked={isQuiz} onChange={e => setIsQuiz(e.target.checked)} className="rounded" />
+                Quiz mode (one correct answer)
+              </label>
+            </div>
+            {isQuiz && (
+              <label className="block text-xs">
+                <span className="text-muted-foreground">Correct answer</span>
+                <select
+                  value={Math.min(correctPos, Math.max(options.length - 1, 0))}
+                  onChange={e => setCorrectPos(Number(e.target.value))}
+                  className="mt-1 w-full px-3 py-2 rounded-lg bg-muted text-sm outline-none"
+                >
+                  {options.map((t, i) => (
+                    <option key={i} value={i}>{t.trim() || `Option ${i + 1}`}</option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button onClick={handleCreate} disabled={!question.trim() || loading} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium disabled:opacity-50">Create Poll</button>
           </div>
         )}
@@ -118,6 +164,9 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
   const [selected, setSelected] = useState<number[]>(myVotes)
   const hasVoted = myVotes.length > 0
   const isClosed = poll.closes_at && new Date(poll.closes_at) < new Date()
+  const isQuiz = poll.correct_option_id != null
+  const revealed = (hasVoted || !!isClosed) && isQuiz
+  const iWasRight = revealed && myVotes.includes(poll.correct_option_id!)
 
   const toggleOption = (optId: number) => {
     if (hasVoted || isClosed) return
@@ -165,6 +214,9 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
                 <span className="flex items-center gap-2">
                   {(hasVoted || isClosed) && isMyVote && <Check className="w-3 h-3 text-primary" />}
                   {opt.text}
+                  {revealed && poll.correct_option_id === opt.id && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-semibold">✓ Correct</span>
+                  )}
                 </span>
                 {(hasVoted || isClosed) && <span className="text-xs text-muted-foreground">{opt.vote_count} ({pct}%)</span>}
               </span>
@@ -174,6 +226,11 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
       </div>
       {!hasVoted && !isClosed && selected.length > 0 && (
         <button onClick={submitVote} className="w-full py-2 rounded-lg bg-primary text-primary-foreground text-xs font-medium">Submit Vote</button>
+      )}
+      {revealed && (
+        <p className={`text-xs font-medium ${iWasRight ? 'text-emerald-500' : 'text-muted-foreground'}`}>
+          {iWasRight ? 'Correct! 🎉' : 'Not quite — answer revealed above'}
+        </p>
       )}
       {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (
         <div className="text-[11px] text-muted-foreground">Your votes: {pollOptions.filter(o => (o.voter_ids || []).includes(userId!)).map(o => o.text).join(', ')}</div>

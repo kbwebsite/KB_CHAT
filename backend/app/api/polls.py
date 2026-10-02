@@ -52,6 +52,7 @@ def _poll_to_dict(db: Session, poll: Poll):
         "question": poll.question,
         "is_multiple_choice": poll.is_multiple_choice,
         "closes_at": poll.closes_at.isoformat() if poll.closes_at else None,
+        "correct_option_id": getattr(poll, "correct_option_id", None),
         "created_at": poll.created_at.isoformat() if poll.created_at else None,
         "total_votes": total_votes,
         "options": [
@@ -107,9 +108,20 @@ def create_poll(
     )
     db.add(poll)
     db.flush()
+    created_opts = []
     for i, text_val in enumerate(options_text):
         opt = PollOption(poll_id=poll.id, text=text_val.strip(), position=i)
         db.add(opt)
+        created_opts.append(opt)
+    # Quiz mode: correct answer given as its position in the options list.
+    try:
+        correct_pos = payload.get("correct_position")
+        correct_pos = int(correct_pos) if correct_pos is not None else None
+    except (TypeError, ValueError):
+        correct_pos = None
+    if correct_pos is not None and 0 <= correct_pos < len(created_opts):
+        db.flush()
+        poll.correct_option_id = created_opts[correct_pos].id
     db.commit()
     db.refresh(poll)
     poll_dict = _poll_to_dict(db, poll)
@@ -196,6 +208,7 @@ def _batched_polls(db: Session, conv_id: int):
             "question": poll.question,
             "is_multiple_choice": poll.is_multiple_choice,
             "closes_at": poll.closes_at.isoformat() if poll.closes_at else None,
+            "correct_option_id": getattr(poll, "correct_option_id", None),
             "created_at": poll.created_at.isoformat() if poll.created_at else None,
             "total_votes": sum(len(votes_by_opt.get(o.id, [])) for o in opts),
             "options": [_opt_dict(o) for o in opts],
