@@ -66,6 +66,8 @@ class Settings(BaseSettings):
     FIREBASE_SENDER_ID: str = ""
     FIREBASE_APP_ID: str = ""
     FIREBASE_VAPID_KEY: str = ""
+    # GIPHY search key (public client key by design; served via /api/config).
+    GIPHY_API_KEY: str = ""
     TURN_SERVER_URL: str = ""
     TURN_USERNAME: str = ""
     TURN_CREDENTIAL: str = ""

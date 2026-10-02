@@ -53,6 +53,9 @@ services:
         value: 1:91256422447:web:7a6dfd0ee79f4c276d86da
       - key: FIREBASE_VAPID_KEY
         sync: false
+      # GIPHY search (public client key; empty = GIF picker shows trending-off notice).
+      - key: GIPHY_API_KEY
+        sync: false
       # TURN / WebRTC (optional)
       - key: TURN_SERVER_URL
         sync: false

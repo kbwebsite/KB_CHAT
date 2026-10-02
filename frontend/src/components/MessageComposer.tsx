@@ -9,6 +9,7 @@ import { VoiceRecorder } from './VoiceRecorder'
 import { uploadApi } from '../services/api'
 import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
+import { GifPicker } from './GifPicker'
 
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
   onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
@@ -30,6 +31,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [sending, setSending] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showGames, setShowGames] = useState(false)
+  const [showGifs, setShowGifs] = useState(false)
   const [memeFile, setMemeFile] = useState<File | null>(null)
   const memeFileRef = useRef<HTMLInputElement>(null)
   const { user } = useAuthStore()
@@ -62,7 +64,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Send-with-effect picker */}
       <div className="relative">
         <button
-            onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false); setShowGames(false) }}
+            onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false); setShowGames(false); setShowGifs(false) }}
           className="composer-action-btn"
           aria-label="Send with effect"
           title={effect ? `Effect: ${effect} (tap to change)` : 'Send with effect'}
@@ -92,7 +94,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       </div>
         <div className="relative">
           <button
-            onClick={() => { setShowGames(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false) }}
+            onClick={() => { setShowGames(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGifs(false) }}
             className="composer-action-btn"
             aria-label="Start a game"
             title="Challenge chat to a game"
@@ -125,8 +127,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       <button onClick={() => memeFileRef.current?.click()} className="composer-action-btn" aria-label="Make a meme" title="Make a meme">
         <Laugh className="w-5 h-5" />
       </button>
-      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="Stickers">
+      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Stickers">
         <Image className="w-5 h-5" />
+      </button>
+      <button onClick={() => { setShowGifs((v) => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="GIFs" title="Send a GIF">
+        <span className="text-[11px] font-black tracking-tight">GIF</span>
       </button>
       <button onClick={handleLocationShare} className="composer-action-btn" aria-label="Share location" title="Share current location">
         <MapPin className="w-5 h-5" />
@@ -208,6 +213,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const handleSticker = (url: string) => {
     onSend(url, undefined, 'text')
     setShowStickers(false)
+  }
+
+  const handleGif = (url: string) => {
+    onSend(url, undefined, 'text')
+    setShowGifs(false)
   }
 
   const handleMemeSend = async (file: File) => {
@@ -326,7 +336,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }
   }
 
   return (
@@ -403,14 +413,14 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         />
 
         {/* Right side buttons */}
-        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="Emoji">
+        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Emoji">
           <Smile className="w-5 h-5" />
         </button>
         {/* Extra actions: inline on desktop… */}
         <div className="hidden sm:flex sm:items-center">{renderExtras()}</div>
         {/* …behind ＋ on mobile: attach, typing, emoji, voice stay in the row */}
         <div className="sm:hidden relative">
-          <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
+          <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
             <Plus className="w-5 h-5" />
           </button>
           {showMore && (
@@ -450,6 +460,13 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {showStickers && (
         <div className="composer-picker">
           <StickerPicker onSelect={handleSticker} />
+        </div>
+      )}
+
+      {/* GIF picker */}
+      {showGifs && (
+        <div className="composer-picker max-h-[340px] overflow-hidden flex flex-col">
+          <GifPicker onSelect={handleGif} />
         </div>
       )}
 

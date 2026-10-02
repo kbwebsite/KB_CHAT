@@ -65,6 +65,39 @@ export const configApi = {
   get: () => api.get('/api/config').then(r=>r.data),
 }
 
+let giphyKey: string | null | undefined
+async function getGiphyKey(): Promise<string | null> {
+  if (giphyKey !== undefined) return giphyKey
+  try {
+    const cfg = await configApi.get().catch(() => null)
+    const k: unknown = cfg?.data?.giphyApiKey
+    giphyKey = typeof k === 'string' && k ? k : null
+  } catch {
+    giphyKey = null
+  }
+  return giphyKey
+}
+
+// GIPHY search (public client key served via /api/config). Direct browser
+// calls — no backend hop. Throws when unconfigured so pickers can explain.
+export const giphyApi = {
+  key: getGiphyKey,
+  trending: async (limit = 24) => {
+    const key = await getGiphyKey()
+    if (!key) throw new Error('GIFs not configured')
+    const r = await fetch(`https://api.giphy.com/v1/gifs/trending?api_key=${key}&limit=${limit}&rating=g`)
+    if (!r.ok) throw new Error('GIF service error')
+    return r.json()
+  },
+  search: async (q: string, limit = 24) => {
+    const key = await getGiphyKey()
+    if (!key) throw new Error('GIFs not configured')
+    const r = await fetch(`https://api.giphy.com/v1/gifs/search?api_key=${key}&q=${encodeURIComponent(q)}&limit=${limit}&rating=g`)
+    if (!r.ok) throw new Error('GIF service error')
+    return r.json()
+  },
+}
+
 // helpers
 export const authApi = {
   signup: (data:any) => api.post('/api/auth/signup', data).then(r=>r.data),

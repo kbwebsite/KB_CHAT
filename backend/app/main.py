@@ -254,6 +254,7 @@ def public_config():
         "data": {
             "googleClientId": settings.GOOGLE_CLIENT_ID or None,
             "vapidKey": settings.FIREBASE_VAPID_KEY or None,
+            "giphyApiKey": settings.GIPHY_API_KEY or None,
             "firebase": firebase,
         },
         "message": None,
