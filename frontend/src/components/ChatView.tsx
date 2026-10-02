@@ -13,8 +13,9 @@ import { pollApi, eventApi, extrasApi } from '../services/api'
 import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
-import { fireEffect, effectForText, parseFxMarker, prettyPreview, isTTTTMove } from '../utils/messageEffects'
+import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
+import type { RpsChoice } from './RockPaperScissors'
 import { Message } from '../types'
 
 import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
@@ -274,7 +275,7 @@ export function ChatView({
   const exportChat = () => {
     if (!currentMsgs.length) return
     const lines = currentMsgs
-      .filter((m: any) => !m.is_deleted && !isTTTTMove(m.content))
+      .filter((m: any) => !m.is_deleted && !isGameMoveMsg(m.content))
       .map((m: any) => {
         const who = m.sender_id === user?.id ? 'You' : (m.sender_display_name || m.sender_username || 'Unknown')
         const when = m.created_at ? new Date(m.created_at).toLocaleString() : ''
@@ -323,7 +324,7 @@ export function ChatView({
   // in the chat itself, not only in the Extras panels. Memoized: rebuilding
   // + sorting on every render wastes frames while typing/scrolling.
   const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = useMemo(() => [
-    ...currentMsgs.filter((m: any) => !isTTTTMove(m.content)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
+    ...currentMsgs.filter((m: any) => !isGameMoveMsg(m.content)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
     ...convPolls.map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
     ...convEvents.map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
   ].sort((a, b) => {
@@ -355,10 +356,20 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async () => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
-    await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
+    if (kind === 'rps') {
+      await sendMessage(currentConversationId, `🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`)
+    } else {
+      await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
+    }
+  }
+
+  const handleRpsThrow = async (challenge: any, choice: RpsChoice) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    // Marker only — throws stay out of history (filtered above).
+    await sendMessage(currentConversationId, `🎮RPS:move:${challenge.id}:${choice}`)
   }
 
   const handleGameMove = async (challenge: any, pos: number) => {
@@ -730,7 +741,8 @@ export function ChatView({
                       onMobileMore={(m: any) => onMobileMore(m)}
                       gameMsgs={currentMsgs}
                       onGameMove={handleGameMove}
-                      onGameRematch={sendChallenge}
+                      onGameRematch={(kind) => sendChallenge(kind)}
+                      onRpsThrow={handleRpsThrow}
                       convTitle={(currentConv as any)?.title || 'Chat'}
                     />
                   </div>

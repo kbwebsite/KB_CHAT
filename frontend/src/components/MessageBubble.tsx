@@ -13,6 +13,7 @@ import { fireEffect, prettyPreview } from '../utils/messageEffects'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useToastStore } from '../store/toast'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
+import { RpsGame, isRpsChallenge, type RpsChoice } from './RockPaperScissors'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -110,7 +111,7 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, convTitle }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, convTitle }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
@@ -120,11 +121,13 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void,
   onRetry?:(msg:Message)=>void,
-  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:()=>void,
+  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps')=>void,
+  onRpsThrow?:(challenge:any, choice:RpsChoice)=>void,
   convTitle?:string
 }) {
   const content = msg.is_deleted ? 'Message deleted' : prettyPreview(msg.content)
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
+  const isRps = !msg.is_deleted && isRpsChallenge(msg.content)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
   // stored key; otherwise show a placeholder instead of base64.
   const legacySealed = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
@@ -351,7 +354,15 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               msgs={gameMsgs || []}
               meId={meId}
               onMove={(c, pos) => onGameMove?.(c, pos)}
-              onRematch={() => onGameRematch?.()}
+              onRematch={() => onGameRematch?.('ttt')}
+            />
+          ) : isRps ? (
+            <RpsGame
+              challenge={msg}
+              msgs={gameMsgs || []}
+              meId={meId}
+              onThrow={(c, choice) => onRpsThrow?.(c, choice)}
+              onRematch={() => onGameRematch?.('rps')}
             />
           ) : loneImageUrl ? (
             <img

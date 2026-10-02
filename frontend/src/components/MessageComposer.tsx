@@ -28,11 +28,17 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [showMore, setShowMore] = useState(false)
+  const [showGames, setShowGames] = useState(false)
   const { user } = useAuthStore()
 
-  const sendChallenge = () => {
+  const sendChallenge = (kind: 'ttt' | 'rps') => {
     const name = user?.display_name || user?.username || 'Someone'
-    onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
+    if (kind === 'rps') {
+      onSend(`🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`, undefined, 'text')
+    } else {
+      onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
+    }
+    setShowGames(false)
   }
 
   // Extra actions: inline on desktop, behind ＋ on mobile.
@@ -51,7 +57,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Send-with-effect picker */}
       <div className="relative">
         <button
-          onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false) }}
+            onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false); setShowGames(false) }}
           className="composer-action-btn"
           aria-label="Send with effect"
           title={effect ? `Effect: ${effect} (tap to change)` : 'Send with effect'}
@@ -79,15 +85,33 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           </div>
         )}
       </div>
-      <button
-        onClick={sendChallenge}
-        className="composer-action-btn"
-        aria-label="Start tic-tac-toe game"
-        title="Challenge chat to tic-tac-toe"
-      >
-        <Gamepad2 className="w-5 h-5" />
-      </button>
-      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false) }} className="composer-action-btn" aria-label="Stickers">
+        <div className="relative">
+          <button
+            onClick={() => { setShowGames(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false) }}
+            className="composer-action-btn"
+            aria-label="Start a game"
+            title="Challenge chat to a game"
+          >
+            <Gamepad2 className="w-5 h-5" />
+          </button>
+          {showGames && (
+            <div className="absolute bottom-12 right-0 z-30 w-52 rounded-2xl border bg-card p-1.5 shadow-xl">
+              <button
+                onClick={() => sendChallenge('ttt')}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">🎮</span> Tic-Tac-Toe
+              </button>
+              <button
+                onClick={() => sendChallenge('rps')}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">✊</span> Rock-Paper-Scissors
+              </button>
+            </div>
+          )}
+        </div>
+      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="Stickers">
         <Image className="w-5 h-5" />
       </button>
     </>
@@ -246,7 +270,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false) }
   }
 
   return (
@@ -312,14 +336,14 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         />
 
         {/* Right side buttons */}
-        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false); setShowMore(false) }} className="composer-action-btn" aria-label="Emoji">
+        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="Emoji">
           <Smile className="w-5 h-5" />
         </button>
         {/* Extra actions: inline on desktop… */}
         <div className="hidden sm:flex sm:items-center">{renderExtras()}</div>
         {/* …behind ＋ on mobile: attach, typing, emoji, voice stay in the row */}
         <div className="sm:hidden relative">
-          <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
+          <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
             <Plus className="w-5 h-5" />
           </button>
           {showMore && (

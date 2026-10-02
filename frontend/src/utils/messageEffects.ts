@@ -72,14 +72,25 @@ export function stripFxMarker(text: any): any {
 export function prettyPreview(text: any): any {
   if (typeof text !== 'string' || !text) return text
   const clean = stripFxMarker(text)
-  if (clean.startsWith('🎮TTT:move:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
+  if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'
   return clean
 }
 
 /** True for tic-tac-toe move messages (hidden from history, live on the board). */
 export function isTTTTMove(text: unknown): boolean {
   return typeof text === 'string' && text.startsWith('🎮TTT:move:')
+}
+
+/** True for rock-paper-scissors throw messages (hidden the same way). */
+export function isRpsMove(text: unknown): boolean {
+  return typeof text === 'string' && text.startsWith('🎮RPS:move:')
+}
+
+/** True for any hidden game-state message (any game). */
+export function isGameMoveMsg(text: unknown): boolean {
+  return isTTTTMove(text) || isRpsMove(text)
 }
 
 export const EFFECT_OPTIONS: { kind: EffectKind; emoji: string; label: string }[] = [

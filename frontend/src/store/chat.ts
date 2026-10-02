@@ -3,7 +3,7 @@ import { Conversation, Message } from '../types'
 import { convApi, msgApi } from '../services/api'
 import { useAuthStore } from './auth'
 import { useSettingsStore } from './settings'
-import { isTTTTMove } from '../utils/messageEffects'
+import { isGameMoveMsg } from '../utils/messageEffects'
 import wsService from '../services/websocket'
 
 interface ChatState {
@@ -305,7 +305,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     // update conversation last_message preview (masked for E2EE, same rule
     // as the backend list endpoint). Game moves stay invisible: pretty
     // preview, no unread bump — the live board is the whole UI.
-    const isGameMove = isTTTTMove((msg as any).content)
+    const isGameMove = isGameMoveMsg((msg as any).content)
     const livePreview = isGameMove ? '🎮 Game move' : previewContentFor(msg)
     set(state=>{
       const convs = state.conversations.map(c=>{
