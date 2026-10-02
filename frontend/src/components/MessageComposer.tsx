@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
+import { CameraModal } from './CameraModal'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
 import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
@@ -34,6 +35,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [showGifs, setShowGifs] = useState(false)
   const [memeFile, setMemeFile] = useState<File | null>(null)
   const memeFileRef = useRef<HTMLInputElement>(null)
+  const [showCamera, setShowCamera] = useState(false)
   const { user } = useAuthStore()
 
   const sendChallenge = (kind: 'ttt' | 'rps' | 'c4') => {
@@ -136,6 +138,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       <button onClick={handleLocationShare} className="composer-action-btn" aria-label="Share location" title="Share current location">
         <MapPin className="w-5 h-5" />
       </button>
+      <button onClick={() => { setShowCamera(true); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Take a photo" title="Take a photo">
+        <Camera className="w-5 h-5" />
+      </button>
     </>
   )
   // Ref mirror: state updates are async, so a fast double-Enter would read
@@ -220,8 +225,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setShowGifs(false)
   }
 
-  const handleMemeSend = async (file: File) => {
+  const handleDirectImageSend = async (file: File) => {
     setMemeFile(null)
+    setShowCamera(false)
     setUploading(true)
     setProgress(0)
     setUploadError(null)
@@ -336,7 +342,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false); setShowCamera(false) }
   }
 
   return (
@@ -472,7 +478,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 
       {/* Meme maker */}
       {memeFile && (
-        <MemeMaker file={memeFile} onClose={() => setMemeFile(null)} onSend={handleMemeSend} />
+        <MemeMaker file={memeFile} onClose={() => setMemeFile(null)} onSend={handleDirectImageSend} />
+      )}
+
+      {/* In-app camera */}
+      {showCamera && (
+        <CameraModal onClose={() => setShowCamera(false)} onCapture={handleDirectImageSend} />
       )}
     </div>
   )
