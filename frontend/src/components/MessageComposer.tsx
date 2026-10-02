@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh } from 'lucide-react'
+import { MemeMaker } from './MemeMaker'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
 import EmojiPicker, { EmojiClickData } from 'emoji-picker-react'
@@ -29,6 +30,8 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [sending, setSending] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showGames, setShowGames] = useState(false)
+  const [memeFile, setMemeFile] = useState<File | null>(null)
+  const memeFileRef = useRef<HTMLInputElement>(null)
   const { user } = useAuthStore()
 
   const sendChallenge = (kind: 'ttt' | 'rps' | 'c4') => {
@@ -119,6 +122,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             </div>
           )}
         </div>
+      <button onClick={() => memeFileRef.current?.click()} className="composer-action-btn" aria-label="Make a meme" title="Make a meme">
+        <Laugh className="w-5 h-5" />
+      </button>
       <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="Stickers">
         <Image className="w-5 h-5" />
       </button>
@@ -199,6 +205,28 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const handleSticker = (url: string) => {
     onSend(url, undefined, 'text')
     setShowStickers(false)
+  }
+
+  const handleMemeSend = async (file: File) => {
+    setMemeFile(null)
+    setUploading(true)
+    setProgress(0)
+    setUploadError(null)
+    abortRef.current = new AbortController()
+    try {
+      const res = await uploadApi.upload(file, (p) => setProgress(p), abortRef.current.signal)
+      if (res.success) {
+        const att = res.data
+        onSend(text || 'Meme', [att.id], 'image' as any, undefined)
+        setText('')
+      }
+    } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') setUploadError('Upload cancelled')
+      else setUploadError(err.response?.data?.message || err.message || 'Upload failed')
+    } finally {
+      setUploading(false)
+      setProgress(0)
+    }
   }
 
   const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -329,6 +357,17 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <Paperclip className="w-5 h-5" />
         </button>
         <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm,.m4a,.wav,.ogg,.aac,.amr" multiple />
+        <input
+          ref={memeFileRef}
+          type="file"
+          className="hidden"
+          accept="image/*"
+          onChange={(e) => {
+            const f = e.target.files?.[0]
+            if (memeFileRef.current) memeFileRef.current.value = ''
+            if (f) setMemeFile(f)
+          }}
+        />
 
         {/* Textarea */}
         <textarea
@@ -392,6 +431,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         <div className="composer-picker">
           <StickerPicker onSelect={handleSticker} />
         </div>
+      )}
+
+      {/* Meme maker */}
+      {memeFile && (
+        <MemeMaker file={memeFile} onClose={() => setMemeFile(null)} onSend={handleMemeSend} />
       )}
     </div>
   )
