@@ -60,6 +60,7 @@ export interface UserSettings {
   media_auto_download: boolean
   typing_indicators: boolean
   link_previews: boolean
+  default_disappearing: number | null
 }
 
 const defaults: UserSettings = {
@@ -81,6 +82,7 @@ const defaults: UserSettings = {
   last_seen_visible: 'everyone',
   enter_to_send: true,
   media_auto_download: true,
+  default_disappearing: null,
   typing_indicators: true,
   link_previews: true,
 }
@@ -100,6 +102,7 @@ export const SERVER_KEYS = new Set<keyof UserSettings>([
   'last_seen_visible',
   'enter_to_send',
   'media_auto_download',
+  'default_disappearing',
 ])
 
 const localKey = (k: keyof UserSettings) => `kb_setting_${k}`

@@ -443,6 +443,11 @@ def create_conversation(
             db.add(
                 ConversationMember(conversation_id=conv.id, user_id=uid, role="member")
             )
+        from app.api.settings import get_or_create_settings
+
+        dflt = get_or_create_settings(db, current_user.id).default_disappearing
+        if dflt:
+            conv.disappearing_seconds = dflt
         db.commit()
         db.refresh(conv)
         return success_response(
@@ -520,6 +525,11 @@ def create_conversation(
                 conversation_id=conv.id, user_id=target_user.id, role="member"
             )
         )
+        from app.api.settings import get_or_create_settings
+
+        dflt = get_or_create_settings(db, current_user.id).default_disappearing
+        if dflt:
+            conv.disappearing_seconds = dflt
         db.commit()
         db.refresh(conv)
         return success_response(

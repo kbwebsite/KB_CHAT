@@ -470,12 +470,43 @@ export function AppLockSettings() {
   )
 }
 
+const TIMER_OPTS = [
+  { id: '', label: 'Off' },
+  { id: '86400', label: '24 hours' },
+  { id: '604800', label: '7 days' },
+  { id: '7776000', label: '90 days' },
+]
+
+function DefaultTimerRow() {
+  const value = useSettingsStore((s) => s.default_disappearing as number | null)
+  const update = useSettingsStore((s) => s.update)
+  return (
+    <div className="settings-section">
+      <label className="text-sm font-medium">Default timer</label>
+      <p className="text-xs text-muted-foreground mb-1.5">New chats auto-delete messages after this long</p>
+      <select
+        value={value == null ? '' : String(value)}
+        onChange={(e) => update({ default_disappearing: e.target.value === '' ? null : Number(e.target.value) } as any)}
+        className="mt-1 w-full px-3 py-2 rounded-lg border-[var(--k-border)] bg-background text-sm outline-none focus:ring-2 focus:ring-ring"
+        aria-label="Default disappearing timer"
+      >
+        {TIMER_OPTS.map((opt) => (
+          <option key={opt.id} value={opt.id}>
+            {opt.label}
+          </option>
+        ))}
+      </select>
+    </div>
+  )
+}
+
 export function PrivacyQuickSettings() {
   return (
     <div className="space-y-2">
       <SelectRow k="online_status_visible" label="Online status" desc="Who can see when you're online" options={VISIBILITY_OPTS} />
       <ToggleRow k="read_receipts" label="Read receipts" desc="Send blue ticks when you read messages" />
       <SelectRow k="last_seen_visible" label="Last seen" desc="Who can see your last active time" options={VISIBILITY_OPTS} />
+      <DefaultTimerRow />
     </div>
   )
 }

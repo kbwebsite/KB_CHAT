@@ -25,6 +25,7 @@ class SettingsUpdate(BaseModel):
     last_seen_visible: Optional[str] = None
     enter_to_send: Optional[bool] = None
     media_auto_download: Optional[bool] = None
+    default_disappearing: Optional[int] = None
 
 
 def get_or_create_settings(db: Session, user_id: int):
@@ -57,6 +58,7 @@ def get_settings(
             "last_seen_visible": s.last_seen_visible,
             "enter_to_send": s.enter_to_send,
             "media_auto_download": s.media_auto_download,
+            "default_disappearing": s.default_disappearing,
         }
     )
 
@@ -68,8 +70,21 @@ def update_settings(
     current_user: User = Depends(get_current_user),
 ):
     s = get_or_create_settings(db, current_user.id)
-    for k, v in payload.model_dump(exclude_unset=True).items():
-        if v is not None:
+    vals = payload.model_dump(exclude_unset=True)
+    if "default_disappearing" in vals and vals["default_disappearing"] is not None:
+        try:
+            dd = int(vals["default_disappearing"])
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid timer value")
+        if dd not in (86400, 604800, 7776000):
+            raise HTTPException(
+                status_code=400, detail="Timer must be 24 hours, 7 days or 90 days"
+            )
+        vals["default_disappearing"] = dd
+    for k, v in vals.items():
+        # default_disappearing is nullable (Off = NULL); everything else
+        # keeps the legacy skip-nulls behavior.
+        if v is not None or k == "default_disappearing":
             setattr(s, k, v)
     db.commit()
     db.refresh(s)
@@ -88,6 +103,7 @@ def update_settings(
             "last_seen_visible": s.last_seen_visible,
             "enter_to_send": s.enter_to_send,
             "media_auto_download": s.media_auto_download,
+            "default_disappearing": s.default_disappearing,
         },
         "Settings updated",
     )
