@@ -554,9 +554,10 @@ body {
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
 }
 
-/* Channels owner composer must clear the fixed bottom nav on mobile. */
+/* Channels owner composer must clear the fixed bottom nav on mobile.
+   !important beats Bootstrap's !important spacing utilities. */
 .channel-composer {
-  padding-bottom: calc(0.75rem + var(--bottom-nav-height) + var(--safe-bottom));
+  padding-bottom: calc(0.75rem + var(--bottom-nav-height) + var(--safe-bottom)) !important;
 }
 
 .bottom-nav-item {
@@ -2143,7 +2144,7 @@ body {
 
 @media (min-width: 1024px) {
   .bottom-nav { display: none; }
-  .channel-composer { padding-bottom: 0.75rem; }
+  .channel-composer { padding-bottom: 0.75rem !important; }
   .mobile-header { display: none; }
   .chat-header-back { display: none; }
 
