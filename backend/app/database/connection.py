@@ -1,4 +1,5 @@
 from sqlalchemy import create_engine, inspect
+from sqlalchemy.exc import OperationalError, ProgrammingError
 from sqlalchemy.orm import sessionmaker, declarative_base
 from app.database.config import settings
 
@@ -52,9 +53,29 @@ def get_db():
         db.close()
 
 
+def _is_duplicate_table_error(exc: Exception) -> bool:
+    """Return True only for race-safe 'table already exists' failures."""
+    orig = getattr(exc, "orig", None)
+    if getattr(orig, "pgcode", None) == "42P07":
+        return True
+    message = str(exc).lower()
+    return "already exists" in message and ("relation" in message or "table" in message)
+
+
 def create_tables():
     try:
-        Base.metadata.create_all(bind=engine)
+        # create_all() is normally check-first, but Render Postgres proved a
+        # table can exist while SQLAlchemy still emits CREATE TABLE for it
+        # (psycopg2 42P07 DuplicateTable). Create tables one at a time and
+        # tolerate only that specific race so boot never dies on it.
+        for table in Base.metadata.sorted_tables:
+            try:
+                table.create(bind=engine, checkfirst=True)
+            except (ProgrammingError, OperationalError) as table_exc:
+                if _is_duplicate_table_error(table_exc):
+                    print(f"[migrate] table exists, skipping {table.name}")
+                    continue
+                raise
         _ensure_missing_columns()
     except Exception as e:
         print(f"Database table creation failed: {e}")
