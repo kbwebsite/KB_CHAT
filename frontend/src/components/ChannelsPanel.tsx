@@ -180,35 +180,37 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       {openChannel ? (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Channel hero */}
-          <div className="relative shrink-0">
+          <div className="shrink-0">
             <div className="h-20 kryzen-accent-gradient opacity-90" />
-            <div className="px-4 pb-3 -mt-8 flex items-end gap-3">
+            <div className="px-4 -mt-8">
               <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center text-white text-2xl font-extrabold shadow-lg ring-4 ring-[var(--bg-card)]">
                 {avatarLetter(openChannel.name)}
               </div>
-              <div className="flex-1 min-w-0 pb-0.5">
+            </div>
+            <div className="px-4 pt-2 pb-3 flex items-start gap-3">
+              <div className="flex-1 min-w-0">
                 <p className="font-bold flex items-center gap-1.5 truncate">
-                  {openChannel.name}
+                  <span className="truncate">{openChannel.name}</span>
                   {openChannel.is_owner && <Check className="w-4 h-4 text-primary shrink-0" />}
                 </p>
-                <p className="text-[11px] text-tertiary">
+                <p className="text-[11px] text-tertiary mt-0.5">
                   {openChannel.follower_count ?? 0} followers · {openChannel.post_count ?? 0} posts
                 </p>
+                {openChannel.description && (
+                  <p className="text-xs text-secondary leading-relaxed mt-1">{openChannel.description}</p>
+                )}
               </div>
               {!openChannel.is_owner && (
                 <button
                   onClick={() => follow(openChannel.id, !openChannel.followed)}
                   className={openChannel.followed
-                    ? 'px-4 py-1.5 rounded-full bg-muted text-secondary text-xs font-semibold'
-                    : 'px-4 py-1.5 rounded-full gradient-primary text-white text-xs font-semibold shadow'}
+                    ? 'px-4 py-1.5 rounded-full bg-muted text-secondary text-xs font-semibold shrink-0'
+                    : 'px-4 py-1.5 rounded-full gradient-primary text-white text-xs font-semibold shadow shrink-0'}
                 >
                   {openChannel.followed ? 'Following' : 'Follow'}
                 </button>
               )}
             </div>
-            {openChannel.description && (
-              <p className="px-4 pb-3 text-xs text-secondary leading-relaxed">{openChannel.description}</p>
-            )}
           </div>
 
           {/* Feed */}
