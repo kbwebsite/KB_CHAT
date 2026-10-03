@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useSettingsStore } from '../store/settings'
@@ -11,7 +11,7 @@ import { CallsPanel } from './CallsPanel'
 import { BroadcastPanel } from './BroadcastPanel'
 import { CommunitiesPanel } from './CommunitiesPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock, Megaphone, Network } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, Bookmark, Moon, Sun, Lock, Megaphone, Network } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -69,6 +69,13 @@ export function ChatSidebar({
   const lockNow = useLockStore((s) => s.lock)
   const closeMenu = () => setShowMenu(false)
   const menuFire = (fn?: () => void) => () => { closeMenu(); fn?.() }
+
+  // Opened from anywhere (sidebar menu, command palette) via 'kb:new-group'.
+  useEffect(() => {
+    const open = () => setShowNewGroup(true)
+    window.addEventListener('kb:new-group', open)
+    return () => window.removeEventListener('kb:new-group', open)
+  }, [])
 
   const typingMap = typingUsers
 
@@ -173,6 +180,10 @@ export function ChatSidebar({
             <>
               <div className="fixed inset-0 z-10" onClick={closeMenu} />
               <div className="absolute right-0 top-full mt-2 w-52 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm max-h-[70vh] overflow-y-auto" role="menu">
+                <button role="menuitem" onClick={menuFire(() => setShowNewGroup(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <Users className="w-4 h-4 text-primary" />
+                  New group
+                </button>
                 <button role="menuitem" onClick={menuFire(() => settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' }))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                   {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-primary" /> : <Moon className="w-4 h-4 text-primary" />}
                   {settings.theme === 'dark' ? 'Light mode' : 'Dark mode'}

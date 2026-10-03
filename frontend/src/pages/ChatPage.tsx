@@ -693,7 +693,7 @@ export default function ChatPage() {
           conversations={conversations}
           onForward={handleForward}
           onNewChat={() => { closeAllPanels() }}
-          onNewGroup={() => { closeAllPanels() }}
+          onNewGroup={() => { closeAllPanels(); window.dispatchEvent(new Event('kb:new-group')) }}
           onNewStatus={() => { closeAllPanels(); setShowStatus(true) }}
           onSettings={() => { closeAllPanels(); setShowSettings(true) }}
           onSaved={() => { closeAllPanels(); setShowSaved(true) }}
