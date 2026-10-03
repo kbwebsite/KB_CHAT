@@ -166,6 +166,16 @@ export const communityApi = {
   announce: (id:number, content:string) => api.post(`/api/communities/${id}/announce`, {content}).then(r=>r.data),
 }
 
+export const channelApi = {
+  list: () => api.get(`/api/channels`).then(r=>r.data),
+  create: (data:{name:string, description?:string}) => api.post(`/api/channels`, data).then(r=>r.data),
+  remove: (id:number) => api.delete(`/api/channels/${id}`).then(r=>r.data),
+  follow: (id:number) => api.post(`/api/channels/${id}/follow`).then(r=>r.data),
+  unfollow: (id:number) => api.delete(`/api/channels/${id}/follow`).then(r=>r.data),
+  posts: (id:number) => api.get(`/api/channels/${id}/posts`).then(r=>r.data),
+  post: (id:number, content:string) => api.post(`/api/channels/${id}/posts`, {content}).then(r=>r.data),
+}
+
 export const msgApi = {
   list: (cid:number, params:any={}) => {
     const q = new URLSearchParams()

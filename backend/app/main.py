@@ -152,6 +152,7 @@ from app.api.uploads import router as upload_router
 from app.api.groups import router as groups_router
 from app.api.broadcasts import router as broadcasts_router
 from app.api.communities import router as communities_router
+from app.api.channels import router as channels_router
 from app.api.saved import router as saved_router
 from app.api.calls import router as calls_router
 from app.api.settings import router as settings_router
@@ -202,6 +203,7 @@ app.include_router(upload_router)
 app.include_router(groups_router)
 app.include_router(broadcasts_router)
 app.include_router(communities_router)
+app.include_router(channels_router)
 app.include_router(saved_router)
 app.include_router(calls_router)
 app.include_router(settings_router)
