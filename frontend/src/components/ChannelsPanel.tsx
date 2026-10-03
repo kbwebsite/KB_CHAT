@@ -148,7 +148,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center justify-between p-4 border-b border-[var(--k-border)]">
+      <div className="flex items-center justify-between p-4 border-b border-[var(--k-border)] shrink-0">
         <h2 className="font-semibold tracking-tight flex items-center gap-2">
           {openChannel ? (
             <>
@@ -253,7 +253,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
           {openChannel.is_owner && (
-            <div className="p-3 border-t border-[var(--k-border)] flex gap-2">
+            <div className="p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0">
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
