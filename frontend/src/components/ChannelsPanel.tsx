@@ -1,21 +1,18 @@
 import { useEffect, useState } from 'react'
 import {
-  Radio,
   Plus,
   Send,
   Trash2,
   X,
   Check,
   ArrowLeft,
-  Users,
-  FileText,
-  Megaphone,
 } from 'lucide-react'
 import { channelApi } from '../services/api'
 
 /**
  * Channels (WhatsApp-style): one-way broadcast feeds. Owners post updates;
  * anyone can discover and follow a channel, followers read the feed.
+ * Plain list design: avatar, name, follower count, follow button.
  */
 export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [channels, setChannels] = useState<any[]>([])
@@ -148,139 +145,105 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   return (
     <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center justify-between p-4 border-b border-[var(--k-border)] shrink-0">
-        <h2 className="font-semibold tracking-tight flex items-center gap-2">
-          {openChannel ? (
-            <>
-              <button onClick={() => { setOpenId(null); setPosts([]) }} className="p-1.5 rounded-full hover:bg-muted transition-colors" aria-label="Back to channels">
-                <ArrowLeft className="w-4 h-4" />
-              </button>
-              <span className="truncate max-w-[180px]">{openChannel.name}</span>
-            </>
-          ) : (
-            <>
-              <Radio className="w-4 h-4 text-primary" /> Channels
-            </>
-          )}
-        </h2>
-        <div className="flex items-center gap-1">
-          {!openChannel && (
-            <button onClick={() => setShowCreate((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="New channel">
-              <Plus className="w-4 h-4" />
+      <div className="flex items-center gap-2 p-3 border-b border-[var(--k-border)] shrink-0">
+        {openChannel ? (
+          <>
+            <button onClick={() => { setOpenId(null); setPosts([]) }} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Back to channels">
+              <ArrowLeft className="w-5 h-5" />
             </button>
-          )}
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
+            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-base font-bold shrink-0">
+              {avatarLetter(openChannel.name)}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-semibold flex items-center gap-1 truncate">
+                <span className="truncate">{openChannel.name}</span>
+                {openChannel.is_owner && <Check className="w-4 h-4 text-primary shrink-0" />}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                {openChannel.follower_count ?? 0} followers
+              </p>
+            </div>
+            {!openChannel.is_owner && (
+              <button
+                onClick={() => follow(openChannel.id, !openChannel.followed)}
+                className="px-4 py-1.5 rounded-full btn-primary text-sm font-medium shrink-0"
+              >
+                {openChannel.followed ? 'Following' : 'Follow'}
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <p className="font-semibold flex-1">Channels</p>
+            <button onClick={() => setShowCreate((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="New channel">
+              <Plus className="w-5 h-5" />
+            </button>
+          </>
+        )}
+        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
-      {msg && <p className="px-4 py-2 text-xs text-center text-secondary">{msg}</p>}
+      {msg && <p className="px-4 py-2 text-xs text-muted-foreground">{msg}</p>}
 
       {openChannel ? (
         <div className="flex-1 flex flex-col min-h-0">
-          {/* Channel hero */}
-          <div className="shrink-0 border-b border-[var(--k-border)]">
-            <div className="h-16 kryzen-accent-gradient opacity-90" />
-            <div className="px-4 py-3 flex items-center gap-3">
-              <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0">
-                {avatarLetter(openChannel.name)}
-              </div>
-              <div className="flex-1 min-w-0">
-                <p className="font-bold flex items-center gap-1.5 truncate">
-                  <span className="truncate">{openChannel.name}</span>
-                  {openChannel.is_owner && <Check className="w-4 h-4 text-primary shrink-0" />}
-                </p>
-                <p className="text-[11px] text-tertiary mt-0.5">
-                  {openChannel.follower_count ?? 0} followers · {openChannel.post_count ?? 0} posts
-                </p>
-                {openChannel.description && (
-                  <p className="text-xs text-secondary leading-relaxed mt-1 line-clamp-2">{openChannel.description}</p>
-                )}
-              </div>
-              {!openChannel.is_owner && (
-                <button
-                  onClick={() => follow(openChannel.id, !openChannel.followed)}
-                  className={openChannel.followed
-                    ? 'px-4 py-1.5 rounded-full bg-muted text-secondary text-xs font-semibold shrink-0'
-                    : 'px-4 py-1.5 rounded-full gradient-primary text-white text-xs font-semibold shadow shrink-0'}
-                >
-                  {openChannel.followed ? 'Following' : 'Follow'}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Feed */}
-          <div className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {openChannel.description && (
+              <p className="px-4 py-2.5 text-sm text-secondary border-b border-[var(--k-border)]">{openChannel.description}</p>
+            )}
             {postsLoading ? (
-              <p className="text-sm text-muted-foreground text-center py-6">Loading posts…</p>
+              <p className="text-sm text-muted-foreground text-center py-8">Loading posts…</p>
             ) : posts.length === 0 ? (
-              <div className="flex flex-col items-center gap-2 py-10 text-center">
-                <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center text-white shadow-lg">
-                  <Megaphone className="w-6 h-6" />
-                </div>
+              <div className="py-10 text-center">
                 <p className="text-sm font-medium">No posts yet</p>
-                <p className="text-xs text-muted-foreground max-w-[220px]">
-                  {openChannel.is_owner ? 'Be the first to post an update below.' : 'New updates from this channel will appear here.'}
+                <p className="text-xs text-muted-foreground mt-1">
+                  {openChannel.is_owner ? 'Post the first update below.' : 'New updates will appear here.'}
                 </p>
               </div>
             ) : (
-              posts.map((p: any, i: number) => (
-                <article
-                  key={p.id}
-                  className={`rounded-2xl bg-elevated border p-3.5 ${i === 0 ? 'border-primary/40 shadow-[0_0_24px_rgba(var(--accent-rgb),0.12)]' : 'border-subtle'}`}
-                >
-                  <div className="flex items-center gap-2.5 mb-2">
-                    <div className="w-9 h-9 rounded-full gradient-primary flex items-center justify-center text-white text-sm font-bold shrink-0">
-                      {avatarLetter(p.sender_display_name || p.sender_username || openChannel.name)}
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-semibold truncate">
-                        {p.sender_display_name || p.sender_username || openChannel.name}
-                      </p>
-                      <p className="text-[11px] text-tertiary">{fmtTime(p.created_at)}</p>
-                    </div>
-                    {i === 0 && (
-                      <span className="ml-auto text-[10px] font-bold uppercase tracking-wider text-primary shrink-0">Latest</span>
-                    )}
-                  </div>
+              posts.map((p: any) => (
+                <div key={p.id} className="px-4 py-3 border-b border-[var(--k-border)]">
+                  <p className="text-xs text-muted-foreground mb-1">
+                    <span className="font-medium text-secondary">{p.sender_display_name || p.sender_username || openChannel.name}</span>
+                    {' · '}{fmtTime(p.created_at)}
+                  </p>
                   <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{p.content}</p>
-                </article>
+                </div>
               ))
             )}
           </div>
           {openChannel.is_owner && (
-            <div className="p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
+            <div className="p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0">
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') post(openChannel.id) }}
-                placeholder="Post an update to followers…"
-                className="flex-1 px-3 py-2.5 rounded-xl bg-elevated border border-medium outline-none text-sm"
+                placeholder="Post an update…"
+                className="flex-1 px-3 py-2.5 rounded-full bg-elevated border border-medium outline-none text-sm"
               />
-              <button onClick={() => post(openChannel.id)} disabled={sending || !draft.trim()} className="p-2.5 rounded-xl btn-primary disabled:opacity-50" aria-label="Post">
+              <button onClick={() => post(openChannel.id)} disabled={sending || !draft.trim()} className="p-2.5 rounded-full btn-primary disabled:opacity-50" aria-label="Post">
                 <Send className="w-4 h-4" />
               </button>
             </div>
           )}
         </div>
       ) : (
-        <div className="flex-1 overflow-y-auto p-3 space-y-2.5 min-h-0">
+        <div className="flex-1 overflow-y-auto min-h-0">
           {showCreate && (
-            <div className="rounded-2xl bg-elevated border border-subtle p-3.5 space-y-2">
-              <p className="text-sm font-semibold">New channel</p>
+            <div className="p-3 border-b border-[var(--k-border)] space-y-2">
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Channel name"
-                className="w-full px-3 py-2.5 rounded-xl bg-card border border-medium outline-none text-sm"
+                className="w-full px-3 py-2.5 rounded-xl bg-elevated border border-medium outline-none text-sm"
               />
               <input
                 value={desc}
                 onChange={(e) => setDesc(e.target.value)}
-                placeholder="What is this channel about?"
-                className="w-full px-3 py-2.5 rounded-xl bg-card border border-medium outline-none text-sm"
+                placeholder="Description (optional)"
+                className="w-full px-3 py-2.5 rounded-xl bg-elevated border border-medium outline-none text-sm"
               />
               <button onClick={create} disabled={creating} className="w-full py-2.5 rounded-xl btn-primary text-sm font-medium disabled:opacity-50">
                 {creating ? 'Creating…' : 'Create channel'}
@@ -288,53 +251,44 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             </div>
           )}
           {loading ? (
-            <p className="text-sm text-muted-foreground text-center py-6">Loading channels…</p>
+            <p className="text-sm text-muted-foreground text-center py-8">Loading channels…</p>
           ) : channels.length === 0 ? (
-            <div className="flex flex-col items-center gap-2 py-10 text-center">
-              <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center text-white shadow-lg">
-                <Radio className="w-6 h-6" />
-              </div>
+            <div className="py-10 text-center">
               <p className="text-sm font-medium">No channels yet</p>
-              <p className="text-xs text-muted-foreground max-w-[220px]">Create the first one with the + button above.</p>
+              <p className="text-xs text-muted-foreground mt-1">Create the first one with + above.</p>
             </div>
           ) : (
             channels.map((c: any) => (
-              <div key={c.id} className="rounded-2xl bg-elevated border border-subtle p-3 flex items-center gap-3 hover:border-primary/30 transition-colors">
-                <button onClick={() => open(c)} disabled={!(c.followed || c.is_owner)} className="flex items-center gap-3 flex-1 min-w-0 text-left disabled:cursor-default">
-                  <div className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 shadow">
-                    {avatarLetter(c.name)}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-bold flex items-center gap-1.5 truncate">
-                      <span className="truncate">{c.name}</span>
-                      {c.is_owner && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                    </p>
-                    {c.description
-                      ? <p className="text-xs text-muted-foreground line-clamp-1 truncate">{c.description}</p>
-                      : <p className="text-xs text-tertiary italic">No description</p>}
-                    <p className="text-[11px] text-tertiary mt-1 flex items-center gap-2.5">
-                      <span className="flex items-center gap-1"><Users className="w-3 h-3" />{c.follower_count ?? 0}</span>
-                      <span className="flex items-center gap-1"><FileText className="w-3 h-3" />{c.post_count ?? 0} posts</span>
-                    </p>
-                  </div>
+              <div key={c.id} className="flex items-center gap-3 px-3 py-2.5 border-b border-[var(--k-border)]">
+                <button onClick={() => open(c)} disabled={!(c.followed || c.is_owner)} className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-lg font-bold shrink-0 disabled:cursor-default">
+                  {avatarLetter(c.name)}
                 </button>
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  {!c.is_owner && (
-                    <button
-                      onClick={() => follow(c.id, !c.followed)}
-                      className={c.followed
-                        ? 'px-4 py-1.5 rounded-full bg-muted text-secondary text-xs font-semibold'
-                        : 'px-4 py-1.5 rounded-full gradient-primary text-white text-xs font-semibold shadow'}
-                    >
-                      {c.followed ? 'Following' : 'Follow'}
-                    </button>
+                <button onClick={() => open(c)} disabled={!(c.followed || c.is_owner)} className="flex-1 min-w-0 text-left disabled:cursor-default">
+                  <p className="font-medium flex items-center gap-1 truncate">
+                    <span className="truncate">{c.name}</span>
+                    {c.is_owner && <Check className="w-4 h-4 text-primary shrink-0" />}
+                  </p>
+                  <p className="text-xs text-muted-foreground truncate">
+                    {c.description || `${c.follower_count ?? 0} followers`}
+                  </p>
+                  {c.description && (
+                    <p className="text-xs text-muted-foreground">{c.follower_count ?? 0} followers</p>
                   )}
-                  {c.is_owner && (
-                    <button onClick={() => remove(c.id)} className="p-2 rounded-full hover:bg-muted transition-colors text-tertiary" aria-label="Delete channel">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                </div>
+                </button>
+                {!c.is_owner ? (
+                  <button
+                    onClick={() => follow(c.id, !c.followed)}
+                    className={c.followed
+                      ? 'px-3 py-1.5 rounded-full bg-muted text-secondary text-sm shrink-0'
+                      : 'px-3 py-1.5 rounded-full btn-primary text-sm font-medium shrink-0'}
+                  >
+                    {c.followed ? 'Following' : 'Follow'}
+                  </button>
+                ) : (
+                  <button onClick={() => remove(c.id)} className="p-2 rounded-full hover:bg-muted transition-colors text-muted-foreground shrink-0" aria-label="Delete channel">
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                )}
               </div>
             ))
           )}
