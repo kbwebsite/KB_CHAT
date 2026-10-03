@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   Plus,
   Send,
@@ -27,6 +27,13 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [draft, setDraft] = useState('')
   const [sending, setSending] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  const composerRef = useRef<HTMLInputElement>(null)
+
+  const focusComposer = () => {
+    composerRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
+    // Focus after scroll so mobile keyboards open over the right spot.
+    setTimeout(() => composerRef.current?.focus({ preventScroll: true }), 250)
+  }
 
   const load = () => {
     channelApi
@@ -196,11 +203,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             {postsLoading ? (
               <p className="text-sm text-muted-foreground text-center py-8">Loading posts…</p>
             ) : posts.length === 0 ? (
-              <div className="py-10 text-center">
+              <div className="py-10 text-center px-6">
                 <p className="text-sm font-medium">No posts yet</p>
                 <p className="text-xs text-muted-foreground mt-1">
                   {openChannel.is_owner ? 'Post the first update below.' : 'New updates will appear here.'}
                 </p>
+                {openChannel.is_owner && (
+                  <button onClick={focusComposer} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-medium">
+                    Post your first update
+                  </button>
+                )}
               </div>
             ) : (
               posts.map((p: any) => (
@@ -217,6 +229,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           {openChannel.is_owner && (
             <div className="channel-composer p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0">
               <input
+                ref={composerRef}
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') post(openChannel.id) }}
