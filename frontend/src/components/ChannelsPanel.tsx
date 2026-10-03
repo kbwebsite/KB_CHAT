@@ -215,7 +215,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
           {openChannel.is_owner && (
-            <div className="p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0">
+            <div className="channel-composer p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0">
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}

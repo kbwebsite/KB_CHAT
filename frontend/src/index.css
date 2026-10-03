@@ -554,6 +554,11 @@ body {
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
 }
 
+/* Channels owner composer must clear the fixed bottom nav on mobile. */
+.channel-composer {
+  padding-bottom: calc(0.75rem + var(--bottom-nav-height) + var(--safe-bottom));
+}
+
 .bottom-nav-item {
   display: flex;
   flex-direction: column;
@@ -2138,6 +2143,7 @@ body {
 
 @media (min-width: 1024px) {
   .bottom-nav { display: none; }
+  .channel-composer { padding-bottom: 0.75rem; }
   .mobile-header { display: none; }
   .chat-header-back { display: none; }
 
