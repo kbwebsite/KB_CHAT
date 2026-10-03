@@ -425,12 +425,23 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       {/* ── Open channel: feed ──────────────────────────────────── */}
       {openChannel ? (
         <div className="flex-1 flex flex-col min-h-0">
-          <div ref={feedRef} onScroll={onFeedScroll} className="flex-1 overflow-y-auto min-h-0 relative">
+          <div
+            ref={feedRef}
+            onScroll={onFeedScroll}
+            className="flex-1 overflow-y-auto min-h-0 relative"
+            style={{
+              background:
+                'radial-gradient(ellipse at 20% 0%, rgba(var(--accent-rgb), 0.10) 0%, transparent 55%), radial-gradient(ellipse at 85% 30%, rgba(var(--cyan-rgb), 0.06) 0%, transparent 50%), var(--bg-primary)',
+            }}
+          >
             {/* Description banner */}
             {openChannel.description && !bannerDismissed && (
-              <div className="m-3 mb-0 rounded-xl border border-subtle bg-elevated flex items-start gap-2.5 p-3">
-                <span className="w-8 h-8 rounded-full border border-subtle flex items-center justify-center shrink-0">
-                  <Info className="w-4 h-4 text-secondary" />
+              <div
+                className="m-3 mb-0 rounded-2xl border border-subtle flex items-start gap-2.5 p-3"
+                style={{ background: 'rgba(28,28,56,0.85)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.35)' }}
+              >
+                <span className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center shrink-0">
+                  <Info className="w-4 h-4 text-white" />
                 </span>
                 <p className="flex-1 text-[13px] leading-snug text-secondary">{openChannel.description}</p>
                 <button onClick={() => setBannerDismissed(true)} className="p-1 rounded-full hover:bg-muted" aria-label="Dismiss">
@@ -445,37 +456,77 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <p className="text-sm text-muted-foreground text-center py-8">Loading posts…</p>
             ) : posts.length === 0 ? (
               <div className="py-12 text-center px-8">
-                <p className="text-[15px] font-semibold">No posts yet</p>
+                <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-white text-2xl font-extrabold mx-auto shadow-lg">
+                  {avatarLetter(openChannel.name)}
+                </div>
+                <p className="text-[15px] font-semibold mt-3">No posts yet</p>
                 <p className="text-[13px] text-muted-foreground mt-1">
                   {openChannel.is_owner ? 'Share the first update with your followers.' : 'New updates will appear here.'}
                 </p>
                 {openChannel.is_owner && (
-                  <button onClick={focusComposer} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold">
+                  <button onClick={focusComposer} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold shadow-lg">
                     Post your first update
                   </button>
                 )}
               </div>
             ) : (
-              <div className="px-3 py-2 pb-4">
+              <div className="px-3 py-2 pb-6">
                 {grouped.map((g) => (
                   <div key={g.key}>
                     {/* Date pill */}
-                    <div className="flex justify-center my-3">
-                      <span className="px-3 py-1 rounded-lg bg-elevated border border-subtle text-[11px] font-semibold tracking-wide text-secondary">
+                    <div className="flex justify-center my-4">
+                      <span
+                        className="px-4 py-1.5 rounded-full text-[11px] font-bold tracking-[0.08em] text-primary border border-subtle"
+                        style={{ background: 'rgba(28,28,56,0.9)', boxShadow: '0 2px 12px rgba(0,0,0,0.4)' }}
+                      >
                         {g.label}
                       </span>
                     </div>
-                    <div className="space-y-3">
+                    <div className="space-y-4">
                       {g.items.map((p: any, i: number) => {
                         const imgs = postImages(p.content || '')
                         const text = postText(p)
                         const isLatest = i === g.items.length - 1 && g.key === grouped[grouped.length - 1].key
                         return (
-                          <div key={p.id} className="relative">
-                            <article className="rounded-2xl bg-elevated border border-subtle overflow-hidden">
+                          <div key={p.id}>
+                            <article
+                              className="rounded-[20px] border overflow-hidden transition-transform hover:scale-[1.005]"
+                              style={
+                                isLatest
+                                  ? {
+                                      background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(22,22,46,0.98))',
+                                      borderColor: 'rgba(var(--accent-rgb), 0.45)',
+                                      boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 24px rgba(var(--accent-rgb), 0.12)',
+                                    }
+                                  : {
+                                      background: 'linear-gradient(180deg, rgba(28,28,56,0.95), rgba(20,20,42,0.95))',
+                                      borderColor: 'rgba(255,255,255,0.07)',
+                                      boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
+                                    }
+                              }
+                            >
+                              {isLatest && <div className="h-1 kryzen-accent-gradient" />}
+                              {/* Channel identity row */}
+                              <div className="flex items-center gap-2.5 px-3.5 pt-3">
+                                <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-extrabold shrink-0 shadow">
+                                  {avatarLetter(openChannel.name)}
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[13px] font-bold truncate tracking-tight flex items-center gap-1">
+                                    <span className="truncate">{openChannel.name}</span>
+                                    {openChannel.is_owner && <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
+                                  </p>
+                                  <p className="text-[11px] text-tertiary">{fmtPostTime(p.created_at)}</p>
+                                </div>
+                                {isLatest && (
+                                  <span className="text-[10px] font-bold uppercase tracking-wider text-white gradient-primary px-2.5 py-1 rounded-full shrink-0 shadow">
+                                    New
+                                  </span>
+                                )}
+                              </div>
                               {/* Media */}
                               {imgs.length > 0 && (
-                                <div className="bg-black/40">
+                                <div className="mt-2.5 bg-black/40">
                                   {imgs.map((u) => (
                                     <a key={u} href={u} target="_blank" rel="noreferrer">
                                       <img src={u} alt="" loading="lazy" className="w-full max-h-80 object-cover" />
@@ -485,36 +536,33 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                               )}
                               {/* Caption */}
                               {text ? (
-                                <div className="px-3.5 pt-3 pb-1.5">
-                                  <p className="text-[15px] leading-[1.55] whitespace-pre-wrap break-words">
+                                <div className="px-3.5 pt-2.5 pb-1">
+                                  <p className="text-[15px] leading-[1.6] whitespace-pre-wrap break-words">
                                     {renderRichText(text)}
                                   </p>
                                 </div>
                               ) : (
-                                <div className="h-2" />
+                                <div className="h-1.5" />
                               )}
                               {/* Meta footer */}
-                              <div className="px-3.5 pb-2.5 pt-1 flex items-center justify-end gap-1.5">
+                              <div className="px-3 pb-2.5 pt-1 flex items-center gap-1">
+                                <button
+                                  onClick={() => forwardPost(p)}
+                                  className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center text-tertiary hover:text-primary transition-colors"
+                                  aria-label="Forward post"
+                                  title="Forward / share"
+                                >
+                                  <Forward className="w-4 h-4" />
+                                </button>
+                                <span className="flex-1" />
                                 <span className="flex items-center gap-1 text-[11px] text-tertiary">
                                   <Eye className="w-3.5 h-3.5" />
                                   {formatFollowers(openChannel.follower_count ?? 0)}
                                 </span>
                                 <span className="text-[11px] text-tertiary">{fmtPostTime(p.created_at)}</span>
                                 {openChannel.is_owner && <Check className="w-3.5 h-3.5 text-tertiary" />}
-                                {isLatest && (
-                                  <span className="ml-1 text-[10px] font-bold uppercase tracking-wider text-primary">New</span>
-                                )}
                               </div>
                             </article>
-                            {/* Forward */}
-                            <button
-                              onClick={() => forwardPost(p)}
-                              className="absolute -bottom-1 left-2 w-9 h-9 rounded-full bg-elevated border border-subtle shadow-lg flex items-center justify-center text-secondary hover:text-primary"
-                              aria-label="Forward post"
-                              title="Forward / share"
-                            >
-                              <Forward className="w-4 h-4" />
-                            </button>
                           </div>
                         )
                       })}
@@ -554,8 +602,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               )}
               <div className="flex items-center gap-1.5">
                 <div
-                  className="flex-1 flex items-center gap-1 rounded-full border px-1.5 py-1"
-                  style={fieldStyle}
+                  className="flex-1 flex items-center gap-1 rounded-full border px-1.5 py-1 transition-shadow focus-within:border-primary/60"
+                  style={{ ...fieldStyle, boxShadow: '0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}
                 >
                   <button onClick={() => setShowEmoji((v) => !v)} className="p-2 rounded-full text-tertiary hover:text-secondary" aria-label="Emoji">
                     <Smile className="w-5 h-5" />
@@ -580,8 +628,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   <button
                     onClick={() => post(openChannel.id)}
                     disabled={sending || uploading || !draft.trim()}
-                    className="w-12 h-12 rounded-full btn-primary disabled:opacity-50 flex items-center justify-center shrink-0"
+                    className="w-12 h-12 rounded-full btn-primary disabled:opacity-50 flex items-center justify-center shrink-0 shadow-lg"
                     aria-label="Post"
+                    style={{ boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.45)' }}
                   >
                     <Send className="w-5 h-5" />
                   </button>
