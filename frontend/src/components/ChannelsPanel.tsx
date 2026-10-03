@@ -180,14 +180,12 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       {openChannel ? (
         <div className="flex-1 flex flex-col min-h-0">
           {/* Channel hero */}
-          <div className="shrink-0">
-            <div className="h-20 kryzen-accent-gradient opacity-90" />
-            <div className="px-4 -mt-8">
-              <div className="w-16 h-16 rounded-2xl gradient-primary flex items-center justify-center text-white text-2xl font-extrabold shadow-lg ring-4 ring-[var(--bg-card)]">
+          <div className="shrink-0 border-b border-[var(--k-border)]">
+            <div className="h-16 kryzen-accent-gradient opacity-90" />
+            <div className="px-4 py-3 flex items-center gap-3">
+              <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0">
                 {avatarLetter(openChannel.name)}
               </div>
-            </div>
-            <div className="px-4 pt-2 pb-3 flex items-start gap-3">
               <div className="flex-1 min-w-0">
                 <p className="font-bold flex items-center gap-1.5 truncate">
                   <span className="truncate">{openChannel.name}</span>
@@ -197,7 +195,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   {openChannel.follower_count ?? 0} followers · {openChannel.post_count ?? 0} posts
                 </p>
                 {openChannel.description && (
-                  <p className="text-xs text-secondary leading-relaxed mt-1">{openChannel.description}</p>
+                  <p className="text-xs text-secondary leading-relaxed mt-1 line-clamp-2">{openChannel.description}</p>
                 )}
               </div>
               {!openChannel.is_owner && (
@@ -253,7 +251,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
           {openChannel.is_owner && (
-            <div className="p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0">
+            <div className="p-3 border-t border-[var(--k-border)] flex gap-2 shrink-0" style={{ paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))' }}>
               <input
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
