@@ -6,6 +6,8 @@ import {
   X,
   Check,
   ArrowLeft,
+  Users,
+  FileText,
 } from 'lucide-react'
 import { channelApi } from '../services/api'
 
@@ -142,7 +144,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   const fmtTime = (iso?: string) => {
     if (!iso) return ''
-    const d = new Date(iso)
+    // Backend sends naive UTC datetimes; interpret them as UTC, not local.
+    const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`
+    const d = new Date(normalized)
     const diff = Date.now() - d.getTime()
     if (diff < 60_000) return 'Just now'
     if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m ago`
@@ -158,26 +162,15 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             <button onClick={() => { setOpenId(null); setPosts([]) }} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Back to channels">
               <ArrowLeft className="w-5 h-5" />
             </button>
-            <div className="w-10 h-10 rounded-full bg-muted flex items-center justify-center text-base font-bold shrink-0">
-              {avatarLetter(openChannel.name)}
-            </div>
             <div className="flex-1 min-w-0">
               <p className="font-semibold flex items-center gap-1 truncate">
                 <span className="truncate">{openChannel.name}</span>
                 {openChannel.is_owner && <Check className="w-4 h-4 text-primary shrink-0" />}
               </p>
               <p className="text-xs text-muted-foreground">
-                {openChannel.follower_count ?? 0} followers
+                {openChannel.follower_count ?? 0} followers · {openChannel.post_count ?? 0} posts
               </p>
             </div>
-            {!openChannel.is_owner && (
-              <button
-                onClick={() => follow(openChannel.id, !openChannel.followed)}
-                className="px-4 py-1.5 rounded-full btn-primary text-sm font-medium shrink-0"
-              >
-                {openChannel.followed ? 'Following' : 'Follow'}
-              </button>
-            )}
           </>
         ) : (
           <>
@@ -197,9 +190,40 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       {openChannel ? (
         <div className="flex-1 flex flex-col min-h-0">
           <div className="flex-1 overflow-y-auto min-h-0">
-            {openChannel.description && (
-              <p className="px-4 py-2.5 text-sm text-secondary border-b border-[var(--k-border)]">{openChannel.description}</p>
-            )}
+            {/* Channel hero card */}
+            <div className="m-3 rounded-2xl overflow-hidden border border-subtle bg-elevated">
+              <div className="h-16 kryzen-accent-gradient opacity-90" />
+              <div className="p-3.5 flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0">
+                  {avatarLetter(openChannel.name)}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold flex items-center gap-1.5 truncate">
+                    <span className="truncate">{openChannel.name}</span>
+                    {openChannel.is_owner && <Check className="w-4 h-4 text-primary shrink-0" />}
+                  </p>
+                  {openChannel.description
+                    ? <p className="text-xs text-secondary mt-0.5 line-clamp-2">{openChannel.description}</p>
+                    : <p className="text-xs text-tertiary italic mt-0.5">No description</p>}
+                  <p className="text-[11px] text-tertiary mt-1 flex items-center gap-2.5">
+                    <span className="flex items-center gap-1"><Users className="w-3 h-3" />{openChannel.follower_count ?? 0} followers</span>
+                    <span className="flex items-center gap-1"><FileText className="w-3 h-3" />{openChannel.post_count ?? 0} posts</span>
+                  </p>
+                </div>
+                {!openChannel.is_owner ? (
+                  <button
+                    onClick={() => follow(openChannel.id, !openChannel.followed)}
+                    className={openChannel.followed
+                      ? 'px-4 py-1.5 rounded-full bg-muted text-secondary text-xs font-semibold shrink-0'
+                      : 'px-4 py-1.5 rounded-full gradient-primary text-white text-xs font-semibold shadow shrink-0'}
+                  >
+                    {openChannel.followed ? 'Following' : 'Follow'}
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-primary border border-subtle px-2.5 py-1 rounded-full shrink-0">Owner</span>
+                )}
+              </div>
+            </div>
             {postsLoading ? (
               <p className="text-sm text-muted-foreground text-center py-8">Loading posts…</p>
             ) : posts.length === 0 ? (
@@ -215,15 +239,28 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 )}
               </div>
             ) : (
-              posts.map((p: any) => (
-                <div key={p.id} className="px-4 py-3 border-b border-[var(--k-border)]">
-                  <p className="text-xs text-muted-foreground mb-1">
-                    <span className="font-medium text-secondary">{p.sender_display_name || p.sender_username || openChannel.name}</span>
-                    {' · '}{fmtTime(p.created_at)}
-                  </p>
-                  <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{p.content}</p>
+              <div className="px-3 pb-3">
+                <p className="px-1 pt-1 pb-2 text-[11px] font-bold uppercase tracking-wider text-tertiary">Updates</p>
+                <div className="space-y-2.5">
+                  {posts.map((p: any, i: number) => (
+                    <article key={p.id} className="rounded-2xl bg-elevated border border-subtle p-3.5">
+                      <div className="flex items-center gap-2.5 mb-2">
+                        <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-bold shrink-0">
+                          {avatarLetter(p.sender_display_name || p.sender_username || openChannel.name)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-semibold truncate">{p.sender_display_name || p.sender_username || openChannel.name}</p>
+                          <p className="text-[11px] text-tertiary">{fmtTime(p.created_at)}</p>
+                        </div>
+                        {i === 0 && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider text-primary shrink-0">Latest</span>
+                        )}
+                      </div>
+                      <p className="text-[15px] leading-relaxed whitespace-pre-wrap break-words">{p.content}</p>
+                    </article>
+                  ))}
                 </div>
-              ))
+              </div>
             )}
           </div>
           {openChannel.is_owner && (
@@ -234,7 +271,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 onChange={(e) => setDraft(e.target.value)}
                 onKeyDown={(e) => { if (e.key === 'Enter') post(openChannel.id) }}
                 placeholder="Post an update…"
-                className="flex-1 px-3 py-2.5 rounded-full bg-elevated border border-medium outline-none text-sm"
+                className="flex-1 px-3 py-2.5 rounded-full border outline-none text-sm"
+                style={{ background: 'rgba(20,20,42,0.9)', borderColor: 'rgba(255,255,255,0.12)', color: '#f0f0ff', caretColor: '#f0f0ff' }}
               />
               <button onClick={() => post(openChannel.id)} disabled={sending || !draft.trim()} className="p-2.5 rounded-full btn-primary disabled:opacity-50" aria-label="Post">
                 <Send className="w-4 h-4" />

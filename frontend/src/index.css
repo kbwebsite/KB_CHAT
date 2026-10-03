@@ -560,6 +560,17 @@ body {
   padding-bottom: calc(0.75rem + var(--bottom-nav-height) + var(--safe-bottom)) !important;
 }
 
+/* Channel composer text must stay visible (Bootstrap-proof). */
+.channel-composer input {
+  background-color: rgba(20, 20, 42, 0.9) !important;
+  color: #f0f0ff !important;
+  caret-color: #f0f0ff;
+  color-scheme: dark;
+}
+.channel-composer input::placeholder {
+  color: rgba(240, 240, 255, 0.4) !important;
+}
+
 .bottom-nav-item {
   display: flex;
   flex-direction: column;
