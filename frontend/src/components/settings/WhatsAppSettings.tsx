@@ -10,6 +10,7 @@ import {
   blockApi,
   broadcastApi,
   communityApi,
+  convApi,
 } from '../../services/api'
 import { wallpaperStyle, customWallpaperUrl } from '../../utils/wallpapers'
 import { useSettingsStore } from '../../store/settings'
@@ -403,6 +404,75 @@ function InfoRow({ title, sub, value }: { title: string; sub?: string; value?: s
   )
 }
 
+/* ── Contacts quick list (real data + start chat) ───────────────── */
+function ContactsQuickList({ onOpen }: { onOpen: (convId: number) => void }) {
+  const [contacts, setContacts] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+  const [busyId, setBusyId] = useState<number | null>(null)
+  const [msg, setMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    extendedApi
+      .contacts()
+      .then((r: any) => {
+        if (r?.success) setContacts(r.data || [])
+      })
+      .finally(() => setLoading(false))
+  }, [])
+
+  const chat = async (u: any) => {
+    if (busyId) return
+    setBusyId(u.id)
+    try {
+      const r: any = await convApi.create({ participant_id: u.id })
+      if (r?.success) onOpen(r.data.id)
+      else setMsg(r?.message || 'Failed to start chat')
+    } catch (e: any) {
+      setMsg(e.response?.data?.detail || e.response?.data?.message || 'Failed to start chat')
+    } finally {
+      setBusyId(null)
+    }
+  }
+
+  if (loading) return <p className="text-xs text-muted-foreground text-center py-2">Loading…</p>
+  if (contacts.length === 0)
+    return (
+      <p className="text-xs text-muted-foreground">
+        No contacts yet — find people by username from the chat search to start talking.
+      </p>
+    )
+  return (
+    <div className="space-y-1">
+      {msg && <p className="text-xs text-center text-muted-foreground">{msg}</p>}
+      {contacts.slice(0, 15).map((u: any) => (
+        <div key={u.id} className="flex items-center gap-2.5 py-1.5 border-b border-[var(--k-border)]/40 last:border-0">
+          <div className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-sm font-bold shrink-0 overflow-hidden">
+            {u.avatar_url ? (
+              <img src={u.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+            ) : (
+              (u.display_name || u.username || '?')[0].toUpperCase()
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium truncate">{u.display_name}</p>
+            <p className="text-xs text-muted-foreground truncate">@{u.username}</p>
+          </div>
+          <button
+            onClick={() => chat(u)}
+            disabled={busyId === u.id}
+            className="px-3 py-1.5 rounded-full btn-primary text-[13px] font-semibold shrink-0 disabled:opacity-50"
+          >
+            {busyId === u.id ? '…' : 'Chat'}
+          </button>
+        </div>
+      ))}
+      {contacts.length > 15 && (
+        <p className="text-xs text-muted-foreground text-center pt-1">+ {contacts.length - 15} more in the full list</p>
+      )}
+    </div>
+  )
+}
+
 /* ── Main shared settings UI ────────────────────────────────────── */
 export function WhatsAppSettings({
   layout,
@@ -711,6 +781,12 @@ export function WhatsAppSettings({
       subtitle: 'Manage people and groups',
       body: (
         <div className="space-y-3">
+          <div>
+            <SectionLabel>People</SectionLabel>
+            <div className="mt-1">
+              <ContactsQuickList onOpen={openConversation} />
+            </div>
+          </div>
           <div>
             <SectionLabel>Your lists</SectionLabel>
             <div className="mt-1">

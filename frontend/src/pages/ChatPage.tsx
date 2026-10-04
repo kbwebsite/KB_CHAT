@@ -62,13 +62,15 @@ export default function ChatPage() {
       window.removeEventListener('orientationchange', onResize)
     }
   }, [])
-  const [mobileNavTab, setMobileNavTab] = useState<'chats' | 'status' | 'calls' | 'contacts' | 'ai'>('chats')
+  const [mobileNavTab, setMobileNavTab] = useState<'chats' | 'status' | 'calls' | 'communities' | 'channels' | 'ai'>('chats')
   const [showProfile, setShowProfile] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
   const [showNotifications, setShowNotifications] = useState(false)
   const [showSaved, setShowSaved] = useState(false)
   const [showContacts, setShowContacts] = useState(false)
+  const [showCommunities, setShowCommunities] = useState(false)
+  const [showChannels, setShowChannels] = useState(false)
   const [showCalls, setShowCalls] = useState(false)
   const [showStatus, setShowStatus] = useState(false)
   const [showCommandPalette, setShowCommandPalette] = useState(false)
@@ -158,6 +160,7 @@ export default function ChatPage() {
         } else {
           setShowProfile(false); setShowSettings(false); setShowNotifications(false)
           setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
+    setShowCommunities(false); setShowChannels(false)
           setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null)
           setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false)
           setShowEvents(false); setShowSchedule(false); setShowInsights(false)
@@ -452,9 +455,12 @@ export default function ChatPage() {
     } else if (tab === 'calls') {
       setMobileView('list')
       setShowCalls(true)
-    } else if (tab === 'contacts') {
+    } else if (tab === 'communities') {
       setMobileView('list')
-      setShowContacts(true)
+      setShowCommunities(true)
+    } else if (tab === 'channels') {
+      setMobileView('list')
+      setShowChannels(true)
     } else if (tab === 'ai') {
       nav('/ai')
     }
@@ -464,6 +470,7 @@ export default function ChatPage() {
   const closeAllPanels = () => {
     setShowProfile(false); setShowGroupInfo(false); setShowSettings(false); setShowNotifications(false)
     setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
+    setShowCommunities(false); setShowChannels(false)
     setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false)
     setShowAgentPanel(false)
     setShowLeaderboard(false)
@@ -484,7 +491,7 @@ export default function ChatPage() {
     if (showCommandPalette) { setShowCommandPalette(false); return }
     if (showMessageSearch) { setShowMessageSearch(false); setMessageSearch(''); return }
     if (showProfile || showGroupInfo || showSettings || showNotifications ||
-      showSaved || showContacts || showCalls || showStatus || showPolls || showPinned ||
+      showSaved || showContacts || showCalls || showStatus || showCommunities || showChannels || showPolls || showPinned ||
       showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme) {
       closeAllPanels(); return
     }
@@ -645,6 +652,8 @@ export default function ChatPage() {
           showNotifications={showNotifications}
           showSaved={showSaved}
           showContacts={showContacts}
+          showCommunities={showCommunities}
+          showChannels={showChannels}
           showCalls={showCalls}
           showStatus={showStatus}
           showPolls={showPolls}

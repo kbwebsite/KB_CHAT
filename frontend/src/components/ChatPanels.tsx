@@ -4,6 +4,8 @@ import { SettingsPanel } from './SettingsPanel'
 import { NotificationPanel } from './NotificationPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { ContactsPanel } from './ContactsPanel'
+import { CommunitiesPanel } from './CommunitiesPanel'
+import { ChannelsPanel } from './ChannelsPanel'
 import { CallsPanel } from './CallsPanel'
 import { StatusPanel } from './StatusPanel'
 import { PollPanel } from './PollPanel'
@@ -25,6 +27,8 @@ export function ChatPanels({
   showNotifications,
   showSaved,
   showContacts,
+  showCommunities,
+  showChannels,
   showCalls,
   showStatus,
   showPolls,
@@ -49,11 +53,12 @@ export function ChatPanels({
   setShowInsights
 }: any) {
   const { currentConversationId } = useChatStore() as any
+  const conversations = useChatStore((s: any) => s.conversations)
   const currentConv = useChatStore(s => s.conversations.find((c: any) => c.id === currentConversationId))
   const currentUserId = useAuthStore(s => s.user?.id) ?? 0
 
   const anyPanelOpen = showProfile || showGroupInfo || showSettings || showNotifications ||
-    showSaved || showContacts || showCalls || showStatus || showPolls || showPinned ||
+    showSaved || showContacts || showCommunities || showChannels || showCalls || showStatus || showPolls || showPinned ||
     showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme
 
   if (!anyPanelOpen) return null
@@ -66,6 +71,8 @@ export function ChatPanels({
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
       {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}
       {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} onSelectConversation={(cid: number) => { onClose(); onJump(cid) }} />}
+      {showCommunities && <CommunitiesPanel onClose={onClose} conversations={conversations} onOpenChat={(cid: number) => { onClose(); onJump(cid) }} />}
+      {showChannels && <ChannelsPanel onClose={onClose} />}
       {showCalls && <CallsPanel onClose={onClose} />}
       {showStatus && <StatusPanel onClose={onClose} onViewer={onStatusViewer || (() => {})} />}
       {showPolls && currentConv && <PollPanel conversationId={currentConv.id} onClose={() => setShowPolls(false)} />}

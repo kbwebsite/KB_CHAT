@@ -1,6 +1,6 @@
-import { MessageSquare, Radio, Phone, Users, Sparkles } from 'lucide-react'
+import { MessageSquare, Radio, Phone, Network, Megaphone, Sparkles } from 'lucide-react'
 
-type NavTab = 'chats' | 'status' | 'calls' | 'contacts' | 'ai'
+type NavTab = 'chats' | 'status' | 'calls' | 'communities' | 'channels' | 'ai'
 
 export function MobileNav({ active, onTabChange, unreadCounts }: {
   active: NavTab
@@ -11,7 +11,8 @@ export function MobileNav({ active, onTabChange, unreadCounts }: {
     { id: 'chats', icon: MessageSquare, label: 'Chats', badge: unreadCounts?.chats },
     { id: 'status', icon: Radio, label: 'Status', badge: unreadCounts?.status },
     { id: 'calls', icon: Phone, label: 'Calls', badge: unreadCounts?.calls },
-    { id: 'contacts', icon: Users, label: 'Contacts' },
+    { id: 'communities', icon: Network, label: 'Communities' },
+    { id: 'channels', icon: Megaphone, label: 'Channels' },
     { id: 'ai', icon: Sparkles, label: 'AI' }
   ]
 
