@@ -191,13 +191,22 @@ export default function KBAIPage() {
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full relative overflow-hidden" style={{ background: 'linear-gradient(180deg, #0a0a1a 0%, var(--bg-primary) 40%)' }}>
+      {/* Ambient 3D orbs */}
+      <div className="absolute inset-0 pointer-events-none" aria-hidden>
+        <div className="absolute w-72 h-72 rounded-full" style={{ background: 'radial-gradient(circle, rgba(var(--accent-rgb), 0.22), transparent 70%)', top: '-90px', right: '-70px', filter: 'blur(50px)', animation: 'ambientDrift 14s ease-in-out infinite' }} />
+        <div className="absolute w-60 h-60 rounded-full" style={{ background: 'radial-gradient(circle, rgba(var(--cyan-rgb), 0.14), transparent 70%)', top: '32%', left: '-90px', filter: 'blur(50px)', animation: 'ambientDrift 18s ease-in-out infinite reverse' }} />
+        <div className="absolute w-52 h-52 rounded-full" style={{ background: 'radial-gradient(circle, rgba(var(--pink-rgb), 0.12), transparent 70%)', bottom: '8%', right: '12%', filter: 'blur(50px)', animation: 'ambientDrift 12s ease-in-out infinite' }} />
+      </div>
       {/* Header */}
-      <div className="shrink-0 p-4 border-b border-border flex items-center justify-between">
+      <div className="shrink-0 relative p-4 border-b border-white/10 flex items-center justify-between" style={{ background: 'rgba(10,10,26,0.72)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)' }}>
         <div className="flex items-center gap-3">
-          <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : imgLoading ? 'thinking' : 'idle'} label="Kryzen AI" />
+          <div className="relative">
+            <div className="absolute -inset-1.5 rounded-2xl kryzen-accent-gradient opacity-60 blur-md" aria-hidden />
+            <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : imgLoading ? 'thinking' : 'idle'} label="Kryzen AI" />
+          </div>
           <div>
-            <h1 className="text-base font-semibold">Kryzen AI</h1>
+            <h1 className="text-base font-extrabold tracking-tight gradient-text">Kryzen AI</h1>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
               {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : imgLoading ? 'Dreaming up your image…' : 'Your personal assistant'}
               {aiStatus && !loading && (
@@ -222,18 +231,23 @@ export default function KBAIPage() {
       </div>
 
       {/* Messages */}
-      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4 relative">
         {messages.length === 0 && (
-          <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
-            <AiFace size={64} state="idle" />
+          <div className="flex flex-col items-center justify-center h-full text-center space-y-4">
+            <div className="relative flex items-center justify-center">
+              <div className="absolute w-28 h-28 rounded-full border border-white/10" aria-hidden />
+              <div className="absolute w-36 h-36 rounded-full border border-white/5" aria-hidden />
+              <div className="absolute w-24 h-24 rounded-full kryzen-accent-gradient opacity-30 blur-xl" aria-hidden />
+              <AiFace size={72} state="idle" />
+            </div>
             <div>
-              <p className="text-sm font-medium">Hi {user?.display_name || 'there'}! 👋</p>
+              <p className="text-lg font-extrabold tracking-tight">Hi <span className="gradient-text">{user?.display_name || 'there'}</span>! 👋</p>
               <p className="text-xs text-muted-foreground mt-1">How can I help you today?</p>
             </div>
             <div className="flex flex-wrap gap-2 justify-center max-w-md">
               {quickQuestions.map(q => (
                 <button key={q} onClick={() => { setInput(q); inputRef.current?.focus() }}
-                  className="px-3 py-1.5 rounded-full bg-secondary text-xs hover:bg-secondary/80 transition-colors">
+                  className="gradient-border px-3.5 py-1.5 rounded-full bg-white/[0.05] backdrop-blur text-xs font-medium hover:bg-white/[0.1] hover:-translate-y-0.5 transition-all">
                   {q}
                 </button>
               ))}
@@ -245,10 +259,20 @@ export default function KBAIPage() {
             m.role === 'assistant' && loading && streaming && i === messages.length - 1
           return (
           <div key={i} className={`ai-msg-in flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] min-w-0 group relative px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap' : `bg-secondary rounded-bl-md ${isLiveBubble ? 'ai-working-glow' : ''}`}`}>
+            <div
+              className={`max-w-[80%] min-w-0 group relative px-4 py-3 rounded-2xl text-sm ${
+                m.role === 'user'
+                  ? 'text-white rounded-br-md whitespace-pre-wrap kryzen-accent-gradient-3'
+                  : `rounded-bl-md border border-white/10 ${isLiveBubble ? 'ai-working-glow' : ''}`
+              }`}
+              style={m.role === 'user'
+                ? { boxShadow: '0 6px 24px rgba(var(--accent-rgb), 0.35), inset 0 1px 0 rgba(255,255,255,0.25)' }
+                : { background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.06)' }
+              }
+            >
               {m.imageUrl ? (
                 m.imageUrl === 'pending' ? (
-                  <div className="w-60 h-60 rounded-xl bg-muted/60 animate-pulse flex flex-col items-center justify-center gap-2">
+                  <div className="ai-shimmer w-60 h-60 rounded-xl flex flex-col items-center justify-center gap-2 border border-white/10">
                     <AiFace size={44} state="working" />
                     <span className="text-xs text-muted-foreground">Dreaming…</span>
                   </div>
@@ -274,22 +298,26 @@ export default function KBAIPage() {
         })}
         {loading && !streaming && (
           <div className="ai-msg-in flex justify-start">
-            <div className="bg-secondary px-3 py-2 rounded-2xl rounded-bl-md text-sm flex items-center gap-2.5">
+            <div className="px-3 py-2 rounded-2xl rounded-bl-md text-sm flex items-center gap-2.5 border border-white/10" style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)' }}>
               <AiFace size={28} state="thinking" />
-              <span className="text-muted-foreground">Thinking…</span>
+              <span className="gradient-text font-semibold">Thinking…</span>
             </div>
           </div>
         )}
       </div>
 
       {/* Input */}
-      <div className="shrink-0 p-4 pb-[max(16px,env(safe-area-inset-bottom))] border-t border-border">
-        <div className="flex gap-2 items-end">
+      <div className="shrink-0 relative p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+        <div
+          className="flex gap-2 items-end rounded-2xl border border-white/10 px-2 py-2 transition-shadow focus-within:border-primary/50"
+          style={{ background: 'rgba(12,12,28,0.78)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)' }}
+        >
           <button
             onClick={() => setImageMode(v => !v)}
-            className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-colors ${
-              imageMode ? 'bg-primary text-primary-foreground' : 'bg-secondary text-muted-foreground hover:text-foreground'
+            className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              imageMode ? 'kryzen-accent-gradient-3 text-white shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
             }`}
+            style={imageMode ? { boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' } : undefined}
             aria-label="Toggle image generation"
             title={imageMode ? 'Image mode on — describe a picture' : 'Generate an image instead of chatting'}
           >
@@ -298,10 +326,11 @@ export default function KBAIPage() {
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); imageMode ? sendImage() : send() } }}
             placeholder={imageMode ? 'Describe the image…' : 'Ask Kryzen AI anything...'} rows={1}
-            className="flex-1 resize-none px-4 py-3 rounded-xl bg-secondary text-sm outline-none focus:ring-2 focus:ring-ring max-h-32" />
+            className="flex-1 resize-none px-2 py-2.5 bg-transparent text-sm outline-none max-h-32 placeholder:text-muted-foreground/60" />
           {imageMode ? (
             <button onClick={sendImage} disabled={!input.trim() || imgLoading}
-              className="shrink-0 w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-opacity"
+              className="shrink-0 w-10 h-10 rounded-xl kryzen-accent-gradient-3 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all"
+              style={{ boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' }}
               aria-label="Generate image">
               <ImageIcon className="w-4 h-4" />
             </button>
@@ -313,7 +342,8 @@ export default function KBAIPage() {
             </button>
           ) : (
             <button onClick={send} disabled={!input.trim()}
-              className="shrink-0 w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-opacity"
+              className="shrink-0 w-10 h-10 rounded-xl kryzen-accent-gradient-3 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all"
+              style={{ boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' }}
               aria-label="Send">
               <Send className="w-4 h-4" />
             </button>
