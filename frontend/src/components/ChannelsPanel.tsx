@@ -18,7 +18,8 @@ import {
   Mic,
   Forward,
   Eye,
-  Info,
+  Users,
+  FileText,
   ChevronsDown,
   QrCode,
 } from 'lucide-react'
@@ -46,7 +47,6 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [msg, setMsg] = useState<string | null>(null)
   const [muted, setMuted] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [bannerDismissed, setBannerDismissed] = useState(false)
   const [showEmoji, setShowEmoji] = useState(false)
   const [showJump, setShowJump] = useState(false)
   const composerRef = useRef<HTMLInputElement>(null)
@@ -140,7 +140,6 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const open = async (c: any) => {
     if (!(c.followed || c.is_owner)) return
     setOpenId(c.id)
-    setBannerDismissed(false)
     setMenuOpen(false)
     setShowJump(false)
     setPostsLoading(true)
@@ -434,21 +433,61 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 'radial-gradient(ellipse at 20% 0%, rgba(var(--accent-rgb), 0.10) 0%, transparent 55%), radial-gradient(ellipse at 85% 30%, rgba(var(--cyan-rgb), 0.06) 0%, transparent 50%), var(--bg-primary)',
             }}
           >
-            {/* Description banner */}
-            {openChannel.description && !bannerDismissed && (
-              <div
-                className="m-3 mb-0 rounded-2xl border border-subtle flex items-start gap-2.5 p-3"
-                style={{ background: 'rgba(28,28,56,0.85)', backdropFilter: 'blur(12px)', boxShadow: '0 4px 20px rgba(0,0,0,0.35)' }}
-              >
-                <span className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center shrink-0">
-                  <Info className="w-4 h-4 text-white" />
+            {/* Cover art + profile card */}
+            <div
+              className="m-3 rounded-[24px] overflow-hidden border border-subtle"
+              style={{
+                background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(20,20,42,0.98))',
+                boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+              }}
+            >
+              <div className="channel-cover-art relative h-24 overflow-hidden">
+                <span className="absolute -right-2 -bottom-7 text-[110px] leading-none font-extrabold text-white/10 select-none">
+                  {avatarLetter(openChannel.name)}
                 </span>
-                <p className="flex-1 text-[13px] leading-snug text-secondary">{openChannel.description}</p>
-                <button onClick={() => setBannerDismissed(true)} className="p-1 rounded-full hover:bg-muted" aria-label="Dismiss">
-                  <X className="w-4 h-4 text-tertiary" />
-                </button>
+                <div className="absolute w-40 h-40 rounded-full bg-white/10 blur-2xl -left-10 -top-16" />
+                <div className="absolute w-24 h-24 rounded-full bg-black/20 blur-xl right-16 -top-8" />
               </div>
-            )}
+              <div className="px-4 pt-3 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0 ring-2 ring-white/10">
+                    {avatarLetter(openChannel.name)}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-[17px] tracking-tight flex items-center gap-1.5 truncate">
+                      <span className="truncate">{openChannel.name}</span>
+                      {openChannel.is_owner && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
+                    </p>
+                    <p className="text-[13px] text-secondary mt-0.5 truncate">
+                      {openChannel.description || 'No description yet'}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 mt-2.5">
+                  <span className="text-[11px] text-tertiary flex items-center gap-1">
+                    <Users className="w-3 h-3" />{formatFollowers(openChannel.follower_count ?? 0)} followers
+                  </span>
+                  <span className="text-[11px] text-tertiary flex items-center gap-1">
+                    <FileText className="w-3 h-3" />{openChannel.post_count ?? 0} posts
+                  </span>
+                  <span className="flex-1" />
+                  {!openChannel.is_owner ? (
+                    <button
+                      onClick={() => follow(openChannel.id, !openChannel.followed)}
+                      className={openChannel.followed
+                        ? 'px-4 py-1.5 rounded-full bg-muted text-secondary text-xs font-semibold'
+                        : 'px-4 py-1.5 rounded-full gradient-primary text-white text-xs font-semibold shadow'}
+                    >
+                      {openChannel.followed ? 'Following' : 'Follow'}
+                    </button>
+                  ) : (
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-primary border border-subtle px-2.5 py-1 rounded-full">
+                      Owner
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
 
             {msg && <p className="px-4 pt-2 text-xs text-muted-foreground">{msg}</p>}
 
@@ -490,15 +529,17 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         return (
                           <div key={p.id}>
                             <article
-                              className="rounded-[20px] border overflow-hidden transition-transform hover:scale-[1.005]"
+                              className="channel-post-enter rounded-[20px] border overflow-hidden transition-transform hover:scale-[1.005]"
                               style={
                                 isLatest
                                   ? {
+                                      animationDelay: `${Math.min(i * 70, 350)}ms`,
                                       background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(22,22,46,0.98))',
                                       borderColor: 'rgba(var(--accent-rgb), 0.45)',
                                       boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 24px rgba(var(--accent-rgb), 0.12)',
                                     }
                                   : {
+                                      animationDelay: `${Math.min(i * 70, 350)}ms`,
                                       background: 'linear-gradient(180deg, rgba(28,28,56,0.95), rgba(20,20,42,0.95))',
                                       borderColor: 'rgba(255,255,255,0.07)',
                                       boxShadow: '0 4px 20px rgba(0,0,0,0.4)',

@@ -560,7 +560,40 @@ body {
   padding-bottom: calc(0.75rem + var(--bottom-nav-height) + var(--safe-bottom)) !important;
 }
 
-/* Channel composer text must stay visible (Bootstrap-proof). */
+/* Channel cover art: slow-panning gradient + dot texture. */
+.channel-cover-art {
+  background: linear-gradient(120deg, #7c5cfc, #a855f7, #22d3ee, #7c5cfc);
+  background-size: 220% 220%;
+  animation: coverPan 14s ease-in-out infinite alternate;
+}
+.channel-cover-art::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.22) 1px, transparent 1px);
+  background-size: 16px 16px;
+  opacity: 0.5;
+}
+@keyframes coverPan {
+  from { background-position: 0% 40%; }
+  to { background-position: 100% 60%; }
+}
+
+/* Channel post entrance. */
+.channel-post-enter {
+  animation: postIn 0.45s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+}
+@keyframes postIn {
+  from { opacity: 0; transform: translateY(14px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .channel-cover-art,
+  .channel-post-enter {
+    animation: none;
+  }
+}
 .channel-composer input {
   background-color: rgba(20, 20, 42, 0.9) !important;
   color: #f0f0ff !important;
