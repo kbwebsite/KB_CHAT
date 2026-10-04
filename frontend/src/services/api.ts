@@ -411,6 +411,8 @@ export const aiApi = {
     api.get('/api/ai/languages').then(r=>r.data),
   status: () =>
     api.get('/api/ai/status').then(r=>r.data),
+  generateImage: (prompt: string) =>
+    api.post('/api/ai/image', { prompt }).then(r=>r.data),
   analyzeFile: (file: File, question?: string) => {
     const fd = new FormData()
     fd.append('file', file)

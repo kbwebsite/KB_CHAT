@@ -88,6 +88,7 @@ async def ai_status():
                 "smart_search": True,
                 "code_actions": True,
                 "pdf_text": True,
+                "image_generation": True,
                 "transcription": live,
                 "image_understanding": live,
             },
@@ -116,6 +117,14 @@ class CodeActionRequest(BaseModel):
     language: str = "javascript"
     action: str = "explain"
     instruction: Optional[str] = None
+
+
+class AIImageRequest(BaseModel):
+    prompt: str
+    width: int = 1024
+    height: int = 1024
+    seed: Optional[int] = None
+    model: str = "turbo"
 
 
 @router.post("/chat")
@@ -169,6 +178,49 @@ async def ai_chat_stream(
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.post("/image")
+async def ai_generate_image(
+    body: AIImageRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Keyless image generation (free image backend, no API key needed).
+
+    Returns a render URL immediately — the frontend <img> loads it
+    directly, so slow generations never block a backend worker.
+    """
+    import random
+    from urllib.parse import quote
+
+    prompt = (body.prompt or "").strip()
+    if not prompt:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=422, detail="Prompt must not be empty")
+    if len(prompt) > 500:
+        from fastapi import HTTPException
+
+        raise HTTPException(status_code=400, detail="Prompt too long (max 500 chars)")
+    w = min(max(body.width or 1024, 256), 1024)
+    h = min(max(body.height or 1024, 256), 1024)
+    seed = body.seed if isinstance(body.seed, int) else random.randint(0, 999999)
+    model = body.model if body.model in ("flux", "turbo") else "turbo"
+    url = (
+        f"https://image.pollinations.ai/prompt/{quote(prompt)}"
+        f"?width={w}&height={h}&seed={seed}&model={model}&nologo=true"
+    )
+    return success_response(
+        {
+            "image_url": url,
+            "prompt": prompt,
+            "seed": seed,
+            "model": model,
+            "width": w,
+            "height": h,
+        }
+    )
 
 
 @router.post("/action")

@@ -551,7 +551,8 @@ class ServiceProvider(AIProvider):
                 "**I can:**\n"
                 "• Answer how-to questions about every Kryzen feature\n"
                 "• **Summarize** long messages (hover → Summarize)\n"
-                "• **Translate** messages (hover → Translate)\n\n"
+                "• **Translate** messages (hover → Translate)\n"
+                "• **Generate images** — AI tab → image button, describe anything\n\n"
                 "**Find me:** the **AI tab** in the bottom nav, or header **⋮ → AI Assistant** in any chat.\n\n"
                 "💡 **Pro tip:** Ask me 'tips' anytime to discover hidden features!"
             ),
