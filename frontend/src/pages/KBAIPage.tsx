@@ -1,10 +1,11 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { Bot, Send, Sparkles, Trash2, Copy, Check, Square } from 'lucide-react'
+import { Send, Sparkles, Trash2, Copy, Check, Square } from 'lucide-react'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
 // Split the markdown renderer out of the route chunk; plain text shows first.
 const AiMarkdown = lazy(() => import('../components/AiMarkdown'))
+import { AiFace } from '../components/AiFace'
 
 interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date }
 
@@ -25,7 +26,9 @@ export default function KBAIPage() {
   const [loading, setLoading] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [aiStatus, setAiStatus] = useState<{ live: boolean; provider?: string; model?: string } | null>(null)
+  const [streaming, setStreaming] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
+  const streamingRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const user = useAuthStore(s => s.user)
@@ -48,6 +51,8 @@ export default function KBAIPage() {
     setMessages(prev => [...prev, msg])
     setInput('')
     abortRef.current = new AbortController()
+    streamingRef.current = false
+    setStreaming(false)
     setLoading(true)
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
@@ -60,6 +65,10 @@ export default function KBAIPage() {
         return next
       })
       const append = (t: string) => {
+        if (!streamingRef.current) {
+          streamingRef.current = true
+          setStreaming(true)
+        }
         setMessages(prev => {
           const next = [...prev]
           if (next[slot.i] && next[slot.i].role === 'assistant') {
@@ -104,14 +113,12 @@ export default function KBAIPage() {
       {/* Header */}
       <div className="shrink-0 p-4 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl kryzen-accent-gradient flex items-center justify-center shadow-lg">
-            <Bot className="w-5 h-5 text-white" />
-          </div>
+          <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : 'idle'} label="Kryzen AI" />
           <div>
             <h1 className="text-base font-semibold">Kryzen AI</h1>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              Your personal assistant
-              {aiStatus && (
+              {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : 'Your personal assistant'}
+              {aiStatus && !loading && (
                 <span
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
                     aiStatus.live ? 'bg-green-500/15 text-green-500' : 'bg-amber-500/15 text-amber-500'
@@ -136,9 +143,7 @@ export default function KBAIPage() {
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-4 space-y-4">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-4 opacity-60">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-primary/20 to-primary/10 flex items-center justify-center shadow-lg">
-              <Bot className="w-8 h-8 text-primary" />
-            </div>
+            <AiFace size={64} state="idle" />
             <div>
               <p className="text-sm font-medium">Hi {user?.display_name || 'there'}! 👋</p>
               <p className="text-xs text-muted-foreground mt-1">How can I help you today?</p>
@@ -153,9 +158,12 @@ export default function KBAIPage() {
             </div>
           </div>
         )}
-        {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-[80%] min-w-0 group relative px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap' : 'bg-secondary rounded-bl-md'}`}>
+        {messages.map((m, i) => {
+          const isLiveBubble =
+            m.role === 'assistant' && loading && streaming && i === messages.length - 1
+          return (
+          <div key={i} className={`ai-msg-in flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+            <div className={`max-w-[80%] min-w-0 group relative px-4 py-3 rounded-2xl text-sm ${m.role === 'user' ? 'bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap' : `bg-secondary rounded-bl-md ${isLiveBubble ? 'ai-working-glow' : ''}`}`}>
               {m.role === 'user' ? (
                 m.content
               ) : (
@@ -171,15 +179,13 @@ export default function KBAIPage() {
               )}
             </div>
           </div>
-        ))}
-        {loading && (
-          <div className="flex justify-start">
-            <div className="bg-secondary px-4 py-3 rounded-2xl rounded-bl-md text-sm">
-              <div className="flex gap-1">
-                <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:0ms]" />
-                <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:150ms]" />
-                <span className="w-2 h-2 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:300ms]" />
-              </div>
+          )
+        })}
+        {loading && !streaming && (
+          <div className="ai-msg-in flex justify-start">
+            <div className="bg-secondary px-3 py-2 rounded-2xl rounded-bl-md text-sm flex items-center gap-2.5">
+              <AiFace size={28} state="thinking" />
+              <span className="text-muted-foreground">Thinking…</span>
             </div>
           </div>
         )}

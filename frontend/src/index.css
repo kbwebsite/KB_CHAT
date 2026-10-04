@@ -2908,3 +2908,106 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .kryzen-fx-fall, .kryzen-fx-rise, .kryzen-fx-slam-pop, .kryzen-fx-shake { animation: none; }
 }
+
+/* ── AI face (Kryzen AI / agent): idle / thinking / working ── */
+.ai-face {
+  position: relative;
+  border-radius: 26%;
+  background: linear-gradient(135deg, var(--accent-primary, #7c5cfc), var(--accent-secondary, #a855f7));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  animation: aiBob 4s ease-in-out infinite;
+}
+.ai-face svg { position: relative; z-index: 2; }
+.ai-face .ai-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: aiBlink 4.6s ease-in-out infinite;
+}
+.ai-face-thinking .ai-eyes { animation: aiBlink 4.6s ease-in-out infinite, aiLook 1.6s ease-in-out infinite; }
+.ai-face-thinking { animation: aiBob 1.8s ease-in-out infinite; }
+/* Orbit sparkles while busy */
+.ai-face .ai-orbit {
+  position: absolute;
+  inset: -18%;
+  z-index: 1;
+  opacity: 0;
+  animation: aiSpin 5s linear infinite;
+}
+.ai-face-thinking .ai-orbit, .ai-face-working .ai-orbit { opacity: 1; }
+.ai-face .ai-orbit i {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 9999px;
+  background: #fff;
+  box-shadow: 0 0 6px #fff;
+}
+.ai-face .ai-orbit i:first-child { top: 6%; left: 50%; }
+.ai-face .ai-orbit i:last-child { bottom: 8%; left: 12%; }
+/* Scan sweep + pulse ring while writing the reply */
+.ai-face .ai-scan {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -30%;
+  height: 30%;
+  z-index: 3;
+  opacity: 0;
+  background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.45), transparent);
+}
+.ai-face-working .ai-scan { opacity: 1; animation: aiScan 1.4s ease-in-out infinite; }
+.ai-face .ai-ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 26%;
+  z-index: 1;
+  opacity: 0;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+}
+.ai-face-working .ai-ring { animation: aiRing 1.6s ease-out infinite; }
+@keyframes aiBlink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.08); }
+}
+@keyframes aiLook {
+  0%, 100% { transform: translateX(-2.2px); }
+  50% { transform: translateX(2.2px); }
+}
+@keyframes aiBob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+@keyframes aiSpin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+@keyframes aiScan {
+  0% { top: -30%; }
+  100% { top: 110%; }
+}
+@keyframes aiRing {
+  0% { opacity: 0.9; transform: scale(1); }
+  100% { opacity: 0; transform: scale(1.35); }
+}
+/* AI message entrance + active streaming glow */
+.ai-msg-in { animation: aiMsgIn 0.3s cubic-bezier(0.22, 0.9, 0.3, 1) both; }
+@keyframes aiMsgIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ai-working-glow {
+  box-shadow: 0 0 0 1px rgba(var(--accent-rgb), 0.35), 0 0 24px rgba(var(--accent-rgb), 0.18);
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-face, .ai-face .ai-eyes, .ai-face-thinking, .ai-face-thinking .ai-eyes,
+  .ai-face .ai-orbit, .ai-face-working .ai-scan, .ai-face-working .ai-ring,
+  .ai-msg-in {
+    animation: none;
+  }
+  .ai-face .ai-orbit, .ai-face .ai-scan, .ai-face .ai-ring { opacity: 0; }
+}

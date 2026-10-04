@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { Bot, Send, Sparkles, MessageCircle, Loader2, Plus } from 'lucide-react'
+import { Send, Sparkles, Plus } from 'lucide-react'
+import { AiFace } from './AiFace'
 import { agentApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
@@ -23,7 +24,6 @@ export function AgentPanel({
   const [messages, setMessages] = useState<AgentMessage[]>([])
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
-  const [streaming, setStreaming] = useState(false)
   // Which brain answered last: a real model ('live') or built-in tips ('mock').
   const [provider, setProvider] = useState<string | null>(null)
   const live = !!provider && provider.toLowerCase() !== 'mock'
@@ -88,7 +88,6 @@ export function AgentPanel({
     const currentInput = input.trim()
     setInput('')
     setLoading(true)
-    setStreaming(true)
 
     const assistantMsg: AgentMessage = {
       role: 'assistant',
@@ -169,7 +168,6 @@ export function AgentPanel({
       }
     } finally {
       setLoading(false)
-      setStreaming(false)
       inputRef.current?.focus()
     }
   }
@@ -188,9 +186,7 @@ export function AgentPanel({
       {/* Header */}
       <div className="shrink-0 p-3 border-b border-border flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center">
-            <MessageCircle className="w-4 h-4 text-white" />
-          </div>
+          <AiFace size={32} state={loading ? 'thinking' : 'idle'} label="Assistant" />
           <div>
             <h2 className="text-sm font-semibold">KB-CHAT Assistant</h2>
             <p className="text-[10px] text-muted-foreground flex items-center gap-1">
@@ -198,7 +194,7 @@ export function AgentPanel({
                 title={live ? 'Connected to a live AI model' : 'Answering from built-in tips (set AI_PROVIDER + key on the server for live AI)'}
                 className={`inline-block w-1.5 h-1.5 rounded-full ${live ? 'bg-emerald-400' : 'bg-amber-400'}`}
               />
-              {live ? 'Live AI' : 'Offline tips'}
+              {loading ? 'Working…' : live ? 'Live AI' : 'Offline tips'}
             </p>
           </div>
         </div>
@@ -223,9 +219,7 @@ export function AgentPanel({
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-3 min-h-0">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center space-y-3 opacity-60">
-            <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-teal-600/20 flex items-center justify-center">
-              <MessageCircle className="w-6 h-6 text-emerald-500" />
-            </div>
+            <AiFace size={48} state="idle" />
             <div>
               <p className="text-sm font-medium">Hi! How can I help you with KB-CHAT?</p>
               <p className="text-xs text-muted-foreground mt-1">Ask me about features, settings, or troubleshooting</p>
@@ -244,7 +238,7 @@ export function AgentPanel({
           </div>
         )}
         {messages.map((m, i) => (
-          <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+          <div key={i} className={`ai-msg-in flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-[85%] min-w-0 px-3 py-2 rounded-xl text-sm ${
               m.role === 'user'
                 ? 'bg-primary text-primary-foreground rounded-br-md whitespace-pre-wrap'
@@ -260,22 +254,11 @@ export function AgentPanel({
             </div>
           </div>
         ))}
-        {streaming && (
-          <div className="flex justify-start">
+        {loading && (
+          <div className="ai-msg-in flex justify-start">
             <div className="bg-secondary px-3 py-2 rounded-xl rounded-bl-md text-sm flex items-center gap-2">
-              <Loader2 className="w-4 h-4 animate-spin text-primary" />
-              <span className="text-muted-foreground">Thinking...</span>
-            </div>
-          </div>
-        )}
-        {loading && !streaming && (
-          <div className="flex justify-start">
-            <div className="bg-secondary px-3 py-2 rounded-xl rounded-bl-md text-sm">
-              <div className="flex gap-1">
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:0ms]" />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:150ms]" />
-                <span className="w-1.5 h-1.5 bg-muted-foreground/40 rounded-full animate-bounce [animation-delay:300ms]" />
-              </div>
+              <AiFace size={26} state="thinking" />
+              <span className="text-muted-foreground">Working…</span>
             </div>
           </div>
         )}
