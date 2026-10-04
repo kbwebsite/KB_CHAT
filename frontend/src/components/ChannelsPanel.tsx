@@ -17,13 +17,13 @@ import {
   Camera,
   Mic,
   Forward,
-  Eye,
   ChevronRight,
   Sparkles,
   Flame,
   Compass,
 } from 'lucide-react'
 import { channelApi, uploadApi } from '../services/api'
+import { compact, compactPlural } from '../utils/format'
 
 /**
  * Channels — discovery-first creator experience.
@@ -57,6 +57,7 @@ function readMuted(): Record<string, boolean> {
 export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [channels, setChannels] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [tab, setTab] = useState<'discover' | 'following'>('discover')
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState<number | null>(null)
@@ -91,11 +92,15 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   }
 
   const load = () => {
+    setLoading(true)
+    setLoadError(false)
     channelApi
       .list()
       .then((r: any) => {
         if (r?.success) setChannels(r.data || [])
+        else setLoadError(true)
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
@@ -281,12 +286,6 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   const coverOf = (id: number) => COVERS[Math.abs(id) % COVERS.length]
 
-  const formatFollowers = (n: number) => {
-    if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
-    if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`
-    return `${n ?? 0}`
-  }
-
   const asDate = (iso?: string) => {
     if (!iso) return null
     const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`
@@ -378,6 +377,13 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const featured = byFollowers.slice(0, 3)
   const featuredIds = new Set(featured.map((c: any) => c.id))
   const trendingRows = trending.filter((c: any) => !featuredIds.has(c.id)).slice(0, 5)
+  // Directory lists only what the sections above don't, so small
+  // datasets never render the same card twice on one screen.
+  const highlightedIds = new Set([
+    ...featured.map((c: any) => c.id),
+    ...trendingRows.map((c: any) => c.id),
+  ])
+  const restChannels = channels.filter((c: any) => !highlightedIds.has(c.id))
   const following = channels.filter((c: any) => c.followed || c.is_owner)
 
   const grouped = useMemo(() => {
@@ -432,7 +438,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               {openChannel.is_owner && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
             </p>
             <p className="text-xs text-muted-foreground truncate">
-              {formatFollowers(openChannel.follower_count ?? 0)} followers
+              {compactPlural(openChannel.follower_count ?? 0, 'follower')}
               {openChannel.is_owner ? ' · you own this channel' : ''}
             </p>
           </div>
@@ -472,19 +478,22 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               </>
             )}
           </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
-        <div className="flex-1 flex flex-col min-h-0">
+        <div className="flex-1 flex flex-col min-h-0 relative">
           <div ref={feedRef} onScroll={onFeedScroll} className="flex-1 overflow-y-auto min-h-0" style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(var(--accent-rgb), 0.10) 0%, transparent 55%), var(--bg-primary)' }}>
             {/* Identity */}
             <div className="m-3 rounded-[24px] overflow-hidden border border-subtle" style={{ background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(20,20,42,0.98))', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-              <div className="relative h-28 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
-                <span className="absolute -right-2 -bottom-8 text-[120px] leading-none font-extrabold text-white/10 select-none">
+              <div className="relative h-24 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+                <span className="absolute -right-2 -bottom-7 text-[104px] leading-none font-extrabold text-white/10 select-none">
                   {avatarLetter(openChannel.name)}
                 </span>
                 <div className="absolute w-40 h-40 rounded-full bg-white/10 blur-2xl -left-10 -top-16" />
               </div>
-              <div className="px-4 pt-3 pb-4">
+              <div className="px-4 pt-2.5 pb-3.5">
                 <div className="flex items-center gap-3">
                   <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0 ring-2 ring-white/10">
                     {avatarLetter(openChannel.name)}
@@ -495,7 +504,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                       {openChannel.is_owner && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
                     </p>
                     <p className="text-[11px] text-tertiary mt-0.5">
-                      {formatFollowers(openChannel.follower_count ?? 0)} followers · {openChannel.post_count ?? 0} posts
+                      {compactPlural(openChannel.follower_count ?? 0, 'follower')} · {compactPlural(openChannel.post_count ?? 0, 'post')}
                       {openChannel.created_at ? ` · since ${fmtDate(openChannel.created_at)}` : ''}
                     </p>
                   </div>
@@ -546,7 +555,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </div>
                 <div className="grid grid-cols-3 gap-2 text-center">
                   {[
-                    [formatFollowers(openChannel.follower_count ?? 0), 'Followers'],
+                    [compact(openChannel.follower_count ?? 0), 'Followers'],
                     [String(openChannel.post_count ?? 0), 'Posts'],
                     [openChannel.created_at ? fmtDate(openChannel.created_at) : '—', 'Created'],
                   ].map(([v, l]) => (
@@ -676,10 +685,6 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                     <Forward className="w-4 h-4" />
                                   </button>
                                   <span className="flex-1" />
-                                  <span className="flex items-center gap-1 text-[11px] text-tertiary">
-                                    <Eye className="w-3.5 h-3.5" />
-                                    {formatFollowers(openChannel.follower_count ?? 0)}
-                                  </span>
                                   <span className="text-[11px] text-tertiary">{fmtPostTime(p.created_at)}</span>
                                   {openChannel.is_owner && <Check className="w-3.5 h-3.5 text-tertiary" />}
                                 </div>
@@ -774,7 +779,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   /* ═══════════ DISCOVER VIEW ═══════════ */
   return (
     <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-[var(--k-border)] shrink-0">
+      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
         <p className="font-bold text-[17px] flex-1 px-2 tracking-tight flex items-center gap-1.5">
           <Compass className="w-4 h-4 text-primary" /> Channels
           {channels.length > 0 && (
@@ -790,7 +795,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       </div>
 
       <div className="px-3 pt-2.5 shrink-0">
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle focus-within:border-primary/50 transition-colors">
           <Search className="w-4 h-4 text-tertiary shrink-0" />
           <input
             value={query}
@@ -847,6 +852,19 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </div>
             ))}
+          </div>
+        ) : loadError ? (
+          <div className="py-12 text-center px-8">
+            <div className="w-16 h-16 rounded-[22px] bg-elevated border border-subtle flex items-center justify-center mx-auto">
+              <Search className="w-7 h-7 text-tertiary" />
+            </div>
+            <p className="text-[16px] font-bold mt-4 tracking-tight">Couldn&apos;t load channels</p>
+            <p className="text-[13px] text-muted-foreground mt-1 max-w-[240px] mx-auto">
+              Check your connection and try again — nothing was lost.
+            </p>
+            <button onClick={load} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold shadow-lg transition-all active:scale-95">
+              Retry
+            </button>
           </div>
         ) : channels.length === 0 ? (
           <div className="py-12 text-center px-8">
@@ -908,15 +926,19 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                       <div
                         key={c.id}
                         onClick={() => open(c)}
+                        role={canOpen ? 'button' : undefined}
+                        tabIndex={canOpen ? 0 : undefined}
+                        onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c) } }}
+                        aria-label={canOpen ? `Open ${c.name}` : undefined}
                         className={`snap-start shrink-0 w-64 rounded-[22px] overflow-hidden border border-subtle transition-all active:scale-[0.98] ${canOpen ? 'cursor-pointer hover:border-primary/40' : ''}`}
                         style={{ background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(20,20,42,0.98))', boxShadow: '0 8px 28px rgba(0,0,0,0.45)' }}
                       >
-                        <div className="relative h-24 overflow-hidden" style={{ background: `linear-gradient(120deg, ${f1}, ${f2})` }}>
-                          <span className="absolute -right-1 -bottom-6 text-[84px] leading-none font-extrabold text-white/10 select-none">
+                        <div className="relative h-20 overflow-hidden" style={{ background: `linear-gradient(120deg, ${f1}, ${f2})` }}>
+                          <span className="absolute -right-1 -bottom-5 text-[72px] leading-none font-extrabold text-white/10 select-none">
                             {avatarLetter(c.name)}
                           </span>
                         </div>
-                        <div className="p-3.5">
+                        <div className="p-3">
                           <div className="flex items-center gap-2.5 -mt-9 mb-2">
                             <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-extrabold shadow-lg ring-2 ring-[var(--bg-card)] shrink-0">
                               {avatarLetter(c.name)}
@@ -933,7 +955,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                             : <p className="text-xs text-tertiary italic min-h-8">No description</p>}
                           <div className="flex items-center justify-between mt-2.5">
                             <p className="text-[11px] text-tertiary">
-                              {formatFollowers(c.follower_count ?? 0)} followers · {c.post_count ?? 0} posts
+                              {compactPlural(c.follower_count ?? 0, 'follower')} · {compactPlural(c.post_count ?? 0, 'post')}
                             </p>
                             {followBtn(c)}
                           </div>
@@ -955,15 +977,17 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
             )}
+            {restChannels.length > 0 && (
             <section>
               <div className="flex items-center gap-1.5 px-4 pb-1">
                 <Compass className="w-3.5 h-3.5 text-primary" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All channels</p>
               </div>
               <div className="px-3">
-                {channels.map((c: any) => <ChannelRow key={c.id} c={c} />)}
+                {restChannels.map((c: any) => <ChannelRow key={c.id} c={c} />)}
               </div>
             </section>
+            )}
           </div>
         )}
       </div>
@@ -971,7 +995,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       {/* Create wizard */}
       {wizard && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => !creating && setWizard(null)}>
-          <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <p className="font-bold text-[17px] tracking-tight">New channel</p>
               <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted" aria-label="Close">
@@ -1070,10 +1094,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             {c.is_owner && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
           </p>
           <p className="text-[13px] text-muted-foreground truncate mt-px">
-            {c.description || `${formatFollowers(c.follower_count ?? 0)} followers`}
+            {c.description || compactPlural(c.follower_count ?? 0, 'follower')}
           </p>
           {c.description && (
-            <p className="text-xs text-tertiary mt-px">{formatFollowers(c.follower_count ?? 0)} followers · {c.post_count ?? 0} posts</p>
+            <p className="text-xs text-tertiary mt-px">{compactPlural(c.follower_count ?? 0, 'follower')} · {compactPlural(c.post_count ?? 0, 'post')}</p>
           )}
         </button>
         {!c.is_owner ? (

@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { communityApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { formatTime } from '../utils/format'
+import { formatTime, compactPlural } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 
 /**
@@ -48,6 +48,7 @@ export function CommunitiesPanel({
   const { user } = useAuthStore()
   const [lists, setLists] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
   const [tab, setTab] = useState<'discover' | 'mine'>('discover')
   const [query, setQuery] = useState('')
   const [openId, setOpenId] = useState<number | null>(null)
@@ -70,11 +71,15 @@ export function CommunitiesPanel({
   } as const
 
   const load = () => {
+    setLoading(true)
+    setLoadError(false)
     communityApi
       .list()
       .then((r: any) => {
         if (r?.success) setLists(r.data || [])
+        else setLoadError(true)
       })
+      .catch(() => setLoadError(true))
       .finally(() => setLoading(false))
   }
   useEffect(load, [])
@@ -215,7 +220,7 @@ export function CommunitiesPanel({
       const sender = last.sender_username ? `~ ${last.sender_username}: ` : ''
       return `${sender}${prettyPreview(last.content)?.slice(0, 60) || 'Attachment'}`
     }
-    return `${g.member_count ?? 0} members`
+    return `${compactPlural(g.member_count ?? 0, 'member')}`
   }
 
   const openCommunity = (c: any) => {
@@ -241,21 +246,32 @@ export function CommunitiesPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [lists, conversations]
   )
+  const trendingIds = new Set(trending.map((c: any) => c.id))
+  // Directory lists only what Trending doesn't, so small datasets
+  // never render the same card twice on one screen.
+  const restLists = lists.filter((c: any) => !trendingIds.has(c.id))
   const openCommunityData = lists.find((c) => c.id === openId)
 
-  const memberCluster = (members: any[], max = 4) => (
-    <span className="flex -space-x-2">
-      {members.slice(0, max).map((m: any) => (
-        <span key={m.user_id} className="w-6 h-6 rounded-full bg-muted border-2 border-[var(--bg-card)] flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
-          {m.avatar_url ? (
-            <img src={m.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" />
-          ) : (
-            (m.display_name || m.username || '?')[0].toUpperCase()
-          )}
-        </span>
-      ))}
-    </span>
-  )
+  const memberCluster = (members: any[], max = 4) => {
+    const shown = members.slice(0, max)
+    return (
+      <span className="flex shrink-0" aria-hidden>
+        {shown.map((m: any, i: number) => (
+          <span
+            key={m.user_id}
+            style={{ zIndex: shown.length - i, marginLeft: i === 0 ? 0 : -8 }}
+            className="w-6 h-6 rounded-full bg-muted border-2 border-[var(--bg-card)] flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0"
+          >
+            {m.avatar_url ? (
+              <img src={m.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+            ) : (
+              (m.display_name || m.username || '?')[0].toUpperCase()
+            )}
+          </span>
+        ))}
+      </span>
+    )
+  }
 
   /* ═══════════ DETAIL VIEW ═══════════ */
   if (openCommunityData) {
@@ -270,7 +286,7 @@ export function CommunitiesPanel({
 
     return (
       <div className="h-full flex flex-col bg-card">
-        <div className="flex items-center gap-1.5 px-2 py-2 border-b border-[var(--k-border)] shrink-0">
+        <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
           <button onClick={() => setOpenId(null)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Back to communities">
             <ArrowLeft className="w-5 h-5" />
           </button>
@@ -298,13 +314,13 @@ export function CommunitiesPanel({
         <div className="flex-1 overflow-y-auto min-h-0 pb-4">
           {/* Clubhouse header */}
           <div className="m-3 rounded-[24px] overflow-hidden border border-subtle" style={{ background: 'linear-gradient(180deg, rgba(16,40,38,0.98), rgba(10,18,26,0.98))', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-            <div className="relative h-24 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
-              <span className="absolute -right-1 -bottom-7 text-[96px] leading-none font-extrabold text-white/10 select-none">
-                <Users className="w-20 h-20" />
+            <div className="relative h-20 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+              <span className="absolute -right-1 -bottom-6 text-[80px] leading-none font-extrabold text-white/10 select-none">
+                <Users className="w-16 h-16" />
               </span>
               <div className="absolute w-36 h-36 rounded-full bg-white/10 blur-2xl -left-8 -top-14" />
             </div>
-            <div className="px-4 pt-3 pb-4">
+            <div className="px-4 pt-2.5 pb-3.5">
               <div className="flex items-center gap-3">
                 <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/10" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
                   <Users className="w-7 h-7 text-white" />
@@ -317,8 +333,8 @@ export function CommunitiesPanel({
               <div className="flex items-center gap-3 mt-3">
                 {members.length > 0 && memberCluster(members)}
                 <p className="text-[11px] text-tertiary">
-                  {st.groups} groups · {st.members} members
-                  {st.online > 0 && <span className="text-emerald-400 font-semibold"> · {st.online} online</span>}
+                  {compactPlural(st.groups, 'group')} · {compactPlural(st.members, 'member')}
+                  {st.online > 0 && <span className="text-emerald-400 font-semibold"> · {compactPlural(st.online, 'member')} online</span>}
                 </p>
               </div>
             </div>
@@ -386,7 +402,7 @@ export function CommunitiesPanel({
                       onClick={() => setAnnounceOpen(true)}
                       className="w-full rounded-2xl bg-elevated border border-dashed border-subtle p-3.5 text-sm text-secondary hover:border-emerald-500/40 transition-colors flex items-center justify-center gap-2"
                     >
-                      <Megaphone className="w-4 h-4 text-emerald-400" /> Announce to {st.groups} group{st.groups === 1 ? '' : 's'}
+                      <Megaphone className="w-4 h-4 text-emerald-400" /> Announce to {compactPlural(st.groups, 'group')}
                     </button>
                   )
                 ) : (
@@ -567,7 +583,7 @@ export function CommunitiesPanel({
               </span>
               <span className="block text-[13px] text-muted-foreground truncate mt-px">{groupPreview(g)}</span>
               <span className="block text-[11px] text-tertiary mt-px">
-                {g.member_count ?? 0} members{online > 0 && <span className="text-emerald-400 font-semibold"> · {online} online</span>}
+                {compactPlural(g.member_count ?? 0, 'member')}{online > 0 && <span className="text-emerald-400 font-semibold"> · {compactPlural(online, 'member')} online</span>}
               </span>
             </span>
           </button>
@@ -613,7 +629,7 @@ export function CommunitiesPanel({
   /* ═══════════ LIST VIEW ═══════════ */
   return (
     <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-[var(--k-border)] shrink-0">
+      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
         <p className="font-bold text-[17px] flex-1 px-2 tracking-tight flex items-center gap-1.5">
           <Network className="w-4 h-4 text-emerald-400" /> Communities
           {lists.length > 0 && (
@@ -629,7 +645,7 @@ export function CommunitiesPanel({
       </div>
 
       <div className="px-3 pt-2.5 shrink-0">
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle focus-within:border-emerald-500/50 transition-colors">
           <Search className="w-4 h-4 text-tertiary shrink-0" />
           <input
             value={query}
@@ -679,6 +695,19 @@ export function CommunitiesPanel({
                 </div>
               </div>
             ))}
+          </div>
+        ) : loadError ? (
+          <div className="py-12 text-center px-8">
+            <div className="w-16 h-16 rounded-[22px] bg-elevated border border-subtle flex items-center justify-center mx-auto">
+              <Search className="w-7 h-7 text-tertiary" />
+            </div>
+            <p className="text-[16px] font-bold mt-4 tracking-tight">Couldn&apos;t load communities</p>
+            <p className="text-[13px] text-muted-foreground mt-1 max-w-[240px] mx-auto">
+              Check your connection and try again — nothing was lost.
+            </p>
+            <button onClick={load} className="mt-4 px-5 py-2.5 rounded-full bg-emerald-500 text-white text-sm font-semibold shadow-lg transition-all active:scale-95">
+              Retry
+            </button>
           </div>
         ) : lists.length === 0 ? (
           <div className="py-10 text-center px-8">
@@ -748,15 +777,17 @@ export function CommunitiesPanel({
                 </div>
               </section>
             )}
+            {restLists.length > 0 && (
             <section>
               <div className="flex items-center gap-1.5 px-4 pb-2">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All communities</p>
               </div>
               <div className="px-3 space-y-3">
-                {lists.map((c: any) => <CommunityCard key={c.id} c={c} />)}
+                {restLists.map((c: any) => <CommunityCard key={c.id} c={c} />)}
               </div>
             </section>
+            )}
           </div>
         )}
       </div>
@@ -764,7 +795,7 @@ export function CommunitiesPanel({
       {/* Create wizard */}
       {wizard && (
         <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => !creating && setWizard(null)}>
-          <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <p className="font-bold text-[17px] tracking-tight">New community</p>
               <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted" aria-label="Close">
@@ -849,6 +880,10 @@ export function CommunitiesPanel({
     return (
       <div
         onClick={() => openCommunity(c)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCommunity(c) } }}
+        aria-label={`Open ${c.name}`}
         className="rounded-[22px] overflow-hidden border border-subtle cursor-pointer transition-all hover:border-emerald-500/30 active:scale-[0.99]"
         style={{ background: 'linear-gradient(180deg, rgba(20,38,36,0.98), rgba(12,20,28,0.98))', boxShadow: '0 8px 28px rgba(0,0,0,0.45)' }}
       >
@@ -868,14 +903,14 @@ export function CommunitiesPanel({
           {c.description
             ? <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed min-h-8">{c.description}</p>
             : <p className="text-xs text-tertiary italic min-h-8">No description</p>}
-          <div className="flex items-center justify-between mt-2">
-            <div className="flex items-center gap-2">
+          <div className="flex items-center justify-between gap-2 mt-2">
+            <div className="flex items-center gap-2 flex-1 min-w-0">
               {members.length > 0 && memberCluster(members)}
-              <p className="text-[11px] text-tertiary">
-                {st.members} members{st.online > 0 && <span className="text-emerald-400 font-semibold"> · {st.online} online</span>}
+              <p className="text-[11px] text-tertiary truncate">
+                {compactPlural(st.members, 'member')}{st.online > 0 && <span className="text-emerald-400 font-semibold"> · {compactPlural(st.online, 'member')} online</span>}
               </p>
             </div>
-            <p className="text-[11px] text-tertiary">{st.groups} groups</p>
+            <p className="text-[11px] text-tertiary shrink-0">{compactPlural(st.groups, 'group')}</p>
           </div>
         </div>
       </div>

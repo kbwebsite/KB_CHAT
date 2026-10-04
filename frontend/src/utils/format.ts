@@ -23,6 +23,26 @@ export function initials(name?: string | null) {
   return name.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase()
 }
 
+/** "1 group" / "5 groups" — single shared pluralizer, no copies. */
+export function plural(n: number | null | undefined, one: string, many?: string) {
+  const v = n ?? 0
+  return `${v} ${v === 1 ? one : many ?? `${one}s`}`
+}
+
+/** 128421 -> "128K", 2_400_000 -> "2.4M". */
+export function compact(n: number | null | undefined) {
+  const v = n ?? 0
+  if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1).replace(/\.0$/, '')}K`
+  return `${v}`
+}
+
+/** "128K followers" / "1 follower" — compact number, correct plural. */
+export function compactPlural(n: number | null | undefined, one: string, many?: string) {
+  const v = n ?? 0
+  return `${compact(v)} ${v === 1 ? one : many ?? `${one}s`}`
+}
+
 export function getFileIcon(mime: string) {
   if (mime.startsWith('image/')) return 'image'
   if (mime.includes('pdf')) return 'pdf'

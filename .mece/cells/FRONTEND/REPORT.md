@@ -1,170 +1,79 @@
-# Kryzen / KB_CHAT — Mobile UI Bug Audit & Structural Fix Report
+# FRONTEND REPORT — Channels + Communities Post-Redesign Polish Pass
 
-## Problems Found
+Base commit: `d0b6732` (redesign) → this pass (no redesign, no backend changes).
 
-### 1. Loading State Race Condition (Critical)
-**Root Cause:** `loadingMessages` was a single global boolean in the Zustand chat store. When switching conversations while a fetch was in-flight, the loading state would incorrectly reset when the first conversation finished loading, even though the second conversation was still loading.
+## 1. Problems found
 
-**Impact:** Conversation areas would flash empty/loading skeletons when rapidly switching between conversations.
+| # | Problem | Where |
+|---|---------|-------|
+| 1 | Same channel/community rendered in both Featured/Trending and All sections on small datasets — screen felt duplicated | ChannelsPanel, CommunitiesPanel |
+| 2 | "1 groups / 1 members / 1 posts / 1 followers" grammar bugs throughout | Both panels |
+| 3 | Plural logic copy-pasted per component (would diverge) | Both panels |
+| 4 | Post footer showed follower count with an eye icon, implying per-post view counts the backend does not track | ChannelsPanel |
+| 5 | Cover cards too tall for 360–390px screens (h-24/h-28 covers + loose padding) | Both panels |
+| 6 | Profile headers inconsistent (py/spacing, channel profile had no Close button) | Both panels |
+| 7 | Avatar cluster: wrong overlap order (last-on-top), no z-index, text beside cluster could squeeze at 360px | CommunitiesPanel |
+| 8 | Failed list loads showed the "empty" illustration (misleading) with no retry | Both panels |
+| 9 | Featured channel cards + community cards not keyboard-operable (div onClick only) | Both panels |
+| 10 | Wizard sheets had no max-height — could overflow small viewports | Both panels |
+| 11 | Jump-to-latest button positioned against a non-relative ancestor (misplacement risk) | ChannelsPanel |
+| 12 | Search inputs had no visible focus state | Both panels |
 
-### 2. Message Actions (BottomSheet) Stale State (Critical)
-**Root Cause:** The `mobileActionSheet` state in ChatPage.tsx was never cleared when:
-- Navigating back to the conversation list
-- Switching between conversations
-- Pressing Escape
+## 2. Root causes
 
-Additionally, the `BottomSheet` component pushed a browser history entry on every open but the `popstate` handler was captured in a closure that could become stale, and the history entry was pushed unconditionally even if already open.
+- Discovery sections were computed independently with no exclusion (1).
+- Counts were inline template strings, never centralized (2, 3).
+- Eye+followers copied from a pre-redesign pattern without checking what the API returns (4).
+- Covers sized for desktop balance, never re-checked at 360px (5).
+- The two profile headers evolved separately (6).
+- Cluster used `-space-x-2` which stacks last-on-top with no z-index control (7).
+- `load()` had no error branch — empty state was the only fallback (8).
+- Cards added late in the redesign without a11y pass (9).
 
-**Impact:** Message actions bottom sheet would remain visible/stuck when navigating away from a conversation.
+## 3. Files changed
 
-### 3. Mobile Layout: Missing Safe-Area + Conflicting Heights (High)
-**Root Cause:** 
-- `.keyboard-aware` class set `height: 100dvh` which conflicted with the `flex-1` Tailwind class on the same element, causing unpredictable layout behavior on mobile
-- Mobile bottom nav bar used `var(--sab)` for padding but the keyboard-aware padding-bottom didn't account for the safe-area-inset-bottom
-- Composer had redundant safe-area handling (both CSS margin and Tailwind padding)
-- The `.mobile-bottom-nav` CSS didn't use `env(safe-area-inset-bottom)` directly
+- `frontend/src/components/ChannelsPanel.tsx` — deduped sections, compactPlural everywhere, Eye-views removed, h-20/h-24 covers, header + Close, keyboard cards, wizard max-h, jump-anchor relative, search focus, loadError + Retry
+- `frontend/src/components/CommunitiesPanel.tsx` — same, plus z-index avatar cluster with truncation guards
+- `frontend/src/utils/format.ts` — added shared `plural` / `compact` / `compactPlural`
+- `frontend/src/index.css` — added `.no-scrollbar` for the Featured carousel
+- Backend: **untouched** (verified via `git diff --stat`: zero backend files)
 
-**Impact:** Composer could overlap with bottom navigation, content could be cut off on notched devices.
+## 4. UX improvements
 
-### 4. Orphaned CSS Rules (Medium)
-**Root Cause:** CSS rules for `.chat-page-layout`, `.chat-sidebar`, `.chat-main`, `.chat-info-panel` were defined but never applied to any JSX elements. The actual layout uses Tailwind utility classes with conditional mobile/desktop visibility.
+- Small datasets show each channel/community once (All sections exclude highlighted ids and hide when empty)
+- Correct grammar at every count ("1 member", "2.4K followers", stat tiles keep bare values with noun labels)
+- Shorter cards, tighter padding — more content visible per 360–390px viewport, all info retained
+- Consistent header language (back, identity, actions, close) in violet (channels) vs emerald (communities) identities
+- Honest loading (matching skeletons) vs empty (art + CTA) vs error (message + Retry) states
+- Keyboard users can open every card; focus visible on search; reduced-motion still respected
 
-**Impact:** Dead CSS adding confusion and potential specificity conflicts.
+## 5. Tests executed
 
-### 5. Modal-Open Body Class Missing Height (Low)
-**Root Cause:** `body.modal-open` had `position: fixed; width: 100%` but no `height: 100%`, which could cause layout issues on some mobile browsers when a bottom sheet was open.
+- `npx tsc --noEmit` — **clean**
+- Topic/API behavior — unchanged backend, no new endpoints; follow/unfollow/post/announce/create/delete flows call the same verified endpoints as before
+- Manual mobile/desktop tap-through — **NOT performed** (no browser automation available in this environment); replaced with careful static review of layout math (widths, truncation, min-w-0 guards, safe-area composer clearance)
 
-### 6. BottomSheet History Management (Medium)
-**Root Cause:** The BottomSheet pushed browser history on every open without checking if already open, and the cleanup handler could leave stale state if the component unmounted while open.
+## 6. Build result
 
-**Impact:** Mobile back button behavior was unreliable when bottom sheets were involved.
+- `npx vite build` — **success in ~26s** (only the pre-existing chunk-size warning)
 
----
+## 7. Lint result
 
-## Files Changed
+- `npm run lint` — **cannot run**: ESLint 10 is installed but the repo has no `eslint.config.*` anywhere. Pre-existing, repo-wide, unrelated to this change. No lint config was invented for this pass (out of scope).
 
-### `frontend/src/store/chat.ts`
-- Changed `loadingMessages` from `boolean` to `Record<number, boolean>` (per-conversation loading state)
-- Updated `fetchMessages` to set loading state per-conversation instead of globally
-- Initial state changed from `false` to `{}`
+## 8. Backend test result
 
-### `frontend/src/pages/ChatPage.tsx`
-- Added `isCurrentLoading` derived from per-conversation loading state
-- Updated infinite scroll check to use `isCurrentLoading`
-- Updated scroll position restore logic to use `isCurrentLoading`
-- Updated loading indicator to use `isCurrentLoading`
-- `handleSelect` now clears all transient state: `mobileActionSheet`, `replyTo`, `editTarget`, `editText`, `selectedIds`, `showMessageSearch`
-- Back button (`onBack`) now clears all transient state
-- Escape key handler now clears `mobileActionSheet`
-- Simplified `mobileView` initialization
+- `pytest ../tests -v` (scratch sqlite DB): **56 passed, 4 failed**
+- The 4 failures (`test_firebase_exchange_*`, `test_forgot_password_*`, 2× group leave/handoff with `403 "Not a member"`) are in backend auth/group logic; this change touches zero backend files, so they cannot be caused by it (single-test rerun confirms a membership-logic assertion, e.g. `assert 403 == 200`)
+- `tests/test_email_verification.py` fails at *collection* because the local dev `.env` contains a real `RESEND_API_KEY` the test asserts absent — environmental, pre-existing
 
-### `frontend/src/components/BottomSheet.tsx`
-- Added `historyPushed` ref to prevent duplicate history entries
-- Fixed `popstate` handler to use ref for cleanup
-- Added proper unmount cleanup for history state
+## 9. Remaining issues
 
-### `frontend/src/components/MobileNav.tsx`
-- Added `style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}` for iPhone notch support
+- Follow/unfollow buttons are ~32px tall; 44px guidance noted but rows are full-width tall targets, so left as-is
+- Composer is single-line `<input>` (no multiline) — works correctly; auto-grow textarea deferred (needs device testing)
+- `streaming`/`showContacts` legacy states left untouched where harmless
 
-### `frontend/src/index.css`
-- Removed fixed `height: 100dvh` from `.keyboard-aware` (was conflicting with `flex-1`)
-- Updated `.keyboard-aware` padding-bottom to account for safe-area-inset-bottom
-- Removed redundant `height: 100%` desktop override for `.keyboard-aware`
-- Fixed `.mobile-bottom-nav` to use `env(safe-area-inset-bottom, 0px)` directly
-- Simplified `.composer` mobile margin (removed double-counted safe-area)
-- Added `height: 100%` to `body.modal-open`
-- Removed orphaned CSS: `.chat-page-layout`, `.chat-sidebar`, `.chat-main`, `.chat-info-panel`
+## 10. Known limitations
 
----
-
-## Fixes
-
-### Fix 1: Per-Conversation Loading State
-The store now tracks loading state per conversation ID. This prevents the race condition where switching conversations would incorrectly show/hide loading indicators. Each conversation's loading state is independent.
-
-### Fix 2: Transient State Cleanup
-All transient UI state (message actions, reply, edit, selection, search) is now properly cleared when:
-- Switching conversations via `handleSelect`
-- Navigating back to the list via the back button
-- Pressing Escape
-
-### Fix 3: Mobile Layout Architecture
-- Removed the fixed `height: 100dvh` from `.keyboard-aware` that conflicted with flex layout
-- The flex-1 + min-h-0 pattern now correctly sizes the main content area
-- Safe-area insets are properly accounted for in both the mobile nav bar and the keyboard-aware padding
-- Composer safe-area handling is now single-sourced (Tailwind class only)
-
-### Fix 4: BottomSheet Lifecycle
-- History entries are only pushed when the sheet opens (not if already open)
-- The `popstate` handler properly cleans up on unmount
-- The `historyPushed` ref prevents stale state
-
----
-
-## Verification
-
-### Build Result
-```
-✓ TypeScript compilation: PASSED
-✓ Vite build: PASSED (6.46s)
-✓ All 1890 modules transformed
-✓ Output: dist/ with proper chunking
-```
-Note: Pre-existing chunk size warning for ChatPage (504KB) — not introduced by these changes.
-
-### Lint Result
-ESLint configuration is missing (no `.eslintrc.*` file in project). The installed ESLint v10 requires `eslint.config.*`. This is a **pre-existing issue** — lint cannot run without configuration.
-
-### Backend Tests
-```
-7/8 tests PASSED:
-✓ test_health
-✓ test_signup_and_login
-✓ test_user_search_and_conversation_flow
-✓ test_message_edit_delete
-✓ test_group_creation
-✓ test_file_validation_unit
-✓ test_websocket_connect
-⏱ test_typing_event (timed out at 60s — pre-existing slow test)
-```
-All completed tests pass. No regressions introduced.
-
-### Manual Testing — Mobile (360-390px viewport)
-- **Conversation list**: Renders correctly, fills available space below header
-- **Open conversation**: Transitions to full-screen chat view
-- **Send message**: Composer stays visible, messages scroll correctly
-- **Back navigation**: Returns to list, all transient state cleared
-- **Message actions**: Bottom sheet opens/closes correctly, doesn't persist after navigation
-- **Bottom nav**: Visible, doesn't overlap composer, safe-area insets respected
-- **Multiple conversation switches**: No stale messages, no stuck loading states
-
-### Manual Testing — Desktop (>992px viewport)
-- **Sidebar + Chat layout**: Both panels visible side by side
-- **Chat header**: Proper height (60px)
-- **Message list**: Scrolls independently
-- **Composer**: Anchored to bottom of chat panel
-- **Right panel**: Opens/closes correctly for settings, profile, etc.
-
----
-
-## Remaining Issues
-
-1. **ESLint configuration missing**: No `.eslintrc.*` file — lint cannot run. Pre-existing issue.
-2. **ChatPage.tsx is 965 lines**: The component is monolithic and manages ~40 state variables. A future refactor could extract panels (settings, profile, etc.) into separate routes or lazy-loaded components.
-3. **`MessageList.tsx` component is unused**: ChatPage inlines message rendering. This dead component could be removed.
-4. **ChatPage chunk size (504KB)**: Pre-existing. Could be addressed via code-splitting in a future pass.
-5. **WebSocket typing test timeout**: Pre-existing backend test issue (60s timeout).
-6. **`100vh` fallback in `.mobile-h-full`**: Uses `-webkit-fill-available` as fallback, but modern mobile browsers support `100dvh`. No immediate issue.
-7. **Desktop 3D tilt effect**: The `perspective/rotateX/Y` transform on the shell is a visual effect. It's correctly disabled on mobile (`window.innerWidth < 992` check) but could cause rendering issues on low-end devices.
-
----
-
-## Risk Areas
-
-1. **iOS Safari keyboard behavior**: The `100dvh` unit should shrink when the keyboard opens on iOS, but behavior varies between iOS versions. The current implementation relies on this standard behavior. If issues arise on specific iOS versions, the `visualViewport` API may be needed.
-
-2. **Per-conversation loading state migration**: Any code that directly reads `loadingMessages` from the store (not through ChatPage) would need to be updated. Currently only ChatPage reads this value.
-
-3. **BottomSheet history management**: The `popstate` handler approach is fragile. A more robust solution would be to use React Router's location state, but that would require larger refactoring.
-
-4. **Safe-area-inset-bottom**: Only applied to mobile nav and composer. If other fixed-position elements are added in the future, they'll need the same treatment.
+- No live-device verification (keyboard open/close, bottom-nav overlap, 360/375/390/412/768 widths) — needs a phone or emulator pass
+- `any` types and nested row components predate this pass and were intentionally left alone per the no-large-refactor rule
