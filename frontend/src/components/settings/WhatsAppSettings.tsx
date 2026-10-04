@@ -11,6 +11,8 @@ import {
   broadcastApi,
   communityApi,
 } from '../../services/api'
+import { wallpaperStyle, customWallpaperUrl } from '../../utils/wallpapers'
+import { useSettingsStore } from '../../store/settings'
 import {
   ArrowLeft,
   Search,
@@ -386,6 +388,21 @@ function LockedChats() {
   )
 }
 
+/* ── Static info row (WhatsApp sub-page style, honest when N/A) ──── */
+function InfoRow({ title, sub, value }: { title: string; sub?: string; value?: string }) {
+  return (
+    <div className="py-2">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[15px] font-medium">{title}</p>
+        {value && (
+          <span className="text-xs text-muted-foreground uppercase tracking-wide shrink-0">{value}</span>
+        )}
+      </div>
+      {sub && <p className="text-xs text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  )
+}
+
 /* ── Main shared settings UI ────────────────────────────────────── */
 export function WhatsAppSettings({
   layout,
@@ -399,6 +416,7 @@ export function WhatsAppSettings({
   onOpenConversation: (convId: number) => void
 }) {
   const { user, logout } = useAuthStore() as any
+  const chatWallpaper = useSettingsStore((s) => s.chat_wallpaper)
   const setCurrent = useChatStore((s: any) => s.setCurrent)
   const fetchMessages = useChatStore((s: any) => s.fetchMessages)
   const [currentPwd, setCurrentPwd] = useState('')
@@ -557,43 +575,50 @@ export function WhatsAppSettings({
       body: (
         <div className="space-y-3">
           <div>
-            <SectionLabel>Login and security</SectionLabel>
-            <div className="space-y-2 mt-1.5">
-              <div className="flex justify-between text-xs gap-2">
-                <span className="text-muted-foreground shrink-0">Password</span>
-                <span className="font-medium">••••••••</span>
-              </div>
-              <input type="password" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} placeholder="Current password" className="auth-input w-full px-3 py-2 rounded-lg text-sm" />
-              <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="New password (min 6)" className="auth-input w-full px-3 py-2 rounded-lg text-sm" />
-              <button onClick={handleChangePwd} className="auth-submit-btn w-full py-2 rounded-lg text-white text-sm font-medium" disabled={changingPassword}>
-                {changingPassword ? 'Updating...' : 'Update password'}
-              </button>
-              {pwdMsg && <p className="text-xs text-center p-1.5 rounded-lg bg-background">{pwdMsg}</p>}
-              <div className="flex justify-between text-xs gap-2">
-                <span className="text-muted-foreground shrink-0">Email</span>
-                <span className="font-medium truncate ml-2">{user?.email || '—'}</span>
-              </div>
-              <div className="flex justify-between text-xs gap-2">
-                <span className="text-muted-foreground shrink-0">Verified</span>
-                <span className="font-medium">{(user as any)?.email_verified ? 'Yes' : 'Not yet'}</span>
-              </div>
-            </div>
+            <SectionLabel>Add account</SectionLabel>
+            <p className="text-xs text-muted-foreground mt-1">One account per device — log out below to switch accounts.</p>
           </div>
           <div>
-            <SectionLabel>Two-step verification</SectionLabel>
-            <div className="mt-1.5">
-              <AppLockSettings />
+            <SectionLabel>Login and security</SectionLabel>
+            <div className="mt-1 divide-y divide-[var(--k-border)]/40">
+              <InfoRow title="Passkeys" sub="Not available yet — your password + app PIN protect this account." />
+              <div className="py-1">
+                <div className="flex justify-between text-xs gap-2 py-1">
+                  <span className="text-muted-foreground shrink-0">Password</span>
+                  <span className="font-medium">••••••••</span>
+                </div>
+                <input type="password" value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} placeholder="Current password" className="auth-input w-full px-3 py-2 rounded-lg text-sm mt-1" />
+                <input type="password" value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="New password (min 6)" className="auth-input w-full px-3 py-2 rounded-lg text-sm mt-1.5" />
+                <button onClick={handleChangePwd} className="auth-submit-btn w-full py-2 rounded-lg text-white text-sm font-medium mt-1.5" disabled={changingPassword}>
+                  {changingPassword ? 'Updating...' : 'Update password'}
+                </button>
+                {pwdMsg && <p className="text-xs text-center p-1.5 rounded-lg bg-background mt-1.5">{pwdMsg}</p>}
+                <div className="flex justify-between text-xs gap-2 py-1">
+                  <span className="text-muted-foreground shrink-0">Email</span>
+                  <span className="font-medium truncate ml-2">{user?.email || '—'}{(user as any)?.email_verified ? ' · verified' : ''}</span>
+                </div>
+              </div>
+              <div className="py-1">
+                <SectionLabel>Two-step verification</SectionLabel>
+                <div className="mt-1">
+                  <AppLockSettings />
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">Your app PIN is Kryzen&apos;s second factor — it gates the app and locked chats.</p>
+              </div>
+              <InfoRow title="Security notifications" sub="Security alert history isn't available yet." />
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Your app PIN is Kryzen&apos;s second factor — it gates the app and locked chats.</p>
           </div>
           <div>
             <SectionLabel>Your account</SectionLabel>
-            <div className="mt-1.5 space-y-1.5">
-              <div className="flex justify-between text-xs gap-2">
-                <span className="text-muted-foreground shrink-0">Username</span>
-                <span className="font-medium truncate ml-2">@{user?.username}</span>
+            <div className="mt-1 divide-y divide-[var(--k-border)]/40">
+              <div className="flex justify-between py-2 gap-2">
+                <div>
+                  <p className="text-[15px] font-medium">Username</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">@{user?.username}</p>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Kryzen identities are usernames, not phone numbers — there&apos;s no number to change.</p>
+              <InfoRow title="Change phone number" sub="Kryzen identities are usernames, not phone numbers — there's no number to change." />
+              <InfoRow title="Ad preferences in Accounts Centre" sub="Kryzen shows no ads — there's nothing to prefer." />
             </div>
           </div>
           <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl font-medium text-red-500 hover:bg-red-500/10 transition-colors text-sm">
@@ -620,6 +645,11 @@ export function WhatsAppSettings({
             <div className="mt-1">
               <DefaultTimerRow />
             </div>
+          </div>
+          <div className="divide-y divide-[var(--k-border)]/40">
+            <InfoRow title="Groups" value="Everyone" sub="Per-group privacy isn't available yet." />
+            <InfoRow title="Live location" sub="Live location sharing isn't available yet." />
+            <InfoRow title="Calls" sub="Silence unknown callers isn't available yet — unknown calls ring normally." />
           </div>
           <div>
             <SectionLabel>Contacts</SectionLabel>
@@ -653,8 +683,9 @@ export function WhatsAppSettings({
           </div>
           <div>
             <SectionLabel>Advanced</SectionLabel>
-            <div className="mt-1">
+            <div className="mt-1 space-y-2">
               <ToggleRow k="link_previews" label="Link previews" desc="Unfurl links into rich cards" />
+              <InfoRow title="Allow camera effects" sub="Camera effects aren't available yet." />
             </div>
           </div>
           {showPrivacy ? (
@@ -718,15 +749,18 @@ export function WhatsAppSettings({
                 ]}
               />
               <ToggleRow k="typing_indicators" label="Typing indicators" desc="Send and show “typing…” states" />
+              <InfoRow title="Voice message transcripts" sub="Transcripts aren't available yet." />
+              <InfoRow title="Sticker suggestions" sub="Suggestions while typing aren't available yet." />
             </div>
           </div>
           <div>
             <SectionLabel>Archived chats</SectionLabel>
-            <p className="text-xs text-muted-foreground mt-1">Archived chats live in the chat list — open one to unarchive it.</p>
+            <InfoRow title="Keep chats archived" sub="Archived chats stay archived in the chat list — open one to unarchive it." />
           </div>
           <div>
             <SectionLabel>Chat backup</SectionLabel>
-            <p className="text-xs text-muted-foreground mt-1">Kryzen doesn&apos;t upload backups anywhere yet — your history stays on your devices.</p>
+            <InfoRow title="Chat backup" sub="Kryzen doesn't upload backups anywhere yet — your history stays on your devices." />
+            <InfoRow title="Transfer chats" sub="Chat transfer between devices isn't available yet." />
           </div>
         </div>
       ),
@@ -736,7 +770,26 @@ export function WhatsAppSettings({
       icon: Palette,
       title: 'Appearance',
       subtitle: 'Chat theme, app icon, app theme',
-      body: <AppearanceSettings />,
+      body: (
+        <div className="space-y-3">
+          <div>
+            <SectionLabel>Default chat theme</SectionLabel>
+            <div className="mt-1.5 flex items-center gap-3">
+              <span
+                className="w-10 h-10 rounded-lg border border-subtle shrink-0 bg-cover bg-center"
+                style={
+                  chatWallpaper === 'custom' && customWallpaperUrl()
+                    ? { backgroundImage: `url(${customWallpaperUrl()})` }
+                    : wallpaperStyle(chatWallpaper)
+                }
+              />
+              <p className="text-xs text-muted-foreground">Your current wallpaper, live in every chat. Change it below.</p>
+            </div>
+          </div>
+          <AppearanceSettings />
+          <InfoRow title="App icon" sub="Custom app icons aren't available on web yet." />
+        </div>
+      ),
     },
     {
       id: 'broadcasts',
@@ -779,12 +832,23 @@ export function WhatsAppSettings({
           <div>
             <SectionLabel>Network usage</SectionLabel>
             <p className="text-xs text-muted-foreground mt-1">Per-chat network stats aren&apos;t tracked yet.</p>
+            <InfoRow title="Use less data for calls" sub="Calls are peer-to-peer — there's no saver mode yet." />
+            <InfoRow title="Proxy" value="Off" sub="Proxy support isn't available yet." />
           </div>
           <div>
-            <SectionLabel>Media auto-download</SectionLabel>
+            <SectionLabel>Media upload quality</SectionLabel>
+            <InfoRow title="Media upload quality" value="Original" sub="Uploads always send at original quality." />
+          </div>
+          <div>
+            <SectionLabel>Auto-download quality</SectionLabel>
+            <InfoRow title="Auto-download quality" value="Auto" sub="Quality follows the master switch below." />
             <div className="mt-1">
               <ToggleRow k="media_auto_download" label="Auto-download media" desc="Voice notes always download automatically" />
             </div>
+          </div>
+          <div>
+            <SectionLabel>Media auto-download</SectionLabel>
+            <p className="text-xs text-muted-foreground mt-1">One switch covers mobile data, Wi-Fi and roaming.</p>
           </div>
         </div>
       ),
@@ -865,6 +929,10 @@ export function WhatsAppSettings({
           <div>
             <SectionLabel>Terms and privacy policy</SectionLabel>
             <p className="text-xs text-muted-foreground mt-1">Kryzen keeps your messages between you and the people you send them to. No ads, no message selling, no phone-number directory.</p>
+          </div>
+          <div>
+            <SectionLabel>Channel reports</SectionLabel>
+            <p className="text-xs text-muted-foreground mt-1">Nothing to review — channel reporting isn&apos;t available yet.</p>
           </div>
           <div>
             <SectionLabel>App info</SectionLabel>
@@ -1011,17 +1079,19 @@ export function WhatsAppSettings({
               </div>
             )}
             <div className="flex justify-center mt-3">
-              {user?.avatar_url ? (
-                <img
-                  src={user.avatar_url}
-                  alt=""
-                  className="w-36 h-36 rounded-full object-cover ring-2 ring-white/10 shadow-2xl"
-                />
-              ) : (
-                <div className="w-36 h-36 rounded-full gradient-primary flex items-center justify-center text-white text-5xl font-extrabold ring-2 ring-white/10 shadow-2xl">
-                  {(user?.display_name || user?.username || '?')[0].toUpperCase()}
-                </div>
-              )}
+              <div className="rounded-full gradient-primary p-[3px] shadow-2xl">
+                {user?.avatar_url ? (
+                  <img
+                    src={user.avatar_url}
+                    alt=""
+                    className="w-36 h-36 rounded-full object-cover ring-2 ring-black/40"
+                  />
+                ) : (
+                  <div className="w-36 h-36 rounded-full bg-card flex items-center justify-center text-white text-5xl font-extrabold ring-2 ring-black/40">
+                    {(user?.display_name || user?.username || '?')[0].toUpperCase()}
+                  </div>
+                )}
+              </div>
             </div>
             {!editing ? (
               <>
@@ -1076,9 +1146,9 @@ export function WhatsAppSettings({
                     onClick={() => setOpenRow(isOpen ? null : r.id)}
                     className="w-full flex items-center gap-5 px-5 py-[18px] text-left hover:bg-muted/40 transition-colors"
                   >
-                    <Icon className="w-7 h-7 text-tertiary shrink-0" />
+                    <Icon className={`w-7 h-7 shrink-0 transition-colors ${isOpen ? 'text-primary' : 'text-tertiary'}`} />
                     <span className="flex-1 min-w-0">
-                      <span className="block text-[17px] font-semibold leading-snug">{r.title}</span>
+                      <span className={`block text-[17px] font-semibold leading-snug transition-colors ${isOpen ? 'text-primary' : ''}`}>{r.title}</span>
                       {r.subtitle && (
                         <span className="block text-sm text-muted-foreground leading-snug mt-1">{r.subtitle}</span>
                       )}
@@ -1086,7 +1156,7 @@ export function WhatsAppSettings({
                   </button>
                   {isOpen && r.body && (
                     <div className="px-5 pb-5 pl-[68px]">
-                      <div className="rounded-2xl bg-elevated/60 border border-subtle p-3.5">{r.body}</div>
+                      <div className="settings-detail-enter rounded-2xl bg-elevated/60 border border-subtle p-3.5">{r.body}</div>
                     </div>
                   )}
                 </div>

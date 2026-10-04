@@ -594,6 +594,22 @@ body {
     animation: none;
   }
 }
+
+/* Settings detail expansion. */
+.settings-detail-enter {
+  animation: settingsIn 0.28s cubic-bezier(0.22, 0.9, 0.3, 1) both;
+  transform-origin: top center;
+}
+@keyframes settingsIn {
+  from { opacity: 0; transform: translateY(-8px) scale(0.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .settings-detail-enter {
+    animation: none;
+  }
+}
 .channel-composer input {
   background-color: rgba(20, 20, 42, 0.9) !important;
   color: #f0f0ff !important;
