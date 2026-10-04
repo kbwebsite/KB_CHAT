@@ -10,12 +10,12 @@ import {
   Pencil,
   X,
   LogOut,
-  Wallet,
   Star,
   MonitorSmartphone,
   KeyRound,
   Lock,
   Users,
+  Contact,
   MessageSquare,
   Palette,
   Megaphone,
@@ -25,12 +25,12 @@ import {
   Accessibility,
   Globe,
   HelpCircle,
-  UserPlus,
   Smartphone,
   Infinity as InfinityIcon,
   Trash,
   Check,
   Copy,
+  ChevronDown,
 } from 'lucide-react'
 import PrivacyCenter from '../components/PrivacyCenter'
 import {
@@ -49,6 +49,14 @@ import { blockApi } from '../services/api'
  * (about bubble, big avatar, name, handle), then icon rows
  * with title + subtitle that expand inline to the real controls.
  */
+function RupeeIcon({ className }: { className?: string }) {
+  return (
+    <span className={`rounded-full bg-muted flex items-center justify-center font-bold shrink-0 ${className ?? ''}`}>
+      ₹
+    </span>
+  )
+}
+
 export default function SettingsPage() {
   const navigate = useNavigate()
   const { user, logout, setUser } = useAuthStore() as any
@@ -161,9 +169,9 @@ export default function SettingsPage() {
   const rows: Row[] = [
     {
       id: 'payments',
-      icon: Wallet,
+      icon: RupeeIcon,
       title: 'Payments',
-      subtitle: 'UPI, cards & history',
+      subtitle: undefined,
       body: <p className="text-[13px] text-muted-foreground">Payments aren&apos;t available in Kryzen yet.</p>,
     },
     {
@@ -266,7 +274,7 @@ export default function SettingsPage() {
     },
     {
       id: 'lists',
-      icon: Users,
+      icon: Contact,
       title: 'Lists',
       subtitle: 'Manage people and groups',
       body: <p className="text-[13px] text-muted-foreground">Manage people from Chats → Contacts, and groups from Chats → ⋮ → New group.</p>,
@@ -385,7 +393,7 @@ export default function SettingsPage() {
     },
     {
       id: 'invite',
-      icon: UserPlus,
+      icon: Users,
       title: 'Invite a friend',
       subtitle: undefined,
       body: (
@@ -469,39 +477,42 @@ export default function SettingsPage() {
 
         {/* Profile header */}
         <div
-          className="px-4 pt-3 pb-5 text-center border-b border-[var(--k-border)]"
+          className="px-4 pt-4 pb-6 text-center"
           style={{
-            backgroundImage: 'radial-gradient(rgba(255,255,255,0.05) 1px, transparent 1px)',
-            backgroundSize: '18px 18px',
+            backgroundImage: 'radial-gradient(rgba(255,255,255,0.055) 1.2px, transparent 1.2px)',
+            backgroundSize: '20px 20px',
           }}
         >
           {user?.about && !editing && (
-            <div className="flex justify-center mb-1">
-              <div className="relative rounded-2xl bg-elevated border border-subtle px-5 py-2 max-w-[85%]">
-                <p className="text-sm font-semibold tracking-wide">{user.about}</p>
+            <div className="flex justify-center mb-2">
+              <div className="relative rounded-2xl bg-elevated border border-subtle px-6 py-2.5 max-w-[85%]">
+                <p className="text-[15px] font-semibold tracking-wide">{user.about}</p>
                 <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 rotate-45 bg-elevated border-b border-r border-subtle" />
               </div>
             </div>
           )}
-          <div className="flex justify-center mt-2">
+          <div className="flex justify-center mt-3">
             {user?.avatar_url ? (
               <img
                 src={user.avatar_url}
                 alt=""
-                className="w-28 h-28 rounded-full object-cover ring-2 ring-[var(--k-border)] shadow-xl"
+                className="w-36 h-36 rounded-full object-cover ring-2 ring-white/10 shadow-2xl"
               />
             ) : (
-              <div className="w-28 h-28 rounded-full gradient-primary flex items-center justify-center text-white text-4xl font-extrabold ring-2 ring-[var(--k-border)] shadow-xl">
+              <div className="w-36 h-36 rounded-full gradient-primary flex items-center justify-center text-white text-5xl font-extrabold ring-2 ring-white/10 shadow-2xl">
                 {(user?.display_name || user?.username || '?')[0].toUpperCase()}
               </div>
             )}
           </div>
           {!editing ? (
             <>
-              <p className="mt-3 text-xl font-bold tracking-tight flex items-center justify-center gap-1.5">
-                {user?.display_name || 'Your name'}
+              <p className="mt-4 text-[22px] font-bold tracking-tight flex items-center justify-center gap-1">
+                <span>{user?.display_name || 'Your name'}</span>
+                <button onClick={startEdit} className="p-1 rounded-full text-muted-foreground hover:text-secondary" aria-label="Edit profile">
+                  <ChevronDown className="w-5 h-5" />
+                </button>
               </p>
-              <button onClick={copyHandle} className="mt-0.5 text-sm text-muted-foreground flex items-center justify-center gap-1 mx-auto" title="Copy handle">
+              <button onClick={copyHandle} className="mt-1 text-[15px] text-muted-foreground flex items-center justify-center gap-1.5 mx-auto uppercase tracking-wide" title="Copy handle">
                 @{user?.username || 'handle'} <Copy className="w-3.5 h-3.5 opacity-60" />
               </button>
             </>
@@ -539,22 +550,23 @@ export default function SettingsPage() {
           {filtered.map((r) => {
             const Icon = r.icon
             const isOpen = openRow === r.id
+            const divided = r.id === 'accounts'
             return (
-              <div key={r.id} className="border-b border-[var(--k-border)]">
+              <div key={r.id} className={divided ? 'border-t border-[var(--k-border)]' : undefined}>
                 <button
                   onClick={() => setOpenRow(isOpen ? null : r.id)}
-                  className="w-full flex items-center gap-4 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors"
+                  className="w-full flex items-center gap-5 px-5 py-[18px] text-left hover:bg-muted/40 transition-colors"
                 >
-                  <Icon className="w-6 h-6 text-tertiary shrink-0" />
+                  <Icon className="w-7 h-7 text-tertiary shrink-0" />
                   <span className="flex-1 min-w-0">
-                    <span className="block text-[15px] font-medium leading-tight">{r.title}</span>
+                    <span className="block text-[17px] font-semibold leading-snug">{r.title}</span>
                     {r.subtitle && (
-                      <span className="block text-[13px] text-muted-foreground leading-snug mt-0.5 line-clamp-2">{r.subtitle}</span>
+                      <span className="block text-sm text-muted-foreground leading-snug mt-1">{r.subtitle}</span>
                     )}
                   </span>
                 </button>
                 {isOpen && r.body && (
-                  <div className="px-4 pb-4 pl-14">
+                  <div className="px-5 pb-5 pl-[68px]">
                     <div className="rounded-2xl bg-elevated/60 border border-subtle p-3.5">{r.body}</div>
                   </div>
                 )}
@@ -566,7 +578,7 @@ export default function SettingsPage() {
           )}
         </div>
 
-        <p className="text-center text-xs text-tertiary mt-6 tracking-wide">Also from Kryzen</p>
+        <p className="text-center text-xs text-tertiary mt-8 tracking-[0.2em] uppercase">Also from Kryzen</p>
       </div>
 
       {/* QR / handle modal */}
