@@ -41,7 +41,6 @@ class ServiceProvider(AIProvider):
                 "create group",
                 "new group",
                 "team",
-                "channel",
                 "add members",
             ],
             "response": (
@@ -57,6 +56,44 @@ class ServiceProvider(AIProvider):
                 "• Change group name/photo\n"
                 "• Create polls, events, and shared notes\n\n"
                 "💡 **Pro tip:** Use @mentions to get someone's attention in busy groups!"
+            ),
+        },
+        "troubleshooting": {
+            "keywords": [
+                "not working",
+                "not sending",
+                "messages are not sending",
+                "won't send",
+                "can't send",
+                "failed to send",
+                "stuck",
+                "broken",
+                "error",
+                "problem",
+                "issue",
+                "bug",
+                "crash",
+                "slow",
+                "sync",
+            ],
+            "response": (
+                "**Common Fixes**\n\n"
+                "**Messages not sending?**\n"
+                "• Check internet connection\n"
+                "• Try refresh (pull down on mobile)\n"
+                "• Log out → log back in\n\n"
+                "**Calls failing?**\n"
+                "• Grant camera/mic permissions\n"
+                "• Try voice call first (less bandwidth)\n"
+                "• Check firewall/VPN\n\n"
+                "**Notifications not arriving?**\n"
+                "• Check app notification permissions (OS settings)\n"
+                "• Verify chat isn't muted\n"
+                "• Check Do Not Disturb mode\n\n"
+                "**Sync issues?**\n"
+                "• Pull to refresh chat list\n"
+                "• Log out from all devices → log in again\n\n"
+                "**Still stuck?** Describe the issue and I'll help further!"
             ),
         },
         "send_message": {
@@ -367,38 +404,6 @@ class ServiceProvider(AIProvider):
                 "💡 **Pro tip:** Review sessions monthly!"
             ),
         },
-        "troubleshooting": {
-            "keywords": [
-                "not working",
-                "broken",
-                "error",
-                "problem",
-                "issue",
-                "bug",
-                "crash",
-                "slow",
-                "sync",
-            ],
-            "response": (
-                "**Common Fixes**\n\n"
-                "**Messages not sending?**\n"
-                "• Check internet connection\n"
-                "• Try refresh (pull down on mobile)\n"
-                "• Log out → log back in\n\n"
-                "**Calls failing?**\n"
-                "• Grant camera/mic permissions\n"
-                "• Try voice call first (less bandwidth)\n"
-                "• Check firewall/VPN\n\n"
-                "**Notifications not arriving?**\n"
-                "• Check app notification permissions (OS settings)\n"
-                "• Verify chat isn't muted\n"
-                "• Check Do Not Disturb mode\n\n"
-                "**Sync issues?**\n"
-                "• Pull to refresh chat list\n"
-                "• Log out from all devices → log in again\n\n"
-                "**Still stuck?** Describe the issue and I'll help further!"
-            ),
-        },
         "keyboard_shortcuts": {
             "keywords": ["shortcut", "hotkey", "keyboard", "keys", "command"],
             "response": (
@@ -413,6 +418,142 @@ class ServiceProvider(AIProvider):
                 "• **Enter** — Open selected chat\n"
                 "• **Shift + Enter** — New line in composer\n\n"
                 "💡 **Pro tip:** Press **?** anywhere to see all shortcuts!"
+            ),
+        },
+        "channels": {
+            "keywords": [
+                "channel",
+                "follow channel",
+                "unfollow",
+                "post an update",
+                "channel post",
+                "post in a channel",
+                "follower",
+            ],
+            "response": (
+                "**Channels** — one-way broadcast feeds\n\n"
+                "1. Sidebar **⋮ → Channels** to discover them\n"
+                "2. **Follow** any channel to read its feed\n"
+                "3. Tap a channel to open its posts\n\n"
+                "**Owners can:**\n"
+                "• Create a channel with the **+** button\n"
+                "• Post text and photo updates for followers\n"
+                "• Copy an invite link from the channel menu (⋮)\n"
+                "• Delete the channel anytime\n\n"
+                "💡 **Pro tip:** Only owners can post — followers just read. Perfect for announcements!"
+            ),
+        },
+        "communities": {
+            "keywords": [
+                "community",
+                "communities",
+                "announce to",
+                "announcement group",
+                "link group",
+            ],
+            "response": (
+                "**Communities** — umbrellas over related groups\n\n"
+                "1. Sidebar **⋮ → Communities**\n"
+                "2. **New community** with the **+** button\n"
+                "3. **Add one of your groups** to link it in\n"
+                "4. Owners can **announce** — one message lands in every linked group at once\n\n"
+                "💡 **Pro tip:** Great for schools, clubs, and apartments — one announcement reaches all groups!"
+            ),
+        },
+        "broadcasts": {
+            "keywords": [
+                "broadcast",
+                "broadcast list",
+                "a broadcast",
+                "send broadcast",
+                "bulk message",
+                "message many",
+                "mass message",
+            ],
+            "response": (
+                "**Broadcast Lists** — message many people at once\n\n"
+                "1. Sidebar **⋮ → Broadcast lists**\n"
+                "2. **New list**, name it, add @usernames\n"
+                "3. Type once → each person gets it as a **private 1-1 chat**\n\n"
+                "Recipients never see each other — no shared group. Manage the same lists from Settings → Broadcasts.\n\n"
+                "💡 **Pro tip:** Ideal for invitations and reminders without group-chat noise!"
+            ),
+        },
+        "disappearing": {
+            "keywords": [
+                "disappearing",
+                "disappear",
+                "messages disappear",
+                "auto-delete",
+                "timer",
+                "self-destruct",
+                "vanish",
+                "ephemeral",
+            ],
+            "response": (
+                "**Disappearing Messages**\n\n"
+                "**Per chat:** open the chat → header **⋮ → Disappearing** → pick 24 hours, 7 days, or 90 days (or Off).\n\n"
+                "**Default for new chats:** Settings → Privacy → Default timer.\n\n"
+                "Messages older than the timer are cleaned up automatically.\n\n"
+                "💡 **Pro tip:** Screenshots can still capture anything — disappearing ≠ secret!"
+            ),
+        },
+        "voice_notes": {
+            "keywords": [
+                "voice note",
+                "voice message",
+                "record audio",
+                "audio message",
+                "microphone",
+                "voice status",
+            ],
+            "response": (
+                "**Voice Notes & Voice Status**\n\n"
+                "**In a chat:** tap the 🎤 button in the composer to record, play back with the waveform, then send.\n\n"
+                "**As a status:** Status panel → voice note option — post a voice update your contacts hear for 24 hours. Adjust playback speed while listening.\n\n"
+                "💡 **Pro tip:** Voice messages always auto-download, even with media auto-download off!"
+            ),
+        },
+        "appearance": {
+            "keywords": [
+                "theme",
+                "wallpaper",
+                "dark mode",
+                "light mode",
+                "accent",
+                "color",
+                "font size",
+                "background",
+                "customize look",
+            ],
+            "response": (
+                "**Appearance** (Settings → Appearance)\n\n"
+                "• **3D theme presets** — Midnight Purple, Ocean Blue, Emerald Forest and more: one tap recolors the whole app\n"
+                "• **Theme packs** — mode + accent + wallpaper together\n"
+                "• **Light / Dark / System** mode, 10 accent colors\n"
+                "• **Wallpapers** — built-ins, custom upload, per-chat wallpapers, 45s slideshow\n"
+                "• **Chat font size**, message spacing, bubble style\n\n"
+                "💡 **Pro tip:** Open any chat → header **⋮ → Chat wallpaper** for a per-chat background!"
+            ),
+        },
+        "ai_capabilities": {
+            "keywords": [
+                "who are you",
+                "what are you",
+                "what can you do",
+                "kryzen ai",
+                "your abilities",
+                "help me with ai",
+                "smart",
+            ],
+            "response": (
+                "**I'm Kryzen AI** 🤖 — right inside your chat app!\n\n"
+                "**I can:**\n"
+                "• Answer how-to questions about every Kryzen feature\n"
+                "• **Summarize** long messages (hover → Summarize)\n"
+                "• **Translate** messages (hover → Translate)\n\n"
+                "**Find me:** the **AI tab** in the bottom nav, or header **⋮ → AI Assistant** in any chat.\n\n"
+                "💡 **Pro tip:** Ask me 'tips' anytime to discover hidden features!"
             ),
         },
     }

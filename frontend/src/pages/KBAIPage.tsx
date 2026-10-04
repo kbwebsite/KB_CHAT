@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { Bot, Send, Sparkles, Trash2, Copy, Check } from 'lucide-react'
+import { Bot, Send, Sparkles, Trash2, Copy, Check, Square } from 'lucide-react'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
@@ -24,17 +24,30 @@ export default function KBAIPage() {
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
+  const [aiStatus, setAiStatus] = useState<{ live: boolean; provider?: string; model?: string } | null>(null)
+  const abortRef = useRef<AbortController | null>(null)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const user = useAuthStore(s => s.user)
 
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight) }, [messages])
 
+  useEffect(() => {
+    aiApi.status()
+      .then((r: any) => {
+        if (r?.success) setAiStatus({ live: !!r.data?.live, provider: r.data?.provider, model: r.data?.model })
+      })
+      .catch(() => {})
+  }, [])
+
+  const stop = () => abortRef.current?.abort()
+
   const send = async () => {
     if (!input.trim() || loading) return
     const msg: Message = { role: 'user', content: input.trim(), timestamp: new Date() }
     setMessages(prev => [...prev, msg])
     setInput('')
+    abortRef.current = new AbortController()
     setLoading(true)
     try {
       const history = messages.map(m => ({ role: m.role, content: m.content }))
@@ -55,7 +68,7 @@ export default function KBAIPage() {
           return next
         })
       }
-      const full = await aiApi.chatStream(msg.content, history, append)
+      const full = await aiApi.chatStream(msg.content, history, append, abortRef.current?.signal)
       if (!full.trim()) {
         setMessages(prev => {
           const next = [...prev]
@@ -66,8 +79,12 @@ export default function KBAIPage() {
         })
       }
     } catch {
-      setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.', timestamp: new Date() }])
+      // Aborted streams keep their partial text; only real failures get a bubble.
+      if (!abortRef.current?.signal.aborted) {
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.', timestamp: new Date() }])
+      }
     }
+    abortRef.current = null
     setLoading(false)
     inputRef.current?.focus()
   }
@@ -92,7 +109,20 @@ export default function KBAIPage() {
           </div>
           <div>
             <h1 className="text-base font-semibold">Kryzen AI</h1>
-            <p className="text-xs text-muted-foreground">Your personal assistant</p>
+            <p className="text-xs text-muted-foreground flex items-center gap-1.5">
+              Your personal assistant
+              {aiStatus && (
+                <span
+                  className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
+                    aiStatus.live ? 'bg-green-500/15 text-green-500' : 'bg-amber-500/15 text-amber-500'
+                  }`}
+                  title={aiStatus.live ? `Live model: ${aiStatus.model || aiStatus.provider}` : 'Answering from the built-in help guide — no cloud model configured'}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${aiStatus.live ? 'bg-green-500' : 'bg-amber-500'}`} />
+                  {aiStatus.live ? 'Live AI' : 'Help-guide mode'}
+                </span>
+              )}
+            </p>
           </div>
         </div>
         {messages.length > 0 && (
@@ -162,10 +192,19 @@ export default function KBAIPage() {
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send() } }}
             placeholder="Ask Kryzen AI anything..." rows={1}
             className="flex-1 resize-none px-4 py-3 rounded-xl bg-secondary text-sm outline-none focus:ring-2 focus:ring-ring max-h-32" />
-          <button onClick={send} disabled={loading || !input.trim()}
-            className="shrink-0 w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-opacity">
-            <Send className="w-4 h-4" />
-          </button>
+          {loading ? (
+            <button onClick={stop}
+              className="shrink-0 w-10 h-10 rounded-xl bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-opacity"
+              aria-label="Stop generating">
+              <Square className="w-4 h-4" />
+            </button>
+          ) : (
+            <button onClick={send} disabled={!input.trim()}
+              className="shrink-0 w-10 h-10 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-opacity"
+              aria-label="Send">
+              <Send className="w-4 h-4" />
+            </button>
+          )}
         </div>
       </div>
     </div>

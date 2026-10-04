@@ -48,6 +48,53 @@ SUPPORTED_LANGUAGES = [
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 
 
+def _pdf_text(content_bytes: bytes, max_chars: int = 12000) -> Optional[str]:
+    """Extract text from a PDF. None when pypdf is missing or unreadable."""
+    try:
+        from pypdf import PdfReader
+        import io
+    except ImportError:
+        return None
+    try:
+        reader = PdfReader(io.BytesIO(content_bytes))
+        parts = []
+        for page in reader.pages[:30]:
+            try:
+                parts.append(page.extract_text() or "")
+            except Exception:
+                continue
+            if sum(len(p) for p in parts) >= max_chars:
+                break
+        text = "\n".join(parts).strip()
+        return text[:max_chars] if text else None
+    except Exception:
+        return None
+
+
+@router.get("/status")
+async def ai_status():
+    """Provider transparency: what answers AI questions right now."""
+    live = bool(settings.AI_API_KEY)
+    return success_response(
+        {
+            "provider": settings.AI_PROVIDER if live else "help-guide",
+            "live": live,
+            "model": settings.AI_MODEL if live else None,
+            "capabilities": {
+                "chat": True,
+                "streaming": True,
+                "summarize": True,
+                "translate": True,
+                "smart_search": True,
+                "code_actions": True,
+                "pdf_text": True,
+                "transcription": live,
+                "image_understanding": live,
+            },
+        }
+    )
+
+
 @router.get("/languages")
 async def get_supported_languages():
     return success_response({"languages": SUPPORTED_LANGUAGES})
@@ -229,13 +276,35 @@ async def ai_analyze_file(
     ):
         text = content_bytes.decode("utf-8", errors="replace")[:8000]
     elif ext == ".pdf":
-        text = f"[PDF file: {file.filename} ({len(content_bytes)} bytes). Direct text extraction not supported.]"
+        extracted = _pdf_text(content_bytes)
+        if extracted:
+            text = extracted
+        else:
+            text = f"[PDF file: {file.filename} ({len(content_bytes)} bytes). No readable text found — it may be scanned images.]"
     elif ext in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"):
         text = f"[Image file: {file.filename} ({len(content_bytes)} bytes). Image analysis not supported.]"
     else:
         text = f"[File: {file.filename} ({len(content_bytes)} bytes, type: {ext or 'unknown'})]"
 
     provider = get_ai_provider()
+    if not settings.AI_API_KEY:
+        # Offline mock: report what was actually extracted instead of
+        # routing through the help-topic matcher (its keywords collide
+        # with prompt scaffolding like "Question:").
+        excerpt = text[:600]
+        return success_response(
+            {
+                "analysis": (
+                    f"Analyzed {file.filename} ({len(content_bytes)} bytes, "
+                    f"{len(text)} readable characters).\n\n"
+                    f"Excerpt:\n{excerpt}\n\n"
+                    "Full AI analysis needs a cloud model — connect one to get "
+                    "summaries, Q&A and insights on your files."
+                ),
+                "filename": file.filename,
+                "size": len(content_bytes),
+            }
+        )
     messages = [
         {
             "role": "user",
@@ -320,11 +389,24 @@ async def ai_smart_search(
         )
 
     provider = get_ai_provider()
-    context = "\n".join(
-        [f"[{r['conversation']}] {r['sender']}: {r['content']}" for r in results[:10]]
-    )
-    prompt = f"User searched for: '{body.message}'. Found {len(results)} messages. Summarize what was found and suggest relevant results:\n{context}"
-    summary = await provider.chat([{"role": "user", "content": prompt}])
+    if not settings.AI_API_KEY:
+        # Offline mock: deterministic summary (the help-topic matcher
+        # would misroute on prompt scaffolding).
+        summary = (
+            f"Found {len(results)} message(s) matching '{body.message}'. "
+            "Top hits are listed below."
+            if results
+            else f"No messages matching '{body.message}' were found."
+        )
+    else:
+        context = "\n".join(
+            [
+                f"[{r['conversation']}] {r['sender']}: {r['content']}"
+                for r in results[:10]
+            ]
+        )
+        prompt = f"User searched for: '{body.message}'. Found {len(results)} messages. Summarize what was found and suggest relevant results:\n{context}"
+        summary = await provider.chat([{"role": "user", "content": prompt}])
 
     return success_response(
         {"results": results, "summary": summary, "count": len(results)}

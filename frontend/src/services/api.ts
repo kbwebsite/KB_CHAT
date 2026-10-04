@@ -359,11 +359,13 @@ export const aiApi = {
     message: string,
     history: {role:string;content:string}[] | undefined,
     onToken: (t: string) => void,
+    signal?: AbortSignal,
   ): Promise<string> => {
     const base = isNativeApp() ? PROD_ORIGIN : ''
     const token = localStorage.getItem('kb_token')
     const res = await fetch(`${base}/api/ai/chat/stream`, {
       method: 'POST',
+      signal,
       headers: {
         'Content-Type': 'application/json',
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
@@ -407,6 +409,8 @@ export const aiApi = {
     api.post('/api/ai/translate', { message: text, target_language: targetLanguage || 'English' }).then(r=>r.data),
   getLanguages: () =>
     api.get('/api/ai/languages').then(r=>r.data),
+  status: () =>
+    api.get('/api/ai/status').then(r=>r.data),
   analyzeFile: (file: File, question?: string) => {
     const fd = new FormData()
     fd.append('file', file)
