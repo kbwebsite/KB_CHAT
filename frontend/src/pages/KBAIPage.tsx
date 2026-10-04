@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { Send, Sparkles, Trash2, Copy, Check, Square, Image as ImageIcon, Download } from 'lucide-react'
+import { Send, Sparkles, Trash2, Copy, Check, Square, Image as ImageIcon, Download, Paperclip, X } from 'lucide-react'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
@@ -7,7 +7,31 @@ import { useAuthStore } from '../store/auth'
 const AiMarkdown = lazy(() => import('../components/AiMarkdown'))
 import { AiFace } from '../components/AiFace'
 
-interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date; imageUrl?: string }
+interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date; imageUrl?: string; fileName?: string }
+
+const HISTORY_CAP = 50
+
+function loadHistory(userId: string | number | undefined): Message[] {
+  if (userId == null) return []
+  try {
+    const raw = localStorage.getItem(`kb_ai_history_${userId}`)
+    if (!raw) return []
+    const arr = JSON.parse(raw)
+    if (!Array.isArray(arr)) return []
+    return arr
+      .filter((m: any) => m && (m.role === 'user' || m.role === 'assistant') && typeof m.content === 'string')
+      .slice(-HISTORY_CAP)
+      .map((m: any) => ({
+        role: m.role,
+        content: m.content,
+        timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
+        ...(typeof m.imageUrl === 'string' ? { imageUrl: m.imageUrl } : {}),
+        ...(typeof m.fileName === 'string' ? { fileName: m.fileName } : {}),
+      }))
+  } catch {
+    return []
+  }
+}
 
 /** Generated image with load-failure fallback (free backend can 500 when busy). */
 function GeneratedImage({ url, prompt }: { url: string; prompt: string }) {
@@ -64,7 +88,8 @@ const quickQuestions = [
 ]
 
 export default function KBAIPage() {
-  const [messages, setMessages] = useState<Message[]>([])
+  const user = useAuthStore(s => s.user)
+  const [messages, setMessages] = useState<Message[]>(() => loadHistory(user?.id))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
@@ -72,13 +97,23 @@ export default function KBAIPage() {
   const [streaming, setStreaming] = useState(false)
   const [imageMode, setImageMode] = useState(false)
   const [imgLoading, setImgLoading] = useState(false)
+  const [anaLoading, setAnaLoading] = useState(false)
+  const [attachFile, setAttachFile] = useState<File | null>(null)
+  const attachRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const streamingRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
-  const user = useAuthStore(s => s.user)
 
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight) }, [messages])
+
+  // Memory: persist the conversation per user so refreshes keep context.
+  useEffect(() => {
+    if (user?.id == null) return
+    try {
+      localStorage.setItem(`kb_ai_history_${user.id}`, JSON.stringify(messages.slice(-HISTORY_CAP)))
+    } catch {}
+  }, [messages, user?.id])
 
   useEffect(() => {
     aiApi.status()
@@ -188,6 +223,53 @@ export default function KBAIPage() {
 
   const clearChat = () => {
     setMessages([])
+    setAttachFile(null)
+    if (user?.id != null) {
+      try { localStorage.removeItem(`kb_ai_history_${user.id}`) } catch {}
+    }
+  }
+
+  const sendFile = async () => {
+    const file = attachFile
+    if (!file || anaLoading || loading) return
+    const question = input.trim()
+    setMessages(prev => [...prev, {
+      role: 'user',
+      content: question || `Analyze ${file.name}`,
+      timestamp: new Date(),
+      fileName: file.name,
+    }])
+    setInput('')
+    setAttachFile(null)
+    setAnaLoading(true)
+    const slot = { i: -1 }
+    setMessages(prev => {
+      const next = [...prev, { role: 'assistant' as const, content: '', timestamp: new Date(), fileName: file.name }]
+      slot.i = next.length - 1
+      return next
+    })
+    try {
+      const r: any = await aiApi.analyzeFile(file, question || undefined)
+      const analysis = String(r?.data?.analysis ?? r?.analysis ?? '').trim()
+      if (!analysis) throw new Error('empty analysis')
+      setMessages(prev => {
+        const next = [...prev]
+        if (next[slot.i] && next[slot.i].role === 'assistant') {
+          next[slot.i] = { ...next[slot.i], content: analysis }
+        }
+        return next
+      })
+    } catch {
+      setMessages(prev => {
+        const next = [...prev]
+        if (next[slot.i] && next[slot.i].role === 'assistant') {
+          next[slot.i] = { ...next[slot.i], content: 'Could not analyze that file — try again in a moment.' }
+        }
+        return next
+      })
+    }
+    setAnaLoading(false)
+    inputRef.current?.focus()
   }
 
   return (
@@ -203,12 +285,12 @@ export default function KBAIPage() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute -inset-1.5 rounded-2xl kryzen-accent-gradient opacity-60 blur-md" aria-hidden />
-            <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : imgLoading ? 'thinking' : 'idle'} label="Kryzen AI" />
+            <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : (imgLoading || anaLoading) ? 'thinking' : 'idle'} label="Kryzen AI" />
           </div>
           <div>
             <h1 className="text-base font-extrabold tracking-tight gradient-text">Kryzen AI</h1>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : imgLoading ? 'Dreaming up your image…' : 'Your personal assistant'}
+              {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : imgLoading ? 'Dreaming up your image…' : anaLoading ? 'Reading your file…' : 'Your personal assistant'}
               {aiStatus && !loading && (
                 <span
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -280,7 +362,15 @@ export default function KBAIPage() {
                   <GeneratedImage url={m.imageUrl} prompt={m.content} />
                 )
               ) : m.role === 'user' ? (
-                m.content
+                <>
+                  {m.fileName && (
+                    <span className="mb-1.5 flex items-center gap-1.5 text-xs opacity-90">
+                      <Paperclip className="w-3 h-3" />
+                      <span className="truncate max-w-52">{m.fileName}</span>
+                    </span>
+                  )}
+                  <span>{m.content}</span>
+                </>
               ) : (
                 <Suspense fallback={<span className="whitespace-pre-wrap break-words">{m.content}</span>}>
                   <AiMarkdown text={m.content} />
@@ -308,10 +398,47 @@ export default function KBAIPage() {
 
       {/* Input */}
       <div className="shrink-0 relative p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+        {attachFile && (
+          <div className="ai-msg-in mb-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-xs">
+            <Paperclip className="w-3.5 h-3.5 text-primary" />
+            <span className="truncate max-w-48">{attachFile.name}</span>
+            <span className="text-muted-foreground">· {(attachFile.size / 1024).toFixed(0)} KB</span>
+            <button onClick={() => setAttachFile(null)} className="p-0.5 rounded-full hover:bg-white/10" aria-label="Remove attachment">
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
         <div
           className="flex gap-2 items-end rounded-2xl border border-white/10 px-2 py-2 transition-shadow focus-within:border-primary/50"
           style={{ background: 'rgba(12,12,28,0.78)', backdropFilter: 'blur(20px)', WebkitBackdropFilter: 'blur(20px)', boxShadow: '0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.06)' }}
         >
+          <input
+            ref={attachRef}
+            type="file"
+            className="hidden"
+            onChange={e => {
+              const f = e.target.files?.[0]
+              if (f) {
+                if (f.size > 5 * 1024 * 1024) {
+                  setMessages(prev => [...prev, { role: 'assistant', content: 'That file is over 5 MB — attach something smaller.', timestamp: new Date() }])
+                } else {
+                  setAttachFile(f)
+                  setImageMode(false)
+                }
+              }
+              e.target.value = ''
+            }}
+          />
+          <button
+            onClick={() => attachRef.current?.click()}
+            className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              attachFile ? 'kryzen-accent-gradient-3 text-white shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+            }`}
+            aria-label="Attach a file for analysis"
+            title="Attach a text file, code, or PDF for AI analysis"
+          >
+            <Paperclip className="w-4 h-4" />
+          </button>
           <button
             onClick={() => setImageMode(v => !v)}
             className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
@@ -324,10 +451,17 @@ export default function KBAIPage() {
             <ImageIcon className="w-4 h-4" />
           </button>
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); imageMode ? sendImage() : send() } }}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); imageMode ? sendImage() : attachFile ? sendFile() : send() } }}
             placeholder={imageMode ? 'Describe the image…' : 'Ask Kryzen AI anything...'} rows={1}
             className="flex-1 resize-none px-2 py-2.5 bg-transparent text-sm outline-none max-h-32 placeholder:text-muted-foreground/60" />
-          {imageMode ? (
+          {attachFile ? (
+            <button onClick={sendFile} disabled={anaLoading || loading}
+              className="shrink-0 w-10 h-10 rounded-xl kryzen-accent-gradient-3 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all"
+              style={{ boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' }}
+              aria-label="Analyze file">
+              <Send className="w-4 h-4" />
+            </button>
+          ) : imageMode ? (
             <button onClick={sendImage} disabled={!input.trim() || imgLoading}
               className="shrink-0 w-10 h-10 rounded-xl kryzen-accent-gradient-3 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all"
               style={{ boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' }}
