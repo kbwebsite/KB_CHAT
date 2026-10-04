@@ -26,6 +26,8 @@ import { settingsApi } from '../services/api'
  *   media_auto_download -> MessageBubble tap-to-load placeholders       (server)
  *   typing_indicators   -> send + display typing events                 (local)
  *   link_previews       -> LinkPreview unfurl in MessageBubble          (local)
+ *  misc
+ *   app_language        -> LanguagePicker selection                     (local)
  *
  * Scope "server" = persisted via PATCH /api/settings (needs a backend
  * column). Scope "local" = this-device only, localStorage, never sent.
@@ -61,6 +63,7 @@ export interface UserSettings {
   typing_indicators: boolean
   link_previews: boolean
   default_disappearing: number | null
+  app_language: string
 }
 
 const defaults: UserSettings = {
@@ -85,6 +88,7 @@ const defaults: UserSettings = {
   default_disappearing: null,
   typing_indicators: true,
   link_previews: true,
+  app_language: 'en',
 }
 
 /** Keys with a backend column (sent to PATCH /api/settings). */

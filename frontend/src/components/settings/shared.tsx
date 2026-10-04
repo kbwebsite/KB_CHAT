@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import { Moon, Sun, Monitor, Wallpaper, Upload, Trash2, Lock, Unlock } from 'lucide-react'
 import { useSettingsStore, type UserSettings } from '../../store/settings'
+import { useThemeStore, THEME_PRESETS } from '../../store/theme'
 import { useLockStore, PIN_RE } from '../../store/lock'
 import {
   WALLPAPERS,
@@ -19,6 +20,12 @@ import {
  * calls settings.update(), whose side-effects (theme/accent/push/local
  * cache/server sync) live in the store.
  */
+
+export function SectionLabel({ children }: { children: React.ReactNode }) {
+  return (
+    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary pt-1">{children}</p>
+  )
+}
 
 export function ToggleRow({
   k,
@@ -301,9 +308,112 @@ export function ThemePackPicker() {
   )
 }
 
+export function ThemeStorePresets() {
+  const { currentThemeId, setTheme } = useThemeStore()
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      {THEME_PRESETS.map((t) => {
+        const active = currentThemeId === t.id
+        return (
+          <button
+            key={t.id}
+            onClick={() => setTheme(t.id)}
+            className={`relative overflow-hidden rounded-xl border text-left transition-all active:scale-[0.98] ${
+              active
+                ? 'border-primary ring-2 ring-primary/40 shadow-lg shadow-primary/20'
+                : 'border-transparent hover:border-[var(--k-border)]'
+            }`}
+            style={{ background: t.colors.bgSecondary }}
+            title={t.description}
+          >
+            <div className="p-2.5">
+              <div className="flex items-center gap-2">
+                <span className="text-base">{t.icon}</span>
+                <span className="text-[11px] font-semibold text-white">{t.name}</span>
+              </div>
+              <div className="flex gap-1 mt-2">
+                <span className="w-8 h-4 rounded-md" style={{ background: t.colors.bubbleReceived }} />
+                <span className="w-8 h-4 rounded-md ml-auto" style={{ background: t.colors.bubbleSent }} />
+              </div>
+              <div className="flex gap-1 mt-1.5">
+                {[t.colors.accentPrimary, t.colors.accentSecondary, t.colors.accentTertiary].map((c) => (
+                  <span key={c} className="w-3 h-3 rounded-full" style={{ background: c }} />
+                ))}
+              </div>
+            </div>
+            {active && (
+              <span className="absolute top-1.5 right-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-primary text-primary-foreground font-bold">
+                On
+              </span>
+            )}
+          </button>
+        )
+      })}
+    </div>
+  )
+}
+
+const APP_LANGUAGES = [
+  { id: 'en', label: 'English', native: "English (device's language)" },
+  { id: 'hi', label: 'Hindi', native: 'हिन्दी' },
+  { id: 'mr', label: 'Marathi', native: 'मराठी' },
+  { id: 'gu', label: 'Gujarati', native: 'ગુજરાતી' },
+  { id: 'ta', label: 'Tamil', native: 'தமிழ்' },
+  { id: 'bn', label: 'Bengali', native: 'বাংলা' },
+  { id: 'te', label: 'Telugu', native: 'తెలుగు' },
+  { id: 'kn', label: 'Kannada', native: 'ಕನ್ನಡ' },
+  { id: 'ml', label: 'Malayalam', native: 'മലയാളം' },
+  { id: 'pa', label: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
+  { id: 'ur', label: 'Urdu', native: 'اردو' },
+]
+
+export function LanguagePicker() {
+  const lang = useSettingsStore((s) => s.app_language)
+  const update = useSettingsStore((s) => s.update)
+  return (
+    <div>
+      {APP_LANGUAGES.map((l) => {
+        const selected = lang === l.id
+        const available = l.id === 'en'
+        return (
+          <button
+            key={l.id}
+            disabled={!available}
+            onClick={() => update({ app_language: l.id } as any)}
+            className="w-full flex items-center gap-4 py-3 text-left disabled:cursor-default"
+          >
+            <span
+              className={`w-6 h-6 rounded-full border-2 flex items-center justify-center shrink-0 ${
+                selected ? 'border-green-500' : 'border-muted-foreground/40'
+              }`}
+            >
+              {selected && <span className="w-3 h-3 rounded-full bg-green-500" />}
+            </span>
+            <span className="flex-1 min-w-0">
+              <span className="block text-[15px] font-medium">{l.native}</span>
+              <span className="block text-xs text-muted-foreground uppercase tracking-wide">
+                {l.label}
+                {!available && ' • soon'}
+              </span>
+            </span>
+          </button>
+        )
+      })}
+      <p className="text-xs text-muted-foreground mt-1">
+        Kryzen currently ships in English. More languages are coming soon.
+      </p>
+    </div>
+  )
+}
+
 export function AppearanceSettings() {
   return (
     <div className="space-y-3">
+      <div>
+        <p className="text-xs font-medium mb-2">3D theme presets</p>
+        <p className="text-xs text-muted-foreground mb-2">Every theme in the theme store — one tap recolors the whole app</p>
+        <ThemeStorePresets />
+      </div>
       <div>
         <p className="text-xs font-medium mb-2">Theme packs</p>
         <p className="text-xs text-muted-foreground mb-2">One tap sets mode, accent and wallpaper together</p>
@@ -477,7 +587,7 @@ const TIMER_OPTS = [
   { id: '7776000', label: '90 days' },
 ]
 
-function DefaultTimerRow() {
+export function DefaultTimerRow() {
   const value = useSettingsStore((s) => s.default_disappearing as number | null)
   const update = useSettingsStore((s) => s.update)
   return (
