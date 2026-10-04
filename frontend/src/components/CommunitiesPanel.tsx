@@ -8,8 +8,13 @@ import {
   UserPlus,
   Minus,
   ChevronRight,
-  ChevronDown,
   MoreVertical,
+  Search,
+  Network,
+  Flame,
+  Sparkles,
+  Send,
+  ArrowLeft,
 } from 'lucide-react'
 import { communityApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
@@ -17,11 +22,20 @@ import { formatTime } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 
 /**
- * Communities — WhatsApp structure:
- * "New community" row, then per-community blocks: community header,
- * Announcements row with date + preview, group rows with circular
- * avatars + date + last-message preview, and "View all".
+ * Communities — clubhouse-style social hub. Visually distinct from
+ * Channels: warm member-centric identity, community home with
+ * Home | Groups | Members | About tabs. Same backend, new presentation.
  */
+
+const COVERS = [
+  ['#0d9488', '#22d3ee'],
+  ['#059669', '#34d399'],
+  ['#0ea5e9', '#10b981'],
+  ['#65a30d', '#14b8a6'],
+  ['#0284c7', '#2dd4bf'],
+  ['#16a34a', '#a3e635'],
+]
+
 export function CommunitiesPanel({
   onClose,
   conversations,
@@ -34,17 +48,26 @@ export function CommunitiesPanel({
   const { user } = useAuthStore()
   const [lists, setLists] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [name, setName] = useState('')
-  const [desc, setDesc] = useState('')
-  const [creating, setCreating] = useState(false)
-  const [showCreate, setShowCreate] = useState(false)
+  const [tab, setTab] = useState<'discover' | 'mine'>('discover')
+  const [query, setQuery] = useState('')
+  const [openId, setOpenId] = useState<number | null>(null)
+  const [detailTab, setDetailTab] = useState<'home' | 'groups' | 'members' | 'about'>('home')
+  const [menuOpen, setMenuOpen] = useState(false)
   const [drafts, setDrafts] = useState<Record<number, string>>({})
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [addingTo, setAddingTo] = useState<number | null>(null)
-  const [announceOpen, setAnnounceOpen] = useState<Record<number, boolean>>({})
-  const [expanded, setExpanded] = useState<Record<number, boolean>>({})
-  const [menuOpen, setMenuOpen] = useState(false)
+  const [announceOpen, setAnnounceOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
+  // Create wizard
+  const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string }>(null)
+  const [creating, setCreating] = useState(false)
+
+  const fieldStyle = {
+    background: 'rgba(20,20,42,0.9)',
+    borderColor: 'rgba(255,255,255,0.12)',
+    color: '#f0f0ff',
+    caretColor: '#f0f0ff',
+  } as const
 
   const load = () => {
     communityApi
@@ -62,17 +85,57 @@ export function CommunitiesPanel({
     return m
   }, [conversations])
 
+  const avatarLetter = (n: string) => (n || '?')[0].toUpperCase()
+  const coverOf = (id: number) => COVERS[Math.abs(id) % COVERS.length]
+
+  const groupConv = (gid: number) => convById.get(gid)
+  const groupMembers = (gid: number): any[] => groupConv(gid)?.members || []
+  const onlineCount = (gid: number) => groupMembers(gid).filter((m: any) => m.is_online).length
+
+  const communityStats = (c: any) => {
+    const groups = c.groups || []
+    let members = 0
+    let online = 0
+    for (const g of groups) {
+      members += g.member_count ?? groupMembers(g.id).length
+      online += onlineCount(g.id)
+    }
+    return { groups: groups.length, members, online }
+  }
+
+  const communityMembers = (c: any) => {
+    const map = new Map<number, any>()
+    for (const g of c.groups || []) {
+      for (const m of groupMembers(g.id)) {
+        if (m?.user_id != null && !map.has(m.user_id)) map.set(m.user_id, m)
+      }
+    }
+    return [...map.values()]
+  }
+
+  const communityActivity = (c: any) => {
+    const items: { conv: any; last: any }[] = []
+    for (const g of c.groups || []) {
+      const conv = groupConv(g.id)
+      if (conv?.last_message) items.push({ conv, last: conv.last_message })
+    }
+    return items
+      .sort((a, b) => String(b.last.created_at || '').localeCompare(String(a.last.created_at || '')))
+      .slice(0, 5)
+  }
+
   const create = async () => {
-    if (!name.trim()) return setMsg('Name your community first')
+    const name = (wizard?.name || '').trim()
+    if (!name) return setMsg('Name your community first')
     setCreating(true)
     try {
-      const r = await communityApi.create({ name: name.trim(), description: desc.trim() || undefined })
+      const r = await communityApi.create({ name, description: (wizard?.desc || '').trim() || undefined })
       if (r?.success) {
         setLists((l) => [r.data, ...l])
-        setName('')
-        setDesc('')
-        setShowCreate(false)
-        setMsg('Community created')
+        setWizard(null)
+        setMsg('Community created — add your groups to bring it alive')
+        setOpenId(r.data.id)
+        setDetailTab('groups')
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
@@ -86,6 +149,7 @@ export function CommunitiesPanel({
     try {
       await communityApi.remove(id)
       setLists((l) => l.filter((x) => x.id !== id))
+      if (openId === id) setOpenId(null)
     } catch (e: any) {
       setMsg(e.response?.data?.message || 'Failed')
     }
@@ -121,6 +185,7 @@ export function CommunitiesPanel({
       const r = await communityApi.announce(id, content)
       if (r?.success) {
         setDrafts((d) => ({ ...d, [id]: '' }))
+        setAnnounceOpen(false)
         setMsg(`Announced to ${r.data?.reached?.length ?? 0} groups`)
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
@@ -145,8 +210,7 @@ export function CommunitiesPanel({
   }
 
   const groupPreview = (g: any) => {
-    const conv = convById.get(g.id)
-    const last = conv?.last_message
+    const last = groupConv(g.id)?.last_message
     if (last?.content) {
       const sender = last.sender_username ? `~ ${last.sender_username}: ` : ''
       return `${sender}${prettyPreview(last.content)?.slice(0, 60) || 'Attachment'}`
@@ -154,276 +218,667 @@ export function CommunitiesPanel({
     return `${g.member_count ?? 0} members`
   }
 
-  const groupDate = (g: any) => {
-    const conv = convById.get(g.id)
-    return fmtDay(conv?.last_message?.created_at)
+  const openCommunity = (c: any) => {
+    setOpenId(c.id)
+    setDetailTab('home')
+    setMenuOpen(false)
+    setAnnounceOpen(false)
+    setAddingTo(null)
   }
 
-  const isExpanded = (id: number) => expanded[id] !== false
+  /* ── Derived discovery (real data only) ── */
+  const q = query.trim().toLowerCase()
+  const searched = q
+    ? lists.filter(
+        (c: any) =>
+          (c.name || '').toLowerCase().includes(q) ||
+          (c.description || '').toLowerCase().includes(q)
+      )
+    : null
+  const mine = lists.filter((c: any) => user && c.owner_id === user.id)
+  const trending = useMemo(
+    () => [...lists].sort((a, b) => communityStats(b).members - communityStats(a).members).slice(0, 3),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [lists, conversations]
+  )
+  const openCommunityData = lists.find((c) => c.id === openId)
 
-  return (
-    <div className="h-full flex flex-col bg-card">
-      {/* Header */}
-      <div className="flex items-center gap-1 px-2 py-2 border-b border-[var(--k-border)] shrink-0">
-        <p className="font-bold text-[17px] flex-1 px-2 tracking-tight">Communities</p>
-        <div className="relative">
-          <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Communities menu">
-            <MoreVertical className="w-5 h-5" />
+  const memberCluster = (members: any[], max = 4) => (
+    <span className="flex -space-x-2">
+      {members.slice(0, max).map((m: any) => (
+        <span key={m.user_id} className="w-6 h-6 rounded-full bg-muted border-2 border-[var(--bg-card)] flex items-center justify-center text-[10px] font-bold overflow-hidden shrink-0">
+          {m.avatar_url ? (
+            <img src={m.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+          ) : (
+            (m.display_name || m.username || '?')[0].toUpperCase()
+          )}
+        </span>
+      ))}
+    </span>
+  )
+
+  /* ═══════════ DETAIL VIEW ═══════════ */
+  if (openCommunityData) {
+    const c = openCommunityData
+    const isOwner = user && c.owner_id === user.id
+    const st = communityStats(c)
+    const members = communityMembers(c)
+    const onlineMembers = members.filter((m: any) => m.is_online)
+    const activity = communityActivity(c)
+    const [c1, c2] = coverOf(c.id)
+    const linkedIds = new Set((c.groups || []).map((g: any) => g.id))
+
+    return (
+      <div className="h-full flex flex-col bg-card">
+        <div className="flex items-center gap-1.5 px-2 py-2 border-b border-[var(--k-border)] shrink-0">
+          <button onClick={() => setOpenId(null)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Back to communities">
+            <ArrowLeft className="w-5 h-5" />
           </button>
-          {menuOpen && (
-            <>
-              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-subtle bg-elevated shadow-xl py-1 z-20 text-sm">
-                <button
-                  onClick={() => { setShowCreate((v) => !v); setMenuOpen(false) }}
-                  className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2"
-                >
-                  <Plus className="w-4 h-4" /> New community
-                </button>
+          <p className="font-semibold text-[15px] flex-1 truncate">Community</p>
+          <div className="relative">
+            <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Community menu">
+              <MoreVertical className="w-5 h-5" />
+            </button>
+            {menuOpen && isOwner && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-subtle bg-elevated shadow-xl py-1 z-20 text-sm">
+                  <button onClick={() => remove(c.id)} className="w-full text-left px-3 py-2 hover:bg-muted text-destructive flex items-center gap-2">
+                    <Trash2 className="w-4 h-4" /> Delete community
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-y-auto min-h-0 pb-4">
+          {/* Clubhouse header */}
+          <div className="m-3 rounded-[24px] overflow-hidden border border-subtle" style={{ background: 'linear-gradient(180deg, rgba(16,40,38,0.98), rgba(10,18,26,0.98))', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+            <div className="relative h-24 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+              <span className="absolute -right-1 -bottom-7 text-[96px] leading-none font-extrabold text-white/10 select-none">
+                <Users className="w-20 h-20" />
+              </span>
+              <div className="absolute w-36 h-36 rounded-full bg-white/10 blur-2xl -left-8 -top-14" />
+            </div>
+            <div className="px-4 pt-3 pb-4">
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/10" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
+                  <Users className="w-7 h-7 text-white" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-bold text-[17px] tracking-tight truncate">{c.name}</p>
+                  <p className="text-[13px] text-secondary mt-0.5 truncate">{c.description || 'No description yet'}</p>
+                </div>
               </div>
-            </>
+              <div className="flex items-center gap-3 mt-3">
+                {members.length > 0 && memberCluster(members)}
+                <p className="text-[11px] text-tertiary">
+                  {st.groups} groups · {st.members} members
+                  {st.online > 0 && <span className="text-emerald-400 font-semibold"> · {st.online} online</span>}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Tabs */}
+          <div className="mx-3 mb-2 flex rounded-full bg-elevated border border-subtle p-1">
+            {(['home', 'groups', 'members', 'about'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setDetailTab(t)}
+                className={`flex-1 py-1.5 rounded-full text-[13px] font-semibold capitalize transition-all ${
+                  detailTab === t ? 'bg-emerald-500/20 text-emerald-300 shadow' : 'text-tertiary'
+                }`}
+              >
+                {t}
+              </button>
+            ))}
+          </div>
+
+          {msg && <p className="px-4 pt-1 text-xs text-muted-foreground">{msg}</p>}
+
+          {detailTab === 'home' && (
+            <div className="px-3 space-y-4 pt-1">
+              {/* Announcements */}
+              <section>
+                <div className="flex items-center gap-1.5 px-1 pb-2">
+                  <Megaphone className="w-3.5 h-3.5 text-emerald-400" />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Announcements</p>
+                </div>
+                {isOwner ? (
+                  announceOpen ? (
+                    <div className="rounded-2xl bg-elevated border border-subtle p-2.5">
+                      <div className="flex gap-2">
+                        <input
+                          autoFocus
+                          value={drafts[c.id] || ''}
+                          onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter' && !e.shiftKey) {
+                              e.preventDefault()
+                              announce(c.id)
+                            }
+                          }}
+                          placeholder={`Announce to ${c.name}…`}
+                          maxLength={2000}
+                          className="flex-1 min-w-0 px-3.5 py-2 rounded-full border outline-none text-sm"
+                          style={fieldStyle}
+                        />
+                        <button
+                          onClick={() => announce(c.id)}
+                          disabled={sendingId === c.id || !(drafts[c.id] || '').trim()}
+                          className="w-10 h-10 rounded-full bg-emerald-500 text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95"
+                          aria-label="Send announcement"
+                        >
+                          <Send className="w-4 h-4" />
+                        </button>
+                      </div>
+                      <button onClick={() => setAnnounceOpen(false)} className="w-full text-center text-xs text-muted-foreground py-1.5">
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAnnounceOpen(true)}
+                      className="w-full rounded-2xl bg-elevated border border-dashed border-subtle p-3.5 text-sm text-secondary hover:border-emerald-500/40 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <Megaphone className="w-4 h-4 text-emerald-400" /> Announce to {st.groups} group{st.groups === 1 ? '' : 's'}
+                    </button>
+                  )
+                ) : (
+                  <p className="text-xs text-muted-foreground px-1">Owner announcements land in every group at once.</p>
+                )}
+              </section>
+
+              {/* Activity */}
+              <section>
+                <div className="flex items-center gap-1.5 px-1 pb-2">
+                  <Flame className="w-3.5 h-3.5 text-emerald-400" />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Recent activity</p>
+                </div>
+                {activity.length === 0 ? (
+                  <p className="text-xs text-muted-foreground px-1">Quiet for now — activity shows up here.</p>
+                ) : (
+                  <div className="rounded-2xl bg-elevated border border-subtle divide-y divide-[var(--k-border)]/40">
+                    {activity.map(({ conv, last }: any) => (
+                      <button key={last.id} onClick={() => onOpenChat(conv.id)} className="w-full text-left px-3.5 py-2.5 hover:bg-muted/40 transition-colors first:rounded-t-2xl last:rounded-b-2xl">
+                        <p className="text-[13px] font-semibold truncate">
+                          {conv.title || 'Group'} <span className="font-normal text-tertiary">· {fmtDay(last.created_at)}</span>
+                        </p>
+                        <p className="text-xs text-muted-foreground truncate mt-0.5">
+                          {last.sender_username ? `~ ${last.sender_username}: ` : ''}{prettyPreview(last.content)?.slice(0, 70) || 'Attachment'}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </section>
+
+              {/* Popular */}
+              {st.groups > 0 && (
+                <section>
+                  <div className="flex items-center gap-1.5 px-1 pb-2">
+                    <Users className="w-3.5 h-3.5 text-emerald-400" />
+                    <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Popular groups</p>
+                  </div>
+                  <div className="space-y-2">
+                    {(c.groups || []).slice(0, 3).map((g: any) => (
+                      <GroupRow key={g.id} g={g} isOwner={!!isOwner} />
+                    ))}
+                  </div>
+                </section>
+              )}
+            </div>
+          )}
+
+          {detailTab === 'groups' && (
+            <div className="px-3 pt-1 space-y-2">
+              {(c.groups || []).length === 0 && (
+                <p className="text-[13px] text-muted-foreground text-center py-4">No groups linked yet.</p>
+              )}
+              {(c.groups || []).map((g: any) => (
+                <GroupRow key={g.id} g={g} isOwner={!!isOwner} />
+              ))}
+              {isOwner && (
+                <div className="pt-1">
+                  {addingTo === c.id ? (
+                    <div className="rounded-2xl border border-subtle bg-elevated p-2 space-y-1 max-h-44 overflow-y-auto">
+                      {myGroups.filter((g: any) => ![...linkedIds].includes(g.id)).length === 0 && (
+                        <p className="text-xs text-muted-foreground px-2 py-1">All your groups are linked.</p>
+                      )}
+                      {myGroups
+                        .filter((g: any) => ![...linkedIds].includes(g.id))
+                        .map((g: any) => (
+                          <button
+                            key={g.id}
+                            onClick={() => addGroup(c.id, g.id)}
+                            className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-muted text-[13px] flex items-center gap-2"
+                          >
+                            <UserPlus className="w-4 h-4 text-emerald-400 shrink-0" />
+                            <span className="truncate">{g.title || 'Group'}</span>
+                          </button>
+                        ))}
+                      <button onClick={() => setAddingTo(null)} className="w-full text-center text-xs text-muted-foreground py-1">
+                        Cancel
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      onClick={() => setAddingTo(c.id)}
+                      className="w-full py-2.5 rounded-2xl bg-elevated border border-dashed border-subtle text-[13px] text-secondary hover:border-emerald-500/40 transition-colors flex items-center justify-center gap-1.5"
+                    >
+                      <UserPlus className="w-4 h-4 text-emerald-400" /> Add one of your groups
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {detailTab === 'members' && (
+            <div className="px-3 pt-1">
+              {members.length === 0 ? (
+                <p className="text-[13px] text-muted-foreground text-center py-4">No member info yet — open a group to sync its roster.</p>
+              ) : (
+                <>
+                  {onlineMembers.length > 0 && (
+                    <div className="mb-3">
+                      <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">
+                        Online now · {onlineMembers.length}
+                      </p>
+                      <div className="rounded-2xl bg-elevated border border-subtle divide-y divide-[var(--k-border)]/40">
+                        {onlineMembers.slice(0, 10).map((m: any) => (
+                          <MemberRow key={m.user_id} m={m} />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <p className="px-1 pb-2 text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">
+                    All members · {members.length}
+                  </p>
+                  <div className="rounded-2xl bg-elevated border border-subtle divide-y divide-[var(--k-border)]/40">
+                    {members.slice(0, 30).map((m: any) => (
+                      <MemberRow key={m.user_id} m={m} />
+                    ))}
+                  </div>
+                  {members.length > 30 && (
+                    <p className="text-xs text-tertiary text-center py-2">+ {members.length - 30} more</p>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {detailTab === 'about' && (
+            <div className="m-3 rounded-[20px] bg-elevated border border-subtle p-4 space-y-3">
+              <div>
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">About</p>
+                <p className="text-sm text-secondary mt-1 leading-relaxed">{c.description || 'No description yet.'}</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2 text-center">
+                {[
+                  [String(st.groups), 'Groups'],
+                  [String(st.members), 'Members'],
+                  [String(st.online), 'Online'],
+                ].map(([v, l]) => (
+                  <div key={l} className="rounded-xl bg-card border border-subtle p-2.5">
+                    <p className="text-sm font-bold">{v}</p>
+                    <p className="text-[11px] text-tertiary">{l}</p>
+                  </div>
+                ))}
+              </div>
+              {isOwner && (
+                <button onClick={() => remove(c.id)} className="w-full py-2.5 rounded-xl border border-destructive/30 text-destructive text-sm font-medium hover:bg-destructive/10 transition-colors">
+                  Delete community
+                </button>
+              )}
+            </div>
           )}
         </div>
+      </div>
+    )
+
+    /* ── Group + member rows (detail) ── */
+    function GroupRow({ g, isOwner }: { g: any; isOwner: boolean }) {
+      const conv = groupConv(g.id)
+      const avatar = g.avatar_url || conv?.avatar_url
+      const online = onlineCount(g.id)
+      return (
+        <div className="flex items-center gap-0.5">
+          <button
+            onClick={() => onOpenChat(g.id)}
+            className="flex-1 min-w-0 flex items-center gap-3 rounded-2xl bg-elevated border border-subtle p-2.5 text-left transition-all hover:border-emerald-500/30 active:scale-[0.99]"
+          >
+            {avatar ? (
+              <img src={avatar} alt="" className="w-11 h-11 rounded-full object-cover shrink-0" loading="lazy" />
+            ) : (
+              <span className="w-11 h-11 rounded-full bg-muted flex items-center justify-center text-base font-bold shrink-0">
+                {(g.title || '?')[0].toUpperCase()}
+              </span>
+            )}
+            <span className="flex-1 min-w-0">
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="text-[15px] font-semibold truncate">{g.title || 'Group'}</span>
+                <span className="text-xs text-tertiary shrink-0">{fmtDay(conv?.last_message?.created_at)}</span>
+              </span>
+              <span className="block text-[13px] text-muted-foreground truncate mt-px">{groupPreview(g)}</span>
+              <span className="block text-[11px] text-tertiary mt-px">
+                {g.member_count ?? 0} members{online > 0 && <span className="text-emerald-400 font-semibold"> · {online} online</span>}
+              </span>
+            </span>
+          </button>
+          {isOwner && (
+            <button
+              onClick={() => removeGroup(c.id, g.id)}
+              className="p-2 rounded-full hover:bg-muted text-tertiary hover:text-destructive shrink-0 transition-all active:scale-90"
+              aria-label="Unlink group"
+            >
+              <Minus className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      )
+    }
+
+    function MemberRow({ m }: { m: any }) {
+      return (
+        <div className="flex items-center gap-2.5 px-3.5 py-2">
+          <span className="relative shrink-0">
+            <span className="w-9 h-9 rounded-full bg-muted flex items-center justify-center text-sm font-bold overflow-hidden block">
+              {m.avatar_url ? (
+                <img src={m.avatar_url} alt="" className="w-full h-full object-cover" loading="lazy" />
+              ) : (
+                (m.display_name || m.username || '?')[0].toUpperCase()
+              )}
+            </span>
+            {m.is_online && (
+              <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full bg-emerald-400 ring-2 ring-[var(--bg-card)]" />
+            )}
+          </span>
+          <span className="flex-1 min-w-0">
+            <span className="block text-sm font-medium truncate">{m.display_name || m.username}</span>
+            {m.username && m.display_name !== m.username && (
+              <span className="block text-xs text-muted-foreground truncate">@{m.username}</span>
+            )}
+          </span>
+        </div>
+      )
+    }
+  }
+
+  /* ═══════════ LIST VIEW ═══════════ */
+  return (
+    <div className="h-full flex flex-col bg-card">
+      <div className="flex items-center gap-1.5 px-2 py-2 border-b border-[var(--k-border)] shrink-0">
+        <p className="font-bold text-[17px] flex-1 px-2 tracking-tight flex items-center gap-1.5">
+          <Network className="w-4 h-4 text-emerald-400" /> Communities
+          {lists.length > 0 && (
+            <span className="text-xs font-semibold text-tertiary align-middle">{lists.length}</span>
+          )}
+        </p>
+        <button onClick={() => setWizard(wizard ? null : { step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="New community">
+          <Plus className="w-5 h-5" />
+        </button>
         <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
           <X className="w-5 h-5" />
         </button>
       </div>
 
-      <div className="flex-1 overflow-y-auto min-h-0">
-        {showCreate && (
-          <div className="m-3 rounded-[18px] bg-elevated border border-subtle p-4 space-y-2.5">
-            <p className="text-[15px] font-bold tracking-tight">New community</p>
-            <input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Community name (e.g. Apartment Block)"
-              maxLength={100}
-              className="w-full px-4 py-2.5 rounded-xl border outline-none text-sm"
-              style={{ background: 'rgba(20,20,42,0.9)', borderColor: 'rgba(255,255,255,0.12)', color: '#f0f0ff', caretColor: '#f0f0ff' }}
-            />
-            <input
-              value={desc}
-              onChange={(e) => setDesc(e.target.value)}
-              placeholder="Description (optional)"
-              maxLength={200}
-              className="w-full px-4 py-2.5 rounded-xl border outline-none text-sm"
-              style={{ background: 'rgba(20,20,42,0.9)', borderColor: 'rgba(255,255,255,0.12)', color: '#f0f0ff', caretColor: '#f0f0ff' }}
-            />
-            <button onClick={create} disabled={creating} className="w-full py-2.5 rounded-xl btn-primary text-sm font-semibold disabled:opacity-50">
-              {creating ? 'Creating…' : 'Create community'}
+      <div className="px-3 pt-2.5 shrink-0">
+        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle">
+          <Search className="w-4 h-4 text-tertiary shrink-0" />
+          <input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search communities…"
+            className="flex-1 min-w-0 bg-transparent outline-none text-sm"
+            style={{ color: '#f0f0ff' }}
+            aria-label="Search communities"
+          />
+          {query && (
+            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted" aria-label="Clear search">
+              <X className="w-3.5 h-3.5 text-tertiary" />
             </button>
-          </div>
-        )}
-
-        {msg && <p className="mx-3 mt-2 text-xs text-center p-2 rounded-xl bg-muted">{msg}</p>}
-
-        {/* New community row */}
-        <button
-          onClick={() => setShowCreate((v) => !v)}
-          className="w-full flex items-center gap-3.5 px-4 py-3.5 text-left hover:bg-muted/40 transition-colors"
-        >
-          <span className="relative shrink-0">
-            <span className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center">
-              <Users className="w-6 h-6 text-secondary" />
-            </span>
-            <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-green-500 flex items-center justify-center ring-2 ring-[var(--bg-card)]">
-              <Plus className="w-4 h-4 text-white" />
-            </span>
-          </span>
-          <span className="text-[15px] font-semibold">New community</span>
-        </button>
-
-        {loading ? (
-          <p className="text-xs text-muted-foreground text-center py-6">Loading…</p>
-        ) : lists.length === 0 && !showCreate ? (
-          <div className="text-center py-8 space-y-2 px-8">
-            <p className="text-sm font-medium">No communities yet</p>
-            <p className="text-xs text-muted-foreground">
-              Gather related groups under one roof and announce to all of them at once.
-            </p>
-          </div>
-        ) : (
-          lists.map((c) => {
-            const isOwner = user && c.owner_id === user.id
-            const linkedIds = new Set((c.groups || []).map((g: any) => g.id))
-            const groups = c.groups || []
-            const showAll = expanded[c.id] === true
-            const visible = showAll ? groups : groups.slice(0, 3)
-            const open = isExpanded(c.id)
-            return (
-              <div key={c.id} className="border-t border-[var(--k-border)]">
-                {/* Community header */}
-                <div className="flex items-center gap-3.5 px-4 py-3">
-                  <span className="w-12 h-12 rounded-2xl bg-teal-900/60 flex items-center justify-center shrink-0">
-                    <Users className="w-6 h-6 text-teal-300" />
-                  </span>
-                  <button
-                    onClick={() => setExpanded((e) => ({ ...e, [c.id]: e[c.id] === false ? true : false }))}
-                    className="flex-1 min-w-0 text-left"
-                  >
-                    <span className="block text-[15px] font-bold truncate tracking-tight">{c.name}</span>
-                    {c.description && (
-                      <span className="block text-xs text-muted-foreground truncate">{c.description}</span>
-                    )}
-                  </button>
-                  {isOwner && (
-                    <button onClick={() => remove(c.id)} className="p-2 rounded-full hover:bg-muted text-tertiary hover:text-destructive shrink-0" aria-label="Delete community">
-                      <Trash2 className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setExpanded((e) => ({ ...e, [c.id]: open ? false : true }))}
-                    className="p-1.5 rounded-full hover:bg-muted text-tertiary shrink-0"
-                    aria-label={open ? 'Collapse' : 'Expand'}
-                  >
-                    <ChevronDown className={`w-4 h-4 transition-transform ${open ? 'rotate-180' : ''}`} />
-                  </button>
-                </div>
-
-                {open && (
-                  <>
-                    {/* Announcements row */}
-                    <button
-                      onClick={() => isOwner && setAnnounceOpen((a) => ({ ...a, [c.id]: !a[c.id] }))}
-                      className="w-full flex items-center gap-3.5 px-4 py-2.5 text-left hover:bg-muted/40 transition-colors"
-                    >
-                      <span className="w-12 h-12 rounded-full bg-green-900/70 flex items-center justify-center shrink-0">
-                        <Megaphone className="w-5 h-5 text-green-300" />
-                      </span>
-                      <span className="flex-1 min-w-0">
-                        <span className="flex items-baseline justify-between gap-2">
-                          <span className="text-[15px] font-semibold truncate">Announcements</span>
-                          <span className="text-xs text-tertiary shrink-0">{fmtDay(c.created_at) || ''}</span>
-                        </span>
-                        <span className="block text-[13px] text-muted-foreground truncate">
-                          {isOwner ? `Announce to ${groups.length} group${groups.length === 1 ? '' : 's'}` : `${groups.length} group${groups.length === 1 ? '' : 's'}`}
-                        </span>
-                      </span>
-                    </button>
-
-                    {/* Owner announce composer */}
-                    {isOwner && announceOpen[c.id] && (
-                      <div className="px-4 pb-2 pl-[76px]">
-                        <div className="flex gap-2">
-                          <input
-                            value={drafts[c.id] || ''}
-                            onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault()
-                                announce(c.id)
-                              }
-                            }}
-                            placeholder={`Announce to ${c.name}…`}
-                            maxLength={2000}
-                            className="flex-1 min-w-0 px-3.5 py-2 rounded-full border outline-none text-sm"
-                            style={{ background: 'rgba(20,20,42,0.9)', borderColor: 'rgba(255,255,255,0.12)', color: '#f0f0ff', caretColor: '#f0f0ff' }}
-                          />
-                          <button
-                            onClick={() => announce(c.id)}
-                            disabled={sendingId === c.id || !(drafts[c.id] || '').trim()}
-                            className="w-10 h-10 rounded-full btn-primary disabled:opacity-40 shrink-0 flex items-center justify-center"
-                            aria-label="Send announcement"
-                          >
-                            <Megaphone className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Group rows */}
-                    {groups.length === 0 && (
-                      <p className="px-4 pl-[76px] py-1.5 text-[13px] text-muted-foreground">No groups linked yet.</p>
-                    )}
-                    {visible.map((g: any) => {
-                      const conv = convById.get(g.id)
-                      const avatar = g.avatar_url || conv?.avatar_url
-                      return (
-                        <div key={g.id} className="flex items-center gap-0.5 pl-4 pr-2">
-                          <button
-                            onClick={() => onOpenChat(g.id)}
-                            className="flex-1 min-w-0 flex items-center gap-3.5 py-2.5 text-left hover:bg-muted/40 rounded-xl px-0 transition-colors"
-                          >
-                            {avatar ? (
-                              <img src={avatar} alt="" className="w-12 h-12 rounded-full object-cover shrink-0" loading="lazy" />
-                            ) : (
-                              <span className="w-12 h-12 rounded-full bg-muted flex items-center justify-center text-lg font-bold shrink-0">
-                                {(g.title || '?')[0].toUpperCase()}
-                              </span>
-                            )}
-                            <span className="flex-1 min-w-0">
-                              <span className="flex items-baseline justify-between gap-2">
-                                <span className="text-[15px] font-medium truncate">{g.title || 'Group'}</span>
-                                <span className="text-xs text-tertiary shrink-0">{groupDate(g)}</span>
-                              </span>
-                              <span className="block text-[13px] text-muted-foreground truncate">{groupPreview(g)}</span>
-                            </span>
-                          </button>
-                          {isOwner && (
-                            <button
-                              onClick={() => removeGroup(c.id, g.id)}
-                              className="p-2 rounded-full hover:bg-muted text-tertiary hover:text-destructive shrink-0"
-                              aria-label="Unlink group"
-                            >
-                              <Minus className="w-4 h-4" />
-                            </button>
-                          )}
-                        </div>
-                      )
-                    })}
-
-                    {/* View all */}
-                    {groups.length > 3 && (
-                      <button
-                        onClick={() => setExpanded((e) => ({ ...e, [c.id]: !showAll }))}
-                        className="w-full flex items-center gap-3.5 px-4 py-2.5 text-muted-foreground hover:bg-muted/40 transition-colors"
-                      >
-                        <ChevronRight className="w-5 h-5 ml-3.5 shrink-0" />
-                        <span className="text-[14px] font-medium">{showAll ? 'Show less' : 'View all'}</span>
-                      </button>
-                    )}
-
-                    {/* Owner: add group */}
-                    {isOwner && (
-                      <div className="px-4 pb-3 pl-[76px]">
-                        {addingTo === c.id ? (
-                          <div className="rounded-xl border border-subtle bg-elevated p-2 space-y-1 max-h-44 overflow-y-auto">
-                            {myGroups.filter((g: any) => !linkedIds.has(g.id)).length === 0 && (
-                              <p className="text-xs text-muted-foreground px-2 py-1">All your groups are linked.</p>
-                            )}
-                            {myGroups
-                              .filter((g: any) => !linkedIds.has(g.id))
-                              .map((g: any) => (
-                                <button
-                                  key={g.id}
-                                  onClick={() => addGroup(c.id, g.id)}
-                                  className="w-full text-left px-2 py-1.5 rounded-lg hover:bg-muted text-[13px] flex items-center gap-2"
-                                >
-                                  <UserPlus className="w-4 h-4 text-primary shrink-0" />
-                                  <span className="truncate">{g.title || 'Group'}</span>
-                                </button>
-                              ))}
-                            <button onClick={() => setAddingTo(null)} className="w-full text-center text-xs text-muted-foreground py-1">
-                              Cancel
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setAddingTo(c.id)}
-                            className="text-[13px] text-secondary hover:text-primary flex items-center gap-1.5 py-1"
-                          >
-                            <UserPlus className="w-4 h-4" /> Add one of your groups
-                          </button>
-                        )}
-                      </div>
-                    )}
-                  </>
+          )}
+        </div>
+        {!q && (
+          <div className="flex rounded-full bg-elevated border border-subtle p-1 mt-2.5">
+            {(['discover', 'mine'] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`flex-1 py-1.5 rounded-full text-[13px] font-semibold capitalize transition-all ${
+                  tab === t ? 'bg-emerald-500/20 text-emerald-300 shadow' : 'text-tertiary'
+                }`}
+              >
+                {t}
+                {t === 'mine' && mine.length > 0 && (
+                  <span className="ml-1.5 text-[11px] opacity-80">{mine.length}</span>
                 )}
-              </div>
-            )
-          })
+              </button>
+            ))}
+          </div>
         )}
       </div>
+
+      {msg && <p className="px-4 pt-1.5 text-xs text-muted-foreground shrink-0">{msg}</p>}
+
+      <div className="flex-1 overflow-y-auto min-h-0 pb-4">
+        {loading ? (
+          <div className="px-3 py-3 space-y-3">
+            {[0, 1].map((i) => (
+              <div key={i} className="rounded-[22px] overflow-hidden border border-subtle animate-pulse">
+                <div className="h-20 bg-muted" />
+                <div className="p-3.5 space-y-2">
+                  <div className="h-4 w-2/3 rounded bg-muted" />
+                  <div className="h-3 w-1/3 rounded bg-muted" />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : lists.length === 0 ? (
+          <div className="py-10 text-center px-8">
+            <div className="w-16 h-16 rounded-[22px] flex items-center justify-center mx-auto shadow-lg" style={{ background: 'linear-gradient(135deg, #0d9488, #22d3ee)' }}>
+              <Network className="w-7 h-7 text-white" />
+            </div>
+            <p className="text-[16px] font-bold mt-4 tracking-tight">Find your people</p>
+            <p className="text-[13px] text-muted-foreground mt-1 max-w-[240px] mx-auto">
+              Join communities built around the things you care about.
+            </p>
+            <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="mt-4 px-5 py-2.5 rounded-full bg-emerald-500 text-white text-sm font-semibold shadow-lg transition-all active:scale-95">
+              Start a community
+            </button>
+          </div>
+        ) : searched ? (
+          <div className="px-3 pt-2">
+            {searched.length === 0 ? (
+              <div className="py-10 text-center px-8">
+                <p className="text-[15px] font-semibold">Nothing matches “{query}”</p>
+                <p className="text-[13px] text-muted-foreground mt-1">Try a different search — or start the community yourself.</p>
+                <button onClick={() => { setWizard({ step: 1, name: query, desc: '' }); setQuery('') }} className="mt-4 px-5 py-2.5 rounded-full bg-emerald-500 text-white text-sm font-semibold transition-all active:scale-95">
+                  Create “{query.trim().slice(0, 24)}”
+                </button>
+              </div>
+            ) : (
+              searched.map((c: any) => <CommunityCard key={c.id} c={c} />)
+            )}
+          </div>
+        ) : tab === 'mine' ? (
+          <div className="px-3 pt-2 space-y-3">
+            {mine.length === 0 ? (
+              <div className="py-10 text-center px-8">
+                <p className="text-[15px] font-semibold">You own no communities yet</p>
+                <p className="text-[13px] text-muted-foreground mt-1">Communities you create will live here.</p>
+                <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="mt-4 px-5 py-2.5 rounded-full bg-emerald-500 text-white text-sm font-semibold transition-all active:scale-95">
+                  Create one
+                </button>
+              </div>
+            ) : (
+              mine.map((c: any) => <CommunityCard key={c.id} c={c} />)
+            )}
+          </div>
+        ) : (
+          <div className="pt-3 space-y-5">
+            <button
+              onClick={() => setWizard({ step: 1, name: '', desc: '' })}
+              className="mx-3 w-[calc(100%-24px)] flex items-center gap-3.5 rounded-2xl border border-dashed border-subtle p-3 text-left transition-all hover:border-emerald-500/40 active:scale-[0.99]"
+            >
+              <span className="relative shrink-0">
+                <span className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center block">
+                  <Users className="w-6 h-6 text-secondary" />
+                </span>
+                <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center ring-2 ring-[var(--bg-card)]">
+                  <Plus className="w-4 h-4 text-white" />
+                </span>
+              </span>
+              <span className="text-[15px] font-semibold">New community</span>
+            </button>
+            {trending.length > 0 && (
+              <section>
+                <div className="flex items-center gap-1.5 px-4 pb-2">
+                  <Flame className="w-3.5 h-3.5 text-emerald-400" />
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Trending</p>
+                </div>
+                <div className="px-3 space-y-3">
+                  {trending.map((c: any) => <CommunityCard key={c.id} c={c} />)}
+                </div>
+              </section>
+            )}
+            <section>
+              <div className="flex items-center gap-1.5 px-4 pb-2">
+                <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All communities</p>
+              </div>
+              <div className="px-3 space-y-3">
+                {lists.map((c: any) => <CommunityCard key={c.id} c={c} />)}
+              </div>
+            </section>
+          </div>
+        )}
+      </div>
+
+      {/* Create wizard */}
+      {wizard && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => !creating && setWizard(null)}>
+          <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-1">
+              <p className="font-bold text-[17px] tracking-tight">New community</p>
+              <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted" aria-label="Close">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex items-center gap-1.5 mb-4">
+              {[1, 2, 3].map((s) => (
+                <span key={s} className={`h-1 flex-1 rounded-full transition-all ${wizard.step >= s ? 'bg-emerald-500' : 'bg-muted'}`} />
+              ))}
+            </div>
+            <p className="text-xs text-tertiary font-semibold uppercase tracking-wider mb-2">
+              {wizard.step === 1 ? '01 · Identity' : wizard.step === 2 ? '02 · Details' : '03 · Review'}
+            </p>
+            {wizard.step === 1 && (
+              <div className="flex items-center gap-3">
+                <div className="w-14 h-14 rounded-2xl bg-emerald-500/20 flex items-center justify-center shrink-0">
+                  <Users className="w-7 h-7 text-emerald-400" />
+                </div>
+                <input
+                  autoFocus
+                  value={wizard.name}
+                  onChange={(e) => setWizard({ ...wizard, name: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === 'Enter' && wizard.name.trim()) setWizard({ ...wizard, step: 2 }) }}
+                  placeholder="Community name (e.g. Apartment Block)"
+                  maxLength={100}
+                  className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border outline-none text-sm"
+                  style={fieldStyle}
+                />
+              </div>
+            )}
+            {wizard.step === 2 && (
+              <input
+                autoFocus
+                value={wizard.desc}
+                onChange={(e) => setWizard({ ...wizard, desc: e.target.value })}
+                onKeyDown={(e) => { if (e.key === 'Enter') setWizard({ ...wizard, step: 3 }) }}
+                placeholder="What is this community about?"
+                maxLength={500}
+                className="w-full px-4 py-2.5 rounded-xl border outline-none text-sm"
+                style={fieldStyle}
+              />
+            )}
+            {wizard.step === 3 && (
+              <div className="rounded-2xl bg-elevated border border-subtle p-4">
+                <p className="font-bold">{wizard.name}</p>
+                <p className="text-xs text-muted-foreground mt-0.5">{wizard.desc || 'No description'}</p>
+                <p className="text-[11px] text-tertiary mt-1.5">Umbrella over groups · you announce to all at once</p>
+              </div>
+            )}
+            <div className="flex gap-2 mt-4">
+              {wizard.step > 1 && (
+                <button onClick={() => setWizard({ ...wizard, step: wizard.step - 1 })} disabled={creating} className="px-4 py-2.5 rounded-xl bg-muted text-sm font-medium disabled:opacity-50">
+                  Back
+                </button>
+              )}
+              {wizard.step < 3 ? (
+                <button
+                  onClick={() => wizard.name.trim() && setWizard({ ...wizard, step: wizard.step + 1 })}
+                  disabled={!wizard.name.trim()}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50"
+                >
+                  Continue
+                </button>
+              ) : (
+                <button onClick={create} disabled={creating} className="flex-1 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-semibold disabled:opacity-50">
+                  {creating ? 'Creating…' : 'Create community'}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
+
+  /* ── Shared community card ── */
+  function CommunityCard({ c }: { c: any }) {
+    const st = communityStats(c)
+    const members = communityMembers(c)
+    const [c1, c2] = coverOf(c.id)
+    return (
+      <div
+        onClick={() => openCommunity(c)}
+        className="rounded-[22px] overflow-hidden border border-subtle cursor-pointer transition-all hover:border-emerald-500/30 active:scale-[0.99]"
+        style={{ background: 'linear-gradient(180deg, rgba(20,38,36,0.98), rgba(12,20,28,0.98))', boxShadow: '0 8px 28px rgba(0,0,0,0.45)' }}
+      >
+        <div className="relative h-20 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+          <Users className="absolute -right-2 -bottom-5 w-24 h-24 text-white/10" />
+        </div>
+        <div className="p-3.5">
+          <div className="flex items-center gap-2.5 -mt-9 mb-2">
+            <div className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-lg ring-2 ring-[var(--bg-card)] shrink-0" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div className="flex-1 min-w-0 pt-7">
+              <p className="text-[15px] font-bold truncate tracking-tight">{c.name}</p>
+            </div>
+            <ChevronRight className="w-4 h-4 text-tertiary shrink-0 mt-7" />
+          </div>
+          {c.description
+            ? <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed min-h-8">{c.description}</p>
+            : <p className="text-xs text-tertiary italic min-h-8">No description</p>}
+          <div className="flex items-center justify-between mt-2">
+            <div className="flex items-center gap-2">
+              {members.length > 0 && memberCluster(members)}
+              <p className="text-[11px] text-tertiary">
+                {st.members} members{st.online > 0 && <span className="text-emerald-400 font-semibold"> · {st.online} online</span>}
+              </p>
+            </div>
+            <p className="text-[11px] text-tertiary">{st.groups} groups</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
 }

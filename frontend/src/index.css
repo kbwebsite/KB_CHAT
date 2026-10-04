@@ -2994,6 +2994,15 @@ body {
   0% { opacity: 0.9; transform: scale(1); }
   100% { opacity: 0; transform: scale(1.35); }
 }
+/* Hide scrollbars for horizontal carousels (still scrollable). */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* AI image-dream shimmer. */
 .ai-shimmer {
   background: linear-gradient(110deg, rgba(255,255,255,0.04) 30%, rgba(var(--accent-rgb), 0.14) 48%, rgba(var(--cyan-rgb), 0.12) 55%, rgba(255,255,255,0.04) 70%);
