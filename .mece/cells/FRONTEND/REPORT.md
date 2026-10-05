@@ -77,3 +77,64 @@ Base commit: `d0b6732` (redesign) → this pass (no redesign, no backend changes
 
 - No live-device verification (keyboard open/close, bottom-nav overlap, 360/375/390/412/768 widths) — needs a phone or emulator pass
 - `any` types and nested row components predate this pass and were intentionally left alone per the no-large-refactor rule
+
+---
+
+# Final Verification (follow-up pass)
+
+## Fixed
+
+- **A. Follow buttons are 44px**: measured in-browser — `44×69px` on pills, `min-h-[44px]` on all Follow/Following variants (discover rows, profile, About, bottom-sheet CTA). Icon-only buttons left at 32px (app-wide convention; documented below).
+- **B. Multiline composer**: channel post box and community announce box are now auto-growing textareas (35px → 102px measured at 3 lines, capped 128px, Enter=new line, Ctrl/Cmd+Enter or send button posts). **Testing caught a real bug**: height reset ran before React committed the empty value, leaving the composer stuck tall — fixed with post-commit `requestAnimationFrame` reset in both panels.
+- **Genuine backend bug found and fixed** (`backend/app/api/groups.py`): invited members were never added (dead code under `continue` + early `return` inside the loop) — group creation silently dropped every invitee. Same root cause behind 2 failing tests. Both pass now.
+- Announce toast grammar ("Announced to 1 group" via shared `plural`); About Created tile shortened to fit ("Oct 5").
+
+## Mobile verified
+
+Real Chromium via Playwright, local dev servers, fresh seeded DB — **VERIFIED**:
+- 390×844: Communities discover (Trending dedup, no All-section duplication), detail Home/Groups/Members/About, announce composer → send → "Announced to 1 group" → activity feed updates with multiline post; Channels discover (Featured carousel, no All duplication), search filter, Following tab, channel profile (Posts/Media/About), bell persists mute to localStorage, 3-step create wizards for both, owner multiline post (line breaks preserved, feed scrolls, composer never covers content)
+- Follow measured 44px tall, flips to Following without reload
+- 360×800 and 412×915: `scrollWidth == innerWidth`, no horizontal overflow
+- Chat regression: open group, send message, bubbles/checks/times render
+- Console: **0 errors** across the entire session (5 errors appeared only after test servers were killed during teardown — dead-server fetch noise, not app errors)
+
+## Desktop verified
+
+- **VERIFIED at 1280px**: side-by-side list+chat, no stacking; overlay panels render full-screen consistent with all other panels
+- **VERIFIED at 768px**: no overflow, 0 console errors
+- Pre-existing gap (not a regression): desktop sidebar has no visible entry points for Communities/Channels (mobile-header is CSS-hidden ≥1024px) — recommend adding desktop entries as follow-up
+
+## Backend tests
+
+- Full suite, clean env, scratch DB: **60 passed, 0 failed** (excl. `test_email_verification.py`, see below)
+- The 4 previous failures, each understood:
+  1. `test_firebase_exchange_new_existing_unverified_rejected` — `ModuleNotFoundError: firebase_admin` in local venv. **PRE-EXISTING, environmental** (it is in `requirements.txt`, so CI/Render have it). Local venv was restored to pinned `httpx==0.27.0` after diagnosis (an install attempt briefly bumped it to 0.28.1 and broke collection — reverted and verified).
+  2. `test_forgot_password_dev_returns_token_and_resets` — **PASSES with clean env**. Fails locally only because dev `.env` holds a real `RESEND_API_KEY`, so the endpoint (correctly, securely) takes the send-via-inbox branch instead of the dev token-in-response branch. **PRE-EXISTING, environmental** — and the code is right to prefer the inbox.
+  3. `test_group_self_leave_and_owner_handoff` — **GENUINE BUG, FIXED** (see above). Now passes.
+  4. `test_group_owner_leave_promotes_member` — same root cause. **FIXED**, now passes.
+- `test_email_verification.py` errors at collection by its own design (asserts no `RESEND_API_KEY`, but dev `.env` has a real one) — **PRE-EXISTING, environmental**.
+
+## Build
+
+- `npx vite build` — **success (~33s)**, only the pre-existing chunk-size warning
+
+## TypeScript
+
+- `npx tsc --noEmit` — **clean** (also caught and fixed a missing `plural` import and a duplicate-style-prop issue during this pass)
+
+## Lint
+
+- `npm run lint` — **still unrunnable**: ESLint 10 installed but zero config files repo-wide, and `eslint` is not even in `devDependencies`. Investigated per instructions: the `lint` script is aspirational — linting was never set up. Reported as a **tooling gap**, no config invented (would be a tooling migration, out of scope).
+
+## Remaining issues
+
+- Icon-only buttons (bell/trash/menu, 32px) below the 44px guidance — app-wide convention, rows themselves are tall targets
+- Overlays cover the bottom nav (must close panel before switching tabs) — pre-existing architecture shared by ALL full-screen panels, not a channels/communities regression; recommend nav-above-overlay + tab sync as follow-up
+- Physical-device keyboard behavior (open/close/resize) not testable here — needs a phone pass
+- Desktop entry points for Communities/Channels don't exist (pre-existing gap)
+
+## Recommended next step
+
+- Phone pass: real keyboard open/close on the new composers, bottom-nav overlap, 360/375/390/412 widths
+- Then: desktop entries for Communities/Channels + nav-above-overlay tab switching (single layout change, benefits every panel)
+- Then: eslint flat config (separate tooling task)

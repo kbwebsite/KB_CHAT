@@ -75,7 +75,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   // Create wizard
   const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string }>(null)
   const [creating, setCreating] = useState(false)
-  const composerRef = useRef<HTMLInputElement>(null)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
 
@@ -89,6 +89,12 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const focusComposer = () => {
     composerRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
     setTimeout(() => composerRef.current?.focus({ preventScroll: true }), 250)
+  }
+
+  const autogrow = (el: HTMLTextAreaElement | null) => {
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 128) + 'px'
   }
 
   const load = () => {
@@ -212,6 +218,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       if (r?.success) {
         setPosts((p) => [...p, r.data])
         setDraft('')
+        // Reset after React commits the empty value, otherwise the
+        // textarea keeps its grown height (stale DOM measurement).
+        requestAnimationFrame(() => autogrow(composerRef.current))
         setShowEmoji(false)
         refreshOne(id)
         requestAnimationFrame(() => scrollFeedToBottom(true))
@@ -411,8 +420,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
         }}
         className={
           c.followed
-            ? `${big ? 'px-5 py-2 text-sm' : 'px-3.5 py-1.5 text-[13px]'} rounded-full border border-subtle text-secondary font-semibold shrink-0 transition-all active:scale-95`
-            : `${big ? 'px-5 py-2 text-sm' : 'px-3.5 py-1.5 text-[13px]'} rounded-full gradient-primary text-white font-semibold shrink-0 shadow transition-all active:scale-95`
+            ? `${big ? 'px-5 py-2 text-sm' : 'px-3.5 py-1.5 text-[13px]'} rounded-full border border-subtle text-secondary font-semibold shrink-0 transition-all active:scale-95 min-h-[44px] inline-flex items-center`
+            : `${big ? 'px-5 py-2 text-sm' : 'px-3.5 py-1.5 text-[13px]'} rounded-full gradient-primary text-white font-semibold shrink-0 shadow transition-all active:scale-95 min-h-[44px] inline-flex items-center`
         }
       >
         {c.followed ? 'Following' : 'Follow'}
@@ -557,7 +566,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   {[
                     [compact(openChannel.follower_count ?? 0), 'Followers'],
                     [String(openChannel.post_count ?? 0), 'Posts'],
-                    [openChannel.created_at ? fmtDate(openChannel.created_at) : '—', 'Created'],
+                    [openChannel.created_at && asDate(openChannel.created_at)
+                      ? asDate(openChannel.created_at)!.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+                      : '—', 'Created'],
                   ].map(([v, l]) => (
                     <div key={l} className="rounded-xl bg-card border border-subtle p-2.5">
                       <p className="text-sm font-bold truncate">{v}</p>
@@ -570,7 +581,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     Post an update
                   </button>
                 ) : (
-                  <button onClick={() => follow(openChannel.id, !openChannel.followed)} className={`w-full py-2.5 rounded-xl text-sm font-semibold ${openChannel.followed ? 'border border-subtle text-secondary' : 'btn-primary'}`}>
+                  <button onClick={() => follow(openChannel.id, !openChannel.followed)} className={`w-full py-2.5 rounded-xl text-sm font-semibold min-h-[44px] ${openChannel.followed ? 'border border-subtle text-secondary' : 'btn-primary'}`}>
                     {openChannel.followed ? 'Following' : 'Follow channel'}
                   </button>
                 )}
@@ -714,7 +725,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               {showEmoji && (
                 <div className="flex gap-1.5 px-1 pb-2">
                   {EMOJIS.map((e) => (
-                    <button key={e} onClick={() => setDraft((d) => d + e)} className="text-xl p-1.5 rounded-lg hover:bg-muted transition-all active:scale-90">
+                    <button key={e} onClick={() => { setDraft((d) => d + e); requestAnimationFrame(() => autogrow(composerRef.current)) }} className="text-xl p-1.5 rounded-lg hover:bg-muted transition-all active:scale-90">
                       {e}
                     </button>
                   ))}
@@ -725,14 +736,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   <button onClick={() => setShowEmoji((v) => !v)} className="p-2 rounded-full text-tertiary hover:text-secondary" aria-label="Emoji">
                     <Smile className="w-5 h-5" />
                   </button>
-                  <input
+                  <textarea
                     ref={composerRef}
                     value={draft}
-                    onChange={(e) => setDraft(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') post(openChannel.id) }}
-                    placeholder="Write an update…"
-                    className="flex-1 min-w-0 bg-transparent outline-none text-[15px] py-1.5"
+                    rows={1}
+                    onChange={(e) => { setDraft(e.target.value); autogrow(e.target) }}
+                    onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') post(openChannel.id) }}
+                    placeholder="Write an update… (Enter for new line)"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-[15px] py-1.5 resize-none max-h-32 overflow-y-auto"
                     style={{ color: '#f0f0ff', caretColor: '#f0f0ff' }}
+                    aria-label="Write an update"
                   />
                   <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary disabled:opacity-40" aria-label="Attach">
                     <Paperclip className="w-5 h-5" />
@@ -763,7 +776,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           ) : (
             <div className="shrink-0 p-3 border-t border-[var(--k-border)]">
               {!openChannel.followed ? (
-                <button onClick={() => follow(openChannel.id, true)} className="w-full py-2.5 rounded-full btn-primary text-sm font-semibold transition-all active:scale-[0.99]">
+                <button onClick={() => follow(openChannel.id, true)} className="w-full py-2.5 rounded-full btn-primary text-sm font-semibold transition-all active:scale-[0.99] min-h-[44px]">
                   Follow channel
                 </button>
               ) : (

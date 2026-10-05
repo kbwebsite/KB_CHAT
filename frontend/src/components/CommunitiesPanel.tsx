@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import {
   Plus,
   X,
@@ -18,7 +18,7 @@ import {
 } from 'lucide-react'
 import { communityApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { formatTime, compactPlural } from '../utils/format'
+import { formatTime, compactPlural, plural } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 
 /**
@@ -56,6 +56,7 @@ export function CommunitiesPanel({
   const [menuOpen, setMenuOpen] = useState(false)
   const [drafts, setDrafts] = useState<Record<number, string>>({})
   const [sendingId, setSendingId] = useState<number | null>(null)
+  const announceRefs = useRef<Record<number, HTMLTextAreaElement | null>>({})
   const [addingTo, setAddingTo] = useState<number | null>(null)
   const [announceOpen, setAnnounceOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
@@ -190,8 +191,13 @@ export function CommunitiesPanel({
       const r = await communityApi.announce(id, content)
       if (r?.success) {
         setDrafts((d) => ({ ...d, [id]: '' }))
+        // Reset after React commits the empty value (stale DOM otherwise).
+        requestAnimationFrame(() => {
+          const ta = announceRefs.current[id]
+          if (ta) ta.style.height = 'auto'
+        })
         setAnnounceOpen(false)
-        setMsg(`Announced to ${r.data?.reached?.length ?? 0} groups`)
+        setMsg(`Announced to ${plural(r.data?.reached?.length ?? 0, 'group')}`)
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
@@ -369,20 +375,28 @@ export function CommunitiesPanel({
                   announceOpen ? (
                     <div className="rounded-2xl bg-elevated border border-subtle p-2.5">
                       <div className="flex gap-2">
-                        <input
+                        <textarea
                           autoFocus
+                          ref={(el) => { announceRefs.current[c.id] = el }}
                           value={drafts[c.id] || ''}
-                          onChange={(e) => setDrafts((d) => ({ ...d, [c.id]: e.target.value }))}
+                          rows={1}
+                          onChange={(e) => {
+                            setDrafts((d) => ({ ...d, [c.id]: e.target.value }))
+                            const el = e.target
+                            el.style.height = 'auto'
+                            el.style.height = Math.min(el.scrollHeight, 128) + 'px'
+                          }}
                           onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
+                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
                               e.preventDefault()
                               announce(c.id)
                             }
                           }}
-                          placeholder={`Announce to ${c.name}…`}
+                          placeholder={`Announce to ${c.name}… (Enter for new line)`}
                           maxLength={2000}
-                          className="flex-1 min-w-0 px-3.5 py-2 rounded-full border outline-none text-sm"
+                          className="flex-1 min-w-0 px-3.5 py-2 rounded-2xl border outline-none text-sm resize-none max-h-32 overflow-y-auto"
                           style={fieldStyle}
+                          aria-label="Write an announcement"
                         />
                         <button
                           onClick={() => announce(c.id)}

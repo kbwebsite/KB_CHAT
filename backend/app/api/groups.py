@@ -45,19 +45,17 @@ def create_group(
             continue
         if not db.query(UserModel).filter_by(id=uid).first():
             continue
-            db.add(
-                ConversationMember(conversation_id=conv.id, user_id=uid, role="member")
-            )
-        from app.api.settings import get_or_create_settings
+        db.add(ConversationMember(conversation_id=conv.id, user_id=uid, role="member"))
+    from app.api.settings import get_or_create_settings
 
-        dflt = get_or_create_settings(db, current_user.id).default_disappearing
-        if dflt:
-            conv.disappearing_seconds = dflt
-        db.commit()
-        db.refresh(conv)
-        return success_response(
-            conversation_to_dict(db, conv, current_user.id), "Group created"
-        )
+    dflt = get_or_create_settings(db, current_user.id).default_disappearing
+    if dflt:
+        conv.disappearing_seconds = dflt
+    db.commit()
+    db.refresh(conv)
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id), "Group created"
+    )
 
 
 @router.patch("/{group_id}")
