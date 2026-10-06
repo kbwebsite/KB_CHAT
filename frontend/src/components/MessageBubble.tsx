@@ -25,6 +25,67 @@ const fmtDur = (s: number) => {
   return `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`
 }
 
+// Wave 4B: bounded waveform cache keyed by audio URL. Scrolling through a
+// chat remounts bubbles constantly; without this every mount refetches +
+// decodes the full clip. In-flight decodes are shared; failures are not
+// cached. Cap 50 entries (peaks are 36 numbers — tiny).
+const peaksCache = new Map<string, number[]>()
+const peaksInflight = new Map<string, Promise<number[] | null>>()
+
+function peaksForUrl(src: string): Promise<number[] | null> {
+  const hit = peaksCache.get(src)
+  if (hit) return Promise.resolve(hit)
+  const running = peaksInflight.get(src)
+  if (running) return running
+  const p: Promise<number[] | null> = (async () => {
+    try {
+      const AC = window.AudioContext || (window as any).webkitAudioContext
+      if (!AC) return null
+      const blob = await fetch(src).then((r) => r.blob())
+      const buf = await blob.arrayBuffer()
+      const ctx = new AC()
+      try {
+        const audio = await ctx.decodeAudioData(buf)
+        const ch = audio.getChannelData(0)
+        const N = 36
+        const step = Math.max(1, Math.floor(ch.length / N))
+        const out: number[] = []
+        for (let i = 0; i < N; i++) {
+          let max = 0
+          const start = i * step
+          for (let j = start; j < Math.min(start + step, ch.length); j += 7) {
+            const v = Math.abs(ch[j])
+            if (v > max) max = v
+          }
+          out.push(max)
+        }
+        if (!out.some((v) => v > 0)) return null
+        if (peaksCache.size >= 50) {
+          const oldest = peaksCache.keys().next()
+          if (!oldest.done) peaksCache.delete(oldest.value)
+        }
+        peaksCache.set(src, out)
+        return out
+      } finally {
+        ctx.close().catch(() => {})
+      }
+    } catch {
+      return null
+    }
+  })().finally(() => {
+    peaksInflight.delete(src)
+  })
+  peaksInflight.set(src, p)
+  return p
+}
+
+// Test seam for the cache contract (no DOM harness needed).
+export function clearPeaksCache() {
+  peaksCache.clear()
+  peaksInflight.clear()
+}
+export { peaksForUrl }
+
 function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration?: number | null; isOwn: boolean; fileName?: string }) {
   const audioRef = useRef<HTMLAudioElement>(null)
   const [playing, setPlaying] = useState(false)
@@ -50,37 +111,12 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
     else el.play().catch(() => setLoadError(true))
   }
 
-  // Waveform peaks decoded once per voice note (cached per mount).
+  // Waveform peaks decoded once per voice note URL (cached across mounts).
   useEffect(() => {
     let cancelled = false
-    ;(async () => {
-      try {
-        const AC = window.AudioContext || (window as any).webkitAudioContext
-        if (!AC) return
-        const blob = await fetch(src).then((r) => r.blob())
-        const buf = await blob.arrayBuffer()
-        const ctx = new AC()
-        try {
-          const audio = await ctx.decodeAudioData(buf)
-          const ch = audio.getChannelData(0)
-          const N = 36
-          const step = Math.max(1, Math.floor(ch.length / N))
-          const out: number[] = []
-          for (let i = 0; i < N; i++) {
-            let max = 0
-            const start = i * step
-            for (let j = start; j < Math.min(start + step, ch.length); j += 7) {
-              const v = Math.abs(ch[j])
-              if (v > max) max = v
-            }
-            out.push(max)
-          }
-          if (!cancelled && out.some((v) => v > 0)) setPeaks(out)
-        } finally {
-          ctx.close().catch(() => {})
-        }
-      } catch {}
-    })()
+    peaksForUrl(src).then((out) => {
+      if (!cancelled && out) setPeaks(out)
+    })
     return () => {
       cancelled = true
     }

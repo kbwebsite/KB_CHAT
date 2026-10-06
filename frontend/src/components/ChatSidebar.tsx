@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useSettingsStore } from '../store/settings'
@@ -81,7 +81,7 @@ export function ChatSidebar({
 
   const typingMap = typingUsers
 
-  const filteredByTab = (() => {
+  const filteredByTab = useMemo(() => {
     let base = conversations
     if (activeTab === 'groups') base = base.filter((c: any) => c.is_group)
     if (search) {
@@ -92,7 +92,7 @@ export function ChatSidebar({
       )
     }
     return base
-  })()
+  }, [conversations, activeTab, search])
 
   const handleSelect = async (id: number) => {
     onSelect(id)

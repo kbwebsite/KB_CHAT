@@ -343,8 +343,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         }
         el.onerror = () => { URL.revokeObjectURL(url); resolve(undefined) }
         el.src = url
-        // Safety timeout in case metadata never loads
-        setTimeout(() => resolve(undefined), 4000)
+        // Safety timeout in case metadata never loads (revokes too — the
+        // loadedmetadata/error paths already resolved or never will).
+        setTimeout(() => { URL.revokeObjectURL(url); resolve(undefined) }, 4000)
       } catch { resolve(undefined) }
     })
   }

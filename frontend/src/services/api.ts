@@ -192,13 +192,13 @@ export const usersApi = {
 }
 
 export const convApi = {
-  list: (search?:string, opts?:{include_archived?:boolean, filter?:string}) => {
+  list: (search?:string, opts?:{include_archived?:boolean, filter?:string}, signal?:AbortSignal) => {
     const q=new URLSearchParams()
     if (search) q.set('search', search)
     if (opts?.include_archived) q.set('include_archived','true')
     if (opts?.filter) q.set('filter', opts.filter)
     const s=q.toString()
-    return api.get(`/api/conversations${s?`?${s}`:''}`).then(r=>r.data)
+    return api.get(`/api/conversations${s?`?${s}`:''}`, { signal }).then(r=>r.data)
   },
   create: (data:any) => api.post('/api/conversations', data).then(r=>r.data),
   get: (id:number) => api.get(`/api/conversations/${id}`).then(r=>r.data),
@@ -248,12 +248,12 @@ export const channelApi = {
 }
 
 export const msgApi = {
-  list: (cid:number, params:any={}) => {
+  list: (cid:number, params:any={}, signal?:AbortSignal) => {
     const q = new URLSearchParams()
     if (params.before) q.set('before', params.before)
     if (params.limit) q.set('limit', params.limit)
     if (params.search) q.set('search', params.search)
-    return api.get(`/api/conversations/${cid}/messages?${q.toString()}`).then(r=>r.data)
+    return api.get(`/api/conversations/${cid}/messages?${q.toString()}`, { signal }).then(r=>r.data)
   },
   send: (cid:number, data:any) => api.post(`/api/conversations/${cid}/messages`, data).then(r=>r.data),
   viewOnce: (mid:number) => api.post(`/api/messages/${mid}/view-once`).then(r=>r.data),

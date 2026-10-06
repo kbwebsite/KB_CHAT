@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { memo, useEffect, useState } from 'react'
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
@@ -21,7 +21,7 @@ function getAvatarGradient(id: number) {
   return avatarGradients[id % avatarGradients.length]
 }
 
-export function ConversationItem({ conv, active, onClick, isTyping, currentUserId, onPin, onMute, onArchive }: {
+function ConversationItemInner({ conv, active, onClick, isTyping, currentUserId, onPin, onMute, onArchive }: {
   conv: Conversation, active: boolean, onClick: () => void, isTyping?: boolean, currentUserId?: number, onPin?: (id: number) => void, onMute?: (id: number) => void, onArchive?: (id: number) => void
 }) {
   const isGroup = conv.is_group
@@ -80,6 +80,17 @@ export function ConversationItem({ conv, active, onClick, isTyping, currentUserI
     </div>
   )
 }
+
+// Row-level memo: callbacks (onClick/onPin/...) are inline per render, but
+// they only forward stable store actions + the row id, so rendering is
+// decided by data props alone. Unchanged rows skip rerenders when a message
+// lands in a different conversation or presence ticks elsewhere.
+export const ConversationItem = memo(ConversationItemInner, (prev, next) =>
+  prev.conv === next.conv &&
+  prev.active === next.active &&
+  prev.isTyping === next.isTyping &&
+  prev.currentUserId === next.currentUserId
+)
 
 export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading, onChanged }: {
   conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean, onChanged?: () => void

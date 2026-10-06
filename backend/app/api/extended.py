@@ -251,10 +251,15 @@ def blocked_list(
 
 
 # Export chat
+EXPORT_DEFAULT_LIMIT = 2000
+EXPORT_MAX_LIMIT = 5000
+
+
 @router.get("/conversations/{conv_id}/export")
 def export_chat(
     conv_id: int,
     format: str = Query("json", pattern="^(json|txt)$"),
+    limit: int = Query(EXPORT_DEFAULT_LIMIT, ge=1, le=EXPORT_MAX_LIMIT),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -267,29 +272,59 @@ def export_chat(
         .first()
     ):
         raise HTTPException(status_code=403, detail="Not a member")
+    from sqlalchemy import func as _func
+
+    total = (
+        db.query(_func.count(Message.id)).filter_by(conversation_id=conv_id).scalar()
+        or 0
+    )
+    # Newest-first window at the DB (bounded), reversed back to the legacy
+    # oldest-first export order. Without a bound this loads the full history
+    # plus per-row queries into one buffered response.
     msgs = (
         db.query(Message)
         .filter_by(conversation_id=conv_id)
-        .order_by(Message.created_at)
+        .order_by(desc(Message.created_at), desc(Message.id))
+        .limit(limit)
         .all()
     )
+    msgs.reverse()
+    truncated = total > len(msgs)
     members = db.query(ConversationMember).filter_by(conversation_id=conv_id).all()
+    # Batched lookups (were per-row User/Attachment queries: 2 per message).
+    sender_ids = {m.sender_id for m in msgs if m.sender_id}
+    users_by_id = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(sender_ids)).all()}
+        if sender_ids
+        else {}
+    )
+    member_users = (
+        {
+            u.id: u
+            for u in db.query(User)
+            .filter(User.id.in_([m.user_id for m in members]))
+            .all()
+        }
+        if members
+        else {}
+    )
+    msg_ids = [m.id for m in msgs]
+    atts_by_msg = {}
+    if msg_ids:
+        for a in db.query(Attachment).filter(Attachment.message_id.in_(msg_ids)).all():
+            atts_by_msg.setdefault(a.message_id, []).append(a)
     # Build export data without sensitive info
     export_members = []
     for m in members:
-        u = db.query(User).filter_by(id=m.user_id).first()
+        u = member_users.get(m.user_id)
         if u:
             export_members.append(
                 {"username": u.username, "display_name": u.display_name, "role": m.role}
             )
     export_msgs = []
     for msg in msgs:
-        sender = (
-            db.query(User).filter_by(id=msg.sender_id).first()
-            if msg.sender_id
-            else None
-        )
-        atts = db.query(Attachment).filter_by(message_id=msg.id).all()
+        sender = users_by_id.get(msg.sender_id) if msg.sender_id else None
+        atts = atts_by_msg.get(msg.id, [])
         export_msgs.append(
             {
                 "sender": sender.username if sender else "Unknown",
@@ -348,6 +383,9 @@ def export_chat(
                 },
                 "messages": export_msgs,
                 "exported_at": datetime.now(timezone.utc).isoformat(),
+                "total": total,
+                "limit": limit,
+                "truncated": truncated,
             }
         )
 

@@ -9,6 +9,18 @@ logger = logging.getLogger(__name__)
 
 
 class ConnectionManager:
+    # Wave 4B provisional bounds (see WAVE4B_REPORT; conservative, documented,
+    # no multi-instance semantics — single-process protection only).
+    # Fan-out is chunked so a 5k-member broadcast never holds 5k coroutines
+    # at once; small rooms (< chunk) behave exactly as before (one gather).
+    FANOUT_CHUNK_SIZE = 100
+    # Typing is UI hint, not data: re-broadcast at most one start per
+    # (user, conversation) per window; stops are always delivered.
+    TYPING_MIN_INTERVAL_S = 3.0
+    # Sockets per user: tabs + phone + desktop comfortably fit; beyond this
+    # the oldest reconnect loop is almost certainly a runaway client.
+    MAX_SOCKETS_PER_USER = 10
+
     def __init__(self):
         self.user_connections: Dict[int, Set[WebSocket]] = defaultdict(set)
         # sid -> sockets, for session-scoped revocation sweeps (Wave 2).
@@ -16,6 +28,9 @@ class ConnectionManager:
         # only ever closed by user-level sweeps, never session sweeps.
         self.sid_connections: Dict[str, Set[WebSocket]] = defaultdict(set)
         self.socket_sids: Dict[WebSocket, Optional[str]] = {}
+        # (user_id, conversation_id) -> last broadcast typing.start epoch.
+        # Pruned opportunistically; bounded by concurrently-typing pairs.
+        self._typing_last: Dict[tuple, float] = {}
         self.lock = asyncio.Lock()
         self._loop = None
 
@@ -116,6 +131,30 @@ class ConnectionManager:
         for ws in dead:
             await self.disconnect(ws, user_id)
 
+    def socket_count(self, user_id: int) -> int:
+        return len(self.user_connections.get(user_id, ()))
+
+    def typing_allowed(
+        self, user_id: int, conversation_id: int, now: float = None
+    ) -> bool:
+        """Coalesce typing.start floods; typing.stop always passes (call with
+        is_typing=False bypasses). Pure predicate — unit-testable, no I/O."""
+        import time as _time
+
+        ts = now if now is not None else _time.time()
+        key = (user_id, conversation_id)
+        last = self._typing_last.get(key)
+        # Opportunistic prune keeps the map bounded by active typers.
+        if len(self._typing_last) > 1000:
+            cutoff = ts - self.TYPING_MIN_INTERVAL_S * 20
+            for k, v in list(self._typing_last.items()):
+                if v < cutoff:
+                    del self._typing_last[k]
+        if last is not None and ts - last < self.TYPING_MIN_INTERVAL_S:
+            return False
+        self._typing_last[key] = ts
+        return True
+
     async def broadcast_to_conversation(
         self,
         conversation_id: int,
@@ -130,13 +169,18 @@ class ConnectionManager:
         )
         # Parallel fan-out: members were awaited one-by-one, so a single
         # slow (or half-dead) socket delayed delivery to everyone after it.
+        # Chunked so very large rooms bound in-flight coroutines; rooms under
+        # FANOUT_CHUNK_SIZE behave exactly as before (single gather).
         jobs = [
             self.send_to_user(uid, data)
             for uid in targets
             if exclude_user is None or uid != exclude_user
         ]
         if jobs:
-            await asyncio.gather(*jobs, return_exceptions=True)
+            for i in range(0, len(jobs), self.FANOUT_CHUNK_SIZE):
+                await asyncio.gather(
+                    *jobs[i : i + self.FANOUT_CHUNK_SIZE], return_exceptions=True
+                )
 
     async def _get_conversation_members(self, conversation_id: int) -> List[int]:
         from app.database.connection import SessionLocal

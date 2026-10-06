@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form
+from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from sqlalchemy.orm import Session
 from sqlalchemy import desc
 from datetime import datetime, timezone, timedelta
@@ -262,13 +262,18 @@ async def create_status_with_media(
 
 @router.get("/feed")
 def get_feed(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
-    # get all non-expired, not deleted statuses from other users, plus own
+    # get all non-expired, not deleted statuses from other users, plus own.
+    # Bounded at the DB (was an unbounded full-table load with per-row N+1);
+    # recency ordering preserved, Python-side expiry/privacy filter unchanged.
     all_statuses = (
         db.query(Status)
         .filter(Status.is_deleted == False)
         .order_by(desc(Status.created_at))
+        .limit(limit)
         .all()
     )
     # filter expired and privacy
@@ -297,12 +302,15 @@ def get_feed(
 
 @router.get("/my")
 def get_my(
-    db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
+    limit: int = Query(100, ge=1, le=200),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
 ):
     statuses = (
         db.query(Status)
         .filter_by(user_id=current_user.id, is_deleted=False)
         .order_by(desc(Status.created_at))
+        .limit(limit)
         .all()
     )
     result = [

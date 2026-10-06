@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
@@ -61,10 +61,11 @@ def _require_reader(db: Session, c: Channel, user_id: int):
 @router.get("")
 @service_route
 def list_channels(
+    limit: int = Query(200, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    channels = channel_service.list_channels(db)
+    channels = channel_service.list_channels(db, limit=limit)
     return success_response(
         [_channel_to_dict(db, c, current_user.id) for c in channels]
     )

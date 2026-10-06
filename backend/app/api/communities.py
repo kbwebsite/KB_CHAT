@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
@@ -63,12 +63,13 @@ def _get_visible(db: Session, community_id: int, user_id: int):
 
 @router.get("")
 def list_communities(
+    limit: int = Query(200, ge=1, le=200),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     mine = _my_group_ids(db, current_user.id)
     out = []
-    for c in db.query(Community).order_by(Community.id.desc()).all():
+    for c in db.query(Community).order_by(Community.id.desc()).limit(limit).all():
         if c.owner_id == current_user.id:
             out.append(_community_to_dict(db, c))
             continue

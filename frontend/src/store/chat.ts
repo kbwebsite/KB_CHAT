@@ -6,6 +6,26 @@ import { useSettingsStore } from './settings'
 import { isGameMoveMsg } from '../utils/messageEffects'
 import wsService from '../services/websocket'
 
+// Wave 4B provisional bound: client keeps at most this many messages per
+// conversation (newest retained). Overlap-safe: history merges dedupe by id,
+// so a trimmed region simply refetches if the user scrolls back past it.
+export const MAX_MESSAGES_PER_CONV = 1000
+
+// In-flight fetch controllers + sequence numbers, keyed by scope. A newer
+// fetch aborts its predecessor (tab-switch storms) and stale responses are
+// discarded instead of overwriting newer state. Cancellation is never
+// surfaced as a user-visible error (see isCancel below).
+const fetchControllers: Record<string, AbortController> = {}
+const fetchSeq: Record<string, number> = {}
+
+function isCancel(err: any): boolean {
+  return !!err && (err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || err.name === 'AbortError')
+}
+
+function trimMessages<T extends { id: number }>(list: T[]): T[] {
+  return list.length > MAX_MESSAGES_PER_CONV ? list.slice(-MAX_MESSAGES_PER_CONV) : list
+}
+
 interface ChatState {
   conversations: Conversation[]
   currentConversationId: number | null
@@ -102,11 +122,21 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
   bumpHiddenTick: ()=> set(state=> ({ hiddenTick: state.hiddenTick + 1 })),
   pendingSends: {},
   fetchConversations: async (search)=>{
+    const key = 'convs'
+    fetchControllers[key]?.abort()
+    const ctrl = new AbortController()
+    fetchControllers[key] = ctrl
+    const seq = (fetchSeq[key] = (fetchSeq[key] || 0) + 1)
     set({loadingConvs:true})
     try {
-      const res = await convApi.list(search)
+      const res = await convApi.list(search, undefined, ctrl.signal)
+      if (ctrl.signal.aborted || fetchSeq[key] !== seq) return
       if (res.success) set({conversations: res.data})
-    } finally { set({loadingConvs:false}) }
+    } catch (e) {
+      if (!isCancel(e)) throw e
+    } finally {
+      if (fetchSeq[key] === seq) set({loadingConvs:false})
+    }
   },
   setCurrent: (id)=>{
     set({currentConversationId: id})
@@ -119,9 +149,15 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     }
   },
   fetchMessages: async (convId, before)=>{
+    const key = `msgs:${convId}`
+    fetchControllers[key]?.abort()
+    const ctrl = new AbortController()
+    fetchControllers[key] = ctrl
+    const seq = (fetchSeq[key] = (fetchSeq[key] || 0) + 1)
     set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: true } }))
     try {
-      const res = await msgApi.list(convId, { before, limit: 50 })
+      const res = await msgApi.list(convId, { before, limit: 50 }, ctrl.signal)
+      if (ctrl.signal.aborted || fetchSeq[key] !== seq) return
       if (res.success) {
         const { messages, has_more } = res.data
         set(state=>{
@@ -130,7 +166,9 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
           const merged = before ? [...messages, ...existing] : messages
           // dedupe by id
           const map = new Map<number, Message>(merged.map((m:Message)=>[m.id,m] as [number, Message]))
-          const unique = Array.from(map.values()).sort((a:Message,b:Message)=>a.id-b.id)
+          let unique = Array.from(map.values()).sort((a:Message,b:Message)=>a.id-b.id)
+          // BOUNDED (Wave 4B): retain newest; overlap refetches via before-cursor + dedupe.
+          if (unique.length > MAX_MESSAGES_PER_CONV) unique = unique.slice(-MAX_MESSAGES_PER_CONV)
           // Server snapshots can lag the live tick state (status events
           // arrive ahead of the next history fetch) — never move backwards.
           const reconciled = unique.map(m=> {
@@ -148,7 +186,13 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
           if (newest && newest.id > 0) get().markRead(convId, newest.id)
         }
       }
-    } finally { set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } })) }
+    } catch (e) {
+      if (!isCancel(e)) throw e
+    } finally {
+      if (fetchSeq[key] === seq) {
+        set(state=>({ loadingMessages: { ...state.loadingMessages, [convId]: false } }))
+      }
+    }
   },
   sendMessage: async (convId, content, replyTo, attachmentIds, type='text', extra)=>{
     // Optimistic UI: show the message instantly (server round-trips can take
@@ -301,7 +345,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
           return { messages: {...state.messages, [msg.conversation_id]: next} }
         }
       }
-      return { messages: {...state.messages, [msg.conversation_id]: [...list, msg]} }
+      return { messages: {...state.messages, [msg.conversation_id]: trimMessages([...list, msg])} }
     })
     // Message from a conversation we don't list yet (e.g. a new contact
     // messaged us first) — pull the conversation list so it appears.
@@ -349,7 +393,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       const list = state.messages[msg.conversation_id] || []
       // dedup
       if (list.some(m=>m.id===msg.id)) return state
-      return { messages: {...state.messages, [msg.conversation_id]: [...list, msg]} }
+      return { messages: {...state.messages, [msg.conversation_id]: trimMessages([...list, msg])} }
     })
   },
   updateMessage: (msg)=>{

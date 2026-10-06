@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { uploadApi, usersApi } from '../services/api'
 import { X, Camera, QrCode, Trash2, Eye, BadgeCheck, LogOut, AtSign } from 'lucide-react'
@@ -18,6 +18,21 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
   const [showQR, setShowQR]=useState(false)
   const [preview, setPreview]=useState<string|null>(null)
   const [showPreview, setShowPreview]=useState(false)
+  // Object-URL lifecycle: only blob: previews need revoking (server URLs
+  // must never be revoked). Revoked on replace + unmount.
+  const previewUrlRef = useRef<string|null>(null)
+  const setBlobPreview = (url: string | null) => {
+    if (previewUrlRef.current && previewUrlRef.current.startsWith('blob:')) {
+      try { URL.revokeObjectURL(previewUrlRef.current) } catch {}
+    }
+    previewUrlRef.current = url
+    setPreview(url)
+  }
+  useEffect(() => () => {
+    if (previewUrlRef.current && previewUrlRef.current.startsWith('blob:')) {
+      try { URL.revokeObjectURL(previewUrlRef.current) } catch {}
+    }
+  }, [])
   const [fit, setFit]=useState<'cover'|'contain'>('cover')
   const [removing, setRemoving]=useState(false)
 
@@ -40,7 +55,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
     if (!file) return
     // local preview before upload
     const url = URL.createObjectURL(file)
-    setPreview(url)
+    setBlobPreview(url)
     setShowPreview(true)
     setUploading(true)
     try {
@@ -48,7 +63,7 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
       if (res.success) {
         const updated = {...user!, avatar_url: res.data.avatar_url}
         setUser(updated as any)
-        setPreview(res.data.avatar_url)
+        setBlobPreview(res.data.avatar_url)
         setMsg('Avatar updated — persists across devices')
       }
     } catch (err:any) {
@@ -72,12 +87,12 @@ export function ProfilePanel({ onClose }: { onClose:()=>void }) {
       const res = await usersApi.updateMe({ avatar_url: null })
       if (res.success) {
         setUser(res.data)
-        setPreview(null)
+        setBlobPreview(null)
         setMsg('Avatar removed')
       } else {
         // fallback: clear locally and rely on backend null
         setUser({...user!, avatar_url: null} as any)
-        setPreview(null)
+        setBlobPreview(null)
         setMsg('Avatar removed')
       }
     } catch (e:any) {

@@ -36,8 +36,8 @@ def _require_owner(c: Channel, actor_id: int, action: str) -> None:
         raise forbidden(f"Only the owner can {action}")
 
 
-def list_channels(db: Session) -> list:
-    return db.query(Channel).order_by(Channel.id.desc()).all()
+def list_channels(db: Session, limit: int = 200) -> list:
+    return db.query(Channel).order_by(Channel.id.desc()).limit(limit).all()
 
 
 def create_channel(

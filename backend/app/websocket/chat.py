@@ -65,6 +65,11 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
         await websocket.close(code=1008)
         return
 
+    if manager.socket_count(user.id) >= manager.MAX_SOCKETS_PER_USER:
+        logger.warning(f"WS socket cap hit for user {user.id}")
+        await websocket.close(code=1008)
+        return
+
     await manager.connect(websocket, user.id, sid)
 
     db = SessionLocal()
@@ -171,6 +176,10 @@ def _sid_live(sid: str, user_id: int) -> bool:
 async def _handle_typing(user_id: int, payload: dict, is_typing: bool):
     conv_id = payload.get("conversation_id")
     if not conv_id:
+        return
+    if is_typing and not manager.typing_allowed(user_id, conv_id):
+        # Flood coalescing: drop redundant starts before any DB work.
+        # Stops always pass so indicators never stick on.
         return
     db = SessionLocal()
     try:
