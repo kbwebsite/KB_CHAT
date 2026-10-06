@@ -80,6 +80,67 @@ Base commit: `d0b6732` (redesign) → this pass (no redesign, no backend changes
 
 ---
 
+# Final Verification (cleanup pass, commit after `958866d`)
+
+## Fixed
+
+- **Overlay covering nav**: root cause was the `ChatPanels` sheet (`z-50`) intentionally covering the nav (`z-10`) — modal architecture shared by every panel. Fixed without arbitrary z-index: new `.chat-panels-sheet` rule yields the nav area on mobile only (`bottom: nav height + safe-area`, desktop unchanged), and tab switches now `closeAllPanels()` first so panels replace instead of stacking. Verified live: sheet bottom == nav top (780px @390×844), tab button hittable, single sheet after switching.
+- **44px targets**: follow pills `min-h-[44px]` (measured 69×44), full-width follow CTAs `min-h-[44px]`, all icon-only buttons `touch-44` class (measured 44×44: back/close/menu/plus/bell/trash/emoji/attach/photo/jump), segmented tabs `min-h-[44px]` (measured 174×44). Send/mic already 48px. Icons themselves unchanged in size.
+- **Multiline composers**: channel + announce boxes are auto-growing textareas (35→57/76/102px measured for 2–4 lines, capped 128px, Enter=new line, Ctrl/Cmd+Enter or button sends). Testing exposed a real bug: height reset ran pre-commit under concurrent rendering, leaving the box stuck tall — fixed with a post-commit `useEffect` reset, verified collapsed (35px channel / 44px announce) after send.
+- **Genuine backend bug fixed** (`backend/app/api/groups.py`, small + safe): invited members were never added (dead code under `continue` + early `return` in loop). This was the root cause of 2 failing tests; both pass now.
+
+## Mobile verified
+
+Real Chromium, local servers, fresh seeded DB — **VERIFIED** at 390×844:
+- Communities: discover (dedup, no All-section duplication), search filter, open, Home/Groups/Members/About tabs, real online presence, 3-step create wizard → lands in new community, multiline announce → fans out with 📢 prefix, back navigation
+- Channels: discover (Featured carousel, no All duplication), search, follow (44px, flips without reload), profile (Posts/Media/About), bell persists mute to localStorage, create wizard, multiline owner post (line breaks preserved, feed scrolls, composer never covers content)
+- Chat regression: open group, send message, bubbles/checks/times render
+- 360×800 and 412×915: `scrollWidth == innerWidth`, no horizontal overflow
+- Console: **0 errors** throughout (only 2 pre-existing warnings)
+
+## Desktop verified
+
+- **VERIFIED at 1280px**: side-by-side list+chat, channel feed full-width, no clipping, composer visible
+- **VERIFIED at 768px**: no overflow, 0 console errors
+- Pre-existing (not a regression): desktop sidebar exposes no Communities/Channels entries (mobile-header is CSS-hidden ≥1024px) — recommend adding desktop entries as follow-up
+
+## Backend tests
+
+- Full suite, clean env (`RESEND_API_KEY` blanked), scratch DB: **60 passed, 0 failed** (excluding `test_email_verification.py` by design — see below)
+- The 4 old failures, each closed:
+  1. `test_firebase_exchange_…` — `ModuleNotFoundError: firebase_admin` in local venv. **PRE-EXISTING, environmental** (in `requirements.txt`, so CI/Render have it). Local venv restored to pinned `httpx==0.27.0` after diagnosis.
+  2. `test_forgot_password_dev_…` — **PASSES with clean env**. Fails locally only because dev `.env` holds a real `RESEND_API_KEY`, so the endpoint (correctly, securely) takes the inbox branch. **PRE-EXISTING, environmental**.
+  3. `test_group_self_leave_and_owner_handoff` — **GENUINE BUG, FIXED**, now passes.
+  4. `test_group_owner_leave_promotes_member` — same root cause. **FIXED**, now passes.
+- `test_email_verification.py` errors at collection by its own guard (asserts no `RESEND_API_KEY`, but dev `.env` has a real one) — **PRE-EXISTING, environmental**
+- Environment lesson learned this session: sandbox restarts rotate backend JWT handling, invalidating minted tokens (`Invalid token` on stale sessions) — verification must mint fresh tokens per backend lifetime; no app impact
+
+## Build
+
+- `npx vite build` — **success (~50s)**, only the pre-existing chunk-size warning
+
+## TypeScript
+
+- `npx tsc --noEmit` — **clean** (also caught a missing `plural` import during this pass)
+
+## Lint
+
+- `npm run lint` — **still unrunnable**: ESLint 10 resolves globally, zero config files repo-wide, and `eslint` is absent from `devDependencies`. Re-investigated per instructions: the `lint` script was never set up. Reported as a **tooling gap**; no config invented (would be a tooling migration, out of scope).
+
+## Remaining issues
+
+- 32px→44px done via `touch-44`; emoji-strip glyph buttons (~40px) left as-is (large glyphs, tall row)
+- Physical-device keyboard behavior **NOT VERIFIED** (no device available): inspected implementation (focus + scrollIntoView, safe-area padding, in-flow composer, no fixed heights) + Chromium typing/focus/autogrow tested as far as possible
+- Desktop Communities/Channels entry points missing (pre-existing gap, needs product decision)
+
+## Recommended next step
+
+- Phone pass: real keyboard open/close on the new composers, bottom-nav overlap, 360/375/390/412 widths
+- Then: desktop entries for Communities/Channels (the overlay work already supports them)
+- Then: eslint flat config (separate tooling task)
+
+---
+
 # Final Verification (follow-up pass)
 
 ## Fixed
