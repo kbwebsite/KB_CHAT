@@ -146,6 +146,7 @@ from app.models.verification import VerificationCode  # noqa: F401 (register tab
 
 
 from app.api.auth import router as auth_router
+from app.api.session_auth import router as session_auth_router
 from app.api.users import router as users_router
 from app.api.conversations import router as conv_router
 from app.api.messages import router as msg_router
@@ -197,6 +198,7 @@ if (
     )
 
 app.include_router(auth_router)
+app.include_router(session_auth_router)
 app.include_router(users_router)
 app.include_router(conv_router)
 app.include_router(msg_router)

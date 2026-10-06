@@ -154,7 +154,10 @@ def _issue_successor(
         expires_at=now + timedelta(days=ttl_days),
     )
     predecessor.status = STATUS_USED
-    predecessor.used_at = now
+    # First rotation stamps used_at; in-grace rotations keep the ORIGINAL
+    # stamp so the grace window cannot be extended by replaying (fail-closed).
+    if predecessor.used_at is None:
+        predecessor.used_at = now
     predecessor.last_used_at = now
     db.add(successor)
     try:

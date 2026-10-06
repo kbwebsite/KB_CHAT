@@ -23,6 +23,11 @@ class Settings(BaseSettings):
     JWT_SECRET: str = "dev-secret-change-in-production-please-use-strong-random"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60 * 24 * 7  # 7 days
+    # Wave 2B-2: single feature flag for session-auth rollout. OFF = legacy
+    # behavior everywhere (7-day JWT, no sessions minted, no enforcement).
+    # ON = login mints auth_sessions + short sid-bound access tokens, and the
+    # refresh/logout/sessions endpoints below become active.
+    SESSION_ISSUE_ENABLED: bool = False
     CORS_ORIGINS: str = (
         "http://localhost:5173,http://localhost:3000,https://kb-chat-1.onrender.com"
     )

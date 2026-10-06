@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from datetime import datetime, timedelta, timezone
@@ -9,6 +9,7 @@ from app.models.user import User
 from app.auth.security import hash_password, verify_password, create_access_token
 from app.auth.dependencies import get_current_user
 from app.database.config import settings
+from app.api import session_auth as session_api
 import traceback
 import httpx
 import re
@@ -98,7 +99,12 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
 
 
 @router.post("/login")
-def login(payload: UserLogin, db: Session = Depends(get_db)):
+def login(
+    payload: UserLogin,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     try:
         ident = payload.identifier.lower().strip()
         user = (
@@ -132,7 +138,7 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
             # No mail backend configured (dev/test): fail-open with a
             # direct token, mirroring the fail-soft signup behavior.
             print("[auth] no mail backend — issuing login token without code step")
-            return _login_token_response(user)
+            return _login_token_response(user, db, request, response)
         return success_response(
             {
                 "login_step": "verify_code",
@@ -149,34 +155,48 @@ def login(payload: UserLogin, db: Session = Depends(get_db)):
         return error_response(None, f"Login failed: {str(e)}")
 
 
-def _login_token_response(user: User):
-    """Full session payload shared by login fallbacks and code verify."""
-    token = create_access_token({"sub": str(user.id), "username": user.username})
-    return success_response(
-        {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "display_name": user.display_name,
-                "avatar_url": user.avatar_url,
-                "about": user.about,
-                "is_online": user.is_online,
-                "email_verified": bool(getattr(user, "email_verified", False)),
-                "last_seen": user.last_seen.isoformat() if user.last_seen else None,
-                "created_at": user.created_at.isoformat()
-                if user.created_at
-                else None,
-            },
+def _login_token_response(user: User, db=None, request=None, response=None):
+    """Full session payload shared by login fallbacks and code verify.
+
+    Wave 2B-2: when SESSION_ISSUE_ENABLED and request context is available, a
+    persistent auth session is minted and the access token becomes a short,
+    sid-bound JWT (refresh travels via cookie). Otherwise legacy 7-day JWT.
+    """
+    data = {
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "display_name": user.display_name,
+            "avatar_url": user.avatar_url,
+            "about": user.about,
+            "is_online": user.is_online,
+            "email_verified": bool(getattr(user, "email_verified", False)),
+            "last_seen": user.last_seen.isoformat() if user.last_seen else None,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
         },
-        "Login successful",
-    )
+    }
+    sid = None
+    if db is not None:
+        sid = session_api.maybe_issue_session(db, user, request, response)
+    if sid is not None:
+        data["access_token"] = session_api.sessions.issue_access_token(user, sid)
+        data["expires_in"] = session_api.sessions.ACCESS_TOKEN_MINUTES * 60
+    else:
+        data["access_token"] = create_access_token(
+            {"sub": str(user.id), "username": user.username}
+        )
+    return success_response(data, "Login successful")
 
 
 @router.post("/verify-login")
-def verify_login(payload: dict, db: Session = Depends(get_db)):
+def verify_login(
+    payload: dict,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Second step of password sign-in: redeem the fresh inbox code."""
     try:
         email = (payload.get("email", "") or "").lower().strip()
@@ -226,7 +246,7 @@ def verify_login(payload: dict, db: Session = Depends(get_db)):
         # A redeemed login code proves inbox ownership.
         user.email_verified = True
         db.commit()
-        return _login_token_response(user)
+        return _login_token_response(user, db, request, response)
     except HTTPException:
         raise
     except Exception as e:
@@ -237,11 +257,24 @@ def verify_login(payload: dict, db: Session = Depends(get_db)):
 
 @router.post("/logout")
 def logout(
-    current_user: User = Depends(get_current_user), db: Session = Depends(get_db)
+    request: Request,
+    response: Response,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
 ):
     current_user.is_online = False
     current_user.last_seen = datetime.now(timezone.utc)
     db.commit()
+    # Wave 2B-2: revoke the calling session when the access token carries one.
+    # Legacy tokens (no sid) and flag-off mode keep the old presence-only
+    # behavior; repeated logout stays 200 either way (idempotent).
+    sid = session_api.bearer_sid(request)
+    if sid is not None and settings.SESSION_ISSUE_ENABLED:
+        try:
+            session_api.sessions.revoke_session(db, sid, reason="logout")
+        except Exception:
+            pass
+    session_api.clear_refresh_cookie(response)
     return success_response(None, "Logged out successfully")
 
 
@@ -340,26 +373,32 @@ def _get_or_create_phone_user(db: Session, *, fb_uid: str, phone=None, name=None
     return user
 
 
-def _session_response(user, message: str):
-    token = create_access_token({"sub": str(user.id), "username": user.username})
-    return success_response(
-        {
-            "access_token": token,
-            "token_type": "bearer",
-            "user": {
-                "id": user.id,
-                "username": user.username,
-                "email": user.email,
-                "display_name": user.display_name,
-                "avatar_url": user.avatar_url,
-                "about": user.about,
-                "is_online": user.is_online,
-                "last_seen": user.last_seen.isoformat() if user.last_seen else None,
-                "created_at": user.created_at.isoformat() if user.created_at else None,
-            },
+def _session_response(user, message: str, db=None, request=None, response=None):
+    data = {
+        "token_type": "bearer",
+        "user": {
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "display_name": user.display_name,
+            "avatar_url": user.avatar_url,
+            "about": user.about,
+            "is_online": user.is_online,
+            "last_seen": user.last_seen.isoformat() if user.last_seen else None,
+            "created_at": user.created_at.isoformat() if user.created_at else None,
         },
-        message,
-    )
+    }
+    sid = None
+    if db is not None:
+        sid = session_api.maybe_issue_session(db, user, request, response)
+    if sid is not None:
+        data["access_token"] = session_api.sessions.issue_access_token(user, sid)
+        data["expires_in"] = session_api.sessions.ACCESS_TOKEN_MINUTES * 60
+    else:
+        data["access_token"] = create_access_token(
+            {"sub": str(user.id), "username": user.username}
+        )
+    return success_response(data, message)
 
 
 _firebase_app = None
@@ -395,7 +434,12 @@ def _firebase_app_or_503():
 
 
 @router.post("/firebase")
-def firebase_auth(payload: dict, db: Session = Depends(get_db)):
+def firebase_auth(
+    payload: dict,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Exchange a Firebase ID token (email/Google/phone) for an app session.
 
     Identity comes ONLY from the verified token — never from client fields.
@@ -438,11 +482,16 @@ def firebase_auth(payload: dict, db: Session = Depends(get_db)):
         )
     else:
         raise HTTPException(status_code=400, detail="Token has neither email nor phone")
-    return _session_response(user, "Login successful")
+    return _session_response(user, "Login successful", db, request, response)
 
 
 @router.post("/google")
-def google_auth(payload: dict, db: Session = Depends(get_db)):
+def google_auth(
+    payload: dict,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     """Authenticate with Google. Accepts a Google ID token or credential.
     Verifies with Google's tokeninfo endpoint, finds or creates user."""
     try:
@@ -513,7 +562,7 @@ def google_auth(payload: dict, db: Session = Depends(get_db)):
             provider="google",
             about="Signed in with Google",
         )
-        return _session_response(user, "Google login successful")
+        return _session_response(user, "Google login successful", db, request, response)
     except HTTPException:
         raise
     except Exception as e:
@@ -726,9 +775,9 @@ def _issue_code(db: Session, user: User) -> bool:
 
     now = datetime.now(timezone.utc)
     # Opportunistic purge of expired rows.
-    db.query(VerificationCode).filter(
-        VerificationCode.expires_at < now
-    ).delete(synchronize_session=False)
+    db.query(VerificationCode).filter(VerificationCode.expires_at < now).delete(
+        synchronize_session=False
+    )
     last = (
         db.query(VerificationCode)
         .filter_by(email=user.email)
@@ -745,7 +794,8 @@ def _issue_code(db: Session, user: User) -> bool:
     # Only the newest code per inbox stays valid: invalidate older unused
     # ones so a stale email's code can never shadow the fresh one.
     db.query(VerificationCode).filter(
-        VerificationCode.email == user.email, VerificationCode.used == False  # noqa: E712
+        VerificationCode.email == user.email,
+        VerificationCode.used == False,  # noqa: E712
     ).delete(synchronize_session=False)
     # 6 digits collide occasionally (and stale rows linger) — retry instead
     # of 500ing on the unique hash constraint.
@@ -779,11 +829,7 @@ def _consume_code(db: Session, email: str, code: str):
 
     now = datetime.now(timezone.utc)
     h = hashlib.sha256(code.encode()).hexdigest()
-    row = (
-        db.query(VerificationCode)
-        .filter_by(code_hash=h, used=False)
-        .first()
-    )
+    row = db.query(VerificationCode).filter_by(code_hash=h, used=False).first()
     if not row or row.email != email:
         return None
     if row.expires_at is None or _as_aware(row.expires_at) < now:
