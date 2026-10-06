@@ -22,7 +22,9 @@ class Conversation(Base):
     title = Column(String(100), nullable=True)  # group name
     description = Column(Text, nullable=True)
     avatar_url = Column(String(500), nullable=True)
-    created_by = Column(Integer, ForeignKey("users.id"), nullable=True)
+    created_by = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()

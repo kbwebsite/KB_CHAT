@@ -42,7 +42,12 @@ class Message(Base):
     # Nullable for the same online-migration reason; NULL means False.
     view_once = Column(Boolean, default=False, nullable=True)
     viewed_once = Column(Boolean, default=False, nullable=True)
-    reply_to_id = Column(Integer, ForeignKey("messages.id"), nullable=True, index=True)
+    reply_to_id = Column(
+        Integer,
+        ForeignKey("messages.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     is_deleted = Column(Boolean, default=False, nullable=False, index=True)
     is_edited = Column(Boolean, default=False, nullable=False)
     is_pinned = Column(Boolean, default=False, nullable=False, index=True)

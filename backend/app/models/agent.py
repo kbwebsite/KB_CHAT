@@ -8,7 +8,9 @@ class AgentConversation(Base):
     __tablename__ = "agent_conversations"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
     title = Column(String(500), nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(
@@ -26,7 +28,10 @@ class AgentMessage(Base):
 
     id = Column(Integer, primary_key=True, index=True)
     conversation_id = Column(
-        Integer, ForeignKey("agent_conversations.id"), nullable=False, index=True
+        Integer,
+        ForeignKey("agent_conversations.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     role = Column(String(50), nullable=False)  # user, assistant, system, tool
     content = Column(Text, nullable=False)
