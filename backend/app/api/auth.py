@@ -20,7 +20,12 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
 @router.post("/signup")
-def signup(payload: UserCreate, db: Session = Depends(get_db)):
+def signup(
+    payload: UserCreate,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     try:
         username = (payload.username or "").lower().strip()
         if not username:
@@ -63,10 +68,16 @@ def signup(payload: UserCreate, db: Session = Depends(get_db)):
             except Exception as e:
                 print(f"[auth] verification email failed: {e}")
         token = create_access_token({"sub": str(user.id), "username": user.username})
+        # Wave 2 Phase 2: signup mints a session exactly like login (all
+        # providers share one token architecture). Legacy when flagged off.
+        sid = session_api.maybe_issue_session(db, user, request, response)
+        data = {"access_token": token, "token_type": "bearer"}
+        if sid is not None:
+            data["access_token"] = session_api.sessions.issue_access_token(user, sid)
+            data["expires_in"] = session_api.sessions.ACCESS_TOKEN_MINUTES * 60
         return success_response(
             {
-                "access_token": token,
-                "token_type": "bearer",
+                **data,
                 "verification_sent": verification_sent,
                 "user": {
                     "id": user.id,

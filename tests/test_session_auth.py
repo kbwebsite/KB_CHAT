@@ -195,10 +195,13 @@ def test_refresh_rotates_and_kills_old_sid(monkeypatch):
 
 def test_refresh_unknown_malformed_missing(monkeypatch):
     monkeypatch.setattr(settings, "SESSION_ISSUE_ENABLED", True)
-    assert client.post("/api/auth/refresh").status_code == 401
+    bare = TestClient(app)  # fresh jar: no ambient signup cookie
+    assert bare.post("/api/auth/refresh").status_code == 401
     c2 = TestClient(app)
-    c2.cookies.set("kb_refresh", "garbage", domain="testserver", path="/api/auth")
-    assert c2.post("/api/auth/refresh").status_code == 401
+    # NOTE: httpx cookies.set() does not attach on TestClient, so ambient
+    # credentials go over explicit Cookie headers in these tests.
+    bad = {"Cookie": "kb_refresh=garbage"}
+    assert c2.post("/api/auth/refresh", headers=bad).status_code == 401
     r = c2.post("/api/auth/refresh", json={"refresh_token": "garbage"})
     assert r.status_code == 401
 
@@ -349,7 +352,17 @@ def test_sessions_list_scoped_and_safe(monkeypatch):
     r = jar.get("/api/auth/sessions", headers=_auth_header(access))
     assert r.status_code == 200
     items = r.json()["data"]
-    assert len(items) == 1 and items[0]["is_current"] is True
+    # signup minted one family, login another: both mine, current flagged.
+    assert len(items) >= 1
+    assert any(i["is_current"] for i in items)
+    mine = {i["id"] for i in items}
+    assert decode_token(access)["sid"] in mine
+    # other user's list is disjoint (no cross-user leakage)
+    waccess, _, wjar = _login(v)
+    witems = wjar.get("/api/auth/sessions", headers=_auth_header(waccess)).json()[
+        "data"
+    ]
+    assert mine.isdisjoint({i["id"] for i in witems})
     blob = r.text
     assert "refresh_hash" not in blob and "kb_refresh" not in blob
     assert set(items[0]) >= {"id", "device_info", "is_current", "expires_at"}
