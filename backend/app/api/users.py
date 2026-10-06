@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi import APIRouter, Depends, Query, HTTPException, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from typing import Optional
@@ -9,6 +9,7 @@ from app.models.user import User
 from app.schemas.user import UserUpdate
 from app.schemas.common import success_response
 from app.utils.privacy import presence_for_viewer
+from app.database.config import settings
 from app.services.errors import service_route
 from app.services.users import change_user_password
 
@@ -285,10 +286,23 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
 @service_route
 def change_password(
     payload: ChangePasswordRequest,
+    request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    from app.api import session_auth as session_api
+
     change_user_password(
-        db, current_user, payload.current_password, payload.new_password
+        db,
+        current_user,
+        payload.current_password,
+        payload.new_password,
+        keep_sid=session_api.bearer_sid(request),
     )
+    if settings.SESSION_ISSUE_ENABLED:
+        # Every device reconnects: revoked ones fail closed, the surviving
+        # session revives on refresh. Keeps the UX visibly consistent.
+        from app.websocket.manager import manager as _ws_manager
+
+        _ws_manager.spawn(_ws_manager.close_user_sockets(current_user.id))
     return success_response(None, "Password changed successfully")

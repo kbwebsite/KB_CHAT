@@ -697,6 +697,21 @@ def reset_password(payload: dict, db: Session = Depends(get_db)):
         user.hashed_password = hash_password(new_password)
         db.commit()
 
+        # Wave 2 Phase 4: a reset proves inbox ownership but the credential
+        # may have been rotated by anyone holding the reset token — kill ALL
+        # sessions, no exceptions. Failures here must not undo the password
+        # change itself (already committed above).
+        try:
+            from app.services import auth_sessions as sessions
+
+            sessions.revoke_user_sessions(db, user.id, reason="password-reset")
+            if settings.SESSION_ISSUE_ENABLED:
+                from app.websocket.manager import manager as _ws_manager
+
+                _ws_manager.spawn(_ws_manager.close_user_sockets(user.id))
+        except Exception as e:
+            print(f"[auth] post-reset session revoke skipped: {e}")
+
         # Remove used token
         del settings._reset_tokens[token_hash]
 

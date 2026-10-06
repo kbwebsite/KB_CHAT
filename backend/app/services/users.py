@@ -15,9 +15,18 @@ from app.services.errors import bad_request
 
 
 def change_user_password(
-    db: Session, user: User, current_password: str, new_password: str
+    db: Session,
+    user: User,
+    current_password: str,
+    new_password: str,
+    *,
+    keep_sid: str | None = None,
 ) -> None:
     """Verify the current password and store a new bcrypt hash.
+
+    Wave 2 Phase 4: all OTHER refresh sessions die with the old password
+    (``keep_sid`` — the calling session — survives). Failures raise before
+    any mutation, so a wrong password never revokes anything.
 
     Raises:
         ServiceError(400): new password too short, or current mismatch.
@@ -28,3 +37,8 @@ def change_user_password(
         raise bad_request("Current password is incorrect")
     user.hashed_password = hash_password(new_password)
     db.commit()
+    from app.services import auth_sessions as sessions
+
+    sessions.revoke_user_sessions(
+        db, user.id, except_sid=keep_sid, reason="password-change"
+    )
