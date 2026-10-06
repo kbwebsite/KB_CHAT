@@ -445,6 +445,8 @@ export default function ChatPage() {
 
   // ─── Nav panel tab change ───
   const handleNavTabChange = (tab: typeof mobileNavTab) => {
+    // One panel at a time: tabs always replace, never stack overlays.
+    closeAllPanels()
     setMobileNavTab(tab)
     if (tab === 'chats') {
       setMobileView('list')

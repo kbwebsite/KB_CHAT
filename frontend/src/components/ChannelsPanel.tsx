@@ -97,6 +97,13 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     el.style.height = Math.min(el.scrollHeight, 128) + 'px'
   }
 
+  // Collapse the composer once React commits a cleared draft. A direct
+  // reset inside post() measures the stale pre-commit DOM under
+  // concurrent rendering, leaving the box stuck tall.
+  useEffect(() => {
+    if (draft === '') autogrow(composerRef.current)
+  }, [draft])
+
   const load = () => {
     setLoading(true)
     setLoadError(false)
@@ -218,9 +225,6 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       if (r?.success) {
         setPosts((p) => [...p, r.data])
         setDraft('')
-        // Reset after React commits the empty value, otherwise the
-        // textarea keeps its grown height (stale DOM measurement).
-        requestAnimationFrame(() => autogrow(composerRef.current))
         setShowEmoji(false)
         refreshOne(id)
         requestAnimationFrame(() => scrollFeedToBottom(true))
@@ -435,7 +439,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     return (
       <div className="h-full flex flex-col bg-card">
         <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
-          <button onClick={backToList} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Back to channels">
+          <button onClick={backToList} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Back to channels">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white text-base font-extrabold shrink-0 ring-2 ring-[var(--k-border)]">
@@ -453,13 +457,13 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           </div>
           <button
             onClick={() => toggleMute(openChannel.id)}
-            className="p-2 rounded-full hover:bg-muted transition-colors text-secondary"
+            className="p-2 rounded-full hover:bg-muted transition-colors touch-44 text-secondary"
             aria-label={mutedMap[openChannel.id] ? 'Unmute channel' : 'Mute channel'}
           >
             {mutedMap[openChannel.id] ? <BellOff className="w-5 h-5" /> : <Bell className="w-5 h-5" />}
           </button>
           <div className="relative">
-            <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Channel menu">
+            <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Channel menu">
               <MoreVertical className="w-5 h-5" />
             </button>
             {menuOpen && (
@@ -487,7 +491,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               </>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -526,7 +530,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   {!openChannel.is_owner && (
                     <button
                       onClick={() => toggleMute(openChannel.id)}
-                      className={`p-2 rounded-full border border-subtle transition-all active:scale-95 ${mutedMap[openChannel.id] ? 'text-tertiary' : 'text-primary'}`}
+                      className={`p-2 rounded-full border border-subtle transition-all active:scale-95 touch-44 ${mutedMap[openChannel.id] ? 'text-tertiary' : 'text-primary'}`}
                       aria-label="Toggle notifications"
                     >
                       {mutedMap[openChannel.id] ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
@@ -545,7 +549,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <button
                   key={t}
                   onClick={() => setProfileTab(t)}
-                  className={`flex-1 py-1.5 rounded-full text-[13px] font-semibold capitalize transition-all ${
+                  className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
                     profileTab === t ? 'gradient-primary text-white shadow' : 'text-tertiary'
                   }`}
                 >
@@ -689,7 +693,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                 <div className="px-3 pb-2.5 pt-1 flex items-center gap-1">
                                   <button
                                     onClick={() => forwardPost(p)}
-                                    className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center text-tertiary hover:text-primary transition-all active:scale-90"
+                                    className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center text-tertiary hover:text-primary transition-all active:scale-90 touch-44"
                                     aria-label="Forward post"
                                     title="Forward / share"
                                   >
@@ -713,7 +717,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           {showJump && (
             <button
               onClick={() => scrollFeedToBottom(true)}
-              className="absolute bottom-24 right-4 w-10 h-10 rounded-full bg-elevated border border-subtle shadow-xl flex items-center justify-center text-secondary z-10 transition-all active:scale-90"
+              className="absolute bottom-24 right-4 w-10 h-10 rounded-full bg-elevated border border-subtle shadow-xl flex items-center justify-center text-secondary z-10 transition-all active:scale-90 touch-44"
               aria-label="Jump to latest"
             >
               <ChevronRight className="w-5 h-5 rotate-90" />
@@ -733,7 +737,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               )}
               <div className="flex items-center gap-1.5">
                 <div className="flex-1 flex items-center gap-1 rounded-full border px-1.5 py-1 transition-shadow focus-within:border-primary/60" style={{ ...fieldStyle, boxShadow: '0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-                  <button onClick={() => setShowEmoji((v) => !v)} className="p-2 rounded-full text-tertiary hover:text-secondary" aria-label="Emoji">
+                  <button onClick={() => setShowEmoji((v) => !v)} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44" aria-label="Emoji">
                     <Smile className="w-5 h-5" />
                   </button>
                   <textarea
@@ -747,10 +751,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     style={{ color: '#f0f0ff', caretColor: '#f0f0ff' }}
                     aria-label="Write an update"
                   />
-                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary disabled:opacity-40" aria-label="Attach">
+                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44 disabled:opacity-40" aria-label="Attach">
                     <Paperclip className="w-5 h-5" />
                   </button>
-                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary disabled:opacity-40" aria-label="Photo">
+                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44 disabled:opacity-40" aria-label="Photo">
                     <Camera className="w-5 h-5" />
                   </button>
                 </div>
@@ -799,10 +803,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             <span className="text-xs font-semibold text-tertiary align-middle">{channels.length}</span>
           )}
         </p>
-        <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="New channel">
+        <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="New channel">
           <Plus className="w-5 h-5" />
         </button>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Close">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -819,7 +823,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             aria-label="Search channels"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted" aria-label="Clear search">
+            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted touch-44" aria-label="Clear search">
               <X className="w-3.5 h-3.5 text-tertiary" />
             </button>
           )}
@@ -830,7 +834,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-1.5 rounded-full text-[13px] font-semibold capitalize transition-all ${
+                className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
                   tab === t ? 'gradient-primary text-white shadow' : 'text-tertiary'
                 }`}
               >
@@ -1011,7 +1015,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <p className="font-bold text-[17px] tracking-tight">New channel</p>
-              <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted" aria-label="Close">
+              <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted touch-44" aria-label="Close">
                 <X className="w-5 h-5" />
               </button>
             </div>
@@ -1117,7 +1121,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <div className="flex items-center gap-0.5 shrink-0">
             <button
               onClick={() => toggleMute(c.id)}
-              className={`p-2 rounded-full hover:bg-muted transition-all active:scale-90 ${mutedMap[c.id] ? 'text-tertiary' : 'text-primary'}`}
+              className={`p-2 rounded-full hover:bg-muted transition-all active:scale-90 touch-44 ${mutedMap[c.id] ? 'text-tertiary' : 'text-primary'}`}
               aria-label={mutedMap[c.id] ? 'Unmute' : 'Mute'}
             >
               {mutedMap[c.id] ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
@@ -1125,7 +1129,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             {followBtn(c)}
           </div>
         ) : (
-          <button onClick={() => remove(c.id)} className="p-2 rounded-full hover:bg-muted transition-colors text-tertiary shrink-0" aria-label="Delete channel">
+          <button onClick={() => remove(c.id)} className="p-2 rounded-full hover:bg-muted transition-colors touch-44 text-tertiary shrink-0" aria-label="Delete channel">
             <Trash2 className="w-4 h-4" />
           </button>
         )}

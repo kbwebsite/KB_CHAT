@@ -64,7 +64,7 @@ export function ChatPanels({
   if (!anyPanelOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-background animate-slide-up" style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}>
+    <div className="chat-panels-sheet fixed inset-0 z-50 flex flex-col bg-background animate-slide-up" style={{ paddingTop: 'var(--safe-top)', paddingBottom: 'var(--safe-bottom)' }}>
       {showProfile && <ProfilePanel onClose={onClose} />}
       {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={onUpdated || (() => {})} />}
       {showSettings && <SettingsPanel onClose={onClose} />}

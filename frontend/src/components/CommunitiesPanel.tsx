@@ -293,12 +293,12 @@ export function CommunitiesPanel({
     return (
       <div className="h-full flex flex-col bg-card">
         <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
-          <button onClick={() => setOpenId(null)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Back to communities">
+          <button onClick={() => setOpenId(null)} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Back to communities">
             <ArrowLeft className="w-5 h-5" />
           </button>
           <p className="font-semibold text-[15px] flex-1 truncate">Community</p>
           <div className="relative">
-            <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Community menu">
+            <button onClick={() => setMenuOpen((v) => !v)} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Community menu">
               <MoreVertical className="w-5 h-5" />
             </button>
             {menuOpen && isOwner && (
@@ -312,7 +312,7 @@ export function CommunitiesPanel({
               </>
             )}
           </div>
-          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+          <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Close">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -352,7 +352,7 @@ export function CommunitiesPanel({
               <button
                 key={t}
                 onClick={() => setDetailTab(t)}
-                className={`flex-1 py-1.5 rounded-full text-[13px] font-semibold capitalize transition-all ${
+                className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
                   detailTab === t ? 'bg-emerald-500/20 text-emerald-300 shadow' : 'text-tertiary'
                 }`}
               >
@@ -401,7 +401,7 @@ export function CommunitiesPanel({
                         <button
                           onClick={() => announce(c.id)}
                           disabled={sendingId === c.id || !(drafts[c.id] || '').trim()}
-                          className="w-10 h-10 rounded-full bg-emerald-500 text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95"
+                          className="w-10 h-10 rounded-full bg-emerald-500 text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95 touch-44"
                           aria-label="Send announcement"
                         >
                           <Send className="w-4 h-4" />
@@ -604,7 +604,7 @@ export function CommunitiesPanel({
           {isOwner && (
             <button
               onClick={() => removeGroup(c.id, g.id)}
-              className="p-2 rounded-full hover:bg-muted text-tertiary hover:text-destructive shrink-0 transition-all active:scale-90"
+              className="p-2 rounded-full hover:bg-muted text-tertiary hover:text-destructive shrink-0 transition-all active:scale-90 touch-44"
               aria-label="Unlink group"
             >
               <Minus className="w-4 h-4" />
@@ -650,10 +650,10 @@ export function CommunitiesPanel({
             <span className="text-xs font-semibold text-tertiary align-middle">{lists.length}</span>
           )}
         </p>
-        <button onClick={() => setWizard(wizard ? null : { step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="New community">
+        <button onClick={() => setWizard(wizard ? null : { step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="New community">
           <Plus className="w-5 h-5" />
         </button>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors" aria-label="Close">
+        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Close">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -670,7 +670,7 @@ export function CommunitiesPanel({
             aria-label="Search communities"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted" aria-label="Clear search">
+            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted touch-44" aria-label="Clear search">
               <X className="w-3.5 h-3.5 text-tertiary" />
             </button>
           )}
@@ -681,7 +681,7 @@ export function CommunitiesPanel({
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-1.5 rounded-full text-[13px] font-semibold capitalize transition-all ${
+                className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
                   tab === t ? 'bg-emerald-500/20 text-emerald-300 shadow' : 'text-tertiary'
                 }`}
               >
@@ -812,7 +812,7 @@ export function CommunitiesPanel({
           <div className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-1">
               <p className="font-bold text-[17px] tracking-tight">New community</p>
-              <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted" aria-label="Close">
+              <button onClick={() => !creating && setWizard(null)} className="p-2 rounded-full hover:bg-muted touch-44" aria-label="Close">
                 <X className="w-5 h-5" />
               </button>
             </div>

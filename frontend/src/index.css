@@ -3003,6 +3003,23 @@ body {
   display: none;
 }
 
+/* Accessible touch target: 44px hit area, icon stays compact. */
+.touch-44 {
+  min-width: 44px;
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Full-screen panels yield the bottom nav on mobile so its tabs stay
+   tappable while a panel is open. Desktop keeps full-height sheets. */
+@media (max-width: 1023.5px) {
+  .chat-panels-sheet {
+    bottom: calc(var(--bottom-nav-height) + var(--safe-bottom));
+  }
+}
+
 /* AI image-dream shimmer. */
 .ai-shimmer {
   background: linear-gradient(110deg, rgba(255,255,255,0.04) 30%, rgba(var(--accent-rgb), 0.14) 48%, rgba(var(--cyan-rgb), 0.12) 55%, rgba(255,255,255,0.04) 70%);
