@@ -7,32 +7,11 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User, BlockedUser
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message, Attachment
-from app.auth.security import hash_password, verify_password
 from app.schemas.common import success_response
 from app.utils.privacy import presence_for_viewer
 import json
 
 router = APIRouter(prefix="/api", tags=["extended"])
-
-
-# Change password
-@router.patch("/users/me/password")
-def change_password(
-    payload: dict,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
-):
-    current = payload.get("current_password")
-    new = payload.get("new_password")
-    if not current or not new:
-        raise HTTPException(status_code=400, detail="Both passwords required")
-    if len(new) < 6:
-        raise HTTPException(status_code=400, detail="New password too short")
-    if not verify_password(current, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Current password incorrect")
-    current_user.hashed_password = hash_password(new)
-    db.commit()
-    return success_response(None, "Password updated")
 
 
 # Forward message

@@ -5,11 +5,12 @@ from typing import Optional
 from pydantic import BaseModel
 from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
-from app.auth.security import verify_password, hash_password
 from app.models.user import User
 from app.schemas.user import UserUpdate
 from app.schemas.common import success_response
 from app.utils.privacy import presence_for_viewer
+from app.services.errors import service_route
+from app.services.users import change_user_password
 
 
 class ChangePasswordRequest(BaseModel):
@@ -281,17 +282,13 @@ def get_my_profile(current_user: User = Depends(get_current_user)):
 
 
 @router.patch("/me/password")
+@service_route
 def change_password(
     payload: ChangePasswordRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if len(payload.new_password) < 6:
-        raise HTTPException(
-            status_code=400, detail="Password must be at least 6 characters"
-        )
-    if not verify_password(payload.current_password, current_user.hashed_password):
-        raise HTTPException(status_code=400, detail="Current password is incorrect")
-    current_user.hashed_password = hash_password(payload.new_password)
-    db.commit()
+    change_user_password(
+        db, current_user, payload.current_password, payload.new_password
+    )
     return success_response(None, "Password changed successfully")
