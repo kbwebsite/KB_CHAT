@@ -11,7 +11,36 @@ from app.models.event import GroupEvent, EventResponse
 from app.models.scheduled import ScheduledMessage
 from app.models.notification_setting import NotificationSetting
 from app.models.session import UserSession
+from app.models.auth_session import AuthSession
 from app.models.sticker import StickerPack, Sticker, UserSticker
 from app.models.agent import AgentConversation, AgentMessage
 
-__all__ = ["User", "Conversation", "ConversationMember", "Message", "MessageReaction", "Attachment", "UserSettings", "SavedMessage", "CallHistory", "Status", "StatusViewer", "Poll", "PollOption", "PollVote", "StatusHighlight", "StatusHighlightItem", "GroupEvent", "EventResponse", "ScheduledMessage", "NotificationSetting", "UserSession", "StickerPack", "Sticker", "UserSticker", "AgentConversation", "AgentMessage"]
+__all__ = [
+    "User",
+    "Conversation",
+    "ConversationMember",
+    "Message",
+    "MessageReaction",
+    "Attachment",
+    "UserSettings",
+    "SavedMessage",
+    "CallHistory",
+    "Status",
+    "StatusViewer",
+    "Poll",
+    "PollOption",
+    "PollVote",
+    "StatusHighlight",
+    "StatusHighlightItem",
+    "GroupEvent",
+    "EventResponse",
+    "ScheduledMessage",
+    "NotificationSetting",
+    "UserSession",
+    "AuthSession",
+    "StickerPack",
+    "Sticker",
+    "UserSticker",
+    "AgentConversation",
+    "AgentMessage",
+]

@@ -138,6 +138,7 @@ from app.models.event import GroupEvent, EventResponse
 from app.models.scheduled import ScheduledMessage
 from app.models.notification_setting import NotificationSetting
 from app.models.session import UserSession
+from app.models.auth_session import AuthSession
 from app.models.sticker import StickerPack, Sticker, UserSticker
 from app.models.agent import AgentConversation, AgentMessage
 from app.models.push_token import DeviceToken  # noqa: F401 (register table)
