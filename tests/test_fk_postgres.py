@@ -41,23 +41,89 @@ needs_pg = pytest.mark.skipif(
 )
 
 
-@pytest.fixture()
+@pytest.fixture(scope="module")
 def pg():
-    from sqlalchemy import create_engine
-    from app.database.connection import Base
+    """Isolated PG database traveling the real prod path.
 
-    engine = create_engine(TEST_PG_URL)
-    # Isolated schema per run: create all, yield, drop all.
-    Base.metadata.create_all(engine)
+    create_all (new-model DDL) → strip 5 constraints to bare (simulates
+    prod pre-migration DDL) → apply_migrations(up) via the real runner →
+    behavior tests → drop database. Proves mechanism + behavior together.
+    """
+    from sqlalchemy import create_engine, text
     from sqlalchemy.orm import Session
 
-    db = Session(bind=engine)
+    base = TEST_PG_URL.rsplit("/", 1)[0]
+    admin = create_engine(base + "/postgres", isolation_level="AUTOCOMMIT")
+    dbname = "kbchat_fktest"
+    with admin.connect() as c:
+        c.execute(text(f'DROP DATABASE IF EXISTS "{dbname}"'))
+        c.execute(text(f'CREATE DATABASE "{dbname}"'))
+    admin.dispose()
+    url = base + "/" + dbname
+    engine = create_engine(url)
     try:
+        import app.main  # noqa: full table registration (not just models/__init__)
+        from app.database.connection import Base
+
+        Base.metadata.create_all(engine)
+        strips = [
+            ("agent_conversations", "user_id", "users", "id"),
+            ("agent_messages", "conversation_id", "agent_conversations", "id"),
+            ("broadcast_lists", "owner_id", "users", "id"),
+            ("conversations", "created_by", "users", "id"),
+            ("messages", "reply_to_id", "messages", "id"),
+        ]
+        with engine.begin() as conn:
+            for table, col, reftable, refcol in strips:
+                names = conn.execute(
+                    text(
+                        "SELECT tc.constraint_name FROM information_schema.table_constraints tc "
+                        "JOIN information_schema.key_column_usage kcu "
+                        "ON tc.constraint_name = kcu.constraint_name "
+                        "AND tc.table_schema = kcu.table_schema "
+                        "WHERE tc.constraint_type = 'FOREIGN KEY' "
+                        "AND tc.table_name = :t AND kcu.column_name = :c"
+                    ),
+                    {"t": table, "c": col},
+                ).fetchall()
+                for (cname,) in names:
+                    conn.execute(
+                        text(f'ALTER TABLE "{table}" DROP CONSTRAINT "{cname}"')
+                    )
+                conn.execute(
+                    text(
+                        f'ALTER TABLE "{table}" ADD FOREIGN KEY ("{col}") '
+                        f'REFERENCES "{reftable}" ("{refcol}")'
+                    )
+                )
+        import os as _os
+        from app.database import fk_migrations as _fkm
+
+        sql_dir = _os.path.join(
+            _os.path.dirname(__file__),
+            "..",
+            "backend",
+            "app",
+            "database",
+            "fk_migrations",
+        )
+        report = _fkm.apply_migrations(engine, sql_dir, direction="up")
+        assert all(v == "applied" for v in report.values()), report
+        db = Session(bind=engine)
         yield db
-    finally:
         db.close()
-        Base.metadata.drop_all(engine)
+    finally:
         engine.dispose()
+        admin2 = create_engine(base, isolation_level="AUTOCOMMIT")
+        with admin2.connect() as c:
+            c.execute(
+                text(
+                    "SELECT pg_terminate_backend(pid) FROM pg_stat_activity "
+                    f"WHERE datname = '{dbname}' AND pid <> pg_backend_pid()"
+                )
+            )
+            c.execute(text(f'DROP DATABASE IF EXISTS "{dbname}"'))
+        admin2.dispose()
 
 
 def _user(db, suffix, **kw):
@@ -89,10 +155,14 @@ def test_user_delete_cascades_agent_chain(pg):
     pg.refresh(conv)
     pg.add(AgentMessage(conversation_id=conv.id, role="user", content="hi"))
     pg.commit()
+    # Capture ids first: DB-level cascades delete rows behind the ORM
+    # session's back, so touching mapped objects afterwards expires.
+    uid, cid = u.id, conv.id
     pg.delete(u)
     pg.commit()
-    assert pg.query(AgentConversation).filter_by(user_id=u.id).count() == 0
-    assert pg.query(AgentMessage).filter_by(conversation_id=conv.id).count() == 0
+    pg.expunge_all()
+    assert pg.query(AgentConversation).filter_by(user_id=uid).count() == 0
+    assert pg.query(AgentMessage).filter_by(conversation_id=cid).count() == 0
 
 
 @needs_pg
@@ -102,9 +172,11 @@ def test_user_delete_cascades_broadcast_lists(pg):
     u = _user(pg, "b1")
     pg.add(BroadcastList(owner_id=u.id, name="L", member_ids=[]))
     pg.commit()
+    uid = u.id
     pg.delete(u)
     pg.commit()
-    assert pg.query(BroadcastList).filter_by(owner_id=u.id).count() == 0
+    pg.expunge_all()
+    assert pg.query(BroadcastList).filter_by(owner_id=uid).count() == 0
 
 
 @needs_pg
@@ -171,7 +243,9 @@ def test_no_orphans_after_supported_deletes(pg):
     pg.add(AgentConversation(user_id=u.id, title="t"))
     pg.add(BroadcastList(owner_id=u.id, name="L", member_ids=[]))
     pg.commit()
+    uid = u.id
     pg.delete(u)
     pg.commit()
-    assert pg.query(AgentConversation).filter_by(user_id=u.id).count() == 0
-    assert pg.query(BroadcastList).filter_by(owner_id=u.id).count() == 0
+    pg.expunge_all()
+    assert pg.query(AgentConversation).filter_by(user_id=uid).count() == 0
+    assert pg.query(BroadcastList).filter_by(owner_id=uid).count() == 0

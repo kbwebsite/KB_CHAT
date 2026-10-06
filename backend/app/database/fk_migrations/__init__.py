@@ -141,7 +141,14 @@ def _split_sections(sql_text: str) -> dict:
 
 
 def _statements(section_sql: str) -> list:
-    return [s.strip() for s in section_sql.split(";") if s.strip()]
+    # Strip full-line comments BEFORE splitting: a ';' inside a comment
+    # (e.g. "-- ...; ...") would otherwise split mid-comment and leave a
+    # bare text fragment that Postgres rejects (verified failure on
+    # staging). Convention for migration SQL files: full-line comments only.
+    code = "\n".join(
+        line for line in section_sql.splitlines() if not line.strip().startswith("--")
+    )
+    return [s.strip() for s in code.split(";") if s.strip()]
 
 
 def ensure_ledger(conn) -> None:
@@ -161,36 +168,60 @@ def applied_ids(conn) -> set:
 def current_ondelete(conn, table: str, column: str):
     """On-delete action currently in DDL, or None if unconstrained/absent.
 
-    Takes the live transaction connection (never a cached inspector) so
-    pre/postconditions see uncommitted DDL inside the migration transaction.
+    Takes the live transaction connection. Uses information_schema directly:
+    the SQLAlchemy PG inspector does not populate ``options['ondelete']``
+    (verified on PG 16), so inspector-based detection would misread every
+    bare FK as missing. Takes the live transaction connection (never a
+    cached inspector) so pre/postconditions see uncommitted DDL inside the
+    migration transaction.
     """
-    from sqlalchemy import inspect as _inspect
-
-    insp = _inspect(conn)
-    if table not in insp.get_table_names():
-        return None
-    insp.clear_cache() if hasattr(insp, "clear_cache") else None
-    for fk in insp.get_foreign_keys(table):
-        if column in (fk.get("constrained_columns") or []):
-            opts = fk.get("options") or {}
-            return (opts.get("ondelete") or "").upper() or None
-    return None
-
-
-def find_fk_constraint_name(conn, table: str, column: str):
-    """Postgres auto-names unnamed FK constraints; discover the live one."""
     row = conn.execute(
         text(
-            "SELECT tc.constraint_name FROM information_schema.table_constraints tc "
+            "SELECT rc.delete_rule FROM information_schema.table_constraints tc "
             "JOIN information_schema.key_column_usage kcu "
             "ON tc.constraint_name = kcu.constraint_name "
             "AND tc.table_schema = kcu.table_schema "
+            "JOIN information_schema.referential_constraints rc "
+            "ON tc.constraint_name = rc.constraint_name "
+            "AND tc.table_schema = rc.constraint_schema "
             "WHERE tc.constraint_type = 'FOREIGN KEY' "
             "AND tc.table_name = :table AND kcu.column_name = :column"
         ),
         {"table": table, "column": column},
     ).fetchone()
-    return row[0] if row else None
+    if row is None:
+        return None
+    return (row[0] or "").upper() or None
+
+
+def find_fk_constraint_name(conn, table: str, column: str):
+    """First live FK constraint name on a column (legacy helper)."""
+    names = find_fk_constraint_names(conn, table, column)
+    return names[0] if names else None
+
+
+def find_fk_constraint_names(conn, table: str, column: str) -> list:
+    """ALL live FK constraint names on a column.
+
+    Needed because a column can temporarily carry duplicates (e.g. a fresh
+    database converged from new models carries the auto-named constraint
+    while a down-migration expects the explicit one) — partial drops leave
+    ghost constraints behind, as proven by the staging rollback test.
+    """
+    return [
+        r[0]
+        for r in conn.execute(
+            text(
+                "SELECT tc.constraint_name FROM information_schema.table_constraints tc "
+                "JOIN information_schema.key_column_usage kcu "
+                "ON tc.constraint_name = kcu.constraint_name "
+                "AND tc.table_schema = kcu.table_schema "
+                "WHERE tc.constraint_type = 'FOREIGN KEY' "
+                "AND tc.table_name = :table AND kcu.column_name = :column"
+            ),
+            {"table": table, "column": column},
+        ).fetchall()
+    ]
 
 
 def run_orphan_scans(conn) -> dict:
@@ -250,15 +281,16 @@ def apply_migrations(engine, sql_dir: str, direction: str = "up") -> dict:
                             f"{mid}: orphan scan failed: {label} has {count} "
                             "orphan rows; refusing to ALTER (see WAVE3A report)"
                         )
-                old_name = find_fk_constraint_name(conn, table, column)
-                if old_name is None:
+                old_names = find_fk_constraint_names(conn, table, column)
+                if not old_names:
                     raise MigrationError(
-                        f"{mid}: constraint name for {table}.{column} "
-                        "not discoverable; refusing to guess"
+                        f"{mid}: expected an existing FK on "
+                        f"{table}.{column} to replace; schema differs"
                     )
-                conn.execute(
-                    text(f'ALTER TABLE "{table}" DROP CONSTRAINT "{old_name}"')
-                )
+                for old_name in old_names:
+                    conn.execute(
+                        text(f'ALTER TABLE "{table}" DROP CONSTRAINT "{old_name}"')
+                    )
                 for stmt in _statements(sections["up"]):
                     conn.execute(text(stmt))
                 if current_ondelete(conn, table, column) != target:
@@ -277,6 +309,14 @@ def apply_migrations(engine, sql_dir: str, direction: str = "up") -> dict:
                 if mid not in done:
                     report[mid] = "not-applied"
                     continue
+                # Drop every live constraint on the column first: a converged
+                # fresh DB carries the auto-named target-action constraint,
+                # an `applied` DB the explicit one — both must go before the
+                # down file re-adds the bare original.
+                for old_name in find_fk_constraint_names(conn, table, column):
+                    conn.execute(
+                        text(f'ALTER TABLE "{table}" DROP CONSTRAINT "{old_name}"')
+                    )
                 for stmt in _statements(sections["down"]):
                     conn.execute(text(stmt))
                 if current_ondelete(conn, table, column) == target:
