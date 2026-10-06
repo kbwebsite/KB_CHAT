@@ -1,6 +1,11 @@
 import { create } from 'zustand'
 import { User } from '../types'
 import { authApi } from '../services/api'
+import {
+  clearAccessToken,
+  refreshAccessToken,
+  setAccessToken,
+} from '../services/session'
 import wsService from '../services/websocket'
 
 interface AuthState {
@@ -17,8 +22,10 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set, get)=> ({
+  // kb_user is a profile cache, not a credential — safe to persist.
+  // The access token is memory-only (services/session); never localStorage.
   user: JSON.parse(localStorage.getItem('kb_user') || 'null'),
-  token: localStorage.getItem('kb_token'),
+  token: null,
   loading: false,
   initialized: false,
   setUser: (u)=> {
@@ -27,34 +34,55 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
     set({user: u})
   },
   setToken: (t)=> {
-    if (t) localStorage.setItem('kb_token', t)
-    else localStorage.removeItem('kb_token')
+    if (t) {
+      setAccessToken(t)
+      wsService.connect(t)
+    } else {
+      clearAccessToken()
+      wsService.disconnect()
+    }
     set({token: t})
-    if (t) wsService.connect(t)
-    else wsService.disconnect()
   },
   init: async ()=>{
-    const token = localStorage.getItem('kb_token')
-    if (!token) { set({initialized:true}); return }
+    const applySession = async (token: string): Promise<boolean> => {
+      setAccessToken(token)
+      set({ token })
+      try {
+        const res = await authApi.me()
+        if (res.success) {
+          const u = res.data
+          try { localStorage.setItem('kb_user', JSON.stringify(u)) } catch {}
+          set({ user: u })
+          wsService.connect(token)
+          return true
+        }
+      } catch {}
+      return false
+    }
     try {
-      const res = await authApi.me()
-      if (res.success) {
-        const u = res.data
-        localStorage.setItem('kb_user', JSON.stringify(u))
-        set({user:u, token, initialized:true})
-        wsService.connect(token)
+      // Silent refresh first: cookie → memory access token. Null when logged
+      // out; silent so public pages never bounce on a missing session.
+      const fresh = await refreshAccessToken({ silent: true })
+      if (fresh && (await applySession(fresh))) {
+        set({ initialized: true })
+        return
+      }
+      // One-time legacy bridge: adopt a pre-migration kb_token into memory
+      // (validated first), then drop it from disk forever.
+      let legacy: string | null = null
+      try { legacy = localStorage.getItem('kb_token') } catch {}
+      if (legacy && (await applySession(legacy))) {
+        // adopted for this boot only — never written back
       } else {
-        // Server explicitly rejected the session: drop it so guards stop
-        // bouncing and the user lands on login instead of limbo.
-        localStorage.removeItem('kb_token')
-        localStorage.removeItem('kb_user')
-        set({user:null, token:null, initialized:true})
+        clearAccessToken()
+        set({ user: null, token: null })
       }
     } catch {
-      // Network/server blip (not a rejection): keep the stored session so a
-      // flaky connection doesn't log the user out; the 401 interceptor
-      // clears truly-dead tokens on the next authenticated call.
-      set({initialized:true})
+      clearAccessToken()
+      set({ user: null, token: null })
+    } finally {
+      try { localStorage.removeItem('kb_token') } catch {}
+      set({ initialized: true })
     }
   },
   // Returns the login payload: either a full session ({access_token, user})
@@ -66,8 +94,8 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
       if (!res.success) throw new Error(res.message || 'Login failed')
       const { access_token, user } = res.data || {}
       if (!access_token) return res.data
-      localStorage.setItem('kb_token', access_token)
-      localStorage.setItem('kb_user', JSON.stringify(user))
+      setAccessToken(access_token)
+      try { localStorage.setItem('kb_user', JSON.stringify(user)) } catch {}
       set({token: access_token, user})
       wsService.connect(access_token)
       return res.data
@@ -79,8 +107,8 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
       const res = await authApi.signup(data)
       if (!res.success) throw new Error(res.message || 'Signup failed')
       const { access_token, user } = res.data
-      localStorage.setItem('kb_token', access_token)
-      localStorage.setItem('kb_user', JSON.stringify(user))
+      setAccessToken(access_token)
+      try { localStorage.setItem('kb_user', JSON.stringify(user)) } catch {}
       set({token: access_token, user})
       wsService.connect(access_token)
       return res.data
@@ -103,11 +131,34 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
       }
     } catch {}
     try { await authApi.logout() } catch {}
-    localStorage.removeItem('kb_token')
-    localStorage.removeItem('kb_user')
+    clearAccessToken()
+    try {
+      localStorage.removeItem('kb_token') // legacy residue (never written now)
+      localStorage.removeItem('kb_user')
+    } catch {}
     // Don't leak the previous account's agent chat into the next login.
-    localStorage.removeItem('kb_agent_conv_id')
+    try { localStorage.removeItem('kb_agent_conv_id') } catch {}
+    try {
+      // Cross-tab logout: other tabs share the cookie but hold their own
+      // memory token; this tells them to drop it (no loop: storage events
+      // don't fire in the tab that wrote them).
+      localStorage.setItem('kb_logged_out_at', String(Date.now()))
+    } catch {}
     wsService.disconnect()
     set({user:null, token:null})
   }
 }))
+
+// Cross-tab logout receiver (registered once with the store module).
+try {
+  window.addEventListener('storage', (e) => {
+    if (e.key !== 'kb_logged_out_at') return
+    try {
+      const st = useAuthStore.getState()
+      st.setUser(null)
+      st.setToken(null)
+      const p = window.location.pathname
+      if (!p.includes('/login') && p !== '/') window.location.href = '/login'
+    } catch {}
+  })
+} catch {}

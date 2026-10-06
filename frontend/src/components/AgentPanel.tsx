@@ -109,7 +109,8 @@ export function AgentPanel({
 
     try {
       // Use streaming endpoint
-      const token = localStorage.getItem('kb_token')
+      const { getAccessToken } = await import('../services/session')
+      const token = getAccessToken()
       const response = await fetch('/api/ai/agent/chat/stream', {
         method: 'POST',
         headers: {

@@ -294,7 +294,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
     // 2. Server truth (only when logged in); server wins for server keys.
     try {
-      if (!localStorage.getItem('kb_token')) return
+      const { getAccessToken } = await import('../services/session')
+      if (!getAccessToken()) return
       const res = await settingsApi.get()
       if (res.success) {
         const data = res.data as Partial<UserSettings>

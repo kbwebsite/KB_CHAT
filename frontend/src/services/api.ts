@@ -1,4 +1,10 @@
 import axios from 'axios'
+import {
+  clearAccessToken,
+  configureSessionAuth,
+  getAccessToken,
+  refreshAccessToken,
+} from './session'
 
 // Production backend origin. The native Android shell (Capacitor) serves the
 // SPA from a local origin, so relative API URLs would resolve to the device
@@ -19,39 +25,103 @@ const api = axios.create({
     ? (import.meta.env.VITE_API_URL || PROD_ORIGIN)
     : (import.meta.env.VITE_API_URL || ''),
   headers: { 'Content-Type': 'application/json' },
+  // Cookies carry the refresh session (kb_refresh is HttpOnly); the SPA must
+  // send them on /api/auth/refresh and accept Set-Cookie on login/refresh.
+  withCredentials: true,
   // Half-dead mobile connections can hang a request forever (and the UI
   // with it). Free-tier cold starts can exceed 25s, so allow 60s before
   // surfacing a retryable error instead.
   timeout: 60000,
 })
 
+// Refresh transport without interceptors: going through `api` here would
+// recurse into the 401 handler below.
+const rawApi = axios.create({
+  baseURL: isNativeApp()
+    ? (import.meta.env.VITE_API_URL || PROD_ORIGIN)
+    : (import.meta.env.VITE_API_URL || ''),
+  headers: { 'Content-Type': 'application/json' },
+  withCredentials: true,
+  timeout: 60000,
+})
+
+function handleAuthFailure() {
+  try {
+    localStorage.removeItem('kb_user')
+    localStorage.removeItem('kb_token') // legacy residue (never written anymore)
+  } catch {}
+  clearAccessToken()
+  // Kill the in-memory session too: clearing storage alone leaves the
+  // auth-store `user` intact, so the route guard stays satisfied and the
+  // user is stuck in a dead chat shell ("No conversations yet" with
+  // every request 401ing) instead of landing on /login. Dynamic import
+  // keeps this cycle-free (store/auth imports this module).
+  import('../store/auth').then((m) => {
+    try {
+      m.useAuthStore.getState().setUser(null)
+      m.useAuthStore.getState().setToken(null)
+    } catch {}
+  }).catch(() => {})
+  // don't redirect if already on a public page
+  try {
+    const p = window.location.pathname
+    if (!p.includes('/login') && p !== '/') {
+      window.location.href = '/login'
+    }
+  } catch {}
+}
+
+configureSessionAuth({
+  fetchRefresh: async () => {
+    try {
+      const r = await rawApi.post('/api/auth/refresh')
+      const t = r.data?.data?.access_token
+      return typeof t === 'string' && t ? t : null
+    } catch {
+      return null
+    }
+  },
+  onAuthFailure: handleAuthFailure,
+})
+
+// Auth endpoints must never trigger the refresh flow themselves: a 401 here
+// is an answer (bad credentials), not a stale token.
+const NO_REFRESH_PREFIXES = [
+  '/api/auth/login',
+  '/api/auth/signup',
+  '/api/auth/verify-login',
+  '/api/auth/firebase',
+  '/api/auth/google',
+  '/api/auth/refresh',
+  '/api/auth/forgot-password',
+  '/api/auth/reset-password',
+  '/api/auth/verify-email',
+  '/api/auth/send-verification',
+]
+
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('kb_token')
+  const token = getAccessToken()
   if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
 api.interceptors.response.use(
   (res) => res,
-  (err) => {
-    if (err.response?.status === 401) {
-      localStorage.removeItem('kb_token')
-      localStorage.removeItem('kb_user')
-      // Kill the in-memory session too: clearing storage alone leaves the
-      // auth-store `user` intact, so the route guard stays satisfied and the
-      // user is stuck in a dead chat shell ("No conversations yet" with
-      // every request 401ing) instead of landing on /login. Dynamic import
-      // keeps this cycle-free (store/auth imports this module).
-      import('../store/auth').then((m) => {
-        try {
-          m.useAuthStore.getState().setUser(null)
-          m.useAuthStore.getState().setToken(null)
-        } catch {}
-      }).catch(() => {})
-      // don't redirect if already on login
-      if (!window.location.pathname.includes('/login')) {
-        window.location.href = '/login'
+  async (err) => {
+    const config = err.config as any
+    const status = err.response?.status
+    const url: string = config?.url || ''
+    const isAuthPath = NO_REFRESH_PREFIXES.some((p) => url.includes(p))
+    if (status === 401 && config && !config._retried && !isAuthPath) {
+      config._retried = true
+      const token = await refreshAccessToken()
+      if (token) {
+        config.headers = config.headers || {}
+        config.headers.Authorization = `Bearer ${token}`
+        return api(config)
       }
+      // Refresh failed: handleAuthFailure already ran via the session module.
+      return Promise.reject(err)
     }
     return Promise.reject(err)
   }
@@ -111,6 +181,7 @@ export const authApi = {
   verifyEmail: (email:string, code:string) => api.post('/api/auth/verify-email', { email, code }).then(r=>r.data),
   verifyLogin: (email:string, code:string) => api.post('/api/auth/verify-login', { email, code }).then(r=>r.data),
   sendVerification: (email:string) => api.post('/api/auth/send-verification', { email }).then(r=>r.data),
+  refresh: () => rawApi.post('/api/auth/refresh').then(r=>r.data),
 }
 
 export const usersApi = {
@@ -362,7 +433,7 @@ export const aiApi = {
     signal?: AbortSignal,
   ): Promise<string> => {
     const base = isNativeApp() ? PROD_ORIGIN : ''
-    const token = localStorage.getItem('kb_token')
+    const token = getAccessToken()
     const res = await fetch(`${base}/api/ai/chat/stream`, {
       method: 'POST',
       signal,

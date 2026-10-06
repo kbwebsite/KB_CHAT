@@ -128,7 +128,7 @@ export default function ChatPage() {
         m.initNativePush()
       }).catch(() => {})
     })
-    const token = localStorage.getItem('kb_token')
+    const token = useAuthStore.getState().token
     if (token) wsService.connect(token)
     fetchConversations()
     // Deep link from a push notification (?conv=id): open that chat.
