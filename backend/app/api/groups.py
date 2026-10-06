@@ -1,225 +1,115 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 from app.database.connection import get_db
 from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.common import success_response
 from app.api.conversations import conversation_to_dict
-from app.models.conversation import Conversation, ConversationMember
-from app.models.user import User as UserModel
-import secrets
+from app.services.errors import service_route
+from app.services import groups as group_service
 
 router = APIRouter(prefix="/api/groups", tags=["groups"])
 
 
 @router.post("")
+@service_route
 def create_group(
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     # payload: {title, description, member_ids, member_usernames}
-    title = payload.get("title")
-    if not title:
-        raise HTTPException(status_code=400, detail="Group title required")
-    conv = Conversation(
-        is_group=True,
-        title=title.strip(),
+    conv = group_service.create_group(
+        db,
+        creator_id=current_user.id,
+        title=payload.get("title"),
         description=payload.get("description"),
-        created_by=current_user.id,
+        member_ids=payload.get("member_ids"),
+        member_usernames=payload.get("member_usernames"),
     )
-    db.add(conv)
-    db.flush()
-    db.add(
-        ConversationMember(
-            conversation_id=conv.id, user_id=current_user.id, role="owner"
-        )
-    )
-    member_ids = set(payload.get("member_ids") or [])
-    for uname in payload.get("member_usernames") or []:
-        u = db.query(UserModel).filter_by(username=uname.lower()).first()
-        if u:
-            member_ids.add(u.id)
-    for uid in member_ids:
-        if uid == current_user.id:
-            continue
-        if not db.query(UserModel).filter_by(id=uid).first():
-            continue
-        db.add(ConversationMember(conversation_id=conv.id, user_id=uid, role="member"))
-    from app.api.settings import get_or_create_settings
-
-    dflt = get_or_create_settings(db, current_user.id).default_disappearing
-    if dflt:
-        conv.disappearing_seconds = dflt
-    db.commit()
-    db.refresh(conv)
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group created"
     )
 
 
 @router.patch("/{group_id}")
+@service_route
 def update_group(
     group_id: int,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    membership = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=group_id, user_id=current_user.id)
-        .first()
+    M = group_service.MISSING
+    conv = group_service.update_group_details(
+        db,
+        conv_id=group_id,
+        actor_id=current_user.id,
+        title=payload.get("title") if payload.get("title") else M,
+        description=payload.get("description") if "description" in payload else M,
+        avatar_url=payload.get("avatar_url") if "avatar_url" in payload else M,
     )
-    if not membership or membership.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if "title" in payload and payload["title"]:
-        conv.title = payload["title"]
-    if "description" in payload:
-        conv.description = payload["description"]
-    if "avatar_url" in payload:
-        conv.avatar_url = payload["avatar_url"]
-    db.commit()
-    db.refresh(conv)
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group updated"
     )
 
 
 @router.post("/{group_id}/members")
+@service_route
 def add_members(
     group_id: int,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    membership = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=group_id, user_id=current_user.id)
-        .first()
+    conv, added = group_service.add_group_members(
+        db,
+        conv_id=group_id,
+        actor_id=current_user.id,
+        user_ids=payload.get("user_ids"),
+        usernames=payload.get("usernames"),
     )
-    if not membership or membership.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    user_ids = payload.get("user_ids") or []
-    for uname in payload.get("usernames") or []:
-        u = db.query(UserModel).filter_by(username=uname.lower()).first()
-        if u and u.id not in user_ids:
-            user_ids.append(u.id)
-    added = []
-    for uid in user_ids:
-        if (
-            db.query(ConversationMember)
-            .filter_by(conversation_id=group_id, user_id=uid)
-            .first()
-        ):
-            continue
-        u = db.query(UserModel).filter_by(id=uid).first()
-        if not u:
-            continue
-        db.add(ConversationMember(conversation_id=group_id, user_id=uid, role="member"))
-        added.append(uid)
-    db.commit()
     return success_response(
-        conversation_to_dict(db, conv, current_user.id), f"Added {len(added)} members"
+        conversation_to_dict(db, conv, current_user.id), f"Added {added} members"
     )
 
 
 @router.delete("/{group_id}/members/{user_id}")
+@service_route
 def remove_member(
     group_id: int,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    my_mem = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=group_id, user_id=current_user.id)
-        .first()
+    conv, message = group_service.remove_group_member(
+        db,
+        conv_id=group_id,
+        actor_id=current_user.id,
+        target_user_id=user_id,
+        allow_self_leave=True,
     )
-    if not my_mem:
-        raise HTTPException(status_code=403, detail="Not a member")
-    target = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=group_id, user_id=user_id)
-        .first()
-    )
-    if not target:
-        raise HTTPException(status_code=404, detail="Member not found")
-    is_self_leave = user_id == current_user.id
-    if not is_self_leave and my_mem.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if target.role == "owner" and my_mem.role != "owner" and not is_self_leave:
-        raise HTTPException(status_code=403, detail="Cannot remove owner")
-    if is_self_leave and target.role == "owner":
-        # Hand the crown to the longest-standing remaining member so the
-        # group is never left ownerless; sole owner leaving deletes it.
-        others = (
-            db.query(ConversationMember)
-            .filter(
-                ConversationMember.conversation_id == group_id,
-                ConversationMember.user_id != current_user.id,
-            )
-            .order_by(ConversationMember.id.asc())
-            .all()
-        )
-        if others:
-            others[0].role = "owner"
-        else:
-            from app.models.message import Message as MessageModel
-            from app.models.poll import Poll as PollModel
-
-            db.delete(target)
-            db.query(ConversationMember).filter_by(conversation_id=group_id).delete()
-            db.query(MessageModel).filter_by(conversation_id=group_id).update(
-                {"is_deleted": True}
-            )
-            # ORM deletes (not bulk) so option/vote cascades fire on every DB.
-            for p in db.query(PollModel).filter_by(conversation_id=group_id).all():
-                db.delete(p)
-            db.delete(conv)
-            db.commit()
-            return success_response(None, "Group deleted")
-    db.delete(target)
-    db.commit()
-    return success_response(
-        conversation_to_dict(db, conv, current_user.id), "Member removed"
-    )
-
-
-def _require_manager(db, group_id: int, user_id: int):
-    conv = db.query(Conversation).filter_by(id=group_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    mem = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=group_id, user_id=user_id)
-        .first()
-    )
-    if not mem or mem.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    return conv
+    if conv is None:
+        return success_response(None, message)
+    return success_response(conversation_to_dict(db, conv, current_user.id), message)
 
 
 @router.get("/{group_id}/invite")
+@service_route
 def get_invite(
     group_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Owner/admin only: read the current invite token (null = disabled)."""
-    conv = _require_manager(db, group_id, current_user.id)
-    return success_response({"invite_token": conv.invite_token})
+    token = group_service.get_invite_token(
+        db, group_id=group_id, actor_id=current_user.id
+    )
+    return success_response({"invite_token": token})
 
 
 @router.post("/{group_id}/invite")
+@service_route
 def create_invite(
     group_id: int,
     db: Session = Depends(get_db),
@@ -227,59 +117,40 @@ def create_invite(
 ):
     """Owner/admin only: (re)generate the invite link token, invalidating any
     previous link."""
-    conv = _require_manager(db, group_id, current_user.id)
-    from sqlalchemy.exc import IntegrityError
-
-    for _ in range(3):
-        conv.invite_token = secrets.token_urlsafe(24)
-        try:
-            db.commit()
-            break
-        except IntegrityError:
-            db.rollback()
-    else:
-        raise HTTPException(status_code=500, detail="Could not generate invite")
-    return success_response({"invite_token": conv.invite_token}, "Invite link ready")
+    token = group_service.rotate_invite_token(
+        db, group_id=group_id, actor_id=current_user.id
+    )
+    return success_response({"invite_token": token}, "Invite link ready")
 
 
 @router.delete("/{group_id}/invite")
+@service_route
 def disable_invite(
     group_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Owner/admin only: disable the invite link."""
-    conv = _require_manager(db, group_id, current_user.id)
-    conv.invite_token = None
-    db.commit()
+    group_service.disable_invite_token(db, group_id=group_id, actor_id=current_user.id)
     return success_response(None, "Invite link disabled")
 
 
 @router.post("/join/{token}")
+@service_route
 def join_by_invite(
     token: str,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
     """Join a group through an invite link. Idempotent for members."""
-    conv = db.query(Conversation).filter_by(invite_token=token, is_group=True).first()
-    if not conv or not token:
-        raise HTTPException(status_code=404, detail="Invalid or expired invite link")
-    existing = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv.id, user_id=current_user.id)
-        .first()
+    conversation_id, already_member = group_service.join_group_by_token(
+        db, token=token, user_id=current_user.id
     )
-    if existing:
+    if already_member:
         return success_response(
-            {"conversation_id": conv.id, "already_member": True}, "Already a member"
+            {"conversation_id": conversation_id, "already_member": True},
+            "Already a member",
         )
-    db.add(
-        ConversationMember(
-            conversation_id=conv.id, user_id=current_user.id, role="member"
-        )
-    )
-    db.commit()
     return success_response(
-        {"conversation_id": conv.id, "already_member": False}, "Joined group"
+        {"conversation_id": conversation_id, "already_member": False}, "Joined group"
     )

@@ -10,6 +10,8 @@ from app.models.message import Message
 from app.schemas.conversation import ConversationCreate, GroupUpdate
 from app.schemas.common import success_response
 from app.websocket.manager import manager
+from app.services.errors import service_route
+from app.services import groups as group_service
 
 router = APIRouter(prefix="/api/conversations", tags=["conversations"])
 
@@ -412,44 +414,16 @@ def create_conversation(
     current_user: User = Depends(get_current_user),
 ):
     if payload.is_group:
-        # Group creation
-        if not payload.title or len(payload.title.strip()) < 1:
-            raise HTTPException(status_code=400, detail="Group title required")
-        conv = Conversation(
-            is_group=True,
-            title=payload.title.strip(),
+        # Group creation (rules live in services/groups.py; the 1-1 branch
+        # below stays here).
+        conv = group_service.create_group(
+            db,
+            creator_id=current_user.id,
+            title=payload.title,
             description=payload.description,
-            created_by=current_user.id,
+            member_ids=payload.member_ids,
+            member_usernames=payload.member_usernames,
         )
-        db.add(conv)
-        db.flush()
-        # add creator as owner
-        owner = ConversationMember(
-            conversation_id=conv.id, user_id=current_user.id, role="owner"
-        )
-        db.add(owner)
-        # add other members
-        member_ids = set(payload.member_ids or [])
-        if payload.member_usernames:
-            for uname in payload.member_usernames:
-                u = db.query(User).filter_by(username=uname.lower()).first()
-                if u:
-                    member_ids.add(u.id)
-        for uid in member_ids:
-            if uid == current_user.id:
-                continue
-            if not db.query(User).filter_by(id=uid).first():
-                continue
-            db.add(
-                ConversationMember(conversation_id=conv.id, user_id=uid, role="member")
-            )
-        from app.api.settings import get_or_create_settings
-
-        dflt = get_or_create_settings(db, current_user.id).default_disappearing
-        if dflt:
-            conv.disappearing_seconds = dflt
-        db.commit()
-        db.refresh(conv)
         return success_response(
             conversation_to_dict(db, conv, current_user.id), "Group created"
         )
@@ -618,113 +592,67 @@ def delete_conversation(
 
 
 @router.patch("/groups/{conv_id}")
+@service_route
 def update_group(
     conv_id: int,
     payload: GroupUpdate,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    membership = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=current_user.id)
-        .first()
+    M = group_service.MISSING
+    conv = group_service.update_group_details(
+        db,
+        conv_id=conv_id,
+        actor_id=current_user.id,
+        title=payload.title if payload.title is not None else M,
+        description=payload.description if payload.description is not None else M,
+        avatar_url=payload.avatar_url if payload.avatar_url is not None else M,
     )
-    if not membership or membership.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    if payload.title is not None:
-        conv.title = payload.title
-    if payload.description is not None:
-        conv.description = payload.description
-    if payload.avatar_url is not None:
-        conv.avatar_url = payload.avatar_url
-    db.commit()
-    db.refresh(conv)
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group updated"
     )
 
 
 @router.post("/groups/{conv_id}/members")
+@service_route
 def add_group_members(
     conv_id: int,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    membership = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=current_user.id)
-        .first()
+    conv, added = group_service.add_group_members(
+        db,
+        conv_id=conv_id,
+        actor_id=current_user.id,
+        user_ids=payload.get("user_ids"),
+        usernames=payload.get("usernames"),
     )
-    if not membership or membership.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    user_ids = payload.get("user_ids") or []
-    usernames = payload.get("usernames") or []
-    for uname in usernames:
-        u = db.query(User).filter_by(username=uname.lower()).first()
-        if u and u.id not in user_ids:
-            user_ids.append(u.id)
-    added = []
-    for uid in user_ids:
-        if (
-            db.query(ConversationMember)
-            .filter_by(conversation_id=conv_id, user_id=uid)
-            .first()
-        ):
-            continue
-        u = db.query(User).filter_by(id=uid).first()
-        if not u:
-            continue
-        m = ConversationMember(conversation_id=conv_id, user_id=uid, role="member")
-        db.add(m)
-        added.append(uid)
-    db.commit()
     return success_response(
-        conversation_to_dict(db, conv, current_user.id), f"Added {len(added)} members"
+        conversation_to_dict(db, conv, current_user.id), f"Added {added} members"
     )
 
 
 @router.delete("/groups/{conv_id}/members/{user_id}")
+@service_route
 def remove_group_member(
     conv_id: int,
     user_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    my_mem = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=current_user.id)
-        .first()
+    conv, message = group_service.remove_group_member(
+        db,
+        conv_id=conv_id,
+        actor_id=current_user.id,
+        target_user_id=user_id,
+        allow_self_leave=False,
     )
-    if not my_mem or my_mem.role not in ("owner", "admin"):
-        raise HTTPException(status_code=403, detail="Not authorized")
-    target = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=user_id)
-        .first()
-    )
-    if not target:
-        raise HTTPException(status_code=404, detail="Member not found")
-    # owner cannot be removed by admin? simple rule: only owner can remove admins
-    if target.role == "owner" and my_mem.role != "owner":
-        raise HTTPException(status_code=403, detail="Cannot remove owner")
-    db.delete(target)
-    db.commit()
-    return success_response(
-        conversation_to_dict(db, conv, current_user.id), "Member removed"
-    )
+    return success_response(conversation_to_dict(db, conv, current_user.id), message)
 
 
 @router.patch("/groups/{conv_id}/members/{user_id}")
+@service_route
 def set_group_member_role(
     conv_id: int,
     user_id: int,
@@ -732,33 +660,13 @@ def set_group_member_role(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
-    if not conv:
-        raise HTTPException(status_code=404, detail="Group not found")
-    my_mem = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=current_user.id)
-        .first()
+    conv, role = group_service.set_group_member_role(
+        db,
+        conv_id=conv_id,
+        actor_id=current_user.id,
+        target_user_id=user_id,
+        role=payload.get("role"),
     )
-    # Only the owner hands out / revokes the admin shield.
-    if not my_mem or my_mem.role != "owner":
-        raise HTTPException(
-            status_code=403, detail="Only the group owner can change roles"
-        )
-    role = (payload.get("role") or "").lower()
-    if role not in ("admin", "member"):
-        raise HTTPException(status_code=400, detail="Role must be 'admin' or 'member'")
-    target = (
-        db.query(ConversationMember)
-        .filter_by(conversation_id=conv_id, user_id=user_id)
-        .first()
-    )
-    if not target:
-        raise HTTPException(status_code=404, detail="Member not found")
-    if target.role == "owner" or target.user_id == current_user.id:
-        raise HTTPException(status_code=403, detail="Owner role cannot be changed")
-    target.role = role
-    db.commit()
     return success_response(
         conversation_to_dict(db, conv, current_user.id),
         f"Member is now {role}",
