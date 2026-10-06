@@ -3,6 +3,7 @@ import { User } from '../types'
 import { authApi } from '../services/api'
 import {
   clearAccessToken,
+  getAccessToken,
   refreshAccessToken,
   setAccessToken,
 } from '../services/session'
@@ -36,6 +37,7 @@ export const useAuthStore = create<AuthState>((set, get)=> ({
   setToken: (t)=> {
     if (t) {
       setAccessToken(t)
+      wsService.setTokenProvider(() => getAccessToken())
       wsService.connect(t)
     } else {
       clearAccessToken()

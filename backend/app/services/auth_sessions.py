@@ -245,6 +245,21 @@ def refresh_session(
     )
 
 
+def find_family_by_refresh_hash(db: Session, token: str) -> str | None:
+    """Family of a presented token (even a dead one) — sweep use only."""
+    if not token:
+        return None
+    row = (
+        db.query(AuthSession).filter_by(refresh_hash=hash_refresh_token(token)).first()
+    )
+    return row.family_id if row is not None else None
+
+
+def get_sids_for_family(db: Session, family_id: str) -> list:
+    """All session ids in a family (live or dead) for socket sweeps."""
+    return [r[0] for r in db.query(AuthSession.id).filter_by(family_id=family_id).all()]
+
+
 def revoke_session(
     db: Session, sid: str, *, reason: str = "logout", now: datetime | None = None
 ) -> AuthSession:

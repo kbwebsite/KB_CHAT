@@ -283,6 +283,9 @@ def logout(
     if sid is not None and settings.SESSION_ISSUE_ENABLED:
         try:
             session_api.sessions.revoke_session(db, sid, reason="logout")
+            from app.websocket.manager import manager as _ws_manager
+
+            _ws_manager.spawn(_ws_manager.close_session_sockets(sid))
         except Exception:
             pass
     session_api.clear_refresh_cookie(response)

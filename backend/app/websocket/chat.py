@@ -14,16 +14,31 @@ router = APIRouter()
 
 
 def _get_user(token: str):
+    """Validate the Bearer JWT and its session. Returns (user, sid-or-None).
+
+    Legacy tokens (no sid) keep the old behavior. Sid-bound tokens additionally
+    require a live session row owned by the token's subject.
+    """
     payload = decode_token(token)
     if not payload or "sub" not in payload:
-        return None
+        return None, None
     try:
         uid = int(payload["sub"])
     except (ValueError, TypeError):
-        return None
+        return None, None
     db = SessionLocal()
     try:
-        return db.query(User).filter(User.id == uid).first()
+        user = db.query(User).filter(User.id == uid).first()
+        if not user or not user.is_active:
+            return None, None
+        sid = payload.get("sid")
+        if isinstance(sid, str) and sid:
+            from app.services import auth_sessions as sessions
+
+            if sessions.is_access_session_valid(db, sid, user.id) is not None:
+                return None, None
+            return user, sid
+        return user, None
     finally:
         db.close()
 
@@ -45,12 +60,12 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
         await websocket.close(code=1008)
         return
 
-    user = _get_user(token)
+    user, sid = _get_user(token)
     if not user:
         await websocket.close(code=1008)
         return
 
-    await manager.connect(websocket, user.id)
+    await manager.connect(websocket, user.id, sid)
 
     db = SessionLocal()
     try:
@@ -70,6 +85,18 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
             except asyncio.TimeoutError:
                 try:
                     await websocket.close(code=1001)
+                except Exception:
+                    pass
+                break
+
+            # Session liveness: a revoked/expired session must not keep an
+            # indefinitely authenticated socket. Checked per message (indexed
+            # PK lookup); clients ping every 30s, so revocation lands within
+            # ~30-60s even without an explicit sweep. Explicit sweeps (logout,
+            # device delete, password events) close sooner with 4401 too.
+            if sid is not None and not _sid_live(sid, user.id):
+                try:
+                    await websocket.close(code=4401)
                 except Exception:
                     pass
                 break
@@ -125,6 +152,20 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
             logger.error(f"Failed to set user offline: {e}")
         finally:
             db.close()
+
+
+def _sid_live(sid: str, user_id: int) -> bool:
+    """True while a socket's session still authorizes traffic."""
+    from app.services import auth_sessions as sessions
+
+    db = SessionLocal()
+    try:
+        return sessions.is_access_session_valid(db, sid, user_id) is None
+    except Exception:
+        # DB blip must not massacre live sockets; next message retries.
+        return True
+    finally:
+        db.close()
 
 
 async def _handle_typing(user_id: int, payload: dict, is_typing: bool):

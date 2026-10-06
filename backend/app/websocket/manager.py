@@ -11,6 +11,11 @@ logger = logging.getLogger(__name__)
 class ConnectionManager:
     def __init__(self):
         self.user_connections: Dict[int, Set[WebSocket]] = defaultdict(set)
+        # sid -> sockets, for session-scoped revocation sweeps (Wave 2).
+        # Legacy (pre-session) sockets are tracked with sid None and are
+        # only ever closed by user-level sweeps, never session sweeps.
+        self.sid_connections: Dict[str, Set[WebSocket]] = defaultdict(set)
+        self.socket_sids: Dict[WebSocket, Optional[str]] = {}
         self.lock = asyncio.Lock()
         self._loop = None
 
@@ -40,10 +45,13 @@ class ConnectionManager:
                 return
         logger.error("No event loop to schedule background task on")
 
-    async def connect(self, websocket: WebSocket, user_id: int):
+    async def connect(self, websocket: WebSocket, user_id: int, sid: str = None):
         await websocket.accept()
         async with self.lock:
             self.user_connections[user_id].add(websocket)
+            self.socket_sids[websocket] = sid
+            if sid is not None:
+                self.sid_connections[sid].add(websocket)
         await self.broadcast_presence(user_id, True)
 
     async def disconnect(self, websocket: WebSocket, user_id: int):
@@ -52,9 +60,44 @@ class ConnectionManager:
                 self.user_connections[user_id].discard(websocket)
                 if not self.user_connections[user_id]:
                     del self.user_connections[user_id]
+            sid = self.socket_sids.pop(websocket, None)
+            if sid is not None and sid in self.sid_connections:
+                self.sid_connections[sid].discard(websocket)
+                if not self.sid_connections[sid]:
+                    del self.sid_connections[sid]
         # Only broadcast offline if no remaining connections
         if user_id not in self.user_connections:
             await self.broadcast_presence(user_id, False)
+
+    async def close_session_sockets(self, sid: str, code: int = 4401) -> int:
+        """Close every socket bound to a revoked session (revocation sweep).
+
+        No polling: callers spawn this exactly on revocation events (logout,
+        per-device delete, family kill, password events). Returns count.
+        """
+        async with self.lock:
+            targets = list(self.sid_connections.get(sid, set()))
+        closed = 0
+        for ws in targets:
+            try:
+                await ws.close(code=code)
+                closed += 1
+            except Exception:
+                pass
+        return closed
+
+    async def close_user_sockets(self, user_id: int, code: int = 4401) -> int:
+        """Close all of a user's sockets (password reset: all families die)."""
+        async with self.lock:
+            targets = list(self.user_connections.get(user_id, set()))
+        closed = 0
+        for ws in targets:
+            try:
+                await ws.close(code=code)
+                closed += 1
+            except Exception:
+                pass
+        return closed
 
     async def send_to_user(self, user_id: int, data: dict):
         conns = list(self.user_connections.get(user_id, []))

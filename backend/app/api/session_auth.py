@@ -215,7 +215,31 @@ async def refresh_token(
             presented = candidate.strip() if isinstance(candidate, str) else None
     if not presented:
         raise HTTPException(status_code=401, detail="Invalid refresh token")
-    new_row, new_plaintext = sessions.refresh_session(db, presented)
+    try:
+        new_row, new_plaintext = sessions.refresh_session(db, presented)
+    except sessions.ServiceError as e:
+        # Reuse kills the family: sweep every socket it ever held so a
+        # thief's live connections die with it (per-message validation would
+        # catch them within ~30s; this is immediate).
+        if getattr(e, "detail", "") == "Refresh token reused":
+            try:
+                fam = sessions.find_family_by_refresh_hash(db, presented)
+                if fam:
+                    from app.websocket.manager import manager as _ws_manager
+
+                    sids = sessions.get_sids_for_family(db, fam)
+
+                    async def _sweep_family():
+                        for _sid in sids:
+                            try:
+                                await _ws_manager.close_session_sockets(_sid)
+                            except Exception:
+                                pass
+
+                    _ws_manager.spawn(_sweep_family())
+            except Exception:
+                pass
+        raise
     user = db.query(User).filter_by(id=new_row.user_id).first()
     access = sessions.issue_access_token(user, new_row.id)
     set_refresh_cookie(response, new_plaintext)
@@ -269,4 +293,7 @@ def delete_session(
         raise HTTPException(status_code=404, detail="Session not found")
     if row.status != sessions.STATUS_REVOKED:
         sessions.revoke_session(db, session_id, reason="user-revoke")
+        from app.websocket.manager import manager as _ws_manager
+
+        _ws_manager.spawn(_ws_manager.close_session_sockets(session_id))
     return {"success": True, "data": None, "message": "Session revoked"}
