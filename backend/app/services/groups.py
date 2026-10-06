@@ -23,12 +23,9 @@ from app.models.message import Message
 from app.models.poll import Poll
 from app.models.settings import UserSettings
 from app.models.user import User
-from app.services.errors import bad_request, forbidden, not_found
+from app.services.errors import MISSING, bad_request, forbidden, not_found
 
-#: Sentinel for "field not provided" in partial updates. Needed because the
-#: two update endpoints disagree on empty values (see module docstring), so
-#: routes resolve their payload shape to provided-vs-missing before calling.
-MISSING = object()
+# MISSING is re-exported here so routes keep using ``group_service.MISSING``.
 
 _MANAGER_ROLES = ("owner", "admin")
 

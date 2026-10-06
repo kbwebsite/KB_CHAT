@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database.connection import get_db
@@ -6,6 +6,9 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.models.channel import Channel, ChannelFollow, ChannelPost
 from app.schemas.common import success_response
+from app.services.errors import service_route
+from app.services import channels as channel_service
+from app.services.errors import MISSING
 
 router = APIRouter(prefix="/api/channels", tags=["channels"])
 
@@ -46,148 +49,117 @@ def _post_to_dict(db: Session, p: ChannelPost):
 
 
 def _get_channel(db: Session, channel_id: int) -> Channel:
-    c = db.query(Channel).filter_by(id=channel_id).first()
-    if not c:
-        raise HTTPException(status_code=404, detail="Channel not found")
-    return c
+    # Thin compatibility wrapper; new code calls channel_service.get_channel.
+    return channel_service.get_channel(db, channel_id)
 
 
 def _require_reader(db: Session, c: Channel, user_id: int):
     """Owner or follower may read the feed; anyone may discover channels."""
-    if c.owner_id == user_id:
-        return
-    followed = (
-        db.query(ChannelFollow).filter_by(channel_id=c.id, user_id=user_id).first()
-    )
-    if not followed:
-        raise HTTPException(status_code=403, detail="Follow this channel first")
+    return channel_service.require_reader(db, c, user_id)
 
 
 @router.get("")
+@service_route
 def list_channels(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    channels = db.query(Channel).order_by(Channel.id.desc()).all()
+    channels = channel_service.list_channels(db)
     return success_response(
         [_channel_to_dict(db, c, current_user.id) for c in channels]
     )
 
 
 @router.post("")
+@service_route
 def create_channel(
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    name = (payload.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=400, detail="Channel name required")
-    c = Channel(
+    c = channel_service.create_channel(
+        db,
         owner_id=current_user.id,
-        name=name[:100],
-        description=(payload.get("description") or "").strip() or None,
+        name=payload.get("name"),
+        description=payload.get("description"),
     )
-    db.add(c)
-    db.commit()
-    db.refresh(c)
     return success_response(_channel_to_dict(db, c, current_user.id), "Channel created")
 
 
 @router.patch("/{channel_id}")
+@service_route
 def update_channel(
     channel_id: int,
     payload: dict,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    c = _get_channel(db, channel_id)
-    if c.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the owner can edit")
-    if payload.get("name") is not None:
-        name = str(payload.get("name") or "").strip()
-        if not name:
-            raise HTTPException(status_code=400, detail="Channel name required")
-        c.name = name[:100]
-    if "description" in payload:
-        desc = payload.get("description")
-        c.description = str(desc).strip() or None if desc else None
-    db.commit()
-    db.refresh(c)
+    c = channel_service.update_channel(
+        db,
+        channel_id=channel_id,
+        actor_id=current_user.id,
+        name=payload.get("name") if payload.get("name") is not None else MISSING,
+        description=payload.get("description") if "description" in payload else MISSING,
+    )
     return success_response(_channel_to_dict(db, c, current_user.id), "Channel updated")
 
 
 @router.delete("/{channel_id}")
+@service_route
 def delete_channel(
     channel_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    c = _get_channel(db, channel_id)
-    if c.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the owner can delete")
-    db.query(ChannelPost).filter_by(channel_id=c.id).delete()
-    db.query(ChannelFollow).filter_by(channel_id=c.id).delete()
-    db.delete(c)
-    db.commit()
+    channel_service.delete_channel(db, channel_id=channel_id, actor_id=current_user.id)
     return success_response(None, "Channel deleted")
 
 
 @router.post("/{channel_id}/follow")
+@service_route
 def follow_channel(
     channel_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    c = _get_channel(db, channel_id)
-    exists = (
-        db.query(ChannelFollow)
-        .filter_by(channel_id=c.id, user_id=current_user.id)
-        .first()
+    c = channel_service.follow_channel(
+        db, channel_id=channel_id, user_id=current_user.id
     )
-    if not exists:
-        db.add(ChannelFollow(channel_id=c.id, user_id=current_user.id))
-        db.commit()
-    db.refresh(c)
     return success_response(
         _channel_to_dict(db, c, current_user.id), "Channel followed"
     )
 
 
 @router.delete("/{channel_id}/follow")
+@service_route
 def unfollow_channel(
     channel_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    c = _get_channel(db, channel_id)
-    db.query(ChannelFollow).filter_by(channel_id=c.id, user_id=current_user.id).delete()
-    db.commit()
-    db.refresh(c)
+    c = channel_service.unfollow_channel(
+        db, channel_id=channel_id, user_id=current_user.id
+    )
     return success_response(
         _channel_to_dict(db, c, current_user.id), "Channel unfollowed"
     )
 
 
 @router.get("/{channel_id}/posts")
+@service_route
 def list_posts(
     channel_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    c = _get_channel(db, channel_id)
-    _require_reader(db, c, current_user.id)
-    posts = (
-        db.query(ChannelPost)
-        .filter_by(channel_id=c.id)
-        .order_by(ChannelPost.id.desc())
-        .limit(100)
-        .all()
+    posts = channel_service.list_posts(
+        db, channel_id=channel_id, user_id=current_user.id
     )
     return success_response([_post_to_dict(db, p) for p in reversed(posts)])
 
 
 @router.post("/{channel_id}/posts")
+@service_route
 def create_post(
     channel_id: int,
     payload: dict,
@@ -195,21 +167,10 @@ def create_post(
     current_user: User = Depends(get_current_user),
 ):
     """Only the owner posts — channels are one-way, like announcements."""
-    c = _get_channel(db, channel_id)
-    if c.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Only the owner can post")
-    content = (payload.get("content") or "").strip()
-    if not content:
-        raise HTTPException(status_code=400, detail="Post text required")
-    if len(content) > 2000:
-        raise HTTPException(status_code=400, detail="Post too long")
-    p = ChannelPost(
-        channel_id=c.id,
+    p = channel_service.create_post(
+        db,
+        channel_id=channel_id,
         sender_id=current_user.id,
-        content=content,
-        message_type="text",
+        content=payload.get("content"),
     )
-    db.add(p)
-    db.commit()
-    db.refresh(p)
     return success_response(_post_to_dict(db, p), "Posted to channel")

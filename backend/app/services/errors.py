@@ -25,6 +25,13 @@ class ServiceError(Exception):
         self.detail = detail
 
 
+#: Sentinel for "field not provided" in partial updates. Needed because some
+#: domains have sibling endpoints that disagree on empty values (e.g. the two
+#: group-update routes), so routes resolve payload shape to
+#: provided-vs-missing before calling services.
+MISSING = object()
+
+
 def not_found(detail: str) -> ServiceError:
     return ServiceError(404, detail)
 
