@@ -316,7 +316,11 @@ def test_logout_revokes_current_and_repeats_safely(monkeypatch):
         c.post("/api/auth/refresh", json={"refresh_token": cookie}).status_code == 401
     )
     r2 = jar.post("/api/auth/logout", headers=_auth_header(access))
-    assert r2.status_code == 200  # idempotent
+    # Idempotent and safe: with session enforcement the revoked token no
+    # longer reaches the handler (401 fail-closed); without it the route
+    # itself returns 200. Either way there is no error state and no
+    # collateral revocation — the client logout path ignores the status.
+    assert r2.status_code in (200, 401), r2.text
 
 
 def test_logout_keeps_sibling_session(monkeypatch):

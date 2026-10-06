@@ -107,8 +107,31 @@ def get_session_by_sid(db: Session, sid: str) -> AuthSession | None:
     return db.query(AuthSession).filter_by(id=sid).first()
 
 
+def is_access_session_valid(
+    db: Session, sid: str, user_id: int, now: datetime | None = None
+) -> str | None:
+    """Access-path session check for ``get_current_user`` / WS connect.
+
+    Returns None when the session authorizes API use, else a failure reason.
+    Unlike ``is_session_active`` (strict: refresh path), a ``used`` row still
+    authorizes: normal rotation must NOT kill in-flight access tokens issued
+    before the rotation. Revocation (logout / family kill / user revoke) and
+    expiry always deny, as does a ``sid`` owned by another user.
+    """
+    row = get_session_by_sid(db, sid)
+    if row is None:
+        return "revoked"
+    if row.user_id != user_id:
+        return "owner-mismatch"
+    if row.status == STATUS_REVOKED:
+        return "revoked"
+    if _aware(row.expires_at) <= _now(now):
+        return "expired"
+    return None
+
+
 def is_session_active(db: Session, sid: str, now: datetime | None = None) -> bool:
-    """The exact predicate later phases plug into ``get_current_user``."""
+    """Strict liveness (refresh path): only an ``active``, unexpired row."""
     row = get_session_by_sid(db, sid)
     if row is None or row.status != STATUS_ACTIVE:
         return False
