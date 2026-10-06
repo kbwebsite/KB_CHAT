@@ -22,7 +22,9 @@ class Channel(Base):
     __tablename__ = "channels"
 
     id = Column(Integer, primary_key=True, index=True)
-    owner_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    owner_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
@@ -65,7 +67,9 @@ class ChannelPost(Base):
         nullable=False,
         index=True,
     )
-    sender_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    sender_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     content = Column(Text, nullable=False)
     message_type = Column(String(20), nullable=False, default="text")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

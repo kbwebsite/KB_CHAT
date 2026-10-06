@@ -26,6 +26,8 @@ from app.database.fk_migrations import (
 )
 from app.models.agent import AgentConversation, AgentMessage
 from app.models.broadcast import BroadcastList
+from app.models.channel import Channel, ChannelPost
+from app.models.community import Community
 from app.models.conversation import Conversation
 from app.models.message import Message
 
@@ -35,7 +37,16 @@ EXPECTED = {
     (BroadcastList.__table__, "owner_id"): "CASCADE",
     (Conversation.__table__, "created_by"): "SET NULL",
     (Message.__table__, "reply_to_id"): "SET NULL",
+    (Community.__table__, "owner_id"): "SET NULL",
+    (Channel.__table__, "owner_id"): "SET NULL",
+    (ChannelPost.__table__, "sender_id"): "SET NULL",
 }
+
+
+def test_setnull_governance_targets_nullable():
+    assert Community.__table__.c.owner_id.nullable is True
+    assert Channel.__table__.c.owner_id.nullable is True
+    assert ChannelPost.__table__.c.sender_id.nullable is True
 
 
 def _ondelete_of(table, column):
@@ -59,7 +70,7 @@ def test_setnull_targets_are_nullable():
 def test_orphan_scans_zero_on_local_db():
     with engine.begin() as conn:
         scans = run_orphan_scans(conn)
-    assert len(scans) == len(ORPHAN_SCANS) == 5
+    assert len(scans) == len(ORPHAN_SCANS) == 8
     for label, count in scans.items():
         assert count == 0, f"{label} has {count} orphans"
 
@@ -73,13 +84,13 @@ def test_sqlite_does_not_enforce_fks_documented():
 
 
 def test_registry_and_files_coherent():
-    assert len(MIGRATIONS) == 5
+    assert len(MIGRATIONS) == 8
     base = os.path.join(
         os.path.dirname(__file__), "..", "backend", "app", "database", "fk_migrations"
     )
     ids = [m[0] for m in MIGRATIONS]
     assert ids == sorted(ids), "deterministic ordering"
-    assert len(set(ids)) == 5, "unique IDs"
+    assert len(set(ids)) == 8, "unique IDs"
     for mid, _desc, filename, table, column, target, cname in MIGRATIONS:
         path = os.path.join(base, filename)
         assert os.path.isfile(path), filename

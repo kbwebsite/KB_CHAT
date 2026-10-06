@@ -72,6 +72,33 @@ MIGRATIONS = [
         "SET NULL",
         "fk_messages_reply_to_id",
     ),
+    (
+        "06_communities_owner_setnull",
+        "communities.owner_id -> users.id ON DELETE SET NULL",
+        "06_communities_owner_setnull.sql",
+        "communities",
+        "owner_id",
+        "SET NULL",
+        "fk_communities_owner_id",
+    ),
+    (
+        "07_channels_owner_setnull",
+        "channels.owner_id -> users.id ON DELETE SET NULL",
+        "07_channels_owner_setnull.sql",
+        "channels",
+        "owner_id",
+        "SET NULL",
+        "fk_channels_owner_id",
+    ),
+    (
+        "08_channel_posts_sender_setnull",
+        "channel_posts.sender_id -> users.id ON DELETE SET NULL",
+        "08_channel_posts_sender_setnull.sql",
+        "channel_posts",
+        "sender_id",
+        "SET NULL",
+        "fk_channel_posts_sender_id",
+    ),
 ]
 
 # Orphan scans: (label, sql). Must ALL return zero before the matching
@@ -102,6 +129,21 @@ ORPHAN_SCANS = [
         "messages.reply_to_id",
         "SELECT COUNT(*) FROM messages WHERE reply_to_id IS NOT NULL "
         "AND reply_to_id NOT IN (SELECT id FROM messages)",
+    ),
+    (
+        "communities.owner_id",
+        "SELECT COUNT(*) FROM communities WHERE owner_id IS NOT NULL "
+        "AND owner_id NOT IN (SELECT id FROM users)",
+    ),
+    (
+        "channels.owner_id",
+        "SELECT COUNT(*) FROM channels WHERE owner_id IS NOT NULL "
+        "AND owner_id NOT IN (SELECT id FROM users)",
+    ),
+    (
+        "channel_posts.sender_id",
+        "SELECT COUNT(*) FROM channel_posts WHERE sender_id IS NOT NULL "
+        "AND sender_id NOT IN (SELECT id FROM users)",
     ),
 ]
 

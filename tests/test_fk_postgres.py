@@ -72,6 +72,9 @@ def pg():
             ("broadcast_lists", "owner_id", "users", "id"),
             ("conversations", "created_by", "users", "id"),
             ("messages", "reply_to_id", "messages", "id"),
+            ("communities", "owner_id", "users", "id"),
+            ("channels", "owner_id", "users", "id"),
+            ("channel_posts", "sender_id", "users", "id"),
         ]
         with engine.begin() as conn:
             for table, col, reftable, refcol in strips:
@@ -249,3 +252,145 @@ def test_no_orphans_after_supported_deletes(pg):
     pg.expunge_all()
     assert pg.query(AgentConversation).filter_by(user_id=uid).count() == 0
     assert pg.query(BroadcastList).filter_by(owner_id=uid).count() == 0
+
+
+# --- Wave 3C governance: ownerless entities freeze, never vanish -----------
+
+
+def _community(pg, owner_id, name="gov"):
+    from app.models.community import Community
+
+    c = Community(owner_id=owner_id, name=name)
+    pg.add(c)
+    pg.commit()
+    pg.refresh(c)
+    return c.id
+
+
+@needs_pg
+def test_community_survives_owner_delete_frozen(pg):
+    from app.models.community import Community
+
+    u = _user(pg, "g1")
+    v = _user(pg, "g2")
+    cid = _community(pg, u.id)
+    uid, vid = u.id, v.id
+    pg.delete(u)
+    pg.commit()
+    pg.expunge_all()
+    row = pg.query(Community).filter_by(id=cid).one()
+    assert row.owner_id is None  # survives, nulled
+    assert row.name == "gov"
+    # another user is not the owner: owner gates deny (fail-closed freeze)
+    assert row.owner_id != vid
+
+
+@needs_pg
+def test_channel_survives_owner_delete_with_posts_and_follows(pg):
+    from app.models.channel import Channel, ChannelFollow, ChannelPost
+
+    owner = _user(pg, "h1")
+    follower = _user(pg, "h2")
+    ch = Channel(owner_id=owner.id, name="news")
+    pg.add(ch)
+    pg.flush()
+    for i in range(100):
+        pg.add(ChannelPost(channel_id=ch.id, sender_id=owner.id, content=f"p{i}"))
+    for u in (owner, follower):
+        pg.add(ChannelFollow(channel_id=ch.id, user_id=u.id))
+    pg.commit()
+    cid, oid, fid = ch.id, owner.id, follower.id
+    pg.delete(owner)
+    pg.commit()
+    pg.expunge_all()
+    # high fan-out: channel + all 100 posts + follows survive, nulled
+    assert pg.query(Channel).filter_by(id=cid).one().owner_id is None
+    assert pg.query(ChannelPost).filter_by(channel_id=cid).count() == 100
+    assert (
+        pg.query(ChannelPost).filter_by(channel_id=cid, sender_id=None).count() == 100
+    )
+    assert pg.query(ChannelFollow).filter_by(channel_id=cid).count() == 1
+    assert pg.query(ChannelFollow).filter_by(channel_id=cid, user_id=oid).count() == 0
+
+
+@needs_pg
+def test_governance_invalid_references_rejected(pg):
+    from app.models.community import Community
+    from app.models.channel import Channel, ChannelPost
+    from sqlalchemy.exc import IntegrityError
+
+    pg.add(Community(owner_id=999999999, name="ghost"))
+    with pytest.raises(IntegrityError):
+        pg.commit()
+    pg.rollback()
+    pg.add(Channel(owner_id=999999999, name="ghost"))
+    with pytest.raises(IntegrityError):
+        pg.commit()
+    pg.rollback()
+    u = _user(pg, "h3")
+    ch = Channel(owner_id=u.id, name="ok")
+    pg.add(ch)
+    pg.flush()
+    pg.add(ChannelPost(channel_id=ch.id, sender_id=999999999, content="x"))
+    with pytest.raises(IntegrityError):
+        pg.commit()
+    pg.rollback()
+
+
+@needs_pg
+def test_ownerless_channel_gates_deny_reads_survive(pg):
+    """Frozen semantics through the real service layer (Wave 1 services)."""
+    from app.services import channels as channel_service
+    from app.services.errors import ServiceError
+    from app.models.channel import Channel, ChannelFollow
+
+    owner = _user(pg, "k1")
+    follower = _user(pg, "k2")
+    ch = Channel(owner_id=owner.id, name="frozen")
+    pg.add(ch)
+    pg.flush()
+    pg.add(ChannelFollow(channel_id=ch.id, user_id=follower.id))
+    pg.commit()
+    cid, oid, fid = ch.id, owner.id, follower.id
+    pg.delete(owner)
+    pg.commit()
+    pg.expunge_all()
+    # admin actions deny for everyone (fail-closed freeze)...
+    for fn in (
+        lambda: channel_service.update_channel(
+            pg, channel_id=cid, actor_id=fid, name="hijack"
+        ),
+        lambda: channel_service.delete_channel(pg, channel_id=cid, actor_id=fid),
+        lambda: channel_service.create_post(
+            pg, channel_id=cid, sender_id=fid, content="spam"
+        ),
+    ):
+        with pytest.raises(ServiceError) as e:
+            fn()
+        assert e.value.status_code == 403
+    # ...while follower reads survive.
+    channel_service.require_reader(pg, channel_service.get_channel(pg, cid), fid)
+    assert channel_service.list_posts(pg, channel_id=cid, user_id=fid) == []
+
+
+@needs_pg
+def test_ownerless_community_gate_conditions(pg):
+    """Route gate conditions (`communities.py` owner checks) on nulled rows.
+
+    Communities have no service layer; the routes compare
+    `c.owner_id != current_user.id` (deny) and grant visibility to linked
+    group members. Both hold by construction when owner_id is NULL.
+    """
+    from app.models.community import Community
+
+    u = _user(pg, "m1")
+    v = _user(pg, "m2")
+    cid = _community(pg, u.id)
+    vid = v.id
+    pg.delete(u)
+    pg.commit()
+    pg.expunge_all()
+    row = pg.query(Community).filter_by(id=cid).one()
+    assert row.owner_id is None
+    assert row.owner_id != vid  # every owner gate denies (frozen)
+    assert row.owner_id != 999999999
