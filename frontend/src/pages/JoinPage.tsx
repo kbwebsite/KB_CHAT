@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { groupInviteApi } from '../services/api'
+import { stashPendingInvite } from '../utils/invite'
 import { Users } from 'lucide-react'
 
 export default function JoinPage() {
@@ -17,9 +18,7 @@ export default function JoinPage() {
       return
     }
     if (!user) {
-      try {
-        localStorage.setItem('kb_pending_invite', token)
-      } catch {}
+      stashPendingInvite(token)
       nav('/login')
       return
     }

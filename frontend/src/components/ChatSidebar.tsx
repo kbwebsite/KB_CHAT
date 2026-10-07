@@ -256,9 +256,33 @@ export function ChatSidebar({
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
-            placeholder="Search conversations..."
-            aria-label="Search conversations"
+            placeholder={activeTab === 'groups' ? 'Search groups...' : 'Search conversations...'}
+            aria-label={activeTab === 'groups' ? 'Search groups' : 'Search conversations'}
           />
+        </div>
+      )}
+
+      {/* Chats / Groups scope (PE-1D) */}
+      {!showContacts && !showSaved && !showCalls && !showBroadcasts && !showCommunities && !showChannels && (
+        <div className="flex gap-1.5 px-3 pt-1" role="tablist" aria-label="Conversation scope">
+          {(['chats', 'groups'] as const).map((t) => {
+            const count = t === 'groups'
+              ? conversations.filter((c: any) => c.is_group).length
+              : conversations.length
+            const selected = activeTab === t
+            return (
+              <button
+                key={t}
+                role="tab"
+                aria-selected={selected}
+                onClick={() => onTabChange(t)}
+                className={`flex-1 py-2 rounded-xl text-[13px] font-bold transition-colors min-h-[44px] ${selected ? 'kryzen-accent-gradient text-white shadow' : 'bg-muted text-muted-foreground hover:bg-accent'}`}
+              >
+                {t === 'chats' ? 'Chats' : 'Groups'}
+                <span className={`ml-1.5 text-[11px] font-semibold ${selected ? 'text-white/80' : 'text-tertiary'}`}>{count}</span>
+              </button>
+            )
+          })}
         </div>
       )}
 
@@ -337,6 +361,14 @@ export function ChatSidebar({
                 onArchive={handleArchive}
                 onMute={onMute}
                 loading={loadingConvs}
+                emptyHint={activeTab === 'groups' ? {
+                  title: search ? 'No groups match' : 'No groups yet',
+                  text: search
+                    ? 'Try a different search.'
+                    : 'Groups you join or create will live here. Start one to bring people together.',
+                  actionLabel: search ? undefined : 'New group',
+                  onAction: search ? undefined : () => setShowNewGroup(true),
+                } : undefined}
               />
             </div>
           </>

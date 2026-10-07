@@ -2,9 +2,9 @@ import { memo, useEffect, useState } from 'react'
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
-import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare, Lock } from 'lucide-react'
+import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare, Lock, MoreVertical, Bell } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
-import { convApi } from '../services/api'
+import { convApi, extendedApi } from '../services/api'
 import { useLockStore } from '../store/lock'
 import { LockScreen } from './LockScreen'
 
@@ -92,8 +92,59 @@ export const ConversationItem = memo(ConversationItemInner, (prev, next) =>
   prev.currentUserId === next.currentUserId
 )
 
-export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading, onChanged }: {
-  conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean, onChanged?: () => void
+/**
+ * Per-row actions menu (PE-1E). Only exposes actions the app supports:
+ * pin, mute, archive — all plumbed through existing handlers. Nothing
+ * destructive lives here, so no confirmation is needed.
+ */
+function RowMenu({ conv, onPin, onArchive, onChanged, onClose }: {
+  conv: any; onPin?: (id: number) => void; onArchive?: (id: number) => void; onChanged?: () => void; onClose: () => void
+}) {
+  const [busy, setBusy] = useState<string | null>(null)
+  const [err, setErr] = useState<string | null>(null)
+  const muted = !!conv.is_muted
+  const pinned = !!conv.is_pinned
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [onClose])
+  const run = async (key: string, fn: () => void | Promise<any>) => {
+    setBusy(key)
+    setErr(null)
+    try {
+      await fn()
+      onChanged?.()
+      onClose()
+    } catch {
+      setErr('Action failed — try again')
+    } finally {
+      setBusy(null)
+    }
+  }
+  const itemCls = 'w-full text-left px-3 py-2.5 hover:bg-muted flex items-center gap-2.5 text-sm min-h-[44px] disabled:opacity-50'
+  return (
+    <>
+      <div className="fixed inset-0 z-40" onClick={onClose} aria-hidden="true" />
+      <div role="menu" aria-label="Conversation actions" className="absolute right-1 top-9 z-50 w-48 rounded-xl border border-border bg-card shadow-xl py-1">
+        <button role="menuitem" disabled={!!busy} onClick={() => run('pin', () => onPin?.(conv.id))} className={itemCls}>
+          <Pin className="w-4 h-4 text-muted-foreground" /> {busy === 'pin' ? 'Working…' : pinned ? 'Unpin' : 'Pin'}
+        </button>
+        <button role="menuitem" disabled={!!busy} onClick={() => run('mute', () => extendedApi.mute(conv.id, !muted))} className={itemCls}>
+          {muted ? <Bell className="w-4 h-4 text-muted-foreground" /> : <BellOff className="w-4 h-4 text-muted-foreground" />}
+          {busy === 'mute' ? 'Working…' : muted ? 'Unmute' : 'Mute'}
+        </button>
+        <button role="menuitem" disabled={!!busy} onClick={() => run('archive', () => onArchive?.(conv.id))} className={itemCls}>
+          <Archive className="w-4 h-4 text-muted-foreground" /> {busy === 'archive' ? 'Working…' : 'Archive'}
+        </button>
+        {err && <p role="alert" className="px-3 py-1.5 text-xs text-destructive">{err}</p>}
+      </div>
+    </>
+  )
+}
+
+export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading, onChanged, emptyHint }: {
+  conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean, onChanged?: () => void, emptyHint?: { title: string; text: string; actionLabel?: string; onAction?: () => void }
 }) {
   const lockedIds = useLockStore((s) => s.lockedIds)
   const chatsRevealed = useLockStore((s) => s.chatsRevealed)
@@ -109,6 +160,7 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
   }, [lockPrompt, unlocked, setChatsRevealed])
   const [archived, setArchived] = useState<any[]>([])
   const [showArchived, setShowArchived] = useState(false)
+  const [menuFor, setMenuFor] = useState<number | null>(null)
   const loadArchived = () => {
     convApi
       .list(undefined, { include_archived: true })
@@ -196,8 +248,13 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
             <div className="empty-state-icon">
               <MessageSquare className="w-7 h-7" />
             </div>
-            <p className="empty-state-title">No conversations yet</p>
-            <p className="empty-state-text">Search for users to start chatting</p>
+            <p className="empty-state-title">{emptyHint?.title || 'No conversations yet'}</p>
+            <p className="empty-state-text">{emptyHint?.text || 'Search for users to start chatting'}</p>
+            {emptyHint?.actionLabel && emptyHint?.onAction && (
+              <button onClick={emptyHint.onAction} className="mt-3 px-4 py-2.5 rounded-xl btn-primary text-sm font-bold min-h-[44px]">
+                {emptyHint.actionLabel}
+              </button>
+            )}
           </div>
         ) : (
           <>
@@ -214,17 +271,30 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
               </button>
             )}
             {visible.map(c => (
-              <ConversationItem
-                key={c.id}
-                conv={c}
-                active={c.id === activeId}
-                onClick={() => onSelect(c.id)}
-                isTyping={!!typingMap?.[c.id]?.size}
-                currentUserId={currentUserId}
-                onPin={onPin}
-                onMute={onMute}
-                onArchive={onArchive}
-              />
+              <div key={c.id} className="relative group">
+                <ConversationItem
+                  conv={c}
+                  active={c.id === activeId}
+                  onClick={() => onSelect(c.id)}
+                  isTyping={!!typingMap?.[c.id]?.size}
+                  currentUserId={currentUserId}
+                  onPin={onPin}
+                  onMute={onMute}
+                  onArchive={onArchive}
+                />
+                <button
+                  onClick={(e) => { e.stopPropagation(); setMenuFor(menuFor === c.id ? null : c.id) }}
+                  aria-label={`Actions for ${c.title || 'conversation'}`}
+                  aria-haspopup="menu"
+                  aria-expanded={menuFor === c.id}
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition"
+                >
+                  <MoreVertical className="w-4 h-4" />
+                </button>
+                {menuFor === c.id && (
+                  <RowMenu conv={c} onPin={onPin} onArchive={onArchive} onChanged={onChanged} onClose={() => setMenuFor(null)} />
+                )}
+              </div>
             ))}
             {hiddenLocked.length > 0 && (
               <button

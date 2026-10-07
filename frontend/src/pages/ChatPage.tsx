@@ -18,6 +18,7 @@ import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
 import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise, Info } from 'lucide-react'
 import { MessageInfo } from '../components/MessageInfo'
+import { OnboardingPanel, isOnboarded } from '../components/OnboardingPanel'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
@@ -40,6 +41,7 @@ export default function ChatPage() {
   const fetchConversations = useChatStore((s: any) => s.fetchConversations)
   const setCurrent = useChatStore((s: any) => s.setCurrent)
   const fetchMessages = useChatStore((s: any) => s.fetchMessages)
+  const loadingConvs = useChatStore((s: any) => s.loadingConvs)
   const sendMessage = useChatStore((s: any) => s.sendMessage)
   const editMessage = useChatStore((s: any) => s.editMessage)
   const deleteMessage = useChatStore((s: any) => s.deleteMessage)
@@ -63,6 +65,10 @@ export default function ChatPage() {
     }
   }, [])
   const [mobileNavTab, setMobileNavTab] = useState<'chats' | 'status' | 'calls' | 'communities' | 'channels' | 'ai'>('chats')
+  // Sidebar list scope: chats vs groups (PE-1D — previously hard-coded).
+  const [sidebarTab, setSidebarTab] = useState<'chats' | 'groups'>('chats')
+  // First-run onboarding (PE-1C): shown once for accounts with no chats yet.
+  const [showOnboarding, setShowOnboarding] = useState(false)
   const [showProfile, setShowProfile] = useState(false)
   const [showGroupInfo, setShowGroupInfo] = useState(false)
   const [showSettings, setShowSettings] = useState(false)
@@ -149,6 +155,17 @@ export default function ChatPage() {
     const off3 = wsService.on('call.accepted', () => {})
     return () => { off1(); off2(); off3() }
   }, [])
+
+  // ─── First-run onboarding (PE-1C): new accounts with no chats yet.
+  // Invite joins land straight into a group (conversations > 0), so
+  // invitees skip this naturally. Refresh-safe: step state is local and
+  // the done-flag is per user id.
+  useEffect(() => {
+    if (!user || loadingConvs) return
+    if (conversations.length === 0 && !isOnboarded(user.id)) {
+      setShowOnboarding(true)
+    }
+  }, [user, loadingConvs, conversations.length])
 
   // ─── Keyboard shortcuts (desktop only) ───
   useEffect(() => {
@@ -541,8 +558,8 @@ export default function ChatPage() {
             onStatusViewer={(statuses: any[], idx: number) => setStatusViewer({ statuses, idx })}
             onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
             onMute={handleMute}
-            activeTab="chats"
-            onTabChange={() => {}}
+            activeTab={sidebarTab}
+            onTabChange={(t) => { if (t === 'chats' || t === 'groups') setSidebarTab(t) }}
             onProfile={() => { closeAllPanels(); setShowProfile(true) }}
             onLeaderboard={() => { closeAllPanels(); setShowLeaderboard(true) }}
             onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
@@ -686,6 +703,14 @@ export default function ChatPage() {
             active={mobileNavTab}
             onTabChange={handleNavTabChange}
             unreadCounts={{ chats: totalUnread }}
+          />
+        )}
+
+        {/* First-run onboarding (PE-1C) */}
+        {showOnboarding && (
+          <OnboardingPanel
+            onDone={() => setShowOnboarding(false)}
+            onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
           />
         )}
 

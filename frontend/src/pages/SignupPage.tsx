@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { authApi } from '../services/api'
+import { navPostAuth } from '../utils/invite'
 import { FirebaseAuth } from '../components/FirebaseAuth'
 import { Eye, EyeOff } from 'lucide-react'
 
@@ -30,7 +31,7 @@ export default function SignupPage() {
         setVerifyMsg(`We sent a 6-digit code to ${form.email}. Enter it below.`)
         return
       }
-      nav('/chat')
+      navPostAuth(nav)
     } catch (err:any) {
       const detail = err.response?.data?.detail
       if (Array.isArray(detail)) setError(detail.map((d:any)=> d.msg).join(', '))
@@ -45,7 +46,7 @@ export default function SignupPage() {
     setVerifyBusy(true)
     try {
       const res = await authApi.verifyEmail(form.email.trim(), code.trim())
-      if (res.success) nav('/chat')
+      if (res.success) navPostAuth(nav)
       else setError(res.message || 'Verification failed')
     } catch (err:any) {
       setError(err.response?.data?.detail || 'Invalid or expired code')
@@ -79,7 +80,7 @@ export default function SignupPage() {
     if (res.success) {
       setToken(res.data.access_token)
       setUser(res.data.user)
-      nav('/chat')
+      navPostAuth(nav)
     } else {
       throw new Error(res.message || 'Could not start your session.')
     }
@@ -141,7 +142,7 @@ export default function SignupPage() {
               <button type="button" disabled={verifyBusy} onClick={handleResend} className="text-xs text-primary hover:underline font-medium disabled:opacity-50">
                 Resend code
               </button>
-              <button type="button" onClick={()=>nav('/chat')} className="text-xs text-muted-foreground hover:underline">
+              <button type="button" onClick={()=>navPostAuth(nav)} className="text-xs text-muted-foreground hover:underline">
                 Skip for now
               </button>
             </div>

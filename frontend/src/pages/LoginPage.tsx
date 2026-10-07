@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../store/auth'
 import { authApi } from '../services/api'
+import { navPostAuth } from '../utils/invite'
 import { FirebaseAuth } from '../components/FirebaseAuth'
 import {
   Eye, EyeOff, Lock, User, Loader2, ArrowRight, Send,
@@ -193,7 +194,7 @@ export default function LoginPage() {
         setVerifyMsg(`We sent a 6-digit sign-in code to ${email} — enter it below.`)
         return
       }
-      nav('/chat')
+      navPostAuth(nav)
     } catch (err: any) {
       setError(err.response?.data?.detail || err.message || 'Login failed')
     }
@@ -210,7 +211,7 @@ export default function LoginPage() {
       if (res.success) {
         setToken(res.data.access_token)
         setUser(res.data.user)
-        nav('/chat')
+        navPostAuth(nav)
       } else {
         setError(res.message || 'Verification failed')
       }
@@ -245,7 +246,7 @@ export default function LoginPage() {
     if (res.success) {
       setToken(res.data.access_token)
       setUser(res.data.user)
-      nav('/chat')
+      navPostAuth(nav)
     } else {
       throw new Error(res.message || 'Could not start your session.')
     }

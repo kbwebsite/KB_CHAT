@@ -17,6 +17,7 @@ const SignupPage = lazy(() => import('./pages/SignupPage'))
 const ForgotPasswordPage = lazy(() => import('./pages/ForgotPasswordPage'))
 const ChatPage = lazy(() => import('./pages/ChatPage'))
 const JoinPage = lazy(() => import('./pages/JoinPage'))
+const UserPage = lazy(() => import('./pages/UserPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const KBAIPage = lazy(() => import('./pages/KBAIPage'))
 
@@ -123,6 +124,7 @@ export default function App() {
             <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
             <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />
             <Route path="/join/:token" element={<JoinPage />} />
+          <Route path="/u/:username" element={<UserPage />} />
             <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
             <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
             <Route path="/ai" element={<Protected><KBAIPage /></Protected>} />
