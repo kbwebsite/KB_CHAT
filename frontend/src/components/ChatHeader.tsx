@@ -3,6 +3,7 @@ import { formatLastSeen, initials } from '../utils/format'
 import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer, Archive } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 import { useState } from 'react'
+import { useEscapeKey } from '../hooks/useDismiss'
 
 export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock' | 'timer' | 'archive'
 
@@ -39,6 +40,7 @@ export function ChatHeader({
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const close = () => setShowMenu(false)
+  useEscapeKey(close, showMenu)
   const fire = (fn?: () => void) => () => { close(); fn?.() }
 
   const menuItems: { label: string; icon: any; run?: () => void; danger?: boolean }[] = [
@@ -133,14 +135,14 @@ export function ChatHeader({
               <div className="fixed inset-0 z-10" onClick={close} />
               <div className="absolute right-0 top-full mt-2 w-52 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm max-h-[70vh] overflow-y-auto" role="menu">
                 {menuItems.map(({ label, icon: Icon, run }) => (
-                  <button key={label} role="menuitem" onClick={fire(run)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <button key={label} role="menuitem" onClick={fire(run)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5 min-h-[44px]">
                     <Icon className="w-4 h-4 text-primary" />
                     {label}
                   </button>
                 ))}
                 {menuItems.length > 0 && extrasItems.length > 0 && <div className="border-t my-1" />}
                 {extrasItems.map(({ key, label, icon: Icon }) => (
-                  <button key={key} role="menuitem" onClick={fire(() => onExtras?.(key))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <button key={key} role="menuitem" onClick={fire(() => onExtras?.(key))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5 min-h-[44px]">
                     <Icon className="w-4 h-4 text-primary" />
                     {label}
                   </button>
@@ -148,7 +150,7 @@ export function ChatHeader({
                 {onInfo && (
                   <>
                     <div className="border-t my-1" />
-                    <button role="menuitem" onClick={fire(onInfo)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <button role="menuitem" onClick={fire(onInfo)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5 min-h-[44px]">
                       <Info className="w-4 h-4 text-primary" />
                       {conv?.is_group ? 'Group info' : 'Contact info'}
                     </button>

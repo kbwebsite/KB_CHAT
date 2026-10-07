@@ -4,6 +4,8 @@ import { StatusViewer } from './StatusViewer'
 import { CommandPalette, buildCommands } from './CommandPalette'
 import { X } from 'lucide-react'
 import { useToastStore } from '../store/toast'
+import { useEscapeKey } from '../hooks/useDismiss'
+import { useEffect } from 'react'
 
 export function ChatModals({
   lightbox, setLightbox,
@@ -18,6 +20,14 @@ export function ChatModals({
   onCallAccept, onCallRejectOrEnd, onCallMissed
 }: any) {
   const toast = useToastStore(s => s.push)
+  const closeForward = () => setForwardMsg(null)
+  // Non-destructive picker: backdrop + Escape dismiss like other overlays.
+  useEscapeKey(closeForward, !!forwardMsg)
+  useEffect(() => {
+    if (!forwardMsg) return
+    document.body.classList.add('modal-open')
+    return () => document.body.classList.remove('modal-open')
+  }, [forwardMsg])
 
   return (
     <>
@@ -60,11 +70,11 @@ export function ChatModals({
         })}
       />
       {forwardMsg && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 modal-entrance">
-          <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-border kryzen-glass-strong modal-entrance">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 modal-entrance" onClick={closeForward} role="dialog" aria-modal="true" aria-label="Forward message">
+          <div className="bg-card rounded-2xl w-full max-w-md max-h-[80vh] flex flex-col border border-border kryzen-glass-strong modal-entrance" onClick={(e) => e.stopPropagation()}>
             <div className="p-4 border-b border-border flex justify-between items-center">
               <h3 className="font-semibold">Forward message</h3>
-              <button onClick={() => setForwardMsg(null)} className="p-2 hover:bg-muted rounded-full transition-colors"><X className="w-4 h-4" /></button>
+              <button onClick={() => setForwardMsg(null)} aria-label="Close forward dialog" className="p-2 hover:bg-muted rounded-full transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"><X className="w-4 h-4" /></button>
             </div>
             <div className="p-3 border-b bg-muted border-border">
               <p className="text-sm line-clamp-2">{forwardMsg.content}</p>

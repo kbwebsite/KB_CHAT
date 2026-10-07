@@ -51,6 +51,14 @@ export function Lightbox({ images, startIndex, onClose }: {
 
   // pinch zoom for mobile
   const lastDistRef = useRef<number|null>(null)
+  const swipeStartRef = useRef<{ x: number; y: number } | null>(null)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    if (e.touches.length === 1) {
+      swipeStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY }
+    } else {
+      swipeStartRef.current = null
+    }
+  }
   const handleTouchMove = (e:React.TouchEvent)=>{
     if (e.touches.length===2 && !isVideo) {
       const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY)
@@ -65,7 +73,20 @@ export function Lightbox({ images, startIndex, onClose }: {
       }
     }
   }
-  const handleTouchEnd = ()=>{ lastDistRef.current = null }
+  const handleTouchEnd = (e: React.TouchEvent)=>{
+    lastDistRef.current = null
+    // Single-finger horizontal swipe navigates between media. Vertical
+    // swipes and multi-touch (pinch) never navigate; threshold avoids
+    // accidental page turns from taps/scroll jitter.
+    const s = swipeStartRef.current
+    swipeStartRef.current = null
+    if (!s || e.changedTouches.length === 0 || !multi) return
+    const dx = e.changedTouches[0].clientX - s.x
+    const dy = e.changedTouches[0].clientY - s.y
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 40) {
+      setIdx(i => (i + (dx < 0 ? 1 : -1) + images.length) % images.length)
+    }
+  }
 
   const handleClose=()=>{
     if (history.state?.viewer) history.back()
@@ -75,19 +96,19 @@ export function Lightbox({ images, startIndex, onClose }: {
   if (!cur) return null
   const multi = images.length > 1
   return (
-    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur flex flex-col min-h-0" onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
+    <div className="fixed inset-0 z-50 bg-black/95 backdrop-blur flex flex-col min-h-0" onTouchStart={handleTouchStart} onTouchMove={handleTouchMove} onTouchEnd={handleTouchEnd}>
       <div className="flex items-center justify-between gap-2 p-3 pt-[max(12px,env(safe-area-inset-top))] text-white border-b border-white/10 shrink-0">
         <span className="text-sm truncate min-w-0 flex-1">{idx+1} / {images.length} — {cur.name}</span>
         <div className="flex items-center gap-1 shrink-0">
           {!isVideo && !isPdf && (
             <>
-              <button onClick={()=> setZoom(z=> Math.max(0.5, z-0.25))} className="p-2 hover:bg-white/10 rounded-full" aria-label="Zoom out"><ZoomOut className="w-5 h-5"/></button>
+              <button onClick={()=> setZoom(z=> Math.max(0.5, z-0.25))} className="p-2 hover:bg-white/10 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Zoom out"><ZoomOut className="w-5 h-5"/></button>
               <span className="text-xs w-10 text-center">{Math.round(zoom*100)}%</span>
-              <button onClick={()=> setZoom(z=> Math.min(3, z+0.25))} className="p-2 hover:bg-white/10 rounded-full" aria-label="Zoom in"><ZoomIn className="w-5 h-5"/></button>
+              <button onClick={()=> setZoom(z=> Math.min(3, z+0.25))} className="p-2 hover:bg-white/10 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Zoom in"><ZoomIn className="w-5 h-5"/></button>
             </>
           )}
-          <a href={cur.url} download={cur.name} className="p-2 hover:bg-white/10 rounded-full" aria-label="Download"><Download className="w-5 h-5"/></a>
-          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full" aria-label="Close viewer"><X className="w-5 h-5"/></button>
+          <a href={cur.url} download={cur.name} className="p-2 hover:bg-white/10 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Download"><Download className="w-5 h-5"/></a>
+          <button onClick={handleClose} className="p-2 hover:bg-white/10 rounded-full min-w-[44px] min-h-[44px] flex items-center justify-center" aria-label="Close viewer"><X className="w-5 h-5"/></button>
         </div>
       </div>
       <div className="flex-1 flex items-center justify-center relative p-2 sm:p-4 overflow-hidden min-h-0 min-w-0 w-full">

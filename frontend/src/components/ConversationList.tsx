@@ -1,10 +1,11 @@
-import { memo, useEffect, useState } from 'react'
+import { memo, useEffect, useState, type ReactNode } from 'react'
 import { Conversation } from '../types'
 import { formatTime, initials } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 import { Users, Pin, BellOff, Archive, Check, CheckCheck, MessageSquare, Lock, MoreVertical, Bell } from 'lucide-react'
 import { useSettingsStore } from '../store/settings'
 import { convApi, extendedApi } from '../services/api'
+import { useLongPress } from '../hooks/useDismiss'
 import { useLockStore } from '../store/lock'
 import { LockScreen } from './LockScreen'
 
@@ -143,6 +144,28 @@ function RowMenu({ conv, onPin, onArchive, onChanged, onClose }: {
   )
 }
 
+/**
+ * Long-press wrapper: opens the SAME row menu as the ⋯ button (no second
+ * action model). Tap, scroll, links and buttons are unaffected — press
+ * cancels on movement, release, or before the threshold.
+ */
+function PressableRow({ onLongPress, children }: {
+  onLongPress: () => void
+  children: ReactNode
+}) {
+  const { handlers } = useLongPress({ onLongPress })
+  return (
+    <div
+      key={undefined}
+      className="relative group"
+      style={{ touchAction: 'pan-x pan-y' }}
+      {...handlers}
+    >
+      {children}
+    </div>
+  )
+}
+
 export function ConversationList({ conversations, activeId, onSelect, search, onSearch, typingMap, currentUserId, onPin, onArchive, onMute, loading, onChanged, emptyHint }: {
   conversations: Conversation[], activeId: number | null, onSelect: (id: number) => void, search: string, onSearch: (v: string) => void, typingMap?: Record<number, Set<number>>, currentUserId?: number, onPin?: (id: number) => void, onArchive?: (id: number) => void, onMute?: (id: number) => void, loading?: boolean, onChanged?: () => void, emptyHint?: { title: string; text: string; actionLabel?: string; onAction?: () => void }
 }) {
@@ -271,7 +294,7 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
               </button>
             )}
             {visible.map(c => (
-              <div key={c.id} className="relative group">
+              <PressableRow key={c.id} onLongPress={() => setMenuFor(c.id)}>
                 <ConversationItem
                   conv={c}
                   active={c.id === activeId}
@@ -287,14 +310,14 @@ export function ConversationList({ conversations, activeId, onSelect, search, on
                   aria-label={`Actions for ${c.title || 'conversation'}`}
                   aria-haspopup="menu"
                   aria-expanded={menuFor === c.id}
-                  className="absolute right-1 top-1/2 -translate-y-1/2 w-9 h-9 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 transition"
+                  className="absolute right-1 top-1/2 -translate-y-1/2 w-11 h-11 rounded-full flex items-center justify-center text-muted-foreground hover:bg-muted hover:text-foreground opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus:opacity-100 focus-visible:opacity-100 transition"
                 >
                   <MoreVertical className="w-4 h-4" />
                 </button>
                 {menuFor === c.id && (
                   <RowMenu conv={c} onPin={onPin} onArchive={onArchive} onChanged={onChanged} onClose={() => setMenuFor(null)} />
                 )}
-              </div>
+              </PressableRow>
             ))}
             {hiddenLocked.length > 0 && (
               <button
