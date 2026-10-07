@@ -93,14 +93,43 @@ def can_view_status(s: Status, viewer_id: int, viewer_contacts: set) -> bool:
     return s.user_id in viewer_contacts
 
 
-def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers=False):
-    user = db.query(User).filter_by(id=s.user_id).first()
-    viewers = []
-    if include_viewers:
-        # Dedupe by viewer (one row per person, latest first): concurrent
-        # view-records could historically insert twice for the same viewer.
+def statuses_to_dict(
+    rows: list, db: Session, current_user_id: int, include_viewers=False
+) -> list:
+    """Batched status serialization (Wave 4D).
+
+    `status_to_dict` below issued up to 2+N_viewer queries PER status
+    (author lookup, viewed check, lazy viewers + per-viewer user). This
+    collects IDs first and serves everything from 3 fixed queries, then
+    runs the byte-identical shaping logic per row. Order = input order.
+    """
+    rows = list(rows)
+    if not rows:
+        return []
+    user_ids = {s.user_id for s in rows if s.user_id is not None}
+    users_by_id = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        if user_ids
+        else {}
+    )
+    sids = [s.id for s in rows]
+    viewer_rows = db.query(StatusViewer).filter(StatusViewer.status_id.in_(sids)).all()
+    by_status: dict = {}
+    for v in viewer_rows:
+        by_status.setdefault(v.status_id, []).append(v)
+    viewer_ids = {v.viewer_id for v in viewer_rows}
+    viewers_by_id = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(viewer_ids)).all()}
+        if viewer_ids
+        else {}
+    )
+    out = []
+    for s in rows:
+        user = users_by_id.get(s.user_id)
+        mine = by_status.get(s.id, [])
+        # Dedupe by viewer (one row per person, latest first) — same rule.
         seen: dict = {}
-        for v in s.viewers:
+        for v in mine:
             prev = seen.get(v.viewer_id)
             if prev is None:
                 seen[v.viewer_id] = v
@@ -108,47 +137,59 @@ def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers
                 prev.viewed_at is None or v.viewed_at > prev.viewed_at
             ):
                 seen[v.viewer_id] = v
-        viewers = [
+        viewers = []
+        if include_viewers:
+            viewers = [
+                {
+                    "viewer_id": v.viewer_id,
+                    "display_name": (
+                        viewers_by_id.get(v.viewer_id).display_name
+                        if viewers_by_id.get(v.viewer_id)
+                        else None
+                    ),
+                    "username": (
+                        viewers_by_id.get(v.viewer_id).username
+                        if viewers_by_id.get(v.viewer_id)
+                        else None
+                    ),
+                    "avatar_url": (
+                        viewers_by_id.get(v.viewer_id).avatar_url
+                        if viewers_by_id.get(v.viewer_id)
+                        else None
+                    ),
+                    "viewed_at": v.viewed_at.isoformat() if v.viewed_at else None,
+                }
+                for v in sorted(seen.values(), key=lambda v: v.id or 0, reverse=True)
+            ]
+        viewed = any(v.viewer_id == current_user_id for v in mine)
+        out.append(
             {
-                "viewer_id": v.viewer_id,
-                "display_name": v.viewer.display_name if v.viewer else None,
-                "username": v.viewer.username if v.viewer else None,
-                "avatar_url": v.viewer.avatar_url if v.viewer else None,
-                "viewed_at": v.viewed_at.isoformat() if v.viewed_at else None,
+                "id": s.id,
+                "user_id": s.user_id,
+                "username": user.username if user else "unknown",
+                "display_name": user.display_name if user else "Unknown",
+                "avatar_url": user.avatar_url if user else None,
+                "content": s.content,
+                "media_url": s.media_url,
+                "media_type": s.media_type,
+                "background": s.background,
+                "caption": s.caption,
+                "privacy": s.privacy,
+                "allowed_user_ids": s.allowed_user_ids or [],
+                "created_at": s.created_at.isoformat() if s.created_at else None,
+                "expires_at": s.expires_at.isoformat() if s.expires_at else None,
+                "viewed": viewed,
+                "is_own": s.user_id == current_user_id,
+                "view_count": len(seen),
+                "viewers": viewers if include_viewers else None,
             }
-            for v in sorted(
-                seen.values(),
-                key=lambda v: v.id or 0,
-                reverse=True,
-            )
-        ]
-    viewed = (
-        db.query(StatusViewer)
-        .filter_by(status_id=s.id, viewer_id=current_user_id)
-        .first()
-        is not None
-    )
-    return {
-        "id": s.id,
-        "user_id": s.user_id,
-        "username": user.username if user else "unknown",
-        "display_name": user.display_name if user else "Unknown",
-        "avatar_url": user.avatar_url if user else None,
-        "content": s.content,
-        "media_url": s.media_url,
-        "media_type": s.media_type,
-        "background": s.background,
-        "caption": s.caption,
-        "privacy": s.privacy,
-        "allowed_user_ids": s.allowed_user_ids or [],
-        "created_at": s.created_at.isoformat() if s.created_at else None,
-        "expires_at": s.expires_at.isoformat() if s.expires_at else None,
-        "viewed": viewed,
-        "is_own": s.user_id == current_user_id,
-        # Distinct people, not raw rows (see dedupe above).
-        "view_count": len({v.viewer_id for v in s.viewers}),
-        "viewers": viewers if include_viewers else None,
-    }
+        )
+    return out
+
+
+def status_to_dict(s: Status, db: Session, current_user_id: int, include_viewers=False):
+    # Single-row path shares the batch implementation (no divergence).
+    return statuses_to_dict([s], db, current_user_id, include_viewers)[0]
 
 
 @router.post("")
@@ -279,16 +320,20 @@ def get_feed(
     # filter expired and privacy
     my_id = current_user.id
     viewer_contacts = _contact_ids(db, my_id)
-    recent = []
-    viewed = []
-    my_statuses = []
+    kept = []
     for s in all_statuses:
         if is_expired(s):
             continue
         if not can_view_status(s, my_id, viewer_contacts):
             continue
-        d = status_to_dict(s, db, my_id)
-        if s.user_id == my_id:
+        kept.append(s)
+    # One batched serialization (was per-row N+1); order preserved.
+    shaped = statuses_to_dict(kept, db, my_id)
+    recent = []
+    viewed = []
+    my_statuses = []
+    for d in shaped:
+        if d["user_id"] == my_id:
             my_statuses.append(d)
         else:
             if d["viewed"]:
@@ -313,11 +358,12 @@ def get_my(
         .limit(limit)
         .all()
     )
-    result = [
-        status_to_dict(s, db, current_user.id, include_viewers=True)
-        for s in statuses
-        if not is_expired(s)
-    ]
+    result = statuses_to_dict(
+        [s for s in statuses if not is_expired(s)],
+        db,
+        current_user.id,
+        include_viewers=True,
+    )
     return success_response(result)
 
 

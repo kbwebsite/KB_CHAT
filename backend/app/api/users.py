@@ -8,7 +8,7 @@ from app.auth.dependencies import get_current_user
 from app.models.user import User
 from app.schemas.user import UserUpdate
 from app.schemas.common import success_response
-from app.utils.privacy import presence_for_viewer
+from app.utils.privacy import presence_for_viewer, presence_for_viewers
 from app.database.config import settings
 from app.services.errors import service_route
 from app.services.users import change_user_password
@@ -38,8 +38,9 @@ def search_users(
         .all()
     )
     result = []
+    presences = presence_for_viewers(db, viewer_id=current_user.id, targets=users)
     for u in users:
-        presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
+        presence = presences[u.id]
         result.append(
             {
                 "id": u.id,

@@ -175,18 +175,17 @@ def _message_to_dict(msg: Message, receipts: dict = None, viewer_id: int = None)
     }
 
 
-def _get_messages_query(db: Session, conv_id: int):
+def _get_messages_query(db: Session, conv_id: int = None):
     """Build query with eager loading to avoid N+1"""
-    return (
-        db.query(Message)
-        .options(
-            joinedload(Message.sender),
-            joinedload(Message.attachments),
-            joinedload(Message.reactions).joinedload(MessageReaction.user),
-            joinedload(Message.reply_to).joinedload(Message.sender),
-        )
-        .filter(Message.conversation_id == conv_id)
+    q = db.query(Message).options(
+        joinedload(Message.sender),
+        joinedload(Message.attachments),
+        joinedload(Message.reactions).joinedload(MessageReaction.user),
+        joinedload(Message.reply_to).joinedload(Message.sender),
     )
+    if conv_id is not None:
+        q = q.filter(Message.conversation_id == conv_id)
+    return q
 
 
 @router.get("/conversations/{conv_id}/messages")
@@ -853,7 +852,7 @@ def search_messages(
     cleared_by_conv = {
         m.conversation_id: (m.cleared_before_id or 0) for m in my_memberships
     }
-    query = db.query(Message).filter(
+    query = _get_messages_query(db).filter(
         Message.conversation_id.in_(member_convs),
         Message.is_deleted == False,
         Message.content.ilike(f"%{q}%"),

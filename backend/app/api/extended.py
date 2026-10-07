@@ -8,7 +8,7 @@ from app.models.user import User, BlockedUser
 from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message, Attachment
 from app.schemas.common import success_response
-from app.utils.privacy import presence_for_viewer
+from app.utils.privacy import presence_for_viewer, presence_for_viewers
 import json
 
 router = APIRouter(prefix="/api", tags=["extended"])
@@ -519,8 +519,9 @@ def get_favorites(
     user_ids = list(set(m.user_id for m in other_members))
     users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
     out = []
+    presences = presence_for_viewers(db, viewer_id=current_user.id, targets=users)
     for u in users:
-        presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
+        presence = presences[u.id]
         out.append(
             {
                 "id": u.id,
@@ -556,8 +557,9 @@ def get_contacts(
     user_ids = list(set(m.user_id for m in other_members))
     users = db.query(User).filter(User.id.in_(user_ids)).all() if user_ids else []
     result = []
+    presences = presence_for_viewers(db, viewer_id=current_user.id, targets=users)
     for u in users:
-        presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
+        presence = presences[u.id]
         result.append(
             {
                 "id": u.id,
@@ -630,10 +632,14 @@ def recently_contacted(
         else {}
     )
     result = []
+    seen_users = [
+        u for c in convs for u in [users.get(first_other_by_conv.get(c.id))] if u
+    ]
+    presences = presence_for_viewers(db, viewer_id=current_user.id, targets=seen_users)
     for c in convs:
         u = users.get(first_other_by_conv.get(c.id))
         if u:
-            presence = presence_for_viewer(db, viewer_id=current_user.id, target=u)
+            presence = presences[u.id]
             result.append(
                 {
                     "id": u.id,
