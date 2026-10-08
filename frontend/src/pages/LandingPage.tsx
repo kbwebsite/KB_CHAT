@@ -1,9 +1,11 @@
-import { Suspense, lazy, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Suspense, lazy, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MessageCircle, Users, Shield, Zap, Image as ImageIcon, Smartphone, ArrowRight } from 'lucide-react'
+import { MessageCircle, Users, Shield, Zap, Image as ImageIcon, Smartphone, ArrowRight, Check } from 'lucide-react'
 import gsap from 'gsap'
-import { animate, stagger } from 'animejs'
+import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useAuthStore } from '../store/auth'
+
+gsap.registerPlugin(ScrollTrigger)
 
 const Spline = lazy(() => import('@splinetool/react-spline'))
 const RiveBadge = lazy(() => import('../components/RiveBadge'))
@@ -23,8 +25,10 @@ function usePrefersReducedMotion() {
   return reduced
 }
 
-function Particles() {
-  const particles = useMemo(
+type Particle = { id: number; left: string; size: number; duration: number; delay: number; color: string }
+
+const Particles = memo(function Particles() {
+  const particles = useMemo<Particle[]>(
     () =>
       Array.from({ length: 18 }, (_, i) => ({
         id: i,
@@ -37,11 +41,11 @@ function Particles() {
     []
   )
   return (
-    <div className="particles-container" aria-hidden="true">
+    <div className="lp-particles" aria-hidden="true">
       {particles.map(p => (
-        <div
+        <span
           key={p.id}
-          className="particle"
+          className="lp-particle"
           style={{
             left: p.left,
             width: p.size,
@@ -54,114 +58,121 @@ function Particles() {
       ))}
     </div>
   )
-}
+})
+
+const FEATURES = [
+  { icon: Zap, title: 'Real-time messaging', desc: 'Instant delivery with typing indicators, read receipts and presence.', span: 'lg:col-span-2' },
+  { icon: Users, title: 'Groups', desc: 'Create groups, manage roles, add members and collaborate.', span: '' },
+  { icon: ImageIcon, title: 'Media sharing', desc: 'Share images, PDFs and files securely with previews.', span: '' },
+  { icon: Shield, title: 'Privacy-focused', desc: 'Secure auth, protected routes, and thoughtful data handling.', span: 'lg:col-span-2' },
+  { icon: Smartphone, title: 'Responsive', desc: 'Flawless experience on desktop, tablet and mobile.', span: '' },
+  { icon: MessageCircle, title: 'Delightful UX', desc: 'Clean, modern design with light and dark themes.', span: '' },
+]
 
 export default function LandingPage() {
   const { user } = useAuthStore()
   const rootRef = useRef<HTMLDivElement>(null)
   const reducedMotion = usePrefersReducedMotion()
 
-  // GSAP: hero entrance + floating preview + scroll reveals
+  // Motion: one orchestrated hero entrance (timeline) + floating preview.
+  // Transform + opacity only; skipped entirely under reduced-motion.
   useLayoutEffect(() => {
     if (reducedMotion || !rootRef.current) return
-    const ctx = gsap.context(() => {
-      gsap.from('.kryzen-hero-el', {
-        y: 26,
-        opacity: 0,
-        duration: 0.9,
-        ease: 'power3.out',
-        stagger: 0.09,
-        delay: 0.1,
-        clearProps: 'transform',
-      })
-      gsap.to('.kryzen-preview', {
-        y: -10,
-        duration: 2.6,
-        ease: 'sine.inOut',
-        yoyo: true,
-        repeat: -1,
-      })
-    }, rootRef)
-    return () => ctx.revert()
-  }, [reducedMotion])
-
-  // GSAP: scroll reveals via IntersectionObserver (no ScrollTrigger plugin needed)
-  useEffect(() => {
-    if (reducedMotion || !rootRef.current) return
-    const els = Array.from(rootRef.current.querySelectorAll<HTMLElement>('.kryzen-reveal'))
-    if (els.length === 0) return
-    gsap.set(els, { y: 28, opacity: 0 })
-    const io = new IntersectionObserver(
-      entries => {
-        entries.forEach(entry => {
-          if (entry.isIntersecting) {
-            gsap.to(entry.target, { y: 0, opacity: 1, duration: 0.7, ease: 'power3.out', overwrite: true })
-            io.unobserve(entry.target)
-          }
-        })
+    const mm = gsap.matchMedia()
+    mm.add(
+      {
+        isDesktop: '(min-width: 1024px)',
+        isCoarse: '(pointer: coarse)',
+        reduce: '(prefers-reduced-motion: reduce)',
       },
-      { threshold: 0.15 }
+      context => {
+        if (context.conditions?.reduce) return
+        const tl = gsap.timeline({ defaults: { duration: 0.7, ease: 'power3.out' } })
+        tl.from('.lp-hero-el', { y: 28, autoAlpha: 0, stagger: 0.08, clearProps: 'transform,visibility' }, 'intro')
+        tl.from('.lp-preview', { y: 32, autoAlpha: 0, scale: 0.98, duration: 0.9, clearProps: 'scale' }, 'intro+=0.15')
+        if (!context.conditions?.isCoarse) {
+          gsap.to('.lp-preview-float', { y: -10, duration: 2.6, ease: 'sine.inOut', yoyo: true, repeat: -1, overwrite: 'auto' })
+        }
+        return () => {
+          tl.kill()
+          gsap.killTweensOf('.lp-preview-float')
+        }
+      }
     )
-    els.forEach(el => io.observe(el))
-    return () => io.disconnect()
+    return () => mm.revert()
   }, [reducedMotion])
 
-  // Anime.js: magnetic CTA buttons + typing-dot pulse (v4 API)
+  // Motion: scroll reveals via ScrollTrigger.batch (single trigger family).
   useEffect(() => {
     if (reducedMotion || !rootRef.current) return
-    const cleanups: Array<() => void> = []
-
-    const dots = rootRef.current.querySelectorAll('.kryzen-typing-dot')
-    if (dots.length > 0) {
-      const anim = animate(dots, {
-        scale: [{ to: 1.6 }, { to: 1 }],
-        opacity: [{ to: 1 }, { to: 0.4 }],
-        duration: 600,
-        delay: stagger(150),
-        loop: true,
-        ease: 'out(3)',
-      })
-      cleanups.push(() => anim.revert?.())
-    }
-
-    const btns = Array.from(rootRef.current.querySelectorAll<HTMLElement>('.kryzen-magnetic'))
-    btns.forEach(btn => {
-      const onMove = (e: MouseEvent) => {
-        const r = btn.getBoundingClientRect()
-        const x = e.clientX - (r.left + r.width / 2)
-        const y = e.clientY - (r.top + r.height / 2)
-        animate(btn, { x: x * 0.12, y: y * 0.18, duration: 400, ease: 'out(3)' })
-      }
-      const onLeave = () => animate(btn, { x: 0, y: 0, duration: 600, ease: 'out(3)' })
-      btn.addEventListener('mousemove', onMove)
-      btn.addEventListener('mouseleave', onLeave)
-      cleanups.push(() => {
-        btn.removeEventListener('mousemove', onMove)
-        btn.removeEventListener('mouseleave', onLeave)
-      })
+    const els = Array.from(rootRef.current.querySelectorAll<HTMLElement>('.lp-reveal'))
+    if (els.length === 0) return
+    gsap.set(els, { y: 28, autoAlpha: 0 })
+    const batch = ScrollTrigger.batch(els, {
+      start: 'top 88%',
+      once: true,
+      onEnter: targets => gsap.to(targets, { y: 0, autoAlpha: 1, duration: 0.7, ease: 'power3.out', stagger: 0.06, overwrite: true, clearProps: 'transform' }),
     })
-
-    return () => cleanups.forEach(fn => fn())
+    ScrollTrigger.refresh()
+    return () => {
+      batch.forEach(t => t.kill())
+      ScrollTrigger.getAll().forEach(t => {
+        if (els.includes(t.trigger as HTMLElement)) t.kill()
+      })
+    }
   }, [reducedMotion])
 
-  // GSAP: subtle orb parallax on desktop pointers
+  // Motion: subtle orb parallax + magnetic CTAs (pointer:fine only, transform only).
   useEffect(() => {
     if (reducedMotion || !rootRef.current) return
     if (window.matchMedia('(pointer: coarse)').matches) return
-    const orbs = rootRef.current.querySelectorAll('.landing-orb')
-    if (orbs.length === 0) return
+    const orbs = rootRef.current.querySelectorAll('.lp-orb')
     const onMove = (e: MouseEvent) => {
       const nx = e.clientX / window.innerWidth - 0.5
       const ny = e.clientY / window.innerHeight - 0.5
-      gsap.to(orbs, { x: (i: number) => nx * (18 + i * 12), y: (i: number) => ny * (14 + i * 10), duration: 1.2, ease: 'power2.out', overwrite: 'auto' })
+      if (orbs.length > 0) {
+        gsap.to(orbs, {
+          x: (i: number) => nx * (18 + i * 12),
+          y: (i: number) => ny * (14 + i * 10),
+          duration: 1.2,
+          ease: 'power2.out',
+          overwrite: 'auto',
+        })
+      }
     }
     window.addEventListener('mousemove', onMove)
-    return () => window.removeEventListener('mousemove', onMove)
+
+    const btns = Array.from(rootRef.current.querySelectorAll<HTMLElement>('.lp-magnetic'))
+    const cleanups: Array<() => void> = []
+    btns.forEach(btn => {
+      const move = (e: MouseEvent) => {
+        const r = btn.getBoundingClientRect()
+        const x = e.clientX - (r.left + r.width / 2)
+        const y = e.clientY - (r.top + r.height / 2)
+        gsap.to(btn, { x: x * 0.12, y: y * 0.18, duration: 0.4, ease: 'power3.out', overwrite: 'auto' })
+      }
+      const leave = () => gsap.to(btn, { x: 0, y: 0, duration: 0.6, ease: 'power3.out', overwrite: 'auto' })
+      btn.addEventListener('mousemove', move)
+      btn.addEventListener('mouseleave', leave)
+      cleanups.push(() => {
+        btn.removeEventListener('mousemove', move)
+        btn.removeEventListener('mouseleave', leave)
+      })
+    })
+    return () => {
+      window.removeEventListener('mousemove', onMove)
+      cleanups.forEach(fn => fn())
+      gsap.killTweensOf(orbs)
+      gsap.killTweensOf(btns)
+    }
   }, [reducedMotion])
 
   return (
-    <div ref={rootRef} className="min-h-screen flex flex-col relative overflow-hidden">
-      {/* Optional Spline 3D backdrop — set VITE_SPLINE_SCENE_URL to enable */}
+    <div ref={rootRef} className="lp-root min-h-screen flex flex-col relative overflow-hidden">
+      <a href="#main" className="lp-skip">
+        Skip to content
+      </a>
+
       {SPLINE_SCENE ? (
         <div className="pointer-events-none absolute inset-0 opacity-60" aria-hidden="true">
           <Suspense fallback={null}>
@@ -170,19 +181,20 @@ export default function LandingPage() {
         </div>
       ) : null}
 
-      {/* Floating orbs background */}
-      <div className="landing-orbs" aria-hidden="true">
-        <div className="landing-orb" />
-        <div className="landing-orb" />
-        <div className="landing-orb" />
+      <div className="lp-orbs" aria-hidden="true">
+        <div className="lp-orb lp-orb-a" />
+        <div className="lp-orb lp-orb-b" />
+        <div className="lp-orb lp-orb-c" />
       </div>
       <Particles />
 
-      <header className="landing-header sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src="/kryzen-logo.svg" alt="Kryzen" className="w-9 h-9 rounded-xl" />
-            <span className="font-bold text-lg tracking-tight landing-hero-title">Kryzen</span>
+      <header className="lp-header sticky top-0 z-10">
+        <nav aria-label="Primary" className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
+          <div className="flex items-center gap-2.5 min-w-0">
+            <Link to="/" className="flex items-center gap-2.5 rounded-lg" aria-label="Kryzen home">
+              <img src="/kryzen-logo.svg" alt="" className="w-9 h-9 rounded-xl" />
+              <span className="font-bold text-lg tracking-tight lp-brand">Kryzen</span>
+            </Link>
             <span className="hidden sm:inline text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">V1</span>
             {RIVE_SRC ? (
               <Suspense fallback={null}>
@@ -192,66 +204,100 @@ export default function LandingPage() {
           </div>
           <div className="flex items-center gap-2">
             {user ? (
-              <Link to="/chat" className="kryzen-magnetic landing-cta-primary px-4 py-2 rounded-full text-white text-sm font-medium flex items-center gap-1.5">Open Chat <ArrowRight className="w-4 h-4"/></Link>
+              <Link to="/chat" className="lp-magnetic lp-cta-primary px-4 py-2 rounded-full text-white text-sm font-medium inline-flex items-center gap-1.5 min-h-[44px]">
+                Open Chat <ArrowRight className="w-4 h-4" aria-hidden="true" />
+              </Link>
             ) : (
               <>
-                <Link to="/login" className="kryzen-magnetic landing-cta-secondary px-4 py-2 rounded-full text-sm font-medium">Sign In</Link>
-                <Link to="/signup" className="kryzen-magnetic landing-cta-primary px-5 py-2.5 rounded-full text-white text-sm font-semibold">Get Started</Link>
+                <Link to="/login" className="lp-magnetic lp-cta-secondary px-4 py-2 rounded-full text-sm font-medium inline-flex items-center min-h-[44px]">
+                  Sign In
+                </Link>
+                <Link to="/signup" className="lp-magnetic lp-cta-primary px-5 py-2.5 rounded-full text-white text-sm font-semibold inline-flex items-center min-h-[44px]">
+                  Get Started
+                </Link>
               </>
             )}
           </div>
-        </div>
+        </nav>
       </header>
 
-      <main className="flex-1 relative z-10">
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12 sm:py-20">
+      <main id="main" className="flex-1 relative z-10">
+        <section aria-labelledby="hero-title" className="max-w-6xl mx-auto px-4 sm:px-6 pt-12 pb-10 sm:py-20">
           <div className="grid lg:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="kryzen-hero-el hero-entrance inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">Fast • Secure • Modern</div>
-              <h1 className="kryzen-hero-el mt-4 text-4xl sm:text-5xl font-extrabold leading-[0.95] tracking-tight hero-entrance-delay gradient-text-animated" style={{fontFamily:'Plus Jakarta Sans, Inter, sans-serif'}}>
-                Kryzen<br/>
+              <p className="lp-hero-el inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 border border-primary/20 text-primary text-xs font-semibold">
+                Fast, secure messaging
+              </p>
+              <h1
+                id="hero-title"
+                className="lp-hero-el mt-4 text-4xl sm:text-5xl font-extrabold leading-[1.02] tracking-tight lp-gradient-text"
+              >
                 Connect. Chat. Share.
               </h1>
-              <p className="kryzen-hero-el mt-4 text-lg text-muted-foreground leading-relaxed hero-entrance-delay-2">A fast, modern messaging platform built for simple and meaningful communication. Real-time, private, and beautifully crafted.</p>
-              <div className="kryzen-hero-el mt-8 flex flex-wrap gap-3 hero-entrance-delay-3">
-                <Link to={user?"/chat":"/signup"} className="kryzen-magnetic landing-cta-primary px-7 py-3 rounded-full text-white font-semibold flex items-center gap-2">Get Started <ArrowRight className="w-4 h-4"/></Link>
-                <Link to="/login" className="kryzen-magnetic landing-cta-secondary px-7 py-3 rounded-full font-semibold">Sign In</Link>
+              <p className="lp-hero-el mt-4 text-lg text-muted-foreground leading-relaxed max-w-[60ch]">
+                Real-time chat with groups, media, and presence. Private by design.
+              </p>
+              <div className="lp-hero-el mt-8 flex flex-wrap gap-3">
+                <Link
+                  to={user ? '/chat' : '/signup'}
+                  className="lp-magnetic lp-cta-primary px-7 py-3 rounded-full text-white font-semibold inline-flex items-center gap-2 min-h-[48px]"
+                >
+                  Get Started <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </Link>
+                {!user ? (
+                  <Link to="/login" className="lp-magnetic lp-cta-secondary px-7 py-3 rounded-full font-semibold inline-flex items-center min-h-[48px]">
+                    Sign In
+                  </Link>
+                ) : null}
               </div>
-              <div className="kryzen-hero-el mt-6 flex items-center gap-4 text-xs text-muted-foreground hero-entrance-delay-4">
-                <span className="flex items-center gap-1.5"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"/> End-to-end ready architecture</span>
-                <span>•</span><span>No ads • No trackers</span>
-              </div>
+              <ul aria-label="Highlights" className="lp-hero-el mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
+                <li className="flex items-center gap-1.5">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" /> E2E-ready architecture
+                </li>
+                <li aria-hidden="true">•</li>
+                <li>No ads, no trackers</li>
+              </ul>
             </div>
-            <div className="kryzen-hero-el relative hero-entrance-delay-2">
-              <div className="absolute -inset-4 bg-gradient-to-br from-primary/15 to-accent/10 rounded-[2rem] blur-2xl" />
-              <div className="kryzen-preview landing-preview-card preview-glow preview-float overflow-hidden relative z-10">
-                <div className="h-12 flex items-center gap-2 px-4 border-b border-[var(--k-border)]/50" style={{background:'hsl(var(--k-surface) / 0.8)'}}>
-                  <span className="w-3 h-3 rounded-full bg-red-400"/><span className="w-3 h-3 rounded-full bg-yellow-400"/><span className="w-3 h-3 rounded-full bg-green-400"/>
+            <div className="lp-hero-el lp-preview relative">
+              <div className="absolute -inset-4 bg-gradient-to-br from-primary/15 to-accent/10 rounded-[2rem] blur-2xl" aria-hidden="true" />
+              <div className="lp-preview-float lp-preview-card overflow-hidden relative z-10" role="img" aria-label="Preview of a Kryzen conversation with text and image messages">
+                <div className="h-12 flex items-center gap-2 px-4 border-b border-border/50 bg-card/80">
+                  <span className="w-3 h-3 rounded-full bg-red-400" aria-hidden="true" />
+                  <span className="w-3 h-3 rounded-full bg-yellow-400" aria-hidden="true" />
+                  <span className="w-3 h-3 rounded-full bg-green-400" aria-hidden="true" />
                   <span className="ml-3 text-xs font-medium text-muted-foreground">Kryzen — Preview</span>
                   <span className="ml-auto flex items-center gap-1" aria-hidden="true">
-                    <span className="kryzen-typing-dot w-1.5 h-1.5 rounded-full bg-primary/70" />
-                    <span className="kryzen-typing-dot w-1.5 h-1.5 rounded-full bg-primary/70" />
-                    <span className="kryzen-typing-dot w-1.5 h-1.5 rounded-full bg-primary/70" />
+                    <span className="lp-typing-dot" />
+                    <span className="lp-typing-dot" />
+                    <span className="lp-typing-dot" />
                   </span>
                 </div>
                 <div className="p-4 space-y-3">
                   <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 shadow-md" />
-                    <div className="landing-preview-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Hey! Are we still meeting tomorrow?</p><p className="text-[11px] text-muted-foreground mt-1">10:42 AM</p></div>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-pink-500 to-orange-500 shrink-0" aria-hidden="true" />
+                    <div className="lp-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]">
+                      <p className="text-sm">Hey! Are we still meeting tomorrow?</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">10:42 AM</p>
+                    </div>
                   </div>
                   <div className="flex gap-2 justify-end">
-                    <div className="landing-preview-msg-out text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Absolutely! Can't wait</p><p className="text-[11px] text-white/70 mt-1 text-right">10:43 AM ✓✓</p></div>
+                    <div className="lp-msg-out text-white rounded-2xl rounded-br-md px-4 py-2.5 max-w-[70%]">
+                      <p className="text-sm">Absolutely! Can&apos;t wait</p>
+                      <p className="text-[11px] text-white/70 mt-1 text-right">10:43 AM ✓✓</p>
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 shadow-md" />
-                    <div className="landing-preview-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]"><p className="text-sm">Check this design I made ✨</p><div className="mt-2 w-40 h-24 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs shadow-inner">Image Preview</div></div>
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-br from-emerald-500 to-teal-500 shrink-0" aria-hidden="true" />
+                    <div className="lp-msg-in rounded-2xl rounded-bl-md px-4 py-2.5 max-w-[70%]">
+                      <p className="text-sm">Check this design I made</p>
+                      <div className="mt-2 w-40 h-24 rounded-xl bg-gradient-to-br from-primary to-accent flex items-center justify-center text-white text-xs" aria-hidden="true">
+                        Image Preview
+                      </div>
+                    </div>
                   </div>
-                  <div className="flex gap-2 justify-end">
-                    <div className="landing-preview-msg-out text-white rounded-2xl rounded-br-md px-4 py-2.5"><p className="text-sm">Love it! ❤️</p></div>
-                  </div>
-                  <div className="flex items-center gap-2 px-2 pt-2 border-t border-[var(--k-border)]/40">
-                    <div className="flex-1 h-9 rounded-full" style={{background:'hsl(var(--k-surface-2) / 0.6)'}} />
-                    <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground shadow-lg shadow-primary/20">➤</div>
+                  <div className="flex items-center gap-2 px-2 pt-2 border-t border-border/40" aria-hidden="true">
+                    <div className="flex-1 h-9 rounded-full bg-muted/60" />
+                    <div className="w-9 h-9 rounded-full bg-primary flex items-center justify-center text-primary-foreground">➤</div>
                   </div>
                 </div>
               </div>
@@ -259,28 +305,82 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4 stagger-in">
-            {[
-              {icon: Zap, title:'Real-time messaging', desc:'Instant delivery with typing indicators, read receipts and presence.'},
-              {icon: Users, title:'Groups', desc:'Create groups, manage roles, add members and collaborate.'},
-              {icon: ImageIcon, title:'Media sharing', desc:'Share images, PDFs and files securely with previews.'},
-              {icon: Shield, title:'Privacy-focused', desc:'Secure auth, protected routes, and thoughtful data handling.'},
-              {icon: Smartphone, title:'Responsive', desc:'Flawless experience on desktop, tablet and mobile.'},
-              {icon: MessageCircle, title:'Delightful UX', desc:'Clean, modern design with light/dark themes.'},
-            ].map(card=> (
-              <div key={card.title} className="kryzen-reveal landing-feature-card p-5">
-                <div className="icon-wrap w-10 h-10 rounded-xl flex items-center justify-center text-primary"><card.icon className="w-5 h-5"/></div>
+        <section aria-label="Trust" className="max-w-6xl mx-auto px-4 sm:px-6 pb-4">
+          <ul className="lp-reveal flex flex-wrap items-center justify-center gap-2 text-xs text-muted-foreground">
+            {['No ads', 'Typing + presence', 'Groups + roles', 'Image + file sharing', 'Light / dark themes'].map(t => (
+              <li key={t} className="px-3 py-1.5 rounded-full border border-border/40 bg-card/60 inline-flex items-center gap-1.5">
+                <Check className="w-3.5 h-3.5 text-emerald-500" aria-hidden="true" /> {t}
+              </li>
+            ))}
+          </ul>
+        </section>
+
+        <section aria-labelledby="features-title" className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+          <h2 id="features-title" className="lp-reveal text-2xl sm:text-3xl font-bold tracking-tight">
+            Everything for meaningful chat
+          </h2>
+          <p className="lp-reveal mt-2 text-sm text-muted-foreground max-w-[65ch]">Six focused capabilities. No bloat, no noise.</p>
+          <div className="mt-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {FEATURES.map(card => (
+              <article key={card.title} className={`lp-reveal lp-feature-card p-5 ${card.span}`}>
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-primary/10 text-primary border border-primary/20">
+                  <card.icon className="w-5 h-5" aria-hidden="true" />
+                </div>
                 <h3 className="font-semibold mt-3 tracking-tight">{card.title}</h3>
                 <p className="text-sm text-muted-foreground mt-1 leading-relaxed">{card.desc}</p>
-              </div>
+              </article>
             ))}
+          </div>
+        </section>
+
+        <section aria-labelledby="secure-title" className="max-w-6xl mx-auto px-4 sm:px-6 py-10">
+          <div className="lp-reveal lp-secure grid lg:grid-cols-2 gap-8 items-center p-6 sm:p-10 rounded-[2rem]">
+            <div>
+              <h2 id="secure-title" className="text-2xl sm:text-3xl font-bold tracking-tight">Private by design, fast by default</h2>
+              <p className="mt-3 text-sm text-muted-foreground leading-relaxed max-w-[60ch]">
+                JWT auth with protected routes, validated uploads, and WebSocket presence. Your conversations stay yours.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-sm">
+                {['JWT + bcrypt auth, invite links with expiry', 'WebSocket events: message, typing, presence, read', 'Validated uploads with image previews'].map(t => (
+                  <li key={t} className="flex items-start gap-2">
+                    <Check className="w-4 h-4 mt-0.5 text-emerald-500 shrink-0" aria-hidden="true" />
+                    <span>{t}</span>
+                  </li>
+                ))}
+              </ul>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Link to={user ? '/chat' : '/signup'} className="lp-magnetic lp-cta-primary px-6 py-3 rounded-full text-white text-sm font-semibold inline-flex items-center gap-2 min-h-[48px]">
+                  Get Started <ArrowRight className="w-4 h-4" aria-hidden="true" />
+                </Link>
+              </div>
+            </div>
+            <div className="lp-status-card rounded-2xl p-5" aria-label="Delivery states">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-widest">Delivery states</p>
+              <ul className="mt-4 space-y-3 text-sm">
+                {[
+                  ['Sending', 'Queued on your device'],
+                  ['Sent', 'Reached the server'],
+                  ['Delivered', 'On your friend’s device'],
+                  ['Read', 'Seen, with receipt'],
+                ].map(([s, d]) => (
+                  <li key={s} className="flex items-center justify-between gap-4 border-b border-border/40 pb-3 last:border-0 last:pb-0">
+                    <span className="font-medium">{s}</span>
+                    <span className="text-muted-foreground text-xs sm:text-sm text-right">{d}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
           </div>
         </section>
       </main>
 
-      <footer className="border-t border-[var(--k-border)]/40 py-8 text-center text-xs text-muted-foreground relative z-10">
+      <footer className="border-t border-border/40 py-8 text-center text-xs text-muted-foreground relative z-10 px-4">
         <p>© 2026 Kryzen • Connect. Chat. Share. • Built with FastAPI + React • Not affiliated with WhatsApp.</p>
+        <p className="mt-2">
+          <Link to="/login" className="underline underline-offset-4 rounded px-1 py-1">Sign In</Link>
+          {' • '}
+          <Link to="/signup" className="underline underline-offset-4 rounded px-1 py-1">Get Started</Link>
+        </p>
       </footer>
     </div>
   )
