@@ -7,13 +7,12 @@ function isCancel(err: any): boolean {
 }
 
 /**
- * Broadcast lists, PE-2E pass (WhatsApp-style: one message fanned out as
- * individual 1-1 chats; recipients never see each other).
- *
- * Real contract only (`api/broadcasts.py`): list / create {name,
- * member_usernames} / delete / send {content ≤4000}. There are NO
- * add/remove-member endpoints, so the manager offers create + send +
- * delete only — member editing is documented as unsupported, not faked.
+ * Broadcast lists, PE-2E pass + PE-2G membership (WhatsApp-style: one
+ * message fanned out as individual 1-1 chats; recipients never see each
+ * other). Real contract (`api/broadcasts.py` + `services/broadcasts.py`):
+ * list / create / delete / send / members / add-member / remove-member.
+ * All lists shown are owner-scoped server-side, so the members section
+ * needs no additional visibility gating.
  */
 export function BroadcastPanel({ onClose }: { onClose: () => void }) {
   const [lists, setLists] = useState<any[]>([])
@@ -27,6 +26,11 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
   const [drafts, setDrafts] = useState<Record<number, string>>({})
   const [sendingId, setSendingId] = useState<number | null>(null)
   const [msg, setMsg] = useState<string | null>(null)
+  // PE-2G membership: per-list expand + member cache + add inputs.
+  const [expanded, setExpanded] = useState<Record<number, boolean>>({})
+  const [members, setMembers] = useState<Record<number, { loading: boolean; error: boolean; items: any[] }>>({})
+  const [addName, setAddName] = useState<Record<number, string>>({})
+  const [addingId, setAddingId] = useState<number | null>(null)
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -98,6 +102,70 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
     } finally {
       setSendingId(null)
+    }
+  }
+
+  const toggleMembersRefresh = async (id: number) => {
+    setMembers((m) => ({ ...m, [id]: { loading: true, error: false, items: [] } }))
+    try {
+      const r = await broadcastApi.members(id)
+      if (r?.success) {
+        setMembers((m) => ({ ...m, [id]: { loading: false, error: false, items: r.data?.members || [] } }))
+      } else {
+        setMembers((m) => ({ ...m, [id]: { loading: false, error: true, items: [] } }))
+      }
+    } catch (e: any) {
+      if (isCancel(e)) return
+      setMembers((m) => ({ ...m, [id]: { loading: false, error: true, items: [] } }))
+    }
+  }
+
+  const toggleMembers = async (id: number) => {
+    const open = !expanded[id]
+    setExpanded((e) => ({ ...e, [id]: open }))
+    if (!open || members[id]?.items) return
+    await toggleMembersRefresh(id)
+  }
+
+  const addMember = async (id: number) => {
+    const username = (addName[id] || '').trim().replace(/^@/, '')
+    if (!username || addingId) return
+    setAddingId(id)
+    try {
+      const r = await broadcastApi.addMember(id, { username })
+      if (r?.success) {
+        setLists((l) => l.map((x) => (x.id === id ? r.data : x)))
+        setAddName((a) => ({ ...a, [id]: '' }))
+        setMsg(r?.message || 'Added to list')
+        if (expanded[id]) await toggleMembersRefresh(id)
+        else setMembers((m) => ({ ...m, [id]: undefined as any }))
+      } else {
+        setMsg(r?.message || 'Failed')
+      }
+    } catch (e: any) {
+      setMsg(e.response?.data?.detail || e.response?.data?.message || 'Failed')
+    } finally {
+      setAddingId(null)
+    }
+  }
+
+  const removeMember = async (id: number, userId: number, username: string) => {
+    if (!confirm(`Remove @${username} from this list?`)) return
+    try {
+      const r = await broadcastApi.removeMember(id, userId)
+      if (r?.success) {
+        setLists((l) => l.map((x) => (x.id === id ? r.data : x)))
+        setMembers((m) => {
+          const cur = m[id]
+          if (!cur) return m
+          return { ...m, [id]: { ...cur, items: cur.items.filter((u: any) => u.id !== userId) } }
+        })
+        setMsg(r?.message || 'Removed from list')
+      } else {
+        setMsg(r?.message || 'Failed')
+      }
+    } catch (e: any) {
+      setMsg(e.response?.data?.detail || e.response?.data?.message || 'Failed')
     }
   }
 
@@ -191,7 +259,14 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
                   <span className="truncate">{l.name}</span>
                 </p>
                 <div className="flex items-center gap-1 shrink-0">
-                  <span className="text-[11px] text-muted-foreground">{l.member_count ?? (l.member_ids || []).length} people</span>
+                  <button
+                    onClick={() => void toggleMembers(l.id)}
+                    aria-expanded={!!expanded[l.id]}
+                    aria-label={`${expanded[l.id] ? 'Hide' : 'Show'} members of ${l.name}`}
+                    className="text-[11px] text-muted-foreground hover:text-foreground underline-offset-2 hover:underline min-h-[44px] px-1"
+                  >
+                    {l.member_count ?? (l.member_ids || []).length} people
+                  </button>
                   <button
                     onClick={() => void remove(l.id, l.name)}
                     aria-label={`Delete broadcast list ${l.name}`}
@@ -201,6 +276,74 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
               </div>
+              {expanded[l.id] && (
+                <div className="border-t border-border pt-2 space-y-2">
+                  {(() => {
+                    const st = members[l.id]
+                    if (!st || st.loading) {
+                      return <p className="text-xs text-muted-foreground py-1" aria-label="Loading members">Loading…</p>
+                    }
+                    if (st.error) {
+                      return (
+                        <div className="flex items-center gap-2">
+                          <p className="text-xs text-muted-foreground flex-1">Couldn&apos;t load members.</p>
+                          <button
+                            onClick={() => void toggleMembersRefresh(l.id)}
+                            className="px-3 py-2 rounded-xl bg-muted text-xs font-semibold min-h-[44px]"
+                          >
+                            Retry
+                          </button>
+                        </div>
+                      )
+                    }
+                    return (
+                      <>
+                        {st.items.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-1">No members — add one below.</p>
+                        ) : (
+                          st.items.map((u: any) => (
+                            <div key={u.id} className="flex items-center gap-2.5">
+                              <span className="w-8 h-8 rounded-full kryzen-accent-gradient text-white flex items-center justify-center text-xs font-bold shrink-0" aria-hidden="true">
+                                {(u.display_name || u.username || '?')[0]?.toUpperCase()}
+                              </span>
+                              <span className="flex-1 min-w-0">
+                                <span className="block text-[13px] font-medium truncate">{u.display_name || u.username}</span>
+                                <span className="block text-[11px] text-muted-foreground truncate">@{u.username}</span>
+                              </span>
+                              <button
+                                onClick={() => void removeMember(l.id, u.id, u.username)}
+                                aria-label={`Remove @${u.username} from ${l.name}`}
+                                className="w-11 h-11 rounded-full flex items-center justify-center text-muted-foreground hover:bg-background hover:text-destructive shrink-0"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ))
+                        )}
+                        <div className="flex gap-2">
+                          <label htmlFor={`broadcast-add-${l.id}`} className="sr-only">Add member to {l.name}</label>
+                          <input
+                            id={`broadcast-add-${l.id}`}
+                            value={addName[l.id] || ''}
+                            onChange={(e) => setAddName((a) => ({ ...a, [l.id]: e.target.value }))}
+                            onKeyDown={(e) => { if (e.key === 'Enter') void addMember(l.id) }}
+                            placeholder="@username to add"
+                            className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-background border border-transparent focus:border-primary outline-none text-xs min-h-[44px]"
+                          />
+                          <button
+                            onClick={() => void addMember(l.id)}
+                            disabled={addingId === l.id || !(addName[l.id] || '').trim()}
+                            className="px-3 rounded-xl bg-muted text-xs font-semibold disabled:opacity-40 shrink-0 min-h-[44px] min-w-[44px]"
+                            aria-label={`Add member to ${l.name}`}
+                          >
+                            {addingId === l.id ? '…' : 'Add'}
+                          </button>
+                        </div>
+                      </>
+                    )
+                  })()}
+                </div>
+              )}
               <div className="flex gap-2">
                 <label htmlFor={`broadcast-draft-${l.id}`} className="sr-only">Message to {l.name}</label>
                 <input

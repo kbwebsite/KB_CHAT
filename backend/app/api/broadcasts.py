@@ -8,6 +8,8 @@ from app.models.conversation import Conversation, ConversationMember
 from app.models.message import Message
 from app.models.broadcast import BroadcastList
 from app.schemas.common import success_response
+from app.services.errors import service_route
+from app.services import broadcasts as broadcast_service
 
 router = APIRouter(prefix="/api/broadcasts", tags=["broadcasts"])
 
@@ -115,6 +117,55 @@ def delete_broadcast(
     db.delete(bl)
     db.commit()
     return success_response(None, "Broadcast list deleted")
+
+
+@router.get("/{list_id}/members")
+@service_route
+def list_broadcast_members(
+    list_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    bl, members = broadcast_service.list_members(
+        db, list_id=list_id, owner_id=current_user.id
+    )
+    return success_response({"list": _list_to_dict(bl), "members": members})
+
+
+@router.post("/{list_id}/members")
+@service_route
+def add_broadcast_member(
+    list_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    bl, added = broadcast_service.add_member(
+        db,
+        list_id=list_id,
+        owner_id=current_user.id,
+        user_id=payload.get("user_id"),
+        username=payload.get("username"),
+    )
+    return success_response(
+        _list_to_dict(bl), "Added to list" if added else "Already a member"
+    )
+
+
+@router.delete("/{list_id}/members/{user_id}")
+@service_route
+def remove_broadcast_member(
+    list_id: int,
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    bl, removed = broadcast_service.remove_member(
+        db, list_id=list_id, owner_id=current_user.id, user_id=user_id
+    )
+    return success_response(
+        _list_to_dict(bl), "Removed from list" if removed else "Not a member"
+    )
 
 
 @router.post("/{list_id}/send")

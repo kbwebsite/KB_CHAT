@@ -226,6 +226,9 @@ export const broadcastApi = {
   create: (data:{name:string, member_usernames?:string[]}) => api.post(`/api/broadcasts`, data).then(r=>r.data),
   remove: (id:number) => api.delete(`/api/broadcasts/${id}`).then(r=>r.data),
   send: (id:number, content:string) => api.post(`/api/broadcasts/${id}/send`, {content}).then(r=>r.data),
+  members: (id:number, signal?:AbortSignal) => api.get(`/api/broadcasts/${id}/members`, { signal }).then(r=>r.data),
+  addMember: (id:number, data:{user_id?:number, username?:string}) => api.post(`/api/broadcasts/${id}/members`, data).then(r=>r.data),
+  removeMember: (id:number, userId:number) => api.delete(`/api/broadcasts/${id}/members/${userId}`).then(r=>r.data),
 }
 
 export const communityApi = {
