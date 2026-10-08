@@ -185,7 +185,7 @@ export const authApi = {
 }
 
 export const usersApi = {
-  search: (q:string) => api.get(`/api/users/search?q=${encodeURIComponent(q)}`).then(r=>r.data),
+  search: (q:string, signal?:AbortSignal) => api.get(`/api/users/search?q=${encodeURIComponent(q)}`, { signal }).then(r=>r.data),
   getByUsername: (u:string) => api.get(`/api/users/${u}`).then(r=>r.data),
   updateMe: (data:any) => api.patch('/api/users/me', data).then(r=>r.data),
   leaderboard: (scope: 'global' | 'friends' = 'global', period: 'weekly' | 'monthly' | 'all' = 'weekly') => api.get(`/api/users/leaderboard?scope=${scope}&period=${period}`).then(r=>r.data),
@@ -264,7 +264,7 @@ export const msgApi = {
   react: (mid:number, emoji:string) => api.post(`/api/messages/${mid}/reactions`, { emoji }).then(r=>r.data),
   removeReaction: (mid:number, emoji:string) => api.delete(`/api/messages/${mid}/reactions?emoji=${encodeURIComponent(emoji)}`).then(r=>r.data),
   receipts: (mid:number) => api.get(`/api/messages/${mid}/receipts`).then(r=>r.data),
-  search: (q:string, cid?:number) => api.get(`/api/messages/search?q=${encodeURIComponent(q)}${cid?`&conversation_id=${cid}`:''}`).then(r=>r.data),
+  search: (q:string, cid?:number, signal?:AbortSignal) => api.get(`/api/messages/search?q=${encodeURIComponent(q)}${cid?`&conversation_id=${cid}`:''}`, { signal }).then(r=>r.data),
 }
 
 export const uploadApi = {

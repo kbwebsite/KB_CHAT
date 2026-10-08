@@ -19,6 +19,7 @@ import { Message } from '../types'
 import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise, Info } from 'lucide-react'
 import { MessageInfo } from '../components/MessageInfo'
 import { OnboardingPanel, isOnboarded } from '../components/OnboardingPanel'
+import { GlobalSearch } from '../components/GlobalSearch'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
@@ -112,6 +113,7 @@ export default function ChatPage() {
   const [languagesLoading, setLanguagesLoading] = useState(false)
   const [pendingTranslateMsg, setPendingTranslateMsg] = useState<Message | null>(null)
   const [showAgentPanel, setShowAgentPanel] = useState(false)
+  const [showSearch, setShowSearch] = useState(false)
 
   const currentConv = conversations.find((c: any) => c.id === currentConversationId) || null
 
@@ -172,6 +174,8 @@ export default function ChatPage() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowCommandPalette(true) }
       if (e.key === 'Escape') {
+        // Global search closes first (PE-2A): it is the topmost layer.
+        if (showSearch) { setShowSearch(false); return }
         if (mobileView === 'chat') {
           handleBack()
         } else {
@@ -187,7 +191,7 @@ export default function ChatPage() {
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [mobileView])
+  }, [mobileView, showSearch])
 
   // ─── Back navigation (mobile) ───
   const handleBack = () => {
@@ -422,6 +426,19 @@ export default function ChatPage() {
     try { await extendedApi.mute(currentConv.id, next); setIsMuted(next) } catch {}
   }
 
+  // ─── Global search navigation ───
+  const handleSearchNavigate = async (cid: number, mid?: number) => {
+    setShowSearch(false)
+    if (mid) {
+      await useChatStore.getState().jumpToMessageId(cid, mid)
+    } else {
+      await handleSelect(cid)
+      return
+    }
+    setMobileView('chat')
+    setMobileNavTab('chats')
+  }
+
   // ─── Message search ───
   const handleMessageSearch = async () => {
     if (!messageSearch.trim()) return
@@ -503,6 +520,8 @@ export default function ChatPage() {
   const capAppRef = useRef<any>(null)
   const backRef = useRef<() => void>(() => {})
   backRef.current = () => {
+    // Global search is the topmost layer (PE-2A): OS back closes it first.
+    if (showSearch) { setShowSearch(false); return }
     if (lightbox) { setLightbox(null); return }
     if (statusViewer) { setStatusViewer(null); return }
     if (forwardMsg) { setForwardMsg(null); return }
@@ -565,6 +584,7 @@ export default function ChatPage() {
             onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
             onSaved={() => { closeAllPanels(); setShowSaved(true) }}
             onSettings={() => { closeAllPanels(); setShowSettings(true) }}
+            onSearch={() => setShowSearch(true)}
           />
         )}
 
@@ -713,6 +733,13 @@ export default function ChatPage() {
             onMobileViewChange={(view: 'list' | 'chat') => setMobileView(view)}
           />
         )}
+
+        {/* Global search (PE-2A) */}
+        <GlobalSearch
+          open={showSearch}
+          onClose={() => setShowSearch(false)}
+          onOpenConversation={handleSearchNavigate}
+        />
 
         {/* Modals */}
         <ChatModals

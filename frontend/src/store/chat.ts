@@ -66,6 +66,9 @@ interface ChatState {
   setTyping: (convId:number, userId:number, isTyping:boolean)=>void
   setOnline: (userId:number, isOnline:boolean)=>void
   searchMessages: (q:string, convId?:number)=>Promise<Message[]>
+  pendingJump: { cid:number, mid:number, found:boolean } | null
+  jumpToMessageId: (cid:number, mid:number)=>Promise<boolean>
+  clearPendingJump: ()=>void
   markRead: (convId:number, lastId:number)=>void
   setMessageStatus: (convId:number, msgId:number, status:string)=>void
 }
@@ -498,6 +501,23 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     const res = await msgApi.search(q, convId)
     if (res.success) return res.data
     return []
+  },
+  pendingJump: null,
+  clearPendingJump: ()=> set({ pendingJump: null }),
+  jumpToMessageId: async (cid, mid)=>{
+    // Exact jump reusing the normal history path: fetch the page ending at
+    // the target (before is exclusive), so the message is in the list, then
+    // hand off to ChatView for scroll+flash via pendingJump. If the target
+    // is cleared/deleted server-side it won't be there — still open the
+    // conversation (found=false) rather than stranding the user.
+    get().setCurrent(cid)
+    try {
+      await get().fetchMessages(cid, mid + 1)
+    } catch { /* fall through to plain open */ }
+    const list = get().messages[cid] || []
+    const found = list.some((m:Message)=> m.id === mid)
+    set({ pendingJump: { cid, mid, found } })
+    return found
   },
   markRead: (convId, lastId)=>{
     if (!convId || !(lastId > 0)) return

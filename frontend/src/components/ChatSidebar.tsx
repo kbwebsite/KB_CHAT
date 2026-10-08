@@ -29,6 +29,7 @@ export function ChatSidebar({
   onNotifications,
   onSaved,
   onSettings,
+  onSearch,
 }: {
   onSelect: (id: number) => void
   onStatusViewer: (statuses: any[], idx: number) => void
@@ -41,6 +42,7 @@ export function ChatSidebar({
   onNotifications?: () => void
   onSaved?: () => void
   onSettings?: () => void
+  onSearch?: () => void
 }) {
   const { user } = useAuthStore()
   // Selective subscriptions (see ChatView): whole-store subs re-render on
@@ -168,6 +170,15 @@ export function ChatSidebar({
         >
           <UserPlus className="w-5 h-5" />
         </button>
+        {onSearch && (
+          <button
+            onClick={onSearch}
+            className="btn-icon"
+            aria-label="Global search"
+          >
+            <Search className="w-5 h-5" />
+          </button>
+        )}
         <div className="relative">
           <button
             onClick={() => setShowMenu(v => !v)}
@@ -283,6 +294,20 @@ export function ChatSidebar({
               </button>
             )
           })}
+        </div>
+      )}
+
+      {/* Desktop global-search entry (mobile header is hidden on desktop) */}
+      {onSearch && !showContacts && !showSaved && !showCalls && !showBroadcasts && !showCommunities && !showChannels && (
+        <div className="hidden lg:flex px-3 pb-1">
+          <button
+            onClick={onSearch}
+            aria-label="Global search"
+            className="w-full flex items-center gap-2.5 px-3.5 py-2.5 rounded-xl bg-muted hover:bg-accent transition-colors text-sm text-muted-foreground min-h-[44px]"
+          >
+            <Search className="w-4 h-4 shrink-0" />
+            <span className="flex-1 text-left truncate">Search people, messages, chats…</span>
+          </button>
         </div>
       )}
 

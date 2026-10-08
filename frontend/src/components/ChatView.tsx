@@ -94,6 +94,25 @@ export function ChatView({
   const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
   const [convAccent, setConvAccentState] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+  const pendingJump = useChatStore((s: any) => s.pendingJump)
+  // Global-search jump landing: scroll to the exact message + flash it,
+  // reusing the same affordance as in-conversation search jumps.
+  useEffect(() => {
+    if (!pendingJump || pendingJump.cid !== currentConversationId) return
+    if (!pendingJump.found) {
+      useChatStore.getState().clearPendingJump()
+      return
+    }
+    const mid = pendingJump.mid
+    useChatStore.getState().clearPendingJump()
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        document.getElementById(`msg-${mid}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+        setFlashId(mid)
+        setTimeout(() => setFlashId(null), 1800)
+      }, 80)
+    })
+  }, [pendingJump, currentConversationId])
   const hiddenTick = useChatStore((s: any) => s.hiddenTick)
   const convWpFileRef = useRef<HTMLInputElement>(null)
   const [showNewIndicator, setShowNewIndicator] = useState(false)
