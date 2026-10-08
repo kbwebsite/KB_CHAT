@@ -2,17 +2,17 @@
 <!-- Public marketing/auth pages only; the app itself requires login. -->
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://kb-chat-jqdk.onrender.com/</loc>
+    <loc>https://kb-chat-1.onrender.com/</loc>
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://kb-chat-jqdk.onrender.com/login</loc>
+    <loc>https://kb-chat-1.onrender.com/login</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>
   <url>
-    <loc>https://kb-chat-jqdk.onrender.com/signup</loc>
+    <loc>https://kb-chat-1.onrender.com/signup</loc>
     <changefreq>yearly</changefreq>
     <priority>0.3</priority>
   </url>

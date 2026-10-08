@@ -23,7 +23,7 @@ class User(Base):
     display_name = Column(String(100), nullable=False)
     hashed_password = Column(String(255), nullable=False)
     avatar_url = Column(String(500), nullable=True)
-    about = Column(Text, nullable=True, default="Hey there! I'm using KB Chat.")
+    about = Column(Text, nullable=True, default="Hey there! I'm using Kryzen.")
     status_message = Column(String(100), nullable=True)
     status_expires_at = Column(DateTime(timezone=True), nullable=True)
     is_online = Column(Boolean, default=False)

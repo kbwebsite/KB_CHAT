@@ -52,7 +52,7 @@ def signup(
             email=payload.email.lower(),
             display_name=payload.display_name,
             hashed_password=hashed,
-            about="Hey there! I'm using KB Chat.",
+            about="Hey there! I'm using Kryzen.",
         )
         db.add(user)
         db.commit()
@@ -336,7 +336,7 @@ def _get_or_create_oauth_user(
     if user:
         if not user.avatar_url and picture:
             user.avatar_url = picture
-        if user.display_name == "Hey there! I'm using KB Chat." and name:
+        if user.display_name == "Hey there! I'm using Kryzen." and name:
             user.display_name = name
         # OAuth emails arrive pre-verified by the provider — record it so
         # the account never falls into the native verification gate.

@@ -347,7 +347,7 @@ def export_chat(
         )
     if format == "txt":
         lines = []
-        lines.append(f"KB Chat Export - Conversation {conv_id}")
+        lines.append(f"Kryzen Export - Conversation {conv_id}")
         lines.append(f"Exported at: {datetime.now(timezone.utc).isoformat()}")
         lines.append(f"Is Group: {conv.is_group}, Title: {conv.title or 'Direct'}")
         lines.append(

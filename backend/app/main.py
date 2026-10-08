@@ -100,9 +100,9 @@ async def lifespan(app):
 
 
 app = FastAPI(
-    title="KB Chat API",
+    title="Kryzen API",
     version="3.0.0",
-    description="KB Chat - Connect. Chat. Share. AI-Powered.",
+    description="Kryzen - Connect. Chat. Share. AI-Powered.",
     lifespan=lifespan,
 )
 
