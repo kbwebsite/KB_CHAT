@@ -1,6 +1,6 @@
 import { Suspense, lazy, memo, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MessageCircle, Users, Shield, Zap, Image as ImageIcon, Smartphone, ArrowRight, Check } from 'lucide-react'
+import { MessageCircle, Users, Shield, Zap, Image as ImageIcon, Smartphone, ArrowRight, Check, Download } from 'lucide-react'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { useAuthStore } from '../store/auth'
@@ -12,6 +12,10 @@ const RiveBadge = lazy(() => import('../components/RiveBadge'))
 
 const SPLINE_SCENE = import.meta.env.VITE_SPLINE_SCENE_URL as string | undefined
 const RIVE_SRC = import.meta.env.VITE_RIVE_SRC as string | undefined
+
+// Free Android build (signed APK, GitHub Release asset — no Play account needed).
+const APK_VERSION = '1.2.0'
+const APK_URL = `https://github.com/kbwebsite/KB_CHAT/releases/download/v${APK_VERSION}/kryzen-v${APK_VERSION}.apk`
 
 function usePrefersReducedMotion() {
   const [reduced, setReduced] = useState(false)
@@ -195,7 +199,7 @@ export default function LandingPage() {
               <img src="/kryzen-logo.svg" alt="" className="w-9 h-9 rounded-xl" />
               <span className="font-bold text-lg tracking-tight lp-brand">Kryzen</span>
             </Link>
-            <span className="hidden sm:inline text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">V1</span>
+            <span className="hidden sm:inline text-xs px-2 py-1 rounded-full bg-primary/10 text-primary font-medium">V1.2</span>
             {RIVE_SRC ? (
               <Suspense fallback={null}>
                 <RiveBadge src={RIVE_SRC} />
@@ -249,7 +253,16 @@ export default function LandingPage() {
                     Sign In
                   </Link>
                 ) : null}
+                <a
+                  href={APK_URL}
+                  className="lp-magnetic lp-cta-secondary px-7 py-3 rounded-full font-semibold inline-flex items-center gap-2 min-h-[48px]"
+                >
+                  <Smartphone className="w-4 h-4" aria-hidden="true" /> Android app
+                </a>
               </div>
+              <p className="lp-hero-el mt-3 text-xs text-muted-foreground">
+                Free download · v{APK_VERSION} · direct APK, no account needed
+              </p>
               <ul aria-label="Highlights" className="lp-hero-el mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 <li className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" /> E2E-ready architecture
@@ -380,6 +393,10 @@ export default function LandingPage() {
           <Link to="/login" className="underline underline-offset-4 rounded px-1 py-1">Sign In</Link>
           {' • '}
           <Link to="/signup" className="underline underline-offset-4 rounded px-1 py-1">Get Started</Link>
+          {' • '}
+          <a href={APK_URL} className="underline underline-offset-4 rounded px-1 py-1 inline-flex items-center gap-1">
+            <Download className="w-3 h-3" aria-hidden="true" /> Android app (APK)
+          </a>
         </p>
       </footer>
     </div>

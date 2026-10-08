@@ -8,7 +8,7 @@ A fast, modern real-time messaging platform built with **FastAPI + React**. Kryz
 ![WebSockets](https://img.shields.io/badge/WebSockets-Real--Time-blue?style=flat-square)
 ![Android](https://img.shields.io/badge/Android-APK-3DDC84?style=flat-square&logo=android)
 
-Live: https://kb-chat-1.onrender.com · Android: [v1.0.0 APK](https://github.com/kbwebsite/KB_CHAT/releases/tag/v1.0.0)
+Live: https://kb-chat-1.onrender.com · Android: [v1.2.0 APK](https://github.com/kbwebsite/KB_CHAT/releases/tag/v1.2.0) (also linked from the landing page)
 
 ---
 
