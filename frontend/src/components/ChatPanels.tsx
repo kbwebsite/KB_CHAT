@@ -43,6 +43,7 @@ export function ChatPanels({
   showTheme,
   onClose,
   onJump,
+  onUnsaveSaved,
   onChat,
   onStatusViewer,
   onUpdated,
@@ -71,7 +72,7 @@ export function ChatPanels({
       {showGroupInfo && currentConv && <GroupPanel conversation={currentConv} onClose={onClose} onUpdated={onUpdated || (() => {})} />}
       {showSettings && <SettingsPanel onClose={onClose} />}
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
-      {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}
+      {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} conversations={conversations} onUnsave={onUnsaveSaved} />}
       {showReminders && <RemindersPanel onClose={onClose} onOpenConversation={(cid: number) => { onClose(); onJump(cid) }} />}
       {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} onSelectConversation={(cid: number) => { onClose(); onJump(cid) }} />}
       {showCommunities && <CommunitiesPanel onClose={onClose} conversations={conversations} onOpenChat={(cid: number) => { onClose(); onJump(cid) }} />}

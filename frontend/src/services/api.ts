@@ -287,7 +287,7 @@ export const uploadApi = {
 }
 
 export const savedApi = {
-  list: () => api.get('/api/saved-messages').then(r=>r.data),
+  list: (signal?:AbortSignal) => api.get('/api/saved-messages', { signal }).then(r=>r.data),
   save: (mid:number) => api.post(`/api/saved-messages/${mid}`).then(r=>r.data),
   unsave: (mid:number) => api.delete(`/api/saved-messages/${mid}`).then(r=>r.data),
 }

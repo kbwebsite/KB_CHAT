@@ -707,7 +707,8 @@ export default function ChatPage() {
           showLeaderboard={showLeaderboard}
           showTheme={showTheme}
           onClose={closeAllPanels}
-          onJump={(cid: number) => { setCurrent(cid); fetchMessages(cid); setMobileView('chat') }}
+          onJump={handleSearchNavigate}
+          onUnsaveSaved={(mid: number) => setSavedIds((s) => { const n = new Set(s); n.delete(mid); return n })}
           onStatusViewer={(statuses: any[], idx: number) => { closeAllPanels(); setStatusViewer({ statuses, idx }) }}
           onUpdated={() => { fetchConversations(); if (currentConversationId) fetchMessages(currentConversationId) }}
           pinnedMessages={pinnedMessages}
