@@ -21,8 +21,10 @@ import {
   Sparkles,
   Flame,
   Compass,
+  Pencil,
 } from 'lucide-react'
 import { channelApi, uploadApi } from '../services/api'
+import { useEscapeKey } from '../hooks/useDismiss'
 import { compact, compactPlural } from '../utils/format'
 
 /**
@@ -75,6 +77,11 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   // Create wizard
   const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string }>(null)
   const [creating, setCreating] = useState(false)
+  // Owner edit dialog (PATCH): preloaded from the open channel.
+  const [edit, setEdit] = useState<null | { name: string; desc: string }>(null)
+  const [savingEdit, setSavingEdit] = useState(false)
+  const [editError, setEditError] = useState<string | null>(null)
+  useEscapeKey(() => { if (edit && !savingEdit) setEdit(null) }, !!edit)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
   const fileRef = useRef<HTMLInputElement>(null)
@@ -171,6 +178,36 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       setMsg(e.response?.data?.message || 'Failed')
     }
     setMenuOpen(false)
+  }
+
+  const saveEdit = async () => {
+    if (!openChannel || !edit || savingEdit) return
+    const name = edit.name.trim()
+    if (!name) {
+      setEditError('Channel name is required')
+      return
+    }
+    setSavingEdit(true)
+    setEditError(null)
+    try {
+      const r = await channelApi.update(openChannel.id, {
+        name,
+        description: edit.desc.trim() ? edit.desc.trim() : null,
+      })
+      if (r?.success && r.data) {
+        // Server returns the full channel dict: swap it in place so the
+        // header, rows, counts, and follow state update immediately.
+        setChannels((l) => l.map((x) => (x.id === openChannel.id ? r.data : x)))
+        setEdit(null)
+        setMsg('Channel updated')
+      } else {
+        setEditError(r?.message || 'Failed')
+      }
+    } catch (e: any) {
+      setEditError(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    } finally {
+      setSavingEdit(false)
+    }
   }
 
   const follow = async (id: number, on: boolean) => {
@@ -483,6 +520,11 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     <Link2 className="w-4 h-4" /> Copy invite link
                   </button>
                   {openChannel.is_owner && (
+                    <button onClick={() => { setEdit({ name: openChannel.name || '', desc: openChannel.description || '' }); setEditError(null); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                      <Pencil className="w-4 h-4" /> Edit channel
+                    </button>
+                  )}
+                  {openChannel.is_owner && (
                     <button onClick={() => remove(openChannel.id)} className="w-full text-left px-3 py-2 hover:bg-muted text-destructive flex items-center gap-2">
                       <Trash2 className="w-4 h-4" /> Delete channel
                     </button>
@@ -789,6 +831,58 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             </div>
           )}
         </div>
+
+        {/* Owner edit dialog (PATCH) */}
+        {edit && openChannel?.is_owner && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => !savingEdit && setEdit(null)}>
+            <div role="dialog" aria-label="Edit channel" className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-4">
+                <p className="font-bold text-[17px] tracking-tight">Edit channel</p>
+                <button onClick={() => !savingEdit && setEdit(null)} className="p-2 rounded-full hover:bg-muted touch-44" aria-label="Cancel editing">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <label htmlFor="channel-edit-name" className="text-xs font-semibold text-muted-foreground">Name</label>
+                  <input
+                    id="channel-edit-name"
+                    autoFocus
+                    value={edit.name}
+                    onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void saveEdit() }}
+                    placeholder="Channel name"
+                    maxLength={100}
+                    className="mt-1 w-full px-4 py-2.5 rounded-xl border outline-none text-sm min-h-[44px]"
+                    style={fieldStyle}
+                  />
+                </div>
+                <div>
+                  <label htmlFor="channel-edit-desc" className="text-xs font-semibold text-muted-foreground">Description</label>
+                  <input
+                    id="channel-edit-desc"
+                    value={edit.desc}
+                    onChange={(e) => setEdit({ ...edit, desc: e.target.value })}
+                    onKeyDown={(e) => { if (e.key === 'Enter') void saveEdit() }}
+                    placeholder="What is this channel about? (optional)"
+                    maxLength={500}
+                    className="mt-1 w-full px-4 py-2.5 rounded-xl border outline-none text-sm min-h-[44px]"
+                    style={fieldStyle}
+                  />
+                </div>
+              </div>
+              {editError && <p className="text-xs text-destructive mt-2">{editError}</p>}
+              <div className="flex gap-2 mt-4">
+                <button onClick={() => setEdit(null)} disabled={savingEdit} className="px-4 py-2.5 rounded-xl bg-muted text-sm font-medium disabled:opacity-50 min-h-[44px]">
+                  Cancel
+                </button>
+                <button onClick={saveEdit} disabled={savingEdit || !edit.name.trim()} className="flex-1 py-2.5 rounded-xl btn-primary text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+                  {savingEdit ? 'Saving…' : 'Save changes'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }

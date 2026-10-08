@@ -240,6 +240,7 @@ export const communityApi = {
 export const channelApi = {
   list: () => api.get(`/api/channels`).then(r=>r.data),
   create: (data:{name:string, description?:string}) => api.post(`/api/channels`, data).then(r=>r.data),
+  update: (id:number, data:{name?:string, description?:string|null}) => api.patch(`/api/channels/${id}`, data).then(r=>r.data),
   remove: (id:number) => api.delete(`/api/channels/${id}`).then(r=>r.data),
   follow: (id:number) => api.post(`/api/channels/${id}/follow`).then(r=>r.data),
   unfollow: (id:number) => api.delete(`/api/channels/${id}/follow`).then(r=>r.data),
