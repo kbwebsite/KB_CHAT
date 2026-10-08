@@ -222,7 +222,7 @@ export const groupInviteApi = {
 }
 
 export const broadcastApi = {
-  list: () => api.get(`/api/broadcasts`).then(r=>r.data),
+  list: (signal?:AbortSignal) => api.get(`/api/broadcasts`, { signal }).then(r=>r.data),
   create: (data:{name:string, member_usernames?:string[]}) => api.post(`/api/broadcasts`, data).then(r=>r.data),
   remove: (id:number) => api.delete(`/api/broadcasts/${id}`).then(r=>r.data),
   send: (id:number, content:string) => api.post(`/api/broadcasts/${id}/send`, {content}).then(r=>r.data),
