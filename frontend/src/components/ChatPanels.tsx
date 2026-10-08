@@ -4,6 +4,7 @@ import { SettingsPanel } from './SettingsPanel'
 import { NotificationPanel } from './NotificationPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
 import { RemindersPanel } from './RemindersPanel'
+import { HighlightsPanel } from './HighlightsPanel'
 import { ContactsPanel } from './ContactsPanel'
 import { CommunitiesPanel } from './CommunitiesPanel'
 import { ChannelsPanel } from './ChannelsPanel'
@@ -28,6 +29,7 @@ export function ChatPanels({
   showNotifications,
   showSaved,
   showReminders,
+  showHighlights,
   showContacts,
   showCommunities,
   showChannels,
@@ -61,7 +63,7 @@ export function ChatPanels({
   const currentUserId = useAuthStore(s => s.user?.id) ?? 0
 
   const anyPanelOpen = showProfile || showGroupInfo || showSettings || showNotifications ||
-    showSaved || showReminders || showContacts || showCommunities || showChannels || showCalls || showStatus || showPolls || showPinned ||
+    showSaved || showReminders || showHighlights || showContacts || showCommunities || showChannels || showCalls || showStatus || showPolls || showPinned ||
     showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme
 
   if (!anyPanelOpen) return null
@@ -74,6 +76,7 @@ export function ChatPanels({
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
       {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} conversations={conversations} onUnsave={onUnsaveSaved} />}
       {showReminders && <RemindersPanel onClose={onClose} onOpenConversation={(cid: number) => { onClose(); onJump(cid) }} />}
+      {showHighlights && <HighlightsPanel onClose={onClose} onViewer={(statuses: any[], idx: number) => { onClose(); onStatusViewer(statuses, idx) }} />}
       {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} onSelectConversation={(cid: number) => { onClose(); onJump(cid) }} />}
       {showCommunities && <CommunitiesPanel onClose={onClose} conversations={conversations} onOpenChat={(cid: number) => { onClose(); onJump(cid) }} />}
       {showChannels && <ChannelsPanel onClose={onClose} />}

@@ -329,7 +329,7 @@ export const statusApi = {
   view: (id:number) => api.post(`/api/status/${id}/view`).then(r=>r.data),
   viewers: (id:number) => api.get(`/api/status/${id}/viewers`).then(r=>r.data),
   highlights: {
-    list: () => api.get('/api/status/highlights').then(r=>r.data),
+    list: (signal?:AbortSignal) => api.get('/api/status/highlights', { signal }).then(r=>r.data),
     create: (title:string) => api.post('/api/status/highlights', {title}).then(r=>r.data),
     addItem: (hid:number, sid:number) => api.post(`/api/status/highlights/${hid}/items`, {status_id:sid}).then(r=>r.data),
     removeItem: (hid:number, sid:number) => api.delete(`/api/status/highlights/${hid}/items/${sid}`).then(r=>r.data),

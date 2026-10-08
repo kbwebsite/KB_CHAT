@@ -115,6 +115,7 @@ export default function ChatPage() {
   const [showAgentPanel, setShowAgentPanel] = useState(false)
   const [showSearch, setShowSearch] = useState(false)
   const [showReminders, setShowReminders] = useState(false)
+  const [showHighlights, setShowHighlights] = useState(false)
 
   const currentConv = conversations.find((c: any) => c.id === currentConversationId) || null
 
@@ -182,7 +183,7 @@ export default function ChatPage() {
         } else {
           setShowProfile(false); setShowSettings(false); setShowNotifications(false)
           setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
-    setShowCommunities(false); setShowChannels(false); setShowReminders(false)
+    setShowCommunities(false); setShowChannels(false); setShowReminders(false); setShowHighlights(false)
           setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null)
           setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false)
           setShowEvents(false); setShowSchedule(false); setShowInsights(false)
@@ -507,7 +508,7 @@ export default function ChatPage() {
   const closeAllPanels = () => {
     setShowProfile(false); setShowGroupInfo(false); setShowSettings(false); setShowNotifications(false)
     setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
-    setShowCommunities(false); setShowChannels(false); setShowReminders(false)
+    setShowCommunities(false); setShowChannels(false); setShowReminders(false); setShowHighlights(false)
     setShowPolls(false); setShowPinned(false); setShowEvents(false); setShowSchedule(false); setShowInsights(false)
     setShowAgentPanel(false)
     setShowLeaderboard(false)
@@ -530,7 +531,7 @@ export default function ChatPage() {
     if (showCommandPalette) { setShowCommandPalette(false); return }
     if (showMessageSearch) { setShowMessageSearch(false); setMessageSearch(''); return }
     if (showProfile || showGroupInfo || showSettings || showNotifications ||
-      showSaved || showReminders || showContacts || showCalls || showStatus || showCommunities || showChannels || showPolls || showPinned ||
+      showSaved || showReminders || showHighlights || showContacts || showCalls || showStatus || showCommunities || showChannels || showPolls || showPinned ||
       showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme) {
       closeAllPanels(); return
     }
@@ -585,6 +586,7 @@ export default function ChatPage() {
             onNotifications={() => { closeAllPanels(); setShowNotifications(true) }}
             onSaved={() => { closeAllPanels(); setShowSaved(true) }}
             onReminders={() => { closeAllPanels(); setShowReminders(true) }}
+            onHighlights={() => { closeAllPanels(); setShowHighlights(true) }}
             onSettings={() => { closeAllPanels(); setShowSettings(true) }}
             onSearch={() => setShowSearch(true)}
           />
@@ -693,6 +695,7 @@ export default function ChatPage() {
           showNotifications={showNotifications}
           showSaved={showSaved}
           showReminders={showReminders}
+          showHighlights={showHighlights}
           showContacts={showContacts}
           showCommunities={showCommunities}
           showChannels={showChannels}

@@ -12,7 +12,7 @@ import { BroadcastPanel } from './BroadcastPanel'
 import { CommunitiesPanel } from './CommunitiesPanel'
 import { ChannelsPanel } from './ChannelsPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Moon, Sun, Lock, Megaphone, Network, Radio } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Star, Moon, Sun, Lock, Megaphone, Network, Radio } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -29,6 +29,7 @@ export function ChatSidebar({
   onNotifications,
   onSaved,
   onReminders,
+  onHighlights,
   onSettings,
   onSearch,
 }: {
@@ -43,6 +44,7 @@ export function ChatSidebar({
   onNotifications?: () => void
   onSaved?: () => void
   onReminders?: () => void
+  onHighlights?: () => void
   onSettings?: () => void
   onSearch?: () => void
 }) {
@@ -219,6 +221,12 @@ export function ChatSidebar({
                   <button role="menuitem" onClick={menuFire(onReminders)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <BellRing className="w-4 h-4 text-primary" />
                     Reminders
+                  </button>
+                )}
+                {onHighlights && (
+                  <button role="menuitem" onClick={menuFire(onHighlights)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                    <Star className="w-4 h-4 text-primary" />
+                    Highlights
                   </button>
                 )}
                 {onSettings && (
