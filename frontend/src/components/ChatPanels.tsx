@@ -3,6 +3,7 @@ import { GroupPanel } from './GroupPanel'
 import { SettingsPanel } from './SettingsPanel'
 import { NotificationPanel } from './NotificationPanel'
 import { SavedMessagesPanel } from './SavedMessagesPanel'
+import { RemindersPanel } from './RemindersPanel'
 import { ContactsPanel } from './ContactsPanel'
 import { CommunitiesPanel } from './CommunitiesPanel'
 import { ChannelsPanel } from './ChannelsPanel'
@@ -26,6 +27,7 @@ export function ChatPanels({
   showSettings,
   showNotifications,
   showSaved,
+  showReminders,
   showContacts,
   showCommunities,
   showChannels,
@@ -58,7 +60,7 @@ export function ChatPanels({
   const currentUserId = useAuthStore(s => s.user?.id) ?? 0
 
   const anyPanelOpen = showProfile || showGroupInfo || showSettings || showNotifications ||
-    showSaved || showContacts || showCommunities || showChannels || showCalls || showStatus || showPolls || showPinned ||
+    showSaved || showReminders || showContacts || showCommunities || showChannels || showCalls || showStatus || showPolls || showPinned ||
     showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme
 
   if (!anyPanelOpen) return null
@@ -70,6 +72,7 @@ export function ChatPanels({
       {showSettings && <SettingsPanel onClose={onClose} />}
       {showNotifications && <NotificationPanel onClose={onClose} onSelect={(cid: number) => { onClose(); onJump(cid) }} />}
       {showSaved && <SavedMessagesPanel onClose={onClose} onJump={onJump} />}
+      {showReminders && <RemindersPanel onClose={onClose} onOpenConversation={(cid: number) => { onClose(); onJump(cid) }} />}
       {showContacts && <ContactsPanel onClose={onClose} onChat={onChat} onSelectConversation={(cid: number) => { onClose(); onJump(cid) }} />}
       {showCommunities && <CommunitiesPanel onClose={onClose} conversations={conversations} onOpenChat={(cid: number) => { onClose(); onJump(cid) }} />}
       {showChannels && <ChannelsPanel onClose={onClose} />}

@@ -106,3 +106,17 @@ export function popDueReminders(now = Date.now()): Reminder[] {
   writeAll(list.filter((r) => r.fireAt > now))
   return due.sort((a, b) => a.fireAt - b.fireAt)
 }
+
+/** Read-only snapshot of pending reminders for the manager UI. */
+export function listReminders(): Reminder[] {
+  return readAll()
+}
+
+/** Cancel one pending reminder; true when something was actually removed. */
+export function cancelReminder(id: string): boolean {
+  const list = readAll()
+  const next = list.filter((r) => r.id !== id)
+  if (next.length === list.length) return false
+  writeAll(next)
+  return true
+}
