@@ -35,6 +35,14 @@ def cookie_secure() -> bool:
     return settings.APP_ENV == "production"
 
 
+def cookie_samesite() -> str:
+    # Cross-site frontend (Vercel web app → Render API) needs SameSite=None
+    # or the browser drops the refresh cookie on fetch/XHR and silent
+    # refresh breaks. "None" requires Secure, which needs HTTPS, so local
+    # HTTP dev stays on Lax (same convention as cookie_secure()).
+    return "none" if settings.APP_ENV == "production" else "lax"
+
+
 def set_refresh_cookie(response: Response, token: str) -> None:
     # Never logged: callers pass the plaintext only here and to the client.
     response.set_cookie(
@@ -44,12 +52,19 @@ def set_refresh_cookie(response: Response, token: str) -> None:
         path=REFRESH_COOKIE_PATH,
         httponly=True,
         secure=cookie_secure(),
-        samesite="lax",
+        samesite=cookie_samesite(),
     )
 
 
 def clear_refresh_cookie(response: Response) -> None:
-    response.delete_cookie(REFRESH_COOKIE, path=REFRESH_COOKIE_PATH)
+    # Mirror the set attributes so browsers match + drop the cookie on both
+    # same-site (Render) and cross-site (Vercel) frontends.
+    response.delete_cookie(
+        REFRESH_COOKIE,
+        path=REFRESH_COOKIE_PATH,
+        secure=cookie_secure(),
+        samesite=cookie_samesite(),
+    )
 
 
 def bearer_sid(request: Request) -> str | None:

@@ -37,12 +37,21 @@ class WSService {
   }
 
   private buildUrl(token: string): string | null {
+    // Absolute backend override (Vercel web build → Render API). Same-host
+    // logic below only applies when the SPA is served by the API itself
+    // (Render Docker) or local dev.
+    try {
+      const wsBase = (import.meta.env.VITE_WS_URL || '').replace(/\/$/, '')
+      if (wsBase) {
+        return `${wsBase}/ws/chat?token=${encodeURIComponent(token)}`
+      }
+    } catch { /* fall through to default logic */ }
     // Native shell has a local (capacitor://) origin — dial production directly.
     try {
       const cap = (window as any)?.Capacitor
       if (cap?.isNativePlatform?.()) {
-        const wsBase = (import.meta.env.VITE_WS_URL || 'wss://kb-chat-1.onrender.com').replace(/\/$/, '')
-        return `${wsBase}/ws/chat?token=${encodeURIComponent(token)}`
+        const fallback = 'wss://kb-chat-1.onrender.com'
+        return `${fallback}/ws/chat?token=${encodeURIComponent(token)}`
       }
     } catch { /* fall through to web logic */ }
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'

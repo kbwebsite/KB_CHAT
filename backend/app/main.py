@@ -235,7 +235,12 @@ def health():
     commit_sha = os.environ.get("RENDER_GIT_COMMIT", "unknown")[:7]
     return {
         "success": True,
-        "data": {"status": "ok", "service": "Kryzen API", "commit": commit_sha},
+        "data": {
+            "status": "ok",
+            "service": "Kryzen API",
+            "version": settings.APP_VERSION,
+            "commit": commit_sha,
+        },
         "message": None,
     }
 

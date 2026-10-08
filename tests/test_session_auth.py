@@ -147,10 +147,14 @@ def test_session_login_cookie_attributes(monkeypatch):
     assert "kb_refresh=" in raw
     assert "HttpOnly" in raw
     assert "Path=/api/auth" in raw
-    assert "SameSite=Lax" in raw or "SameSite=lax" in raw
     if settings.APP_ENV == "production":
+        # Cross-site frontend (Vercel → Render) needs None or the browser
+        # drops the cookie and silent refresh breaks.
+        assert "SameSite=None" in raw or "SameSite=none" in raw
         assert "Secure" in raw
     else:
+        # Local HTTP dev stays Lax (None requires Secure/HTTPS).
+        assert "SameSite=Lax" in raw or "SameSite=lax" in raw
         assert "Secure" not in raw  # local HTTP dev stays usable
 
 

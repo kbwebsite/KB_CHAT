@@ -497,7 +497,7 @@ export function WhatsAppSettings({
   const [showPrivacy, setShowPrivacy] = useState(false)
   const [storage, setStorage] = useState<any>(null)
   const [blocked, setBlocked] = useState<any[] | null>(null)
-  const [buildInfo, setBuildInfo] = useState<{ service?: string; commit?: string }>({})
+  const [buildInfo, setBuildInfo] = useState<{ service?: string; version?: string; commit?: string }>({})
   const [openRow, setOpenRow] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [searching, setSearching] = useState(false)
@@ -514,7 +514,7 @@ export function WhatsAppSettings({
   useEffect(()=>{ storageApi.dashboard().then(r=>{ if(r.success) setStorage(r.data)}).catch(()=>{}) }, [])
   useEffect(()=>{ blockApi.list().then((r:any)=>{ if (r?.success) setBlocked(r.data || []) }).catch(()=> setBlocked([])) }, [])
   useEffect(()=>{
-    fetch('/api/health').then(r=>r.json()).then(j=> setBuildInfo({ service: j?.data?.service, commit: j?.data?.commit })).catch(()=>{})
+    fetch('/api/health').then(r=>r.json()).then(j=> setBuildInfo({ service: j?.data?.service, version: j?.data?.version, commit: j?.data?.commit })).catch(()=>{})
   }, [])
 
   const handleChangePwd = async ()=>{
@@ -587,7 +587,7 @@ export function WhatsAppSettings({
   }
 
   const copyFeedbackInfo = async () => {
-    const info = `Kryzen feedback\nService: ${buildInfo.service || '?'}\nBuild: ${buildInfo.commit || '?'}\nAccount: @${user?.username || '?'}\n\nDescribe the issue:\n`
+    const info = `Kryzen feedback\nService: ${buildInfo.service || '?'}\nVersion: ${buildInfo.version || '?'}\nBuild: ${buildInfo.commit || '?'}\nAccount: @${user?.username || '?'}\n\nDescribe the issue:\n`
     try {
       await navigator.clipboard.writeText(info)
       setFeedbackMsg('Template copied — paste it anywhere to reach us')
@@ -1014,6 +1014,7 @@ export function WhatsAppSettings({
             <SectionLabel>App info</SectionLabel>
             <div className="mt-1 space-y-1.5">
               <div className="flex justify-between text-xs"><span className="text-muted-foreground">Service</span><span>{buildInfo.service || '…'}</span></div>
+              <div className="flex justify-between text-xs"><span className="text-muted-foreground">Version</span><span>{buildInfo.version || '…'}</span></div>
               <div className="flex justify-between text-xs"><span className="text-muted-foreground">Commit</span><span>{buildInfo.commit || '…'}</span></div>
             </div>
           </div>
@@ -1034,6 +1035,7 @@ export function WhatsAppSettings({
       subtitle: undefined,
       body: (
         <div className="space-y-1.5">
+          <div className="flex justify-between text-xs"><span className="text-muted-foreground">Version</span><span>{buildInfo.version || '…'}</span></div>
           <div className="flex justify-between text-xs"><span className="text-muted-foreground">Build</span><span>{buildInfo.commit || '…'}</span></div>
           <button onClick={() => window.location.reload()} className="w-full py-2 rounded-xl bg-background border border-[var(--k-border)] text-sm hover:bg-muted transition-colors">
             Check for updates

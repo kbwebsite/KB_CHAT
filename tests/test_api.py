@@ -91,6 +91,23 @@ def test_health():
     assert r.json()["success"] == True
 
 
+def test_health_exposes_app_version():
+    from app.database.config import settings
+
+    r = client.get("/api/health")
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["version"] == settings.APP_VERSION
+
+
+def test_frontend_url_auto_allowed_for_cors_and_refresh_origin():
+    # Linking a new web frontend (e.g. Vercel) is a one-var change:
+    # FRONTEND_URL is always an allowed CORS/refresh origin even when the
+    # dashboard CORS_ORIGINS list is stale.
+    from app.database.config import settings
+
+    assert settings.FRONTEND_URL.rstrip("/") in settings.cors_origins_list
+
+
 def test_csp_allows_cloudinary_media():
     # Voice clips are served from Cloudinary; if media-src doesn't allow it
     # the browser blocks playback and messages silently won't play.
