@@ -27,7 +27,9 @@ class Settings(BaseSettings):
     # 7-day JWTs remain accepted server-side; env can still force it off for
     # emergency rollback). Reversible, no data change.
     SESSION_ISSUE_ENABLED: bool = True
-    CORS_ORIGINS: str = "http://localhost:5173,http://localhost:3000,https://kb-chat-1.onrender.com,https://kb-chat-lemon.vercel.app"
+    CORS_ORIGINS: str = (
+        "http://localhost:5173,http://localhost:3000,https://kb-chat-1.onrender.com"
+    )
     # App release version (single source of truth, surfaced via /api/health
     # and shown in Settings → App info). Bump with every release.
     APP_VERSION: str = "1.2.0"
@@ -45,7 +47,7 @@ class Settings(BaseSettings):
     # Unset locally/tests: sends are skipped with a log line (fail-soft).
     RESEND_API_KEY: str = ""
     RESEND_FROM: str = "Kryzen <onboarding@resend.dev>"
-    FRONTEND_URL: str = "https://kb-chat-lemon.vercel.app"
+    FRONTEND_URL: str = "https://kb-chat-1.onrender.com"
     # Domain-free fallback: Gmail SMTP with an App Password (Google account
     # -> Security -> 2-Step Verification -> App passwords). Sends to any
     # address, no domain needed. Used only when RESEND_API_KEY is unset.
@@ -114,10 +116,10 @@ class Settings(BaseSettings):
     @property
     def cors_origins_list(self) -> List[str]:
         origins = [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
-        # The linked web frontend (Vercel) is always allowed, even if the
-        # dashboard CORS_ORIGINS value is stale — FRONTEND_URL is the one
-        # canonical frontend origin (also used for email links + the refresh
-        # Origin check). Same pattern as the native-shell allowlist below.
+        # The canonical frontend origin is always allowed, even if the
+        # dashboard CORS_ORIGINS value is stale — FRONTEND_URL is the single
+        # source of truth (also used for email links + the refresh Origin
+        # check). Same pattern as the native-shell allowlist below.
         try:
             from urllib.parse import urlparse
 

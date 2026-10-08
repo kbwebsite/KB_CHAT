@@ -2,8 +2,7 @@
   "auth": {
     "authorizedDomains": [
       "localhost",
-      "kb-chat-lemon.vercel.app",
-      "kb-chat-jqdk.onrender.com"
+      "kb-chat-1.onrender.com"
     ],
     "providers": {
       "emailPassword": true,

@@ -11,12 +11,10 @@ services:
       - key: APP_ENV
         value: production
       - key: CORS_ORIGINS
-        value: https://kb-chat-1.onrender.com,https://kb-chat-lemon.vercel.app
+        value: https://kb-chat-1.onrender.com
         sync: false
-      # Canonical web frontend origin. The backend auto-allows this host for
-      # CORS + the refresh-cookie Origin check, so pointing the web app at a
-      # new host (e.g. a Vercel domain) is a one-var change here. Also used
-      # for password-reset links in emails.
+      # Canonical web frontend origin (Render-served SPA). Auto-included in
+      # CORS + the refresh-cookie Origin check. Also used for links in emails.
       - key: DATABASE_URL
         sync: false
       - key: JWT_SECRET
@@ -77,7 +75,7 @@ services:
       - key: RESEND_FROM
         value: Kryzen <onboarding@resend.dev>
       - key: FRONTEND_URL
-        value: https://kb-chat-lemon.vercel.app
+        value: https://kb-chat-1.onrender.com
       # Free plan has no persistent disk: uploads persist via Cloudinary
       # (needs CLOUDINARY_API_SECRET in dashboard) and the AI code index
       # rebuilds itself on boot when empty (REINDEX_ON_BOOT, default true).

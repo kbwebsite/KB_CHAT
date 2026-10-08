@@ -100,7 +100,7 @@ def test_health_exposes_app_version():
 
 
 def test_frontend_url_auto_allowed_for_cors_and_refresh_origin():
-    # Linking a new web frontend (e.g. Vercel) is a one-var change:
+    # Linking a new web frontend host is a one-var change:
     # FRONTEND_URL is always an allowed CORS/refresh origin even when the
     # dashboard CORS_ORIGINS list is stale.
     from app.database.config import settings

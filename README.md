@@ -8,7 +8,7 @@ A fast, modern real-time messaging platform built with **FastAPI + React**. Kryz
 ![WebSockets](https://img.shields.io/badge/WebSockets-Real--Time-blue?style=flat-square)
 ![Android](https://img.shields.io/badge/Android-APK-3DDC84?style=flat-square&logo=android)
 
-Live: https://kb-chat-lemon.vercel.app (web) · API: https://kb-chat-1.onrender.com · Android: [v1.0.0 APK](https://github.com/kbwebsite/KB_CHAT/releases/tag/v1.0.0)
+Live: https://kb-chat-1.onrender.com · Android: [v1.0.0 APK](https://github.com/kbwebsite/KB_CHAT/releases/tag/v1.0.0)
 
 ---
 
@@ -191,27 +191,6 @@ cd android
 - App ID: `com.kryzen.chat` (stable — never rename after release; it breaks updates, FCM, and `google-services.json`)
 - Current: versionName `1.2`, versionCode `3`
 - Releases are published as signed APKs on GitHub Releases (free distribution, Obtainium-compatible)
-
----
-
-## Vercel Frontend + Render Backend
-
-The web app is hosted on Vercel, the API on Render. Three things make them work as one:
-
-**1. Vercel → Render (build-time env vars).** In Vercel → Project → Settings → Environment Variables (Production + Preview), set:
-```
-VITE_API_URL=https://kb-chat-1.onrender.com
-VITE_WS_URL=wss://kb-chat-1.onrender.com
-VITE_GOOGLE_CLIENT_ID=<same as Render>
-VITE_FIREBASE_*=<same six values as Render/local .env.local>
-```
-then redeploy (Vite bakes `VITE_*` into the bundle at build time). REST already honors `VITE_API_URL`; the WebSocket client prefers `VITE_WS_URL` when set and falls back to same-host otherwise, so local dev and the Render-served SPA need no vars.
-
-**2. Render → Vercel (allow the origin).** `FRONTEND_URL=https://kb-chat-lemon.vercel.app` on the Render dashboard is auto-included in CORS + the refresh-cookie Origin check, so linking a new frontend host is a one-var change. `CORS_ORIGINS` also lists it as belt-and-suspenders.
-
-**3. Cross-site session cookie.** The `kb_refresh` cookie is `SameSite=None; Secure` in production (required — browsers drop `Lax` cookies on Vercel→Render fetch, which would break silent token refresh) and stays `Lax` for local HTTP dev. No action needed; it follows `APP_ENV` automatically.
-
-`frontend/vercel.json` handles SPA rewrites (`/chat`, `/login`, … fall back to `index.html`); static assets and `firebase-messaging-sw.js` take precedence and are unaffected.
 
 ---
 
