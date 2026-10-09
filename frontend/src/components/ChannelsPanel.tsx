@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import type { CSSProperties } from 'react'
 import {
   Plus,
   Send,
@@ -404,8 +405,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   const coverOf = (id: number) => COVERS[Math.abs(id) % COVERS.length]
 
-  // Image cover wins: custom upload > picked image theme > id-based image fallback.
-  // Plain gradients are never shown as covers now — only images (sample mathiri).
+  // Image cover wins: custom upload > picked image theme > inbuilt art > id-based image fallback.
+  // Plain gradients are never the default — only images (sample mathiri) unless user picks inbuilt art.
   const coverImageOf = (c: any): string => {
     if (c?.cover_url?.trim()) return c.cover_url.trim()
     if (c?.cover_theme) {
@@ -414,6 +415,31 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     }
     // Legacy ids like 'violet-cyan' (old gradient themes) fall back to images by id.
     return CHANNEL_THEMES[Math.abs(c?.id ?? 0) % CHANNEL_THEMES.length].url
+  }
+
+  // Inbuilt art themes (offline gradients) — ids art-0..7.
+  const artOf = (id: string): [string, string] | null => {
+    const m = /^art-(\d+)$/.exec(id || '')
+    if (!m) return null
+    return COVERS[Number(m[1]) % COVERS.length]
+  }
+
+  // Full cover style: upload / photo theme / inbuilt art gradient.
+  const coverStyleOf = (c: any): CSSProperties => {
+    if (c?.cover_url?.trim()) return { backgroundImage: `url(${c.cover_url.trim()})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    if (c?.cover_theme) {
+      const t = CHANNEL_THEMES.find((t) => t.id === c.cover_theme)
+      if (t) return { backgroundImage: `url(${t.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+      const g = artOf(c.cover_theme)
+      if (g) return { background: `linear-gradient(120deg, ${g[0]}, ${g[1]})` }
+    }
+    return { backgroundImage: `url(${CHANNEL_THEMES[Math.abs(c?.id ?? 0) % CHANNEL_THEMES.length].url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+  }
+
+  // Inbuilt avatar gradient by id (logo background always inbuilt, no network).
+  const avatarStyleOf = (c: any): CSSProperties => {
+    const [a1, a2] = coverOf(c?.id ?? 0)
+    return { background: `linear-gradient(135deg, ${a1}, ${a2})` }
   }
 
   // Tint for borders/shadows derived from the id-based gradient (avatar stays gradient).
@@ -575,7 +601,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   /* ═══════════ PROFILE VIEW ═══════════ */
   if (openChannel) {
-    const openCover = coverImageOf(openChannel)
+    const openCover = coverStyleOf(openChannel)
     const openIcon = channelIcon(openChannel)
     const shownPosts = profileTab === 'media' ? mediaPosts : posts
     return (
@@ -647,7 +673,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <div ref={feedRef} onScroll={onFeedScroll} className="flex-1 overflow-y-auto min-h-0" style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(var(--accent-rgb), 0.10) 0%, transparent 55%), var(--bg-primary)' }}>
             {/* Identity */}
             <div className="m-3 rounded-[24px] overflow-hidden border border-subtle" style={{ background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(20,20,42,0.98))', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-              <div className="relative h-24 overflow-hidden" style={{ backgroundImage: `url(${openCover})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+              <div className="relative h-24 overflow-hidden" style={openCover}>
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(0,0,0,0.35))' }} />
                 <span className="absolute -right-2 -bottom-7 text-[104px] leading-none font-extrabold text-white/10 select-none">
                   {openIcon || avatarLetter(openChannel.name)}
@@ -960,7 +986,14 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               </div>
               {/* Live preview */}
               <div className="rounded-2xl overflow-hidden border border-subtle mb-3">
-                <div className="h-16" style={{ backgroundImage: `url(${edit.cover_url || (edit.cover_theme ? (CHANNEL_THEMES.find((x) => x.id === edit.cover_theme)?.url || CHANNEL_THEMES[0].url) : CHANNEL_THEMES[0].url)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                <div className="h-16" style={(() => {
+                  if (edit.cover_url) return { backgroundImage: `url(${edit.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                  const t = CHANNEL_THEMES.find((x) => x.id === edit.cover_theme)
+                  if (t) return { backgroundImage: `url(${t.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                  const g = artOf(edit.cover_theme)
+                  if (g) return { background: `linear-gradient(120deg, ${g[0]}, ${g[1]})` }
+                  return { backgroundImage: `url(${CHANNEL_THEMES[0].url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                })()} />
                 <div className="p-3 flex items-center gap-3" style={{ background: 'rgba(20,20,42,0.9)' }}>
                   <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center text-white font-extrabold shrink-0 overflow-hidden">
                     {edit.avatar_url ? <img src={edit.avatar_url} alt="" className="w-full h-full object-cover" /> : edit.icon ? <span className="text-xl">{edit.icon}</span> : avatarLetter(edit.name || '?')}
@@ -1000,7 +1033,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — emoji</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — category emoji (logo kela side kaatum)</p>
                   <div className="grid grid-cols-8 gap-1.5">
                     {CHANNEL_ICONS.map((em) => (
                       <button key={em} onClick={() => setEdit({ ...edit, icon: edit.icon === em ? '' : em })} className={`text-xl p-1.5 rounded-lg transition-all active:scale-90 min-h-[44px] ${edit.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={edit.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Icon ${em}`}>
@@ -1010,12 +1043,18 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   </div>
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover theme — image</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover theme — image (inbuilt)</p>
                   <div className="grid grid-cols-4 gap-2">
                     {CHANNEL_THEMES.map((t) => (
                       <button key={t.id} onClick={() => setEdit({ ...edit, cover_theme: edit.cover_theme === t.id ? '' : t.id, cover_url: '' })} className={`h-12 rounded-xl overflow-hidden transition-all active:scale-95 ${edit.cover_theme === t.id && !edit.cover_url ? 'ring-2 ring-primary' : 'hover:opacity-90'}`} title={t.name} aria-label={`Theme ${t.name}`}>
                         <img src={t.url} alt={t.name} loading="lazy" className="w-full h-full object-cover" />
                       </button>
+                    ))}
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 mt-3">Inbuilt art — offline (no photo)</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {COVERS.map((g, i) => (
+                      <button key={`art-${i}`} onClick={() => setEdit({ ...edit, cover_theme: edit.cover_theme === `art-${i}` ? '' : `art-${i}`, cover_url: '' })} className={`h-10 rounded-xl transition-all active:scale-95 ${edit.cover_theme === `art-${i}` ? 'ring-2 ring-primary' : 'hover:opacity-90'}`} style={{ background: `linear-gradient(120deg, ${g[0]}, ${g[1]})` }} title={`Art ${i + 1}`} aria-label={`Inbuilt art ${i + 1}`} />
                     ))}
                   </div>
                 </div>
@@ -1253,17 +1292,17 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         ) : (
-          <div className="pt-3 space-y-5 pb-6">
+          <div className="pt-2 space-y-4 pb-6">
             {/* HERO — Discover Amazing Communities & Creators */}
             <section className="px-4">
               <div className="relative rounded-[24px] overflow-hidden" style={{ border: '1px solid rgba(168,85,247,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 <img src={HERO_IMG} alt="" className="absolute inset-0 w-full h-full object-cover" />
                 <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,8,26,0.92) 30%, rgba(8,8,26,0.45) 60%, rgba(8,8,26,0.15) 100%)' }} />
-                <div className="relative p-5 min-h-[190px] flex flex-col justify-center">
+                <div className="relative p-4 min-h-[150px] flex flex-col justify-center">
                   <p className="text-[11px] font-extrabold uppercase tracking-[0.15em] text-orange-300 flex items-center gap-1.5">🔥 Featured</p>
-                  <p className="text-[24px] leading-[1.15] font-extrabold text-white mt-1.5">Discover Amazing<br /><span style={{ background: 'linear-gradient(90deg,#c4b5fd,#f472b6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Communities & Creators</span></p>
-                  <p className="text-[13px] mt-1.5 max-w-[230px]" style={{ color: '#cbd5e1' }}>Join channels, meet new people, and be part of something great.</p>
-                  <div className="flex items-end justify-between mt-3 gap-3">
+                  <p className="text-[20px] leading-[1.15] font-extrabold text-white mt-1">Discover Amazing<br /><span style={{ background: 'linear-gradient(90deg,#c4b5fd,#f472b6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Communities & Creators</span></p>
+                  <p className="text-[12px] mt-1 max-w-[230px]" style={{ color: '#cbd5e1' }}>Join channels, meet new people, and be part of something great.</p>
+                  <div className="flex items-end justify-between mt-2.5 gap-3">
                     <button onClick={() => document.getElementById('trending-channels')?.scrollIntoView({ behavior: 'smooth' })} className="px-5 py-2.5 rounded-full text-[14px] font-bold text-white flex items-center gap-2 transition-all active:scale-95" style={{ background: 'linear-gradient(90deg,#3b82f6,#e879f9)', boxShadow: '0 4px 20px rgba(217,70,239,0.4)' }}>
                       Explore Now <ArrowRight className="w-4 h-4" />
                     </button>
@@ -1298,10 +1337,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     View all <span>→</span>
                   </button>
                 </div>
-                <div className="flex gap-4 overflow-x-auto px-4 pb-2 snap-x no-scrollbar">
+                <div className="flex gap-3 overflow-x-auto px-4 pb-2 snap-x no-scrollbar">
                   {[...featured, ...trendingRows.slice(0, 2)].map((c: any, idx: number) => {
                     const isFeatured = idx < featured.length
-                    const cardCover = coverImageOf(c)
                     const cIcon = channelIcon(c)
                     const canOpen = c.followed || c.is_owner
                     const created = c.created_at && asDate(c.created_at)
@@ -1315,56 +1353,62 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         tabIndex={canOpen ? 0 : undefined}
                         onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c) } }}
                         aria-label={canOpen ? `Open ${c.name}` : undefined}
-                        className="snap-start shrink-0 w-[240px] rounded-[20px] overflow-hidden transition-all active:scale-[0.98]"
-                        style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(52,211,153,0.35)'}`, boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }}
+                        className="snap-start shrink-0 w-[190px] rounded-[18px] overflow-hidden transition-all active:scale-[0.98]"
+                        style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(52,211,153,0.35)'}`, boxShadow: '0 6px 22px rgba(0,0,0,0.5)' }}
                       >
-                        <div className="relative h-28 overflow-hidden" style={{ backgroundImage: `url(${cardCover})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                        <div className="relative h-24 overflow-hidden" style={coverStyleOf(c)}>
                           <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(13,13,36,0.55))' }} />
                           {isFeatured && (
-                            <span className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)' }}>
-                              <Crown className="w-4 h-4 text-amber-300" fill="currentColor" />
+                            <span className="absolute top-2 left-2 w-7 h-7 rounded-full flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                              <Crown className="w-3.5 h-3.5 text-amber-300" fill="currentColor" />
                             </span>
                           )}
                           <button
                             onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }}
-                            className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center text-white"
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-white"
                             style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
                             aria-label="More options"
                           >
-                            <MoreVertical className="w-4 h-4" />
+                            <MoreVertical className="w-3.5 h-3.5" />
                           </button>
                         </div>
-                        <div className="px-3.5 pb-3.5">
-                          <div className="flex items-center gap-2.5 -mt-7 mb-1">
+                        <div className="px-3 pb-3">
+                          <div className="flex items-center gap-2 -mt-6 mb-1">
                             <div className="relative shrink-0">
-                              <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-xl overflow-hidden" style={{ border: '3px solid #0d0d24' }}>
+                              <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-extrabold shadow-xl overflow-hidden" style={{ ...avatarStyleOf(c), border: '2px solid #0d0d24' }}>
                                 {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-2xl">{cIcon}</span> : avatarLetter(c.name)}
                               </div>
-                              <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#0ea5e9' }}>
-                                <BadgeCheck className="w-3.5 h-3.5 text-white" fill="currentColor" />
-                              </span>
+                              {cIcon ? (
+                                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[12px]" style={{ background: '#0d0d24', border: '1.5px solid rgba(255,255,255,0.25)' }}>
+                                  {cIcon}
+                                </span>
+                              ) : (
+                                <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full flex items-center justify-center" style={{ background: '#0ea5e9', width: 18, height: 18 }}>
+                                  <BadgeCheck className="w-3 h-3 text-white" fill="currentColor" />
+                                </span>
+                              )}
                             </div>
                           </div>
-                          <p className="text-[16px] font-extrabold truncate tracking-tight flex items-center gap-1 text-white">
+                          <p className="text-[15px] font-extrabold truncate tracking-tight flex items-center gap-1 text-white">
                             <span className="truncate">{c.name}</span>
-                            <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" fill="currentColor" />
+                            <BadgeCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="currentColor" />
                           </p>
-                          <p className="text-[13px] truncate" style={{ color: '#9ca3af' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
-                          <div className="flex items-center gap-3 mt-2.5 text-[12px] font-bold text-white">
-                            <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" style={{ color: '#f472b6' }} /> {compact(c.follower_count ?? 0)}</span>
-                            <span className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" style={{ color: '#9ca3af' }} /> {c.post_count ?? 0}</span>
-                            <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" style={{ color: '#9ca3af' }} /> {created}</span>
+                          <p className="text-[12px] truncate" style={{ color: '#9ca3af' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
+                          <div className="flex items-center gap-2.5 mt-2 text-[11px] font-bold text-white">
+                            <span className="flex items-center gap-1"><Users className="w-3 h-3" style={{ color: '#f472b6' }} /> {compact(c.follower_count ?? 0)}</span>
+                            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" style={{ color: '#9ca3af' }} /> {c.post_count ?? 0}</span>
+                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" style={{ color: '#9ca3af' }} /> {created}</span>
                           </div>
-                          <div className="flex items-center gap-3 mt-1 text-[11px]" style={{ color: '#6b7280' }}>
+                          <div className="flex items-center gap-2.5 mt-0.5 text-[10px]" style={{ color: '#6b7280' }}>
                             <span>Followers</span><span>Posts</span><span>Created</span>
                           </div>
                           {!c.is_owner && !c.followed ? (
-                            <button onClick={(e) => { e.stopPropagation(); follow(c.id, true) }} className="w-full mt-3 py-2.5 rounded-full text-[14px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]" style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)' }}>
-                              <Users className="w-4 h-4" /> Follow
+                            <button onClick={(e) => { e.stopPropagation(); follow(c.id, true) }} className="w-full mt-2.5 py-2 rounded-full text-[13px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]" style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)' }}>
+                              <Users className="w-3.5 h-3.5" /> Follow
                             </button>
                           ) : (
-                            <button onClick={(e) => { e.stopPropagation(); if (!c.is_owner) follow(c.id, false) }} className="w-full mt-3 py-2.5 rounded-full text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]" style={c.is_owner ? { background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', color: '#c4b5fd' } : { background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#6ee7b7' }}>
-                              <Check className="w-4 h-4" /> {c.is_owner ? 'Owner' : 'Following'}
+                            <button onClick={(e) => { e.stopPropagation(); if (!c.is_owner) follow(c.id, false) }} className="w-full mt-2.5 py-2 rounded-full text-[13px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]" style={c.is_owner ? { background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', color: '#c4b5fd' } : { background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#6ee7b7' }}>
+                              <Check className="w-3.5 h-3.5" /> {c.is_owner ? 'Owner' : 'Following'}
                             </button>
                           )}
                         </div>
@@ -1454,7 +1498,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — pick an emoji</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — category emoji (logo kela side kaatum)</p>
                   <div className="grid grid-cols-8 gap-1.5">
                     {CHANNEL_ICONS.map((em) => (
                       <button key={em} onClick={() => setWizard({ ...wizard, icon: wizard.icon === em ? '' : em })} className={`text-xl p-1.5 rounded-lg transition-all active:scale-90 min-h-[44px] ${wizard.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={wizard.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Icon ${em}`}>
@@ -1487,12 +1531,18 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   style={fieldStyle}
                 />
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover theme — image</p>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover theme — image (inbuilt)</p>
                   <div className="grid grid-cols-4 gap-2">
                     {CHANNEL_THEMES.map((t) => (
                       <button key={t.id} onClick={() => setWizard({ ...wizard, cover_theme: wizard.cover_theme === t.id ? '' : t.id, cover_url: '' })} className={`h-14 rounded-xl overflow-hidden transition-all active:scale-95 ${wizard.cover_theme === t.id && !wizard.cover_url ? 'ring-2 ring-primary' : 'hover:opacity-90'}`} title={t.name} aria-label={`Theme ${t.name}`}>
                         <img src={t.url} alt={t.name} loading="lazy" className="w-full h-full object-cover" />
                       </button>
+                    ))}
+                  </div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5 mt-3">Inbuilt art — offline (no photo)</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {COVERS.map((g, i) => (
+                      <button key={`art-${i}`} onClick={() => setWizard({ ...wizard, cover_theme: wizard.cover_theme === `art-${i}` ? '' : `art-${i}`, cover_url: '' })} className={`h-12 rounded-xl transition-all active:scale-95 ${wizard.cover_theme === `art-${i}` ? 'ring-2 ring-primary' : 'hover:opacity-90'}`} style={{ background: `linear-gradient(120deg, ${g[0]}, ${g[1]})` }} title={`Art ${i + 1}`} aria-label={`Inbuilt art ${i + 1}`} />
                     ))}
                   </div>
                 </div>
@@ -1510,7 +1560,14 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             )}
             {wizard.step === 3 && (
               <div className="rounded-2xl bg-elevated border border-subtle overflow-hidden">
-                <div className="h-16" style={{ backgroundImage: `url(${wizard.cover_url || (wizard.cover_theme ? (CHANNEL_THEMES.find((x) => x.id === wizard.cover_theme)?.url || CHANNEL_THEMES[0].url) : CHANNEL_THEMES[0].url)})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                <div className="h-16" style={(() => {
+                  if (wizard.cover_url) return { backgroundImage: `url(${wizard.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                  const t = CHANNEL_THEMES.find((x) => x.id === wizard.cover_theme)
+                  if (t) return { backgroundImage: `url(${t.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                  const g = artOf(wizard.cover_theme)
+                  if (g) return { background: `linear-gradient(120deg, ${g[0]}, ${g[1]})` }
+                  return { backgroundImage: `url(${CHANNEL_THEMES[0].url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+                })()} />
                 <div className="p-4 flex items-center gap-3">
                   <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 overflow-hidden">
                     {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : wizard.icon ? <span className="text-2xl">{wizard.icon}</span> : avatarLetter(wizard.name || '?')}
