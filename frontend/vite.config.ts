@@ -26,7 +26,10 @@ export default defineConfig({
       output: {
         manualChunks: {
           vendor: ['react', 'react-dom', 'react-router-dom', 'zustand', 'axios'],
-          ui: ['lucide-react', 'emoji-picker-react', 'date-fns'],
+          // NOTE: emoji-picker-react is intentionally NOT listed: it loads
+          // via React.lazy on first picker open, so manual chunking must
+          // not pin it into the shared ui bundle.
+          ui: ['lucide-react', 'date-fns'],
         },
       },
     },

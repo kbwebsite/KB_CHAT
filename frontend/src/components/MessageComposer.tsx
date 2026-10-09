@@ -1,10 +1,12 @@
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
 import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera, Navigation } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
-import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
+import type { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
+// Heavy picker (~300KB) loads on first open, never with the chat bundle.
+const EmojiPicker = lazy(() => import('emoji-picker-react'))
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
 import { uploadApi, liveLocationApi } from '../services/api'
@@ -12,6 +14,16 @@ import { startLiveTracking } from '../utils/liveLocation'
 import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
 import { GifPicker } from './GifPicker'
+
+// Theme enum lives in the lazily-loaded picker bundle; these literals match
+// its values ('dark' | 'light') without statically importing the module.
+function pickEmojiTheme(): EmojiTheme {
+  try {
+    return (document.documentElement.classList.contains('dark') ? 'dark' : 'light') as EmojiTheme
+  } catch {
+    return 'light' as EmojiTheme
+  }
+}
 
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
   onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
@@ -577,7 +589,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Emoji picker */}
       {showEmoji && (
         <div className="composer-picker">
-          <EmojiPicker onEmojiClick={handleEmoji} height={280} width="100%" theme={document.documentElement.classList.contains('dark') ? EmojiTheme.DARK : EmojiTheme.LIGHT} />
+          <Suspense fallback={<div className="h-[280px] skeleton" aria-label="Loading emoji" />}>
+            <EmojiPicker onEmojiClick={handleEmoji} height={280} width="100%" theme={pickEmojiTheme()} />
+          </Suspense>
         </div>
       )}
 

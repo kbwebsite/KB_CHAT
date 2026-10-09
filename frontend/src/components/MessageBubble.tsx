@@ -2,8 +2,19 @@ import { Message } from '../types'
 import { formatTime } from '../utils/format'
 import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info, MapPin, Navigation } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
-import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react'
-import { useState, useRef, useEffect } from 'react'
+import type { Theme as EmojiTheme } from 'emoji-picker-react'
+const EmojiPicker = lazy(() => import('emoji-picker-react'))
+
+// Theme enum lives in the lazily-loaded picker bundle; these literals match
+// its values ('dark' | 'light') without statically importing the module.
+function pickEmojiTheme(): EmojiTheme {
+  try {
+    return (document.documentElement.classList.contains('dark') ? 'dark' : 'light') as EmojiTheme
+  } catch {
+    return 'light' as EmojiTheme
+  }
+}
+import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
@@ -642,14 +653,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <button onClick={()=>setShowCustomReact(v=>!v)} className="p-1.5 hover:bg-muted rounded-full" title="Custom reaction"><SmilePlus className="w-3.5 h-3.5"/></button>
             {showCustomReact && (
               <div className="absolute bottom-full mb-2 right-0 z-30 shadow-xl rounded-2xl overflow-hidden" onClick={(e)=> e.stopPropagation()}>
-                <EmojiPicker
-                  onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowCustomReact(false) }}
-                  height={320}
-                  width={300}
-                  skinTonesDisabled
-                  searchDisabled
-                  theme={document.documentElement.classList.contains('dark') ? EmojiTheme.DARK : EmojiTheme.LIGHT}
-                />
+                <Suspense fallback={<div className="h-[320px] w-[300px] skeleton" aria-label="Loading emoji" />}>
+                  <EmojiPicker
+                    onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowCustomReact(false) }}
+                    height={320}
+                    width={300}
+                    skinTonesDisabled
+                    searchDisabled
+                    theme={pickEmojiTheme()}
+                  />
+                </Suspense>
               </div>
             )}
             <div className="w-px h-5 bg-border mx-1"/>
