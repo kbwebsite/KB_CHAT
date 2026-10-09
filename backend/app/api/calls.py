@@ -101,6 +101,47 @@ async def start_call(
             raise HTTPException(
                 status_code=403, detail="Callee is not in this conversation"
             )
+    # Silence unknown callers: the callee never rings, gets no push, and the
+    # caller just sees a decline. A history row is kept so the callee can
+    # see who tried. "Known" = shares at least one conversation.
+    from app.models.settings import UserSettings as _US
+
+    _sil = db.query(_US).filter_by(user_id=callee_id).first()
+    if _sil and _sil.silence_unknown_callers:
+        _mine = {
+            c[0]
+            for c in db.query(ConversationMember.conversation_id)
+            .filter_by(user_id=callee_id)
+            .all()
+        }
+        _known = bool(_mine) and (
+            db.query(ConversationMember)
+            .filter(
+                ConversationMember.user_id == current_user.id,
+                ConversationMember.conversation_id.in_(_mine),
+            )
+            .first()
+            is not None
+        )
+        if not _known:
+            _now = datetime.now(timezone.utc)
+            _call = CallHistory(
+                caller_id=current_user.id,
+                callee_id=callee_id,
+                conversation_id=None,
+                call_type=call_type if call_type in ("voice", "video") else "voice",
+                status="rejected",
+                started_at=_now,
+                ended_at=_now,
+                duration_seconds=0,
+            )
+            db.add(_call)
+            db.commit()
+            db.refresh(_call)
+            return success_response(
+                {"id": _call.id, "status": "rejected", "silenced": True},
+                "Silenced unknown caller",
+            )
     call = CallHistory(
         caller_id=current_user.id,
         callee_id=callee_id,

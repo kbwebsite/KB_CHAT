@@ -8,6 +8,7 @@ export interface User {
   is_online?: boolean;
   last_seen?: string | null;
   created_at?: string | null;
+  is_admin?: boolean;
 }
 
 export interface ConversationMember {

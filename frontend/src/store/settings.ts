@@ -21,7 +21,9 @@ import { isAutoWriting, isThemeAutoOn, setThemeAutoOn } from '../utils/wallpaper
  *   is_muted (DND)      -> kills sound+vibrate+desktop in handler       (server)
  *   notification_previews -> popup body: "Name: text" vs "New message"  (server)
  *  privacy (server; enforced backend-side in users/extended/WS receipts)
- *   online_status_visible, last_seen_visible, read_receipts
+ *   online_status_visible, last_seen_visible, read_receipts,
+ *   silence_unknown_callers (auto-decline in calls.py start),
+ *   group_add_privacy (direct-add gate in services/groups.py)
  *  chat
  *   enter_to_send       -> MessageComposer key handling                 (server)
  *   media_auto_download -> MessageBubble tap-to-load placeholders       (server)
@@ -59,6 +61,8 @@ export interface UserSettings {
   online_status_visible: Visibility
   read_receipts: boolean
   last_seen_visible: Visibility
+  silence_unknown_callers: boolean
+  group_add_privacy: Visibility
   enter_to_send: boolean
   media_auto_download: boolean
   typing_indicators: boolean
@@ -84,6 +88,8 @@ const defaults: UserSettings = {
   online_status_visible: 'everyone',
   read_receipts: true,
   last_seen_visible: 'everyone',
+  silence_unknown_callers: false,
+  group_add_privacy: 'everyone',
   enter_to_send: true,
   media_auto_download: true,
   default_disappearing: null,
@@ -105,6 +111,8 @@ export const SERVER_KEYS = new Set<keyof UserSettings>([
   'online_status_visible',
   'read_receipts',
   'last_seen_visible',
+  'silence_unknown_callers',
+  'group_add_privacy',
   'enter_to_send',
   'media_auto_download',
   'default_disappearing',

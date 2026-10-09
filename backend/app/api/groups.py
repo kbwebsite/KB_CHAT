@@ -19,7 +19,7 @@ def create_group(
     current_user: User = Depends(get_current_user),
 ):
     # payload: {title, description, member_ids, member_usernames}
-    conv = group_service.create_group(
+    conv, skipped = group_service.create_group(
         db,
         creator_id=current_user.id,
         title=payload.get("title"),
@@ -27,9 +27,10 @@ def create_group(
         member_ids=payload.get("member_ids"),
         member_usernames=payload.get("member_usernames"),
     )
-    return success_response(
-        conversation_to_dict(db, conv, current_user.id), "Group created"
-    )
+    msg = "Group created"
+    if skipped:
+        msg += f" ({', '.join(skipped[:3])} blocked by group privacy)"
+    return success_response(conversation_to_dict(db, conv, current_user.id), msg)
 
 
 @router.patch("/{group_id}")
@@ -65,16 +66,17 @@ def add_members(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv, added = group_service.add_group_members(
+    conv, added, skipped = group_service.add_group_members(
         db,
         conv_id=group_id,
         actor_id=current_user.id,
         user_ids=payload.get("user_ids"),
         usernames=payload.get("usernames"),
     )
-    return success_response(
-        conversation_to_dict(db, conv, current_user.id), f"Added {added} members"
-    )
+    msg = f"Added {added} members"
+    if skipped:
+        msg += f" ({', '.join(skipped[:3])} blocked by group privacy)"
+    return success_response(conversation_to_dict(db, conv, current_user.id), msg)
 
 
 @router.delete("/{group_id}/members/{user_id}")

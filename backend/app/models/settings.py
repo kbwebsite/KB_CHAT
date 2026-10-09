@@ -40,6 +40,12 @@ class UserSettings(Base):
     status_visibility = Column(String(20), default="contacts")
     who_can_contact = Column(String(20), default="everyone")
     notification_previews = Column(Boolean, default=True)
+    # Calls
+    # Unknown callers (no shared conversation) are auto-declined server-side.
+    silence_unknown_callers = Column(Boolean, default=False)
+    # Groups: who may add you directly (everyone, contacts, nobody).
+    # Invite-link joins are always allowed (your own choice).
+    group_add_privacy = Column(String(20), default="everyone")
     # Chat
     enter_to_send = Column(Boolean, default=True)
     media_auto_download = Column(Boolean, default=True)

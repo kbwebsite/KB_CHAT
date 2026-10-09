@@ -14,6 +14,11 @@ import * as path from 'node:path';
 
 const FRONTEND_URL = process.env.KB_E2E_FRONTEND_URL ?? 'http://localhost:5173';
 const BACKEND_URL = process.env.KB_E2E_BACKEND_URL ?? 'http://127.0.0.1:8000';
+// Fixed admin identity for moderation tests: the managed backend
+// allowlists this email via ADMIN_EMAILS, so signing it up yields an
+// admin with no manual DB edits and no production accounts.
+const E2E_ADMIN_EMAIL =
+  process.env.KB_E2E_ADMIN_EMAIL ?? 'kb-e2e-admin@example.com';
 // Fresh database per run: no cross-run contamination, no cleanup of users.
 const E2E_DB = path.join(os.tmpdir(), `kb-e2e-${Date.now()}.db`);
 
@@ -55,6 +60,7 @@ export default defineConfig({
       env: {
         DATABASE_URL: `sqlite:///${E2E_DB}`,
         APP_ENV: 'development',
+        ADMIN_EMAILS: E2E_ADMIN_EMAIL,
         PATH: process.env.PATH ?? '',
       },
     },

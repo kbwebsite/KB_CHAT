@@ -9,6 +9,8 @@ interface PrivacySettings {
   status_visibility: string
   who_can_contact: string
   notification_previews: boolean
+  silence_unknown_callers: boolean
+  group_add_privacy: string
 }
 
 export default function PrivacyCenter() {
@@ -65,7 +67,9 @@ export default function PrivacyCenter() {
         <Select label="Profile Visibility" value={settings.profile_visibility} options={visOpts} onChange={v => update('profile_visibility', v)} />
         <Select label="Status Visibility" value={settings.status_visibility} options={visOpts} onChange={v => update('status_visibility', v)} />
         <Select label="Who Can Contact" value={settings.who_can_contact} options={visOpts} onChange={v => update('who_can_contact', v)} />
+        <Select label="Who Can Add to Groups" value={settings.group_add_privacy || 'everyone'} options={visOpts} onChange={v => update('group_add_privacy', v)} />
         <Toggle label="Notification Previews" value={settings.notification_previews} onChange={v => update('notification_previews', v)} />
+        <Toggle label="Silence Unknown Callers" value={!!settings.silence_unknown_callers} onChange={v => update('silence_unknown_callers', v)} />
       </div>
     </div>
   )

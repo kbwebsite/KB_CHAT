@@ -3,18 +3,6 @@ import { formatTime } from '../utils/format'
 import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
 import type { Theme as EmojiTheme } from 'emoji-picker-react'
-// Heavy picker loads on first open, never with the chat bundle.
-const EmojiPicker = lazy(() => import('emoji-picker-react'))
-
-// Theme enum lives in the lazily-loaded picker bundle; these literals match
-// its values ('dark' | 'light') without statically importing the module.
-function pickEmojiTheme(): EmojiTheme {
-  try {
-    return (document.documentElement.classList.contains('dark') ? 'dark' : 'light') as EmojiTheme
-  } catch {
-    return 'light' as EmojiTheme
-  }
-}
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
@@ -31,6 +19,19 @@ import { LiveLocationCard } from './LiveLocationCard'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 import { RpsGame, isRpsChallenge, type RpsChoice } from './RockPaperScissors'
 import { ConnectFourGame, isC4Challenge } from './ConnectFour'
+
+// Heavy picker loads on first open, never with the chat bundle.
+const EmojiPicker = lazy(() => import('emoji-picker-react'))
+
+// Theme enum lives in the lazily-loaded picker bundle; these literals match
+// its values ('dark' | 'light') without statically importing the module.
+function pickEmojiTheme(): EmojiTheme {
+  try {
+    return (document.documentElement.classList.contains('dark') ? 'dark' : 'light') as EmojiTheme
+  } catch {
+    return 'light' as EmojiTheme
+  }
+}
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
 
@@ -353,10 +354,10 @@ function VideoNotePlayer({ src, duration }: { src: string; duration?: number | n
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onContactChat, convTitle }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onContactChat, convTitle }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
-  onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean,
+  onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean, onReport?:(m:Message)=>void,
   onImageClick?:(url:string, name:string, all:{url:string,name:string,type?:string}[], idx:number)=>void,
   savedIds?:Set<number>, onPin?:(m:Message)=>void,
   onAIAction?:(msg:Message, action:string)=>void,
@@ -449,8 +450,10 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const safeForward = onForward || (()=>{})
   const safeSave = onSave || (()=>{})
   const safeSelect = onSelect || (()=>{})
+  const safeReport = onReport || (()=>{})
   const safeImageClick = onImageClick || ((url:string, name:string)=> window.open(url, '_blank'))
   const isVoice = msg.message_type === 'voice'
+  const isAi = (msg as any).message_type === 'ai' && !msg.is_deleted
   const isVideoNote = (msg as any).message_type === 'video_note' && !msg.is_deleted
   const [transcription, setTranscription] = useState<string|null>(null)
   const [transcribing, setTranscribing] = useState(false)
@@ -486,7 +489,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
         {isGroup && !isOwn && showAvatar && (
           <span className="text-[11px] font-semibold text-primary mb-1 ml-1 flex items-center gap-1.5">
             {(msg as any).sender_avatar ? <img src={(msg as any).sender_avatar} alt="" className="w-5 h-5 rounded-full object-cover kryzen-avatar-tiny" /> : null}
-            {msg.sender_display_name}
+            {isAi ? `🤖 ${msg.sender_display_name || 'Kryzen AI'}` : msg.sender_display_name}
           </span>
         )}
         {msg.reply_to_content && (
@@ -494,7 +497,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
+        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isAi ? 'rounded-2xl rounded-bl-md ring-1 ring-violet-400/50' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isAi ? { background: 'linear-gradient(135deg, rgba(124,92,252,0.28), rgba(34,211,238,0.16))', backdropFilter: 'blur(12px)', border: '1px solid rgba(124,92,252,0.45)', boxShadow: '0 4px 20px rgba(124,92,252,0.25), inset 0 1px 0 rgba(255,255,255,0.08)', color: '#f0f0ff' } : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
@@ -757,6 +760,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
               <button onClick={()=>{ safeSelect(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Flag className="w-3.5 h-3.5"/> Select</button>
+              {!isOwn && onReport && !msg.is_deleted && (
+                <button onClick={()=>{ safeReport(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-amber-500"><Flag className="w-3.5 h-3.5"/> Report</button>
+              )}
               {isOwn && !msg.is_deleted && (
                 <button onClick={()=>{ setShowInfo(true); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Info className="w-3.5 h-3.5"/> Info</button>
               )}

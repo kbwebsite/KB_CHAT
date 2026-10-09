@@ -188,6 +188,12 @@ def _login_token_response(user: User, db=None, request=None, response=None):
             "created_at": user.created_at.isoformat() if user.created_at else None,
         },
     }
+    try:
+        from app.api.security import maybe_security_alert
+
+        maybe_security_alert(db, user, request)
+    except Exception:
+        pass
     sid = None
     if db is not None:
         sid = session_api.maybe_issue_session(db, user, request, response)
@@ -405,6 +411,12 @@ def _session_response(user, message: str, db=None, request=None, response=None):
             "created_at": user.created_at.isoformat() if user.created_at else None,
         },
     }
+    try:
+        from app.api.security import maybe_security_alert
+
+        maybe_security_alert(db, user, request)
+    except Exception:
+        pass
     sid = None
     if db is not None:
         sid = session_api.maybe_issue_session(db, user, request, response)

@@ -20,6 +20,7 @@ import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg 
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
 import { IcebreakerSheet } from './IcebreakerSheet'
+import { ReportDialog } from './ReportDialog'
 import { hiddenIds, hideMessage } from '../utils/hidden'
 import type { RpsChoice } from './RockPaperScissors'
 
@@ -109,6 +110,7 @@ export function ChatView({
   const [convAccent, setConvAccentState] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
   const [showIce, setShowIce] = useState(false)
+  const [reportTarget, setReportTarget] = useState<any | null>(null)
   const pendingJump = useChatStore((s: any) => s.pendingJump)
   // Jump landing (PE-2A search/saved jumps, PE-2J in-conversation jumps):
   // scroll to the exact message + flash it.
@@ -923,6 +925,7 @@ export function ChatView({
                       onCopy={(t: string) => navigator.clipboard.writeText(t)}
                       onForward={(m: any) => setForwardMsg(m)}
                       onSave={onSave}
+                      onReport={(m: any) => setReportTarget(m)}
                       onSelect={(m: any) => setSelectedIds((s: Set<number>) => { const n = new Set(s); if (n.has(m.id)) n.delete(m.id); else n.add(m.id); return n })}
                       isSelected={selectedIds.has(msg.id)}
                       onImageClick={(url: string, name: string, all: any[], idx: number) => setLightbox({ images: all, idx })}
@@ -1061,6 +1064,13 @@ export function ChatView({
             conversationId={currentConversationId}
             onClose={() => setShowIce(false)}
             onUsed={() => {}}
+          />
+        )}
+
+        {reportTarget && (
+          <ReportDialog
+            messageId={reportTarget.id}
+            onClose={() => setReportTarget(null)}
           />
         )}
 

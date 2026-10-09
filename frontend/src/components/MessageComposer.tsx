@@ -6,8 +6,6 @@ import { VideoNoteRecorder } from './VideoNoteRecorder'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
 import type { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
-// Heavy picker (~300KB) loads on first open, never with the chat bundle.
-const EmojiPicker = lazy(() => import('emoji-picker-react'))
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
 import { uploadApi, liveLocationApi } from '../services/api'
@@ -15,6 +13,9 @@ import { startLiveTracking } from '../utils/liveLocation'
 import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
 import { GifPicker } from './GifPicker'
+
+// Heavy picker (~300KB) loads on first open, never with the chat bundle.
+const EmojiPicker = lazy(() => import('emoji-picker-react'))
 
 // Theme enum lives in the lazily-loaded picker bundle; these literals match
 // its values ('dark' | 'light') without statically importing the module.

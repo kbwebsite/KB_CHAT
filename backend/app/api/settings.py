@@ -26,6 +26,8 @@ class SettingsUpdate(BaseModel):
     enter_to_send: Optional[bool] = None
     media_auto_download: Optional[bool] = None
     default_disappearing: Optional[int] = None
+    silence_unknown_callers: Optional[bool] = None
+    group_add_privacy: Optional[str] = None
 
 
 def get_or_create_settings(db: Session, user_id: int):
@@ -59,6 +61,11 @@ def get_settings(
             "enter_to_send": s.enter_to_send,
             "media_auto_download": s.media_auto_download,
             "default_disappearing": s.default_disappearing,
+            "silence_unknown_callers": bool(
+                getattr(s, "silence_unknown_callers", False) or False
+            ),
+            "group_add_privacy": getattr(s, "group_add_privacy", "everyone")
+            or "everyone",
         }
     )
 
@@ -81,6 +88,14 @@ def update_settings(
                 status_code=400, detail="Timer must be 24 hours, 7 days or 90 days"
             )
         vals["default_disappearing"] = dd
+    if "group_add_privacy" in vals and vals["group_add_privacy"] is not None:
+        mode = str(vals["group_add_privacy"]).lower()
+        if mode not in ("everyone", "contacts", "nobody"):
+            raise HTTPException(
+                status_code=400,
+                detail="group_add_privacy must be everyone, contacts or nobody",
+            )
+        vals["group_add_privacy"] = mode
     for k, v in vals.items():
         # default_disappearing is nullable (Off = NULL); everything else
         # keeps the legacy skip-nulls behavior.
@@ -104,6 +119,11 @@ def update_settings(
             "enter_to_send": s.enter_to_send,
             "media_auto_download": s.media_auto_download,
             "default_disappearing": s.default_disappearing,
+            "silence_unknown_callers": bool(
+                getattr(s, "silence_unknown_callers", False) or False
+            ),
+            "group_add_privacy": getattr(s, "group_add_privacy", "everyone")
+            or "everyone",
         },
         "Settings updated",
     )

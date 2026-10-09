@@ -107,11 +107,11 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   const handleAdd=async (u:any)=>{
     if (!canManage) return setMsg('Only admins can add')
     try {
-      await convApi.addMembers(conversation.id, { user_ids: [u.id] })
-      setMsg(`Added ${u.username}`)
+      const res = await convApi.addMembers(conversation.id, { user_ids: [u.id] })
+      setMsg(res?.message || `Added ${u.username}`)
       onUpdated()
       setShowAdd(false)
-    } catch (e:any) { setMsg(e.response?.data?.message||'Failed to add') }
+    } catch (e:any) { setMsg(e.response?.data?.message||e.response?.data?.detail||'Failed to add') }
   }
 
   const handleRole=async (uid:number, role:'admin'|'member')=>{

@@ -419,7 +419,7 @@ def create_conversation(
     if payload.is_group:
         # Group creation (rules live in services/groups.py; the 1-1 branch
         # below stays here).
-        conv = group_service.create_group(
+        conv, skipped = group_service.create_group(
             db,
             creator_id=current_user.id,
             title=payload.title,
@@ -427,9 +427,10 @@ def create_conversation(
             member_ids=payload.member_ids,
             member_usernames=payload.member_usernames,
         )
-        return success_response(
-            conversation_to_dict(db, conv, current_user.id), "Group created"
-        )
+        msg = "Group created"
+        if skipped:
+            msg += f" ({', '.join(skipped[:3])} blocked by group privacy)"
+        return success_response(conversation_to_dict(db, conv, current_user.id), msg)
     else:
         # 1-1
         target_user = None
@@ -627,16 +628,17 @@ def add_group_members(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    conv, added = group_service.add_group_members(
+    conv, added, skipped = group_service.add_group_members(
         db,
         conv_id=conv_id,
         actor_id=current_user.id,
         user_ids=payload.get("user_ids"),
         usernames=payload.get("usernames"),
     )
-    return success_response(
-        conversation_to_dict(db, conv, current_user.id), f"Added {added} members"
-    )
+    msg = f"Added {added} members"
+    if skipped:
+        msg += f" ({', '.join(skipped[:3])} blocked by group privacy)"
+    return success_response(conversation_to_dict(db, conv, current_user.id), msg)
 
 
 @router.delete("/groups/{conv_id}/members/{user_id}")

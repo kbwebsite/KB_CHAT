@@ -59,6 +59,45 @@ def _apply_default_disappearing(db: Session, conv: Conversation, user_id: int) -
         conv.disappearing_seconds = s.default_disappearing
 
 
+def _adder_allowed(db: Session, *, adder_id: int, target_id: int) -> bool:
+    """Target's group-add privacy: everyone / contacts / nobody.
+
+    "contacts" = shares at least one conversation with the adder (the
+    app's contact definition everywhere else). Invite-link joins bypass
+    this entirely (joining yourself is always allowed).
+    """
+    from app.models.settings import UserSettings
+
+    s = db.query(UserSettings).filter_by(user_id=target_id).first()
+    mode = (getattr(s, "group_add_privacy", "everyone") or "everyone").lower()
+    if mode == "everyone":
+        return True
+    if mode == "nobody":
+        return False
+    mine = {
+        c[0]
+        for c in db.query(ConversationMember.conversation_id)
+        .filter_by(user_id=target_id)
+        .all()
+    }
+    if not mine:
+        return False
+    return (
+        db.query(ConversationMember)
+        .filter(
+            ConversationMember.user_id == adder_id,
+            ConversationMember.conversation_id.in_(mine),
+        )
+        .first()
+        is not None
+    )
+
+
+def _display_name(db: Session, user_id: int) -> str:
+    u = db.query(User).filter_by(id=user_id).first()
+    return (u.display_name or u.username) if u else f"user {user_id}"
+
+
 def create_group(
     db: Session,
     *,
@@ -67,7 +106,9 @@ def create_group(
     description=None,
     member_ids=(),
     member_usernames=(),
-) -> Conversation:
+) -> tuple:
+    """Returns ``(conv, skipped_names)`` — members blocked by the target's
+    group-add privacy are left out and named (no silent drops)."""
     if not title or not str(title).strip():
         raise bad_request("Group title required")
     conv = Conversation(
@@ -86,16 +127,20 @@ def create_group(
         u = db.query(User).filter_by(username=str(uname).lower()).first()
         if u:
             wanted.add(u.id)
+    skipped = []
     for uid in wanted:
         if uid == creator_id:
             continue
         if not db.query(User).filter_by(id=uid).first():
             continue
+        if not _adder_allowed(db, adder_id=creator_id, target_id=uid):
+            skipped.append(_display_name(db, uid))
+            continue
         db.add(ConversationMember(conversation_id=conv.id, user_id=uid, role="member"))
     _apply_default_disappearing(db, conv, creator_id)
     db.commit()
     db.refresh(conv)
-    return conv
+    return conv, skipped
 
 
 def update_group_details(
@@ -158,7 +203,8 @@ def add_group_members(
     user_ids=(),
     usernames=(),
 ) -> tuple:
-    """Returns ``(conv, added_count)``."""
+    """Returns ``(conv, added_count, skipped_names)`` — members blocked by
+    the target's group-add privacy are left out and named."""
     conv = _get_group(db, conv_id)
     mem = _membership(db, conv_id, actor_id)
     if not mem or mem.role not in _MANAGER_ROLES:
@@ -169,15 +215,19 @@ def add_group_members(
         if u and u.id not in wanted:
             wanted.append(u.id)
     added = 0
+    skipped = []
     for uid in wanted:
         if _membership(db, conv_id, uid):
             continue
         if not db.query(User).filter_by(id=uid).first():
             continue
+        if not _adder_allowed(db, adder_id=actor_id, target_id=uid):
+            skipped.append(_display_name(db, uid))
+            continue
         db.add(ConversationMember(conversation_id=conv_id, user_id=uid, role="member"))
         added += 1
     db.commit()
-    return conv, added
+    return conv, added, skipped
 
 
 def remove_group_member(

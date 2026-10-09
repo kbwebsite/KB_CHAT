@@ -24,11 +24,20 @@ const JoinPage = lazy(() => import('./pages/JoinPage'))
 const UserPage = lazy(() => import('./pages/UserPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
 const KBAIPage = lazy(() => import('./pages/KBAIPage'))
+const AdminPage = lazy(() => import('./pages/AdminPage'))
 
 function Protected({ children }: { children: React.ReactNode }) {
   const { user, token, initialized } = useAuthStore()
   if (!initialized) return <div className="h-screen flex items-center justify-center"><LoadingState text="Initializing..." /></div>
   if (!user || !token) return <Navigate to="/login" replace />
+  return <>{children}</>
+}
+
+function AdminOnly({ children }: { children: React.ReactNode }) {
+  const { user, token, initialized } = useAuthStore()
+  if (!initialized) return <div className="h-screen flex items-center justify-center"><LoadingState text="Initializing..." /></div>
+  if (!user || !token) return <Navigate to="/login" replace />
+  if (!user.is_admin) return <Navigate to="/chat" replace />
   return <>{children}</>
 }
 
@@ -153,6 +162,7 @@ export default function App() {
             <Route path="/settings" element={<Protected><SettingsPage /></Protected>} />
             <Route path="/chat" element={<Protected><ChatPage /></Protected>} />
             <Route path="/ai" element={<Protected><KBAIPage /></Protected>} />
+            <Route path="/admin" element={<AdminOnly><AdminPage /></AdminOnly>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </Suspense>

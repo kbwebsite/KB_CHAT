@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { useAuthStore } from '../../store/auth'
 import { useChatStore } from '../../store/chat'
 import { useLockStore } from '../../store/lock'
@@ -35,7 +36,7 @@ import {
   Accessibility,
   Globe,
   HelpCircle,
-  Smartphone,
+  ShieldAlert,  Smartphone,
   Infinity as InfinityIcon,
   Trash,
   Trash2,
@@ -49,6 +50,7 @@ import {
 } from 'lucide-react'
 import PrivacyCenter from '../PrivacyCenter'
 import { PwaInstallSection } from '../PwaInstallSection'
+import { SecurityAlerts } from './SecurityAlerts'
 import {
   AppearanceSettings,
   NotificationSettings,
@@ -677,7 +679,10 @@ export function WhatsAppSettings({
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">Your app PIN is Kryzen&apos;s second factor — it gates the app and locked chats.</p>
               </div>
-              <InfoRow title="Security notifications" sub="Security alert history isn't available yet." />
+              <div className="py-1">
+                <SectionLabel>Security notifications</SectionLabel>
+                <SecurityAlerts />
+              </div>
             </div>
           </div>
           <div>
@@ -719,9 +724,18 @@ export function WhatsAppSettings({
             </div>
           </div>
           <div className="divide-y divide-[var(--k-border)]/40">
-            <InfoRow title="Groups" value="Everyone" sub="Per-group privacy isn't available yet." />
+            <SelectRow
+              k="group_add_privacy"
+              label="Who can add you to groups"
+              desc="Nobody = invite links only; Contacts = people you chat with"
+              options={[
+                { id: 'everyone', label: 'Everyone' },
+                { id: 'contacts', label: 'My contacts' },
+                { id: 'nobody', label: 'Nobody' },
+              ]}
+            />
             <InfoRow title="Live location" sub="Share real-time location from any chat (＋ → navigate icon → duration)." />
-            <InfoRow title="Calls" sub="Silence unknown callers isn't available yet — unknown calls ring normally." />
+            <ToggleRow k="silence_unknown_callers" label="Silence unknown callers" desc="Calls from strangers auto-decline; they appear in call history" />
           </div>
           <div>
             <SectionLabel>Contacts</SectionLabel>
@@ -827,7 +841,7 @@ export function WhatsAppSettings({
                 ]}
               />
               <ToggleRow k="typing_indicators" label="Typing indicators" desc="Send and show “typing…” states" />
-              <InfoRow title="Voice message transcripts" sub="Transcripts aren't available yet." />
+              <InfoRow title="Voice message transcripts" sub="Tap Transcribe under any voice message to read it as text." />
               <InfoRow title="Sticker suggestions" sub="Suggestions while typing aren't available yet." />
             </div>
           </div>
@@ -1030,6 +1044,29 @@ export function WhatsAppSettings({
       subtitle: undefined,
       body: <InviteSection />,
     },
+    ...((user as any)?.is_admin
+      ? [
+          {
+            id: 'moderation',
+            icon: ShieldAlert,
+            title: 'Moderation',
+            subtitle: 'Reports queue and user safety',
+            body: (
+              <div className="space-y-2">
+                <p className="text-xs text-muted-foreground">
+                  Review user reports and manage accounts from the moderation console.
+                </p>
+                <Link
+                  to="/admin"
+                  className="block w-full text-center py-2.5 rounded-xl bg-primary text-primary-foreground text-sm font-semibold min-h-[44px] leading-[44px]"
+                >
+                  Open moderation console
+                </Link>
+              </div>
+            ),
+          } as Row,
+        ]
+      : []),
     {
       id: 'updates',
       icon: Smartphone,

@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     HOST: str = "127.0.0.1"
     PORT: int = 8000
+    # Platform moderation bootstrap: comma-separated emails treated as admins
+    # (in addition to the users.is_admin flag). No admin exists by default.
+    ADMIN_EMAILS: str = ""
     AI_API_KEY: str = ""
     AI_MODEL: str = "gpt-4o-mini"
     AI_BASE_URL: str = "https://api.openai.com/v1"

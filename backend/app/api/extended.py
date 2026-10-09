@@ -676,6 +676,11 @@ def get_privacy_settings(
             "status_visibility": getattr(settings, "status_visibility", "contacts"),
             "who_can_contact": getattr(settings, "who_can_contact", "everyone"),
             "notification_previews": getattr(settings, "notification_previews", True),
+            "silence_unknown_callers": bool(
+                getattr(settings, "silence_unknown_callers", False) or False
+            ),
+            "group_add_privacy": getattr(settings, "group_add_privacy", "everyone")
+            or "everyone",
         }
     )
 
@@ -700,9 +705,19 @@ def update_privacy_settings(
         "status_visibility",
         "who_can_contact",
         "notification_previews",
+        "silence_unknown_callers",
+        "group_add_privacy",
     ]:
         if key in payload:
-            setattr(settings, key, payload[key])
+            v = payload[key]
+            if key == "group_add_privacy" and v is not None:
+                v = str(v).lower()
+                if v not in ("everyone", "contacts", "nobody"):
+                    raise HTTPException(
+                        status_code=400,
+                        detail="group_add_privacy must be everyone, contacts or nobody",
+                    )
+            setattr(settings, key, v)
     db.commit()
     return success_response(None, "Privacy updated")
 

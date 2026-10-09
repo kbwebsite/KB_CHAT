@@ -15,6 +15,8 @@ export const FRONTEND_URL =
   process.env.KB_E2E_FRONTEND_URL ?? 'http://localhost:5173';
 export const BACKEND_URL =
   process.env.KB_E2E_BACKEND_URL ?? 'http://127.0.0.1:8000';
+export const ADMIN_EMAIL =
+  process.env.KB_E2E_ADMIN_EMAIL ?? 'kb-e2e-admin@example.com';
 
 const PASSWORD = 'E2eTest123';
 
@@ -34,9 +36,10 @@ export interface E2EUser {
 export async function apiSignup(
   request: APIRequestContext,
   tag: string,
+  emailOverride?: string,
 ): Promise<E2EUser> {
   const username = uniqueName(tag);
-  const email = `${username}@example.com`;
+  const email = emailOverride ?? `${username}@example.com`;
   const res = await request.post(`${BACKEND_URL}/api/auth/signup`, {
     data: {
       username,

@@ -16,7 +16,178 @@ from app.utils.receipts import (
     broadcast_status_upgrades,
 )
 
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.orm import Session, joinedload
+from sqlalchemy import desc, asc, or_, func
+from typing import Optional
+import re
+import threading
+from app.database.connection import get_db
+from app.auth.dependencies import get_current_user
+from app.models.user import User
+from app.models.conversation import ConversationMember
+from app.models.message import Message, MessageReaction, Attachment
+from app.schemas.common import success_response
+from app.websocket.manager import manager
+from app.utils.receipts import (
+    receipt_map,
+    compute_status,
+    broadcast_status_upgrades,
+)
+
 router = APIRouter(prefix="/api", tags=["messages"])
+
+# Group @AI mentions: "@ai ...", "@kryzen ...", "@kb ..." (case-insensitive).
+MENTION_RE = re.compile(r"^@(ai|kryzen|kb)\b[\s,:-]*", re.IGNORECASE)
+AI_SENDER_NAME = "Kryzen AI"
+AI_CONTEXT_MESSAGES = 12
+AI_MAX_QUESTION = 1000
+AI_MAX_REPLY = 2000
+
+
+def _maybe_answer_group_mention(
+    conv_id: int, content: str, asker_name: str, is_group: bool
+) -> None:
+    """Fire-and-forget: answer a group @AI mention in the background."""
+    if not is_group:
+        return
+    text = (content or "").strip()
+    if not MENTION_RE.match(text):
+        return
+    question = MENTION_RE.sub("", text).strip()
+    if not question:
+        return
+    t = threading.Thread(
+        target=_answer_group_mention,
+        args=(conv_id, question[:AI_MAX_QUESTION], asker_name),
+        daemon=True,
+    )
+    t.start()
+
+
+def _answer_group_mention(conv_id: int, question: str, asker_name: str) -> None:
+    """Background worker: group context -> provider -> AI reply message."""
+    import asyncio
+
+    from app.database.connection import SessionLocal
+    from app.models.conversation import Conversation
+
+    db = SessionLocal()
+    try:
+        conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
+        if not conv:
+            return
+        rows = (
+            db.query(Message)
+            .filter(
+                Message.conversation_id == conv_id,
+                Message.is_deleted == False,  # noqa: E712
+                Message.message_type.in_(("text", "ai")),
+                Message.is_encrypted == False,  # noqa: E712
+            )
+            .order_by(desc(Message.id))
+            .limit(AI_CONTEXT_MESSAGES)
+            .all()
+        )
+        history = []
+        for m in reversed(rows):
+            if m.message_type == "ai":
+                history.append({"role": "assistant", "content": m.content or ""})
+                continue
+            who = None
+            if m.sender_id:
+                u = db.query(User).filter_by(id=m.sender_id).first()
+                who = (u.display_name or u.username) if u else "Someone"
+            history.append(
+                {"role": "user", "content": f"{who or 'Someone'}: {m.content or ''}"}
+            )
+        prompt = [
+            {
+                "role": "system",
+                "content": (
+                    "You are Kryzen AI, a helpful assistant answering inside a "
+                    "group chat. Address the asker by name when natural. Keep "
+                    "replies under 120 words, plain text, no markdown headers."
+                ),
+            },
+            *history,
+            {"role": "user", "content": f"{asker_name}: {question}"},
+        ]
+        try:
+            from app.ai.provider import get_ai_provider
+
+            provider = get_ai_provider()
+            reply = asyncio.run(provider.chat(prompt))
+        except Exception as e:
+            print(f"[ai-mention] provider failed: {e}")
+            reply = "Sorry, I couldn't answer that right now. Try again in a bit."
+        reply = (reply or "").strip()[
+            :AI_MAX_REPLY
+        ] or "Sorry, I came up empty — try rephrasing."
+        ans = Message(
+            conversation_id=conv_id,
+            sender_id=None,
+            content=reply,
+            message_type="ai",
+        )
+        db.add(ans)
+        db.commit()
+        db.refresh(ans)
+        from app.models.conversation import Conversation as _Conv
+
+        _c = db.query(_Conv).filter_by(id=conv_id).first()
+        if _c:
+            from datetime import datetime, timezone as _tz
+
+            _c.updated_at = datetime.now(_tz.utc)
+            db.commit()
+        payload = {
+            "id": ans.id,
+            "conversation_id": conv_id,
+            "sender_id": None,
+            "sender_username": "kryzen-ai",
+            "sender_display_name": AI_SENDER_NAME,
+            "sender_avatar": None,
+            "content": reply,
+            "message_type": "ai",
+            "is_deleted": False,
+            "is_edited": False,
+            "created_at": ans.created_at.isoformat() if ans.created_at else None,
+            "attachments": [],
+            "reactions": [],
+            "status": "sent",
+        }
+
+        # Member list is plain data: resolve it here (this thread owns `db`).
+        try:
+            _mids = _member_ids(db, conv_id)
+        except Exception:
+            _mids = []
+
+        async def _run():
+            try:
+                await manager.broadcast_to_conversation(
+                    conv_id,
+                    {"type": "message.new", "payload": payload},
+                    member_ids=_mids,
+                )
+            except Exception as e:
+                print(f"[ai-mention] fan-out failed: {e}")
+            try:
+                from app.database.connection import SessionLocal as _SL
+                from app.utils.fcm import notify_new_message
+
+                _pdb = _SL()
+                try:
+                    await notify_new_message(_pdb, conv_id, payload, None)
+                finally:
+                    _pdb.close()
+            except Exception as e:
+                print(f"[ai-mention] push failed: {e}")
+
+        manager.spawn(_run())
+    finally:
+        db.close()
 
 
 def _is_member(db: Session, conv_id: int, user_id: int) -> bool:
@@ -129,8 +300,12 @@ def _message_to_dict(msg: Message, receipts: dict = None, viewer_id: int = None)
         "id": msg.id,
         "conversation_id": msg.conversation_id,
         "sender_id": msg.sender_id,
-        "sender_username": sender.username if sender else None,
-        "sender_display_name": sender.display_name if sender else None,
+        "sender_username": sender.username
+        if sender
+        else ("kryzen-ai" if msg.message_type == "ai" else None),
+        "sender_display_name": sender.display_name
+        if sender
+        else ("Kryzen AI" if msg.message_type == "ai" else None),
         "sender_avatar": sender.avatar_url if sender else None,
         "content": content,
         "message_type": msg.message_type,
@@ -338,6 +513,7 @@ def create_message(
         "live_location",
         "location",
         "contact",
+        "ai",
     ):
         msg_type = "text"
 
@@ -529,6 +705,16 @@ def create_message(
             print(f"[messages] push fan-out failed: {e}")
 
     manager.spawn(_fanout())
+    # Group @AI mention: answered in the background (never delays the send).
+    try:
+        _maybe_answer_group_mention(
+            conv_id,
+            content,
+            current_user.display_name or current_user.username or "Someone",
+            bool(conv and conv.is_group),
+        )
+    except Exception as e:
+        print(f"[ai-mention] trigger failed: {e}")
     return success_response(msg_dict, "Message sent")
 
 

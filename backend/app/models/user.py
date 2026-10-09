@@ -33,6 +33,9 @@ class User(Base):
     # auto-migration can add it to existing tables; NULL reads as False.
     email_verified = Column(Boolean, default=False)
     auth_provider = Column(String(20), nullable=True, default="local")  # local, google
+    # Platform moderation: NULL reads as False (auto-migration safe).
+    # Bootstrap via ADMIN_EMAILS env (see config); no admin exists by default.
+    is_admin = Column(Boolean, default=False, nullable=True)
     # X25519 device identity public key (base64, 32 bytes) for E2EE v1.
     # The private half never leaves the device.
     identity_pubkey = Column(String(64), nullable=True)
