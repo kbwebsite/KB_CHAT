@@ -18,6 +18,7 @@ import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setCo
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
+import { IcebreakerSheet } from './IcebreakerSheet'
 import { hiddenIds, hideMessage } from '../utils/hidden'
 import type { RpsChoice } from './RockPaperScissors'
 
@@ -86,6 +87,8 @@ export function ChatView({
   const retryMessage = useChatStore((s: any) => s.retryMessage)
   const currentConv = useChatStore(s => s.conversations.find((c: any) => c.id === currentConversationId))
   const typingSet = useChatStore((s: any) => currentConversationId ? s.typingUsers[currentConversationId] : undefined)
+  const myRole = (currentConv as any)?.members?.find((m: any) => m.user_id === user?.id)?.role
+  const announceLocked = !!(currentConv as any)?.is_group && !!(currentConv as any)?.only_admins_can_send && myRole !== 'owner' && myRole !== 'admin'
 
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showWallpaper, setShowWallpaper] = useState(false)
@@ -94,6 +97,7 @@ export function ChatView({
   const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
   const [convAccent, setConvAccentState] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
+  const [showIce, setShowIce] = useState(false)
   const pendingJump = useChatStore((s: any) => s.pendingJump)
   // Jump landing (PE-2A search/saved jumps, PE-2J in-conversation jumps):
   // scroll to the exact message + flash it.
@@ -821,6 +825,21 @@ export function ChatView({
               <button onClick={() => fetchMessages(currentConversationId!, currentMsgs[0]?.id)} className="text-xs px-3 py-1 rounded-full glass hover:opacity-80 transition-opacity">Load older</button>
             </div>
           )}
+          {!isCurrentLoading && currentMsgs.length === 0 && !announceLocked && (
+            <div className="flex flex-col items-center text-center px-6 pt-10 pb-4">
+              <span className="w-12 h-12 rounded-2xl kryzen-accent-gradient flex items-center justify-center shadow-lg">
+                <Sparkles className="w-5 h-5 text-white" aria-hidden="true" />
+              </span>
+              <p className="mt-3 text-sm font-semibold">Start the conversation</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-[260px]">Nothing here yet — break the ice with a ready-made starter.</p>
+              <button
+                onClick={() => setShowIce(true)}
+                className="mt-3 px-5 h-11 rounded-full btn-primary text-sm font-semibold inline-flex items-center gap-1.5"
+              >
+                <Sparkles className="w-4 h-4" aria-hidden="true" /> Break the ice
+              </button>
+            </div>
+          )}
           <div className="py-2 px-2 sm:px-4">
             {flowItems.map((item, idx) => {
               const prev = flowItems[idx - 1]
@@ -1015,8 +1034,7 @@ export function ChatView({
 
         <EffectOverlay />
 
-        {deleteTarget && (
-          <DeleteDialog
+        {deleteTarget && (          <DeleteDialog
             onForMe={() => {
               if (currentConversationId != null) {
                 hideMessage(currentConversationId, deleteTarget.id)
@@ -1030,12 +1048,16 @@ export function ChatView({
           />
         )}
 
+        {announceLocked && (
+          <p className="mx-3 mb-2 text-xs text-center px-3 py-2 rounded-xl bg-amber-500/10 text-amber-600">Only admins can send messages in this group</p>
+        )}
         <MessageComposer
           onSend={handleSend}
           onTyping={() => {}}
           conversationId={currentConv.id}
           replyTo={replyTo}
           onCancelReply={() => setReplyTo(null)}
+          disabled={announceLocked}
         />
       </div>
     </DragDropZone>
