@@ -243,6 +243,9 @@ export function WallpaperPicker() {
           type="checkbox"
           checked={slideshow}
           onChange={(e) => {
+            // Slideshow and Auto theme both drive the wallpaper — enabling
+            // one stands the other down so they never fight.
+            if (e.target.checked) setThemeAutoOn(false)
             setSlideshowOn(e.target.checked)
             setSlideshow(e.target.checked)
           }}
@@ -274,6 +277,61 @@ export function NotificationPermissionRow() {
       <p className="text-sm font-medium">Request notification permission</p>
       <p className="text-xs text-muted-foreground">Current: {permission}</p>
     </button>
+  )
+}
+
+export function MagicThemes() {
+  const theme = useSettingsStore((s) => s.theme)
+  const accent = useSettingsStore((s) => s.accent_color)
+  const wallpaper = useSettingsStore((s) => s.chat_wallpaper)
+  const update = useSettingsStore((s) => s.update)
+  const toast = useToastStore((s) => s.push)
+  const [auto, setAuto] = useState(isThemeAutoOn)
+  // An auto write re-renders via the store, but the toggle itself lives in
+  // localStorage — resync when the store triple changes underneath us.
+  useEffect(() => {
+    setAuto(isThemeAutoOn())
+  }, [theme, accent, wallpaper])
+
+  const onAuto = async (v: boolean) => {
+    setThemeAutoOn(v)
+    setAuto(v)
+    if (v) {
+      setSlideshowOn(false)
+      await applyAutoPackNow({ theme, accent_color: accent, chat_wallpaper: wallpaper }, update)
+    }
+  }
+
+  const onSurprise = () => {
+    const pick = surprisePack({ theme, accent_color: accent, chat_wallpaper: wallpaper })
+    update({ theme: pick.theme, accent_color: pick.accent, chat_wallpaper: pick.wallpaper })
+    toast(`Theme: ${pick.label}`, 'success')
+  }
+
+  return (
+    <div>
+      <p className="text-xs font-medium mb-2 flex items-center gap-1">
+        <Sparkles className="w-3 h-3" /> Magic
+      </p>
+      <label className="flex items-center justify-between gap-2 cursor-pointer">
+        <span className="text-xs font-medium">
+          Auto theme <span className="text-muted-foreground font-normal">· follows time of day</span>
+        </span>
+        <input
+          type="checkbox"
+          checked={auto}
+          onChange={(e) => onAuto(e.target.checked)}
+          className="settings-toggle"
+          aria-label="Auto theme follows time of day"
+        />
+      </label>
+      <button
+        onClick={onSurprise}
+        className="mt-2 w-full py-2 rounded-xl bg-muted hover:bg-muted/80 transition-colors text-xs font-semibold flex items-center justify-center gap-1.5 min-h-[44px]"
+      >
+        <Shuffle className="w-3.5 h-3.5" aria-hidden="true" /> Surprise me
+      </button>
+    </div>
   )
 }
 

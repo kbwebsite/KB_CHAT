@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { useEffect, useState, useCallback, lazy, Suspense } from 'react'
 import { useAuthStore } from './store/auth'
 import { initTheme } from './store/theme'
+import { useSettingsStore } from './store/settings'
+import { applyAutoPackNow, isThemeAutoOn } from './utils/wallpapers'
 import { useLockStore } from './store/lock'
 import { LockScreen } from './components/LockScreen'
 import { useToastStore } from './store/toast'
@@ -53,6 +55,24 @@ export default function App() {
   const endBoot = useCallback(() => setBoot(false), [])
   // Preset engine first so the settings accent (init) wins deterministically on boot.
   useEffect(()=>{ initTheme(); init() }, [])
+  // Auto-magic themes: apply the time-of-day pack on boot and re-check
+  // every 15 minutes. No-op unless the Auto toggle is on; a manual edit
+  // anywhere switches auto back off (see settings.update).
+  useEffect(() => {
+    const run = () => {
+      try {
+        if (!isThemeAutoOn()) return
+        const s = useSettingsStore.getState()
+        void applyAutoPackNow(
+          { theme: s.theme, accent_color: s.accent_color, chat_wallpaper: s.chat_wallpaper },
+          s.update,
+        )
+      } catch {}
+    }
+    run()
+    const t = setInterval(run, 15 * 60 * 1000)
+    return () => clearInterval(t)
+  }, [])
   const lockEnabled = useLockStore(s => s.enabled)
   const unlocked = useLockStore(s => s.unlocked)
 
