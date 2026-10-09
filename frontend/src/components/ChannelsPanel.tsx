@@ -6,6 +6,7 @@ import {
   X,
   Check,
   ArrowLeft,
+  ArrowRight,
   BadgeCheck,
   BellOff,
   Bell,
@@ -27,6 +28,17 @@ import {
   Users,
   Star,
   Zap,
+  Menu,
+  Crown,
+  Gamepad2,
+  Palette,
+  Cpu,
+  Music,
+  Code2,
+  LayoutGrid,
+  Rocket,
+  Calendar,
+  MessageSquare,
 } from 'lucide-react'
 import { channelApi, uploadApi } from '../services/api'
 import { useEscapeKey } from '../hooks/useDismiss'
@@ -65,6 +77,16 @@ const CHANNEL_THEMES = [
 
 const MUTE_KEY = 'kb_channel_muted'
 
+const CATEGORIES = [
+  { id: 'tech', label: 'Technology', icon: Code2, color: '#f472b6' },
+  { id: 'gaming', label: 'Gaming', icon: Gamepad2, color: '#22d3ee' },
+  { id: 'design', label: 'Design', icon: Palette, color: '#f472b6' },
+  { id: 'ai', label: 'AI & Tools', icon: Cpu, color: '#22d3ee' },
+  { id: 'music', label: 'Music', icon: Music, color: '#fb923c' },
+]
+
+const HERO_IMG = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&q=80&auto=format&fit=crop'
+
 function readMuted(): Record<string, boolean> {
   try {
     const raw = localStorage.getItem(MUTE_KEY)
@@ -79,8 +101,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [channels, setChannels] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
-  const [tab, setTab] = useState<'discover' | 'following'>('discover')
+  const [tab, setTab] = useState<'discover' | 'following' | 'all'>('discover')
   const [query, setQuery] = useState('')
+  const [activeCat, setActiveCat] = useState<string | null>(null)
   const [openId, setOpenId] = useState<number | null>(null)
   const [profileTab, setProfileTab] = useState<'posts' | 'media' | 'about'>('posts')
   const [posts, setPosts] = useState<any[]>([])
@@ -1044,32 +1067,51 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   /* ═══════════ DISCOVER VIEW ═══════════ */
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: '#08081a' }}>
-      {/* Header — screenshot style */}
-      <div className="px-4 pt-4 pb-1 flex items-start justify-between gap-3 shrink-0">
-        <div className="flex items-start gap-3 min-w-0">
-          <div className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#0ea5e9,#a855f7,#ec4899)', padding: 2 }}>
-            <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: '#0b0b22' }}>
-              <Zap className="w-6 h-6 text-cyan-300" fill="currentColor" />
-            </div>
-          </div>
-          <div className="min-w-0">
-            <p className="font-extrabold text-[22px] tracking-tight flex items-center gap-2 text-white">
-              Channels
-              {channels.length > 0 && (
-                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'rgba(168,85,247,0.35)' }}>{channels.length}</span>
-              )}
-            </p>
-            <p className="text-[13px] mt-0.5" style={{ color: '#9ca3af' }}>Discover. Follow. Be part of the conversation.</p>
-          </div>
+      {/* Header — new mock: hamburger, avatar, title, bell, menu, close */}
+      <div className="px-4 pt-4 pb-1 flex items-center gap-3 shrink-0">
+        <button onClick={onClose} className="text-slate-200 touch-44" aria-label="Menu">
+          <Menu className="w-6 h-6" />
+        </button>
+        <div className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-white text-xl font-extrabold" style={{ background: 'linear-gradient(135deg,#a855f7,#22d3ee)', boxShadow: '0 4px 20px rgba(168,85,247,0.45)' }}>
+          {channels[0]?.avatar_url ? <img src={channels[0].avatar_url} alt="" className="w-full h-full object-cover rounded-full" /> : channels[0]?.icon ? <span className="text-2xl">{channels[0].icon}</span> : 'K'}
         </div>
-        <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' })} className="w-11 h-11 rounded-2xl flex items-center justify-center text-purple-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)' }} aria-label="New channel">
-            <Plus className="w-5 h-5" />
-          </button>
-          <button onClick={onClose} className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} aria-label="Close">
-            <X className="w-5 h-5" />
-          </button>
+        <div className="flex-1 min-w-0">
+          <p className="font-extrabold text-[22px] tracking-tight flex items-center gap-2 text-white">
+            Channels
+            {channels.length > 0 && (
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md text-white" style={{ background: 'rgba(168,85,247,0.55)' }}>{channels.length}</span>
+            )}
+          </p>
+          <p className="text-[13px] mt-0.5 truncate" style={{ color: '#9ca3af' }}>Discover. Follow. Be part of the conversation.</p>
         </div>
+        <button onClick={() => setMsg('You are all caught up')} className="relative p-1 text-slate-200 touch-44" aria-label="Notifications">
+          <Bell className="w-6 h-6" />
+          <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: '#f472b6' }} />
+        </button>
+        <div className="relative">
+          <button onClick={() => setMenuOpen((v) => !v)} className="p-1 text-slate-200 touch-44" aria-label="Channels menu">
+            <MoreVertical className="w-6 h-6" />
+          </button>
+          {menuOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-border bg-card kryzen-dropdown-glass shadow-2xl py-1 z-30 text-sm text-foreground overflow-hidden">
+                <button onClick={() => { setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' }); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                  <Plus className="w-4 h-4" /> New channel
+                </button>
+                <button onClick={() => { setTab('all'); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                  <LayoutGrid className="w-4 h-4" /> All channels
+                </button>
+                <button onClick={copyInviteLink} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                  <Link2 className="w-4 h-4" /> Copy invite link
+                </button>
+              </div>
+            </>
+          )}
+        </div>
+        <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center text-slate-200 transition-all active:scale-95 touch-44" style={{ background: 'rgba(255,255,255,0.06)' }} aria-label="Close">
+          <X className="w-5 h-5" />
+        </button>
       </div>
 
       <div className="px-4 pt-2.5 shrink-0">
@@ -1094,25 +1136,28 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
         {!q && (
-          <div className="flex rounded-full p-1.5 mt-3" style={{ background: '#12122e', border: '1px solid rgba(255,255,255,0.06)' }}>
-            <button
-              onClick={() => setTab('discover')}
-              className="flex-1 py-2.5 min-h-[48px] rounded-full text-[15px] font-bold flex items-center justify-center gap-2 transition-all text-white"
-              style={tab === 'discover' ? { background: 'linear-gradient(90deg,#4f46e5,#d946ef)', boxShadow: '0 4px 20px rgba(217,70,239,0.35)' } : { color: '#9ca3af' }}
-            >
-              <Compass className="w-5 h-5" /> Discover
-              <span className="text-[13px] opacity-60">{channels.length > 0 ? channels.length : ''}</span>
-            </button>
-            <button
-              onClick={() => setTab('following')}
-              className="flex-1 py-2.5 min-h-[48px] rounded-full text-[15px] font-bold flex items-center justify-center gap-2 transition-all"
-              style={tab === 'following' ? { background: 'linear-gradient(90deg,#4f46e5,#d946ef)', boxShadow: '0 4px 20px rgba(217,70,239,0.35)', color: '#fff' } : { color: '#9ca3af' }}
-            >
-              <Users className="w-5 h-5" /> Following
-              {following.length > 0 && (
-                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{following.length}</span>
-              )}
-            </button>
+          <div className="flex rounded-full p-1.5 mt-3 gap-1" style={{ background: '#12122e', border: '1px solid rgba(255,255,255,0.06)' }}>
+            {([
+              { id: 'discover', label: 'Discover', icon: Compass, count: channels.length },
+              { id: 'following', label: 'Following', icon: Users, count: following.length },
+              { id: 'all', label: 'All Channels', icon: LayoutGrid, count: 0 },
+            ] as const).map((t) => {
+              const Icon = t.icon
+              const active = tab === t.id
+              return (
+                <button
+                  key={t.id}
+                  onClick={() => setTab(t.id)}
+                  className="flex-1 py-2.5 min-h-[48px] rounded-full text-[14px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap px-2"
+                  style={active ? { background: 'linear-gradient(90deg,#3b82f6,#d946ef)', boxShadow: '0 4px 20px rgba(217,70,239,0.35), inset 0 -2px 0 rgba(34,211,238,0.8)', color: '#fff' } : { color: '#9ca3af' }}
+                >
+                  <Icon className="w-5 h-5 shrink-0" /> {t.label}
+                  {t.count > 0 && (
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md" style={active ? { background: 'rgba(217,70,239,0.6)', color: '#fff' } : { background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{t.count}</span>
+                  )}
+                </button>
+              )
+            })}
           </div>
         )}
       </div>
@@ -1196,17 +1241,60 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               following.map((c: any) => <ChannelRow key={c.id} c={c} />)
             )}
           </div>
+        ) : tab === 'all' ? (
+          <div className="px-4 pt-3 pb-6">
+            <div className="flex items-center gap-2 pb-2.5">
+              <LayoutGrid className="w-4 h-4 text-purple-300" />
+              <p className="text-[15px] font-extrabold text-white">All Channels</p>
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md text-white" style={{ background: 'rgba(168,85,247,0.35)' }}>{channels.length}</span>
+            </div>
+            <div className="rounded-[20px] overflow-hidden" style={{ background: '#0d0d24', border: '1px solid rgba(255,255,255,0.06)' }}>
+              {channels.map((c: any) => <ChannelRow key={c.id} c={c} />)}
+            </div>
+          </div>
         ) : (
           <div className="pt-3 space-y-5 pb-6">
+            {/* HERO — Discover Amazing Communities & Creators */}
+            <section className="px-4">
+              <div className="relative rounded-[24px] overflow-hidden" style={{ border: '1px solid rgba(168,85,247,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+                <img src={HERO_IMG} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,8,26,0.92) 30%, rgba(8,8,26,0.45) 60%, rgba(8,8,26,0.15) 100%)' }} />
+                <div className="relative p-5 min-h-[190px] flex flex-col justify-center">
+                  <p className="text-[11px] font-extrabold uppercase tracking-[0.15em] text-orange-300 flex items-center gap-1.5">🔥 Featured</p>
+                  <p className="text-[24px] leading-[1.15] font-extrabold text-white mt-1.5">Discover Amazing<br /><span style={{ background: 'linear-gradient(90deg,#c4b5fd,#f472b6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Communities & Creators</span></p>
+                  <p className="text-[13px] mt-1.5 max-w-[230px]" style={{ color: '#cbd5e1' }}>Join channels, meet new people, and be part of something great.</p>
+                  <div className="flex items-end justify-between mt-3 gap-3">
+                    <button onClick={() => document.getElementById('trending-channels')?.scrollIntoView({ behavior: 'smooth' })} className="px-5 py-2.5 rounded-full text-[14px] font-bold text-white flex items-center gap-2 transition-all active:scale-95" style={{ background: 'linear-gradient(90deg,#3b82f6,#e879f9)', boxShadow: '0 4px 20px rgba(217,70,239,0.4)' }}>
+                      Explore Now <ArrowRight className="w-4 h-4" />
+                    </button>
+                    <div className="flex items-center gap-2">
+                      <div className="flex -space-x-2">
+                        {['#f472b6', '#22d3ee', '#a855f7', '#fb923c'].map((g, i) => (
+                          <span key={i} className="w-7 h-7 rounded-full border-2 shrink-0" style={{ background: `linear-gradient(135deg, ${g}, #4f46e5)`, borderColor: 'rgba(8,8,26,0.9)' }} />
+                        ))}
+                      </div>
+                      <div>
+                        <p className="text-[13px] font-extrabold text-white leading-none">+12k</p>
+                        <p className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: '#9ca3af' }}>active now <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#22c55e' }} /></p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="absolute bottom-3 right-4 flex gap-1.5">
+                  <span className="w-5 h-1.5 rounded-full" style={{ background: '#c4b5fd' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.35)' }} />
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.35)' }} />
+                </div>
+              </div>
+            </section>
             {featured.length > 0 && (
-              <section>
+              <section id="trending-channels">
                 <div className="flex items-center justify-between px-4 pb-2.5">
                   <div className="flex items-center gap-2">
-                    <Sparkles className="w-4 h-4" style={{ color: '#fb923c' }} />
-                    <span style={{ color: '#4c1d95' }}>|</span>
-                    <p className="text-[13px] font-extrabold uppercase tracking-[0.12em] text-slate-300">Featured</p>
+                    <Rocket className="w-5 h-5 text-pink-300" />
+                    <p className="text-[17px] font-extrabold text-white">Trending Channels</p>
                   </div>
-                  <button onClick={() => document.getElementById('all-channels')?.scrollIntoView({ behavior: 'smooth' })} className="text-[14px] font-semibold text-purple-400 flex items-center gap-1">
+                  <button onClick={() => setTab('all')} className="text-[14px] font-semibold text-purple-400 flex items-center gap-1">
                     View all <span>→</span>
                   </button>
                 </div>
@@ -1219,7 +1307,6 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     const created = c.created_at && asDate(c.created_at)
                       ? asDate(c.created_at)!.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
                       : '—'
-                    const extra = Math.max(0, (c.follower_count ?? 0) > 10 ? 12 : 5)
                     return (
                       <div
                         key={c.id}
@@ -1228,79 +1315,58 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         tabIndex={canOpen ? 0 : undefined}
                         onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c) } }}
                         aria-label={canOpen ? `Open ${c.name}` : undefined}
-                        className="snap-start shrink-0 w-[300px] rounded-[24px] overflow-hidden transition-all active:scale-[0.98]"
-                        style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.35)' : 'rgba(52,211,153,0.3)'}`, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+                        className="snap-start shrink-0 w-[240px] rounded-[20px] overflow-hidden transition-all active:scale-[0.98]"
+                        style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(52,211,153,0.35)'}`, boxShadow: '0 8px 28px rgba(0,0,0,0.5)' }}
                       >
-                        <div className="relative h-32 overflow-hidden" style={{ backgroundImage: `url(${cardCover})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-                          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.05), rgba(0,0,0,0.35))' }} />
-                          <span className="absolute -right-1 -bottom-6 text-[84px] leading-none font-extrabold text-white/10 select-none">
-                            {cIcon || avatarLetter(c.name)}
-                          </span>
-                          <span className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 text-white" style={{ background: isFeatured ? 'rgba(168,85,247,0.55)' : 'rgba(16,185,129,0.5)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}>
-                            {isFeatured ? <Star className="w-3.5 h-3.5" fill="currentColor" /> : <Flame className="w-3.5 h-3.5" fill="currentColor" />}
-                            {isFeatured ? 'Featured' : 'Trending'}
-                          </span>
+                        <div className="relative h-28 overflow-hidden" style={{ backgroundImage: `url(${cardCover})`, backgroundSize: 'cover', backgroundPosition: 'center' }}>
+                          <div className="absolute inset-0" style={{ background: 'linear-gradient(180deg, rgba(0,0,0,0.1), rgba(13,13,36,0.55))' }} />
+                          {isFeatured && (
+                            <span className="absolute top-2.5 left-2.5 w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'rgba(168,85,247,0.55)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255,255,255,0.2)' }}>
+                              <Crown className="w-4 h-4 text-amber-300" fill="currentColor" />
+                            </span>
+                          )}
                           <button
                             onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }}
-                            className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-white"
-                            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(12px)' }}
+                            className="absolute top-2.5 right-2.5 w-8 h-8 rounded-full flex items-center justify-center text-white"
+                            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
                             aria-label="More options"
                           >
-                            <MoreHorizontal className="w-5 h-5" />
+                            <MoreVertical className="w-4 h-4" />
                           </button>
                         </div>
-                        <div className="px-4 pb-4">
-                          <div className="flex items-end gap-3 -mt-8 mb-1">
-                            <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-white text-2xl font-extrabold shrink-0 shadow-xl overflow-hidden" style={{ boxShadow: '0 4px 20px rgba(124,92,252,0.5)', border: '3px solid #0d0d24' }}>
-                              {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-3xl">{cIcon}</span> : avatarLetter(c.name)}
-                            </div>
-                            <div className="flex-1 min-w-0 pb-1">
-                              <p className="text-[19px] font-extrabold truncate tracking-tight flex items-center gap-1.5 text-white">
-                                <span className="truncate">{c.name}</span>
-                                <BadgeCheck className="w-5 h-5 text-sky-400 shrink-0" fill="currentColor" />
-                              </p>
-                            </div>
-                          </div>
-                          <p className="text-[14px] font-medium truncate" style={{ color: '#c4b5fd' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
-                          <div className="grid grid-cols-3 gap-2 mt-3">
-                            {[
-                              [compact(c.follower_count ?? 0), 'Followers'],
-                              [String(c.post_count ?? 0), 'Posts'],
-                              [created, 'Created'],
-                            ].map(([v, l]) => (
-                              <div key={l} className="rounded-xl px-1 py-2 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
-                                <p className="text-[13px] font-extrabold text-white truncate">{v}</p>
-                                <p className="text-[11px]" style={{ color: '#9ca3af' }}>{l}</p>
+                        <div className="px-3.5 pb-3.5">
+                          <div className="flex items-center gap-2.5 -mt-7 mb-1">
+                            <div className="relative shrink-0">
+                              <div className="w-14 h-14 rounded-full gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-xl overflow-hidden" style={{ border: '3px solid #0d0d24' }}>
+                                {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-2xl">{cIcon}</span> : avatarLetter(c.name)}
                               </div>
-                            ))}
+                              <span className="absolute -bottom-0.5 -right-0.5 w-5 h-5 rounded-full flex items-center justify-center" style={{ background: '#0ea5e9' }}>
+                                <BadgeCheck className="w-3.5 h-3.5 text-white" fill="currentColor" />
+                              </span>
+                            </div>
                           </div>
-                          <p className="text-[13px] leading-relaxed mt-3 line-clamp-2 min-h-10" style={{ color: '#9ca3af' }}>
-                            {c.description || 'The official channel for updates, features, and community discussions.'}
+                          <p className="text-[16px] font-extrabold truncate tracking-tight flex items-center gap-1 text-white">
+                            <span className="truncate">{c.name}</span>
+                            <BadgeCheck className="w-4 h-4 text-sky-400 shrink-0" fill="currentColor" />
                           </p>
-                          <div className="flex items-center justify-between mt-3">
-                            <div className="flex items-center">
-                              <div className="flex -space-x-2">
-                                {['#f472b6', '#22d3ee', '#a855f7'].map((g, i) => (
-                                  <span key={i} className="w-7 h-7 rounded-full border-2 shrink-0" style={{ background: `linear-gradient(135deg, ${g}, #4f46e5)`, borderColor: '#0d0d24' }} />
-                                ))}
-                              </div>
-                              <span className="text-[12px] ml-1.5" style={{ color: '#9ca3af' }}>+{extra} more ›</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {!c.is_owner && !c.followed ? (
-                                <button onClick={(e) => { e.stopPropagation(); follow(c.id, true) }} className="px-4 py-2 rounded-full text-[13px] font-bold text-white transition-all active:scale-95" style={{ background: 'linear-gradient(90deg,#4f46e5,#d946ef)' }}>
-                                  Follow
-                                </button>
-                              ) : (
-                                <span className="px-4 py-2 rounded-full text-[13px] font-bold flex items-center gap-1" style={{ background: isFeatured ? 'rgba(168,85,247,0.15)' : 'rgba(16,185,129,0.12)', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(16,185,129,0.35)'}`, color: isFeatured ? '#c4b5fd' : '#6ee7b7' }}>
-                                  <Check className="w-4 h-4" /> Following
-                                </span>
-                              )}
-                              <button onClick={(e) => { e.stopPropagation(); toggleMute(c.id) }} className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: mutedMap[c.id] ? '#6b7280' : '#e9d5ff' }} aria-label="Toggle notifications">
-                                {mutedMap[c.id] ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
-                              </button>
-                            </div>
+                          <p className="text-[13px] truncate" style={{ color: '#9ca3af' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
+                          <div className="flex items-center gap-3 mt-2.5 text-[12px] font-bold text-white">
+                            <span className="flex items-center gap-1"><Users className="w-3.5 h-3.5" style={{ color: '#f472b6' }} /> {compact(c.follower_count ?? 0)}</span>
+                            <span className="flex items-center gap-1"><MessageSquare className="w-3.5 h-3.5" style={{ color: '#9ca3af' }} /> {c.post_count ?? 0}</span>
+                            <span className="flex items-center gap-1"><Calendar className="w-3.5 h-3.5" style={{ color: '#9ca3af' }} /> {created}</span>
                           </div>
+                          <div className="flex items-center gap-3 mt-1 text-[11px]" style={{ color: '#6b7280' }}>
+                            <span>Followers</span><span>Posts</span><span>Created</span>
+                          </div>
+                          {!c.is_owner && !c.followed ? (
+                            <button onClick={(e) => { e.stopPropagation(); follow(c.id, true) }} className="w-full mt-3 py-2.5 rounded-full text-[14px] font-bold text-white flex items-center justify-center gap-2 transition-all active:scale-[0.98]" style={{ background: 'linear-gradient(90deg,#3b82f6,#8b5cf6)' }}>
+                              <Users className="w-4 h-4" /> Follow
+                            </button>
+                          ) : (
+                            <button onClick={(e) => { e.stopPropagation(); if (!c.is_owner) follow(c.id, false) }} className="w-full mt-3 py-2.5 rounded-full text-[14px] font-bold flex items-center justify-center gap-2 transition-all active:scale-[0.98]" style={c.is_owner ? { background: 'rgba(168,85,247,0.15)', border: '1px solid rgba(168,85,247,0.4)', color: '#c4b5fd' } : { background: 'rgba(16,185,129,0.15)', border: '1px solid rgba(16,185,129,0.4)', color: '#6ee7b7' }}>
+                              <Check className="w-4 h-4" /> {c.is_owner ? 'Owner' : 'Following'}
+                            </button>
+                          )}
                         </div>
                       </div>
                     )
@@ -1308,6 +1374,35 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
             )}
+            {/* Categories — Popular Right Now */}
+            <section>
+              <div className="flex items-center gap-2 px-4 pb-2.5">
+                <Flame className="w-5 h-5 text-pink-400" fill="currentColor" />
+                <p className="text-[17px] font-extrabold text-white">Popular Right Now</p>
+              </div>
+              <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+                {CATEGORIES.map((cat) => {
+                  const Icon = cat.icon
+                  const active = activeCat === cat.id
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        if (active) { setActiveCat(null); setQuery('') }
+                        else { setActiveCat(cat.id); setQuery(cat.label.split(' ')[0]) }
+                      }}
+                      className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold transition-all active:scale-95"
+                      style={active ? { background: 'linear-gradient(90deg,#3b82f6,#d946ef)', color: '#fff' } : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: cat.color }}
+                    >
+                      <Icon className="w-4 h-4" /> <span style={{ color: active ? '#fff' : '#cbd5e1' }}>{cat.label}</span>
+                    </button>
+                  )
+                })}
+                <button onClick={() => setTab('all')} className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center text-slate-300" style={{ background: 'rgba(255,255,255,0.05)' }} aria-label="More categories">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </section>
             {restChannels.length > 0 && (
             <section id="all-channels">
               <div className="flex items-center gap-1.5 px-4 pb-1">
