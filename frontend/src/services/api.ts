@@ -243,8 +243,8 @@ export const communityApi = {
 
 export const channelApi = {
   list: () => api.get(`/api/channels`).then(r=>r.data),
-  create: (data:{name:string, description?:string, avatar_url?:string|null, icon?:string|null, cover_theme?:string|null, cover_url?:string|null}) => api.post(`/api/channels`, data).then(r=>r.data),
-  update: (id:number, data:{name?:string, description?:string|null, avatar_url?:string|null, icon?:string|null, cover_theme?:string|null, cover_url?:string|null}) => api.patch(`/api/channels/${id}`, data).then(r=>r.data),
+  create: (data:{name:string, description?:string, avatar_url?:string|null, icon?:string|null, cover_theme?:string|null, cover_url?:string|null, category?:string|null, avatar_theme?:string|null}) => api.post(`/api/channels`, data).then(r=>r.data),
+  update: (id:number, data:{name?:string, description?:string|null, avatar_url?:string|null, icon?:string|null, cover_theme?:string|null, cover_url?:string|null, category?:string|null, avatar_theme?:string|null}) => api.patch(`/api/channels/${id}`, data).then(r=>r.data),
   remove: (id:number) => api.delete(`/api/channels/${id}`).then(r=>r.data),
   follow: (id:number) => api.post(`/api/channels/${id}/follow`).then(r=>r.data),
   unfollow: (id:number) => api.delete(`/api/channels/${id}/follow`).then(r=>r.data),
@@ -310,6 +310,16 @@ export const savedApi = {
   list: (signal?:AbortSignal) => api.get('/api/saved-messages', { signal }).then(r=>r.data),
   save: (mid:number) => api.post(`/api/saved-messages/${mid}`).then(r=>r.data),
   unsave: (mid:number) => api.delete(`/api/saved-messages/${mid}`).then(r=>r.data),
+}
+
+export const moderationApi = {
+  report: (target_type:string, target_id:number, reason:string, details?:string) =>
+    api.post('/api/moderation/reports', { target_type, target_id, reason, details }).then(r=>r.data),
+  reports: (status='open') => api.get('/api/moderation/reports', { params: { status } }).then(r=>r.data),
+  resolve: (id:number, action:string) => api.post(`/api/moderation/reports/${id}/resolve`, { action }).then(r=>r.data),
+  users: (search='') => api.get('/api/moderation/users', { params: { search } }).then(r=>r.data),
+  deactivate: (id:number) => api.post(`/api/moderation/users/${id}/deactivate`).then(r=>r.data),
+  reactivate: (id:number) => api.post(`/api/moderation/users/${id}/reactivate`).then(r=>r.data),
 }
 
 export const callsApi = {
@@ -435,6 +445,11 @@ export const storageApi = {
 export const privacyApi = {
   get: () => api.get('/api/privacy').then(r=>r.data),
   update: (data:any) => api.patch('/api/privacy', data).then(r=>r.data),
+}
+
+export const securityApi = {
+  alerts: () => api.get('/api/security/alerts').then(r=>r.data),
+  markSeen: () => api.post('/api/security/alerts/seen').then(r=>r.data),
 }
 
 export const recentlyContactedApi = {

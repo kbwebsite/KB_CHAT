@@ -33,6 +33,9 @@ class Channel(Base):
     icon = Column(String(16), nullable=True)
     cover_theme = Column(String(50), nullable=True)
     cover_url = Column(String(500), nullable=True)
+    # Discovery category (tech/gaming/design/ai/music) + logo gradient style.
+    category = Column(String(30), nullable=True)
+    avatar_theme = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -50,6 +50,8 @@ def create_channel(
     icon=None,
     cover_theme=None,
     cover_url=None,
+    category=None,
+    avatar_theme=None,
 ) -> Channel:
     clean = (name or "").strip()
     if not clean:
@@ -62,6 +64,8 @@ def create_channel(
         icon=(str(icon).strip()[:16] or None) if icon else None,
         cover_theme=(str(cover_theme).strip()[:50] or None) if cover_theme else None,
         cover_url=(str(cover_url).strip()[:500] or None) if cover_url else None,
+        category=(str(category).strip().lower()[:30] or None) if category else None,
+        avatar_theme=(str(avatar_theme).strip()[:50] or None) if avatar_theme else None,
     )
     db.add(c)
     db.commit()
@@ -80,6 +84,8 @@ def update_channel(
     icon=MISSING,
     cover_theme=MISSING,
     cover_url=MISSING,
+    category=MISSING,
+    avatar_theme=MISSING,
 ) -> Channel:
     c = get_channel(db, channel_id)
     _require_owner(c, actor_id, "edit")
@@ -99,6 +105,12 @@ def update_channel(
         c.cover_theme = str(cover_theme).strip()[:50] or None if cover_theme else None
     if cover_url is not MISSING:
         c.cover_url = str(cover_url).strip()[:500] or None if cover_url else None
+    if category is not MISSING:
+        c.category = str(category).strip().lower()[:30] or None if category else None
+    if avatar_theme is not MISSING:
+        c.avatar_theme = (
+            str(avatar_theme).strip()[:50] or None if avatar_theme else None
+        )
     db.commit()
     db.refresh(c)
     return c

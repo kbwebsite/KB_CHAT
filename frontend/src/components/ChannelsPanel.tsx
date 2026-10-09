@@ -62,9 +62,10 @@ const COVERS: [string, string][] = [
   ['#f59e0b', '#ef4444'],
 ]
 
-// Customizable channel identity: emoji icons + image cover themes (sample mathiri).
+// Customizable channel identity: logo emoji + image cover themes (sample mathiri).
 // cover_theme stores the theme id; avatar_url / cover_url store uploads.
-const CHANNEL_ICONS = ['🚀', '🔥', '⭐', '💜', '🌊', '🌿', '🎮', '🎨', '📢', '💡', '🎵', '⚽', '📚', '🍔', '✈️', '💰']
+// category: tech/gaming/design/ai/music; avatar_theme: av-0..7 gradient.
+const CHANNEL_ICONS = ['🚀', '🔥', '⭐', '💜', '🌊', '🌿', '🎮', '💻', '🎨', '🤖', '🎵', '⚽', '📚', '🎓', '🎬', '📱', '💼', '🏋️', '🍔', '✈️', '💰', '🌙', '☀️', '🌈', '🔔', '📌', '❤️', '👍', '🎉', '📢', '💡', '🎓']
 const CHANNEL_THEMES = [
   { id: 'neon-peaks', name: 'Neon Peaks', url: 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800&q=80&auto=format&fit=crop' },
   { id: 'purple-dusk', name: 'Purple Dusk', url: 'https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&q=80&auto=format&fit=crop' },
@@ -74,16 +75,50 @@ const CHANNEL_THEMES = [
   { id: 'ocean-wave', name: 'Ocean Wave', url: 'https://images.unsplash.com/photo-1518837695005-2083093ee35b?w=800&q=80&auto=format&fit=crop' },
   { id: 'misty-hills', name: 'Misty Hills', url: 'https://images.unsplash.com/photo-1472214103451-9374bd1c798e?w=800&q=80&auto=format&fit=crop' },
   { id: 'tropical-beach', name: 'Tropical Beach', url: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&q=80&auto=format&fit=crop' },
+  { id: 'code-desk', name: 'Code Desk', url: 'https://images.unsplash.com/photo-1555066931-4365d14bab8c?w=800&q=80&auto=format&fit=crop' },
+  { id: 'neon-arcade', name: 'Neon Arcade', url: 'https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&q=80&auto=format&fit=crop' },
+  { id: 'color-art', name: 'Color Art', url: 'https://images.unsplash.com/photo-1547891654-e66ed7ebb968?w=800&q=80&auto=format&fit=crop' },
+  { id: 'matrix', name: 'Matrix', url: 'https://images.unsplash.com/photo-1526374965328-7f61d4dc18c5?w=800&q=80&auto=format&fit=crop' },
+  { id: 'concert', name: 'Concert', url: 'https://images.unsplash.com/photo-1493225457124-a3eb161ffa5f?w=800&q=80&auto=format&fit=crop' },
+  { id: 'sunset-lake', name: 'Sunset Lake', url: 'https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&q=80&auto=format&fit=crop' },
+  { id: 'sun-forest', name: 'Sun Forest', url: 'https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?w=800&q=80&auto=format&fit=crop' },
+  { id: 'city-night', name: 'City Night', url: 'https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800&q=80&auto=format&fit=crop' },
 ]
+// Inbuilt logo styles (offline gradients) for channel logo.
+const AVATAR_THEMES = [
+  { id: 'av-0', c1: '#7c5cfc', c2: '#22d3ee' },
+  { id: 'av-1', c1: '#a855f7', c2: '#f472b6' },
+  { id: 'av-2', c1: '#0ea5e9', c2: '#6366f1' },
+  { id: 'av-3', c1: '#f43f5e', c2: '#f59e0b' },
+  { id: 'av-4', c1: '#10b981', c2: '#06b6d4' },
+  { id: 'av-5', c1: '#8b5cf6', c2: '#ec4899' },
+  { id: 'av-6', c1: '#06b6d4', c2: '#3b82f6' },
+  { id: 'av-7', c1: '#f59e0b', c2: '#ef4444' },
+]
+// One-tap logo+cover sample templates.
+const LOGO_TEMPLATES = [
+  { name: 'Rocket Neon', icon: '🚀', cover: 'neon-peaks', avatar: 'av-0' },
+  { name: 'Gamer', icon: '🎮', cover: 'neon-arcade', avatar: 'av-2' },
+  { name: 'Coder', icon: '💻', cover: 'code-desk', avatar: 'av-6' },
+  { name: 'Artist', icon: '🎨', cover: 'color-art', avatar: 'av-1' },
+  { name: 'Music', icon: '🎵', cover: 'concert', avatar: 'av-3' },
+  { name: 'Nature', icon: '🌿', cover: 'emerald-forest', avatar: 'av-4' },
+]
+// Emoji → category auto-map (icon pick se category suggest).
+const ICON_CATEGORY: Record<string, string> = {
+  '💻': 'tech', '🎮': 'gaming', '🎨': 'design', '🤖': 'ai', '🎵': 'music',
+  '⚽': 'gaming', '🏋️': 'gaming', '📚': 'tech', '🎓': 'tech', '🎬': 'design',
+  '📱': 'tech', '💼': 'tech',
+}
 
 const MUTE_KEY = 'kb_channel_muted'
 
 const CATEGORIES = [
-  { id: 'tech', label: 'Technology', icon: Code2, color: '#f472b6' },
-  { id: 'gaming', label: 'Gaming', icon: Gamepad2, color: '#22d3ee' },
-  { id: 'design', label: 'Design', icon: Palette, color: '#f472b6' },
-  { id: 'ai', label: 'AI & Tools', icon: Cpu, color: '#22d3ee' },
-  { id: 'music', label: 'Music', icon: Music, color: '#fb923c' },
+  { id: 'tech', label: 'Technology', icon: Code2, emoji: '💻', color: '#f472b6', keys: ['tech', 'code', 'software', 'computer', 'programming', 'coding', 'developer'] },
+  { id: 'gaming', label: 'Gaming', icon: Gamepad2, emoji: '🎮', color: '#22d3ee', keys: ['game', 'gaming', 'play', 'esport', 'arcade'] },
+  { id: 'design', label: 'Design', icon: Palette, emoji: '🎨', color: '#f472b6', keys: ['design', 'art', 'creative', 'ui', 'photo'] },
+  { id: 'ai', label: 'AI & Tools', icon: Cpu, emoji: '🤖', color: '#22d3ee', keys: ['ai', 'tool', 'bot', 'gpt', 'machine'] },
+  { id: 'music', label: 'Music', icon: Music, emoji: '🎵', color: '#fb923c', keys: ['music', 'song', 'audio', 'dj', 'band'] },
 ]
 
 const HERO_IMG = 'https://images.unsplash.com/photo-1519681393784-d120267933ba?w=1200&q=80&auto=format&fit=crop'
@@ -117,11 +152,11 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [showJump, setShowJump] = useState(false)
   const [mutedMap, setMutedMap] = useState<Record<string, boolean>>(readMuted)
-  // Create wizard — everything customizable: name, desc, icon, theme, images.
-  const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string }>(null)
+  // Create wizard — everything customizable: name, desc, logo emoji, logo style, category, cover.
+  const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string; category: string; avatar_theme: string }>(null)
   const [creating, setCreating] = useState(false)
   // Owner edit dialog (PATCH): preloaded from the open channel — all fields editable.
-  const [edit, setEdit] = useState<null | { name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string }>(null)
+  const [edit, setEdit] = useState<null | { name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string; category: string; avatar_theme: string }>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
   const [uploadingAvatar, setUploadingAvatar] = useState(false)
@@ -202,6 +237,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
         cover_theme: wizard?.cover_theme?.trim() || undefined,
         avatar_url: wizard?.avatar_url?.trim() || undefined,
         cover_url: wizard?.cover_url?.trim() || undefined,
+        category: wizard?.category?.trim() || undefined,
+        avatar_theme: wizard?.avatar_theme?.trim() || undefined,
       })
       if (r?.success) {
         setChannels((l) => [r.data, ...l])
@@ -248,6 +285,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
         cover_theme: edit.cover_theme.trim() ? edit.cover_theme.trim() : null,
         avatar_url: edit.avatar_url.trim() ? edit.avatar_url.trim() : null,
         cover_url: edit.cover_url.trim() ? edit.cover_url.trim() : null,
+        category: edit.category.trim() ? edit.category.trim() : null,
+        avatar_theme: edit.avatar_theme.trim() ? edit.avatar_theme.trim() : null,
       })
       if (r?.success && r.data) {
         // Server returns the full channel dict: swap it in place so the
@@ -437,9 +476,32 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   }
 
   // Inbuilt avatar gradient by id (logo background always inbuilt, no network).
+  // avatar_theme (av-0..7) wins; otherwise id-based fallback.
   const avatarStyleOf = (c: any): CSSProperties => {
+    if (c?.avatar_theme) {
+      const t = AVATAR_THEMES.find((t) => t.id === c.avatar_theme)
+      if (t) return { background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` }
+    }
     const [a1, a2] = coverOf(c?.id ?? 0)
     return { background: `linear-gradient(135deg, ${a1}, ${a2})` }
+  }
+
+  // Category of a channel: stored value wins, else keyword guess for old channels.
+  const categoryOf = (c: any): string => {
+    if (c?.category && CATEGORIES.some((k) => k.id === c.category)) return c.category
+    const text = `${c?.name || ''} ${c?.description || ''}`.toLowerCase()
+    for (const k of CATEGORIES) {
+      if (k.keys.some((w) => text.includes(w))) return k.id
+    }
+    return ''
+  }
+
+  const matchesCat = (c: any, catId: string | null): boolean => {
+    if (!catId) return true
+    if ((c?.category || '') === catId) return true
+    // Old channels without stored category still filter by keywords.
+    if (!c?.category) return categoryOf(c) === catId
+    return false
   }
 
   // Tint for borders/shadows derived from the id-based gradient (avatar stays gradient).
@@ -610,8 +672,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <button onClick={backToList} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Back to channels">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white text-base font-extrabold shrink-0 ring-2 ring-[var(--k-border)] overflow-hidden">
-            {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : openIcon ? <span className="text-lg">{openIcon}</span> : avatarLetter(openChannel.name)}
+          <div className="w-10 h-10 rounded-full flex items-center justify-center text-white text-base font-extrabold shrink-0 ring-2 ring-[var(--k-border)] overflow-hidden" style={avatarStyleOf(openChannel)}>
+            {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(openChannel.name)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-[15px] flex items-center gap-1 truncate tracking-tight">
@@ -651,7 +713,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     <Link2 className="w-4 h-4" /> Copy invite link
                   </button>
                   {openChannel.is_owner && (
-                    <button onClick={() => { setEdit({ name: openChannel.name || '', desc: openChannel.description || '', icon: openChannel.icon || '', cover_theme: openChannel.cover_theme || '', avatar_url: openChannel.avatar_url || '', cover_url: openChannel.cover_url || '' }); setEditError(null); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                    <button onClick={() => { setEdit({ name: openChannel.name || '', desc: openChannel.description || '', icon: openChannel.icon || '', cover_theme: openChannel.cover_theme || '', avatar_url: openChannel.avatar_url || '', cover_url: openChannel.cover_url || '', category: openChannel.category || '', avatar_theme: openChannel.avatar_theme || '' }); setEditError(null); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
                       <Pencil className="w-4 h-4" /> Edit channel
                     </button>
                   )}
@@ -681,8 +743,15 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               </div>
               <div className="px-4 pt-2.5 pb-3.5">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0 ring-2 ring-white/10 overflow-hidden">
-                    {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : openIcon ? <span className="text-2xl">{openIcon}</span> : avatarLetter(openChannel.name)}
+                  <div className="relative shrink-0">
+                    <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-extrabold shadow-lg ring-2 ring-white/10 overflow-hidden" style={avatarStyleOf(openChannel)}>
+                      {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(openChannel.name)}
+                    </div>
+                    {openIcon && (
+                      <span className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center text-[16px]" style={{ background: '#14142a', border: '2px solid rgba(255,255,255,0.3)' }}>
+                        {openIcon}
+                      </span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-[17px] tracking-tight flex items-center gap-1.5 truncate">
@@ -833,8 +902,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                               >
                                 {isLatest && <div className="h-1 kryzen-accent-gradient" />}
                                 <div className="flex items-center gap-2.5 px-3.5 pt-3">
-                                  <div className="w-8 h-8 rounded-full gradient-primary flex items-center justify-center text-white text-xs font-extrabold shrink-0 shadow">
-                                    {avatarLetter(openChannel.name)}
+                                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-extrabold shrink-0 shadow overflow-hidden" style={avatarStyleOf(openChannel)}>
+                                    {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(openChannel.name)}
                                   </div>
                                   <div className="min-w-0 flex-1">
                                     <p className="text-[13px] font-bold truncate tracking-tight flex items-center gap-1">
@@ -995,9 +1064,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   return { backgroundImage: `url(${CHANNEL_THEMES[0].url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
                 })()} />
                 <div className="p-3 flex items-center gap-3" style={{ background: 'rgba(20,20,42,0.9)' }}>
-                  <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center text-white font-extrabold shrink-0 overflow-hidden">
-                    {edit.avatar_url ? <img src={edit.avatar_url} alt="" className="w-full h-full object-cover" /> : edit.icon ? <span className="text-xl">{edit.icon}</span> : avatarLetter(edit.name || '?')}
-                  </div>
+                  <span className="relative shrink-0">
+                    <span className="w-11 h-11 rounded-xl flex items-center justify-center text-white font-extrabold overflow-hidden flex" style={(() => { const t = AVATAR_THEMES.find((x) => x.id === edit.avatar_theme); return t ? { background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` } : { background: 'linear-gradient(135deg,#7c5cfc,#22d3ee)' } })()}>
+                      {edit.avatar_url ? <img src={edit.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(edit.name || '?')}
+                    </span>
+                    {edit.icon && (
+                      <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[14px] pointer-events-none" style={{ background: '#14142a', border: '2px solid rgba(255,255,255,0.3)' }}>
+                        {edit.icon}
+                      </span>
+                    )}
+                  </span>
                   <div className="min-w-0">
                     <p className="font-bold truncate text-sm">{edit.name || 'Channel name'}</p>
                     <p className="text-xs text-muted-foreground truncate">{edit.desc || 'No description'}</p>
@@ -1033,11 +1109,43 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — category emoji (logo kela side kaatum)</p>
-                  <div className="grid grid-cols-8 gap-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Logo emoji — logo-keela side kaatum</p>
+                  <div className="grid grid-cols-8 gap-1.5 max-h-32 overflow-y-auto pr-0.5">
                     {CHANNEL_ICONS.map((em) => (
-                      <button key={em} onClick={() => setEdit({ ...edit, icon: edit.icon === em ? '' : em })} className={`text-xl p-1.5 rounded-lg transition-all active:scale-90 min-h-[44px] ${edit.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={edit.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Icon ${em}`}>
+                      <button key={em} onClick={() => setEdit((e) => { if (!e) return e; const icon = e.icon === em ? '' : em; const auto = ICON_CATEGORY[icon]; return { ...e, icon, category: e.category || auto || '' } })} className={`text-2xl p-2 rounded-xl transition-all active:scale-90 min-h-[48px] flex items-center justify-center ${edit.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={edit.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Logo emoji ${em}`}>
                         {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Category</p>
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    {[{ id: '', label: 'General' }, ...CATEGORIES.map((k) => ({ id: k.id, label: `${k.emoji} ${k.label}` }))].map((o) => (
+                      <button key={o.id || 'none'} onClick={() => setEdit({ ...edit, category: o.id })} className={`shrink-0 px-3 py-2 rounded-full text-xs font-bold transition-all active:scale-95 min-h-[40px] ${edit.category === o.id ? 'text-white' : 'bg-muted text-muted-foreground'}`} style={edit.category === o.id ? { background: 'linear-gradient(90deg,#4f46e5,#d946ef)' } : undefined}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Logo style — inbuilt</p>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {AVATAR_THEMES.map((t) => (
+                      <button key={t.id} onClick={() => setEdit({ ...edit, avatar_theme: edit.avatar_theme === t.id ? '' : t.id })} className={`w-full aspect-square rounded-full transition-all active:scale-90 ${edit.avatar_theme === t.id ? 'ring-2 ring-primary ring-offset-2 ring-offset-transparent' : 'hover:opacity-90'}`} style={{ background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` }} title={t.id} aria-label={`Logo style ${t.id}`} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Logo templates — one tap sample</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {LOGO_TEMPLATES.map((t) => (
+                      <button key={t.name} onClick={() => setEdit({ ...edit, icon: t.icon, cover_theme: t.cover, cover_url: '', avatar_theme: t.avatar, category: edit.category || ICON_CATEGORY[t.icon] || '' })} className="rounded-xl overflow-hidden border border-subtle hover:border-primary/50 transition-all active:scale-95 text-left">
+                        <span className="h-10 block" style={{ backgroundImage: `url(${CHANNEL_THEMES.find((x) => x.id === t.cover)?.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                        <span className="p-1.5 flex items-center gap-1.5" style={{ background: 'rgba(20,20,42,0.9)' }}>
+                          <span className="text-lg leading-none">{t.icon}</span>
+                          <span className="text-[11px] font-bold truncate">{t.name}</span>
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1135,7 +1243,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             <>
               <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
               <div className="absolute right-0 top-full mt-1 w-52 rounded-xl border border-border bg-card kryzen-dropdown-glass shadow-2xl py-1 z-30 text-sm text-foreground overflow-hidden">
-                <button onClick={() => { setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' }); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                <button onClick={() => { setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '', category: '', avatar_theme: '' }); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
                   <Plus className="w-4 h-4" /> New channel
                 </button>
                 <button onClick={() => { setTab('all'); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
@@ -1245,7 +1353,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             <p className="text-[13px] text-muted-foreground mt-1 max-w-[240px] mx-auto">
               Follow channels that match your interests and build your feed.
             </p>
-            <button onClick={() => setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' })} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold shadow-lg transition-all active:scale-95">
+            <button onClick={() => setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '', category: '', avatar_theme: '' })} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold shadow-lg transition-all active:scale-95">
               Create a channel
             </button>
           </div>
@@ -1255,12 +1363,12 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <div className="py-10 text-center px-8">
                 <p className="text-[15px] font-semibold">Nothing matches “{query}”</p>
                 <p className="text-[13px] text-muted-foreground mt-1">Try a different search — or start the channel yourself.</p>
-                <button onClick={() => { setWizard({ step: 1, name: query, desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' }); setQuery('') }} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold transition-all active:scale-95">
+                <button onClick={() => { setWizard({ step: 1, name: query, desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '', category: '', avatar_theme: '' }); setQuery('') }} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold transition-all active:scale-95">
                   Create “{query.trim().slice(0, 24)}”
                 </button>
               </div>
             ) : (
-              searched.map((c: any) => <ChannelRow key={c.id} c={c} />)
+              searched.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)
             )}
           </div>
         ) : tab === 'following' ? (
@@ -1277,7 +1385,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
             ) : (
-              following.map((c: any) => <ChannelRow key={c.id} c={c} />)
+              following.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)
             )}
           </div>
         ) : tab === 'all' ? (
@@ -1288,7 +1396,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md text-white" style={{ background: 'rgba(168,85,247,0.35)' }}>{channels.length}</span>
             </div>
             <div className="rounded-[20px] overflow-hidden" style={{ background: '#0d0d24', border: '1px solid rgba(255,255,255,0.06)' }}>
-              {channels.map((c: any) => <ChannelRow key={c.id} c={c} />)}
+              {channels.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)}
             </div>
           </div>
         ) : (
@@ -1338,7 +1446,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   </button>
                 </div>
                 <div className="flex gap-3 overflow-x-auto px-4 pb-2 snap-x no-scrollbar">
-                  {[...featured, ...trendingRows.slice(0, 2)].map((c: any, idx: number) => {
+                  {[...featured, ...trendingRows.slice(0, 2)].filter((c: any) => matchesCat(c, activeCat)).map((c: any, idx: number) => {
                     const isFeatured = idx < featured.length
                     const cIcon = channelIcon(c)
                     const canOpen = c.followed || c.is_owner
@@ -1376,18 +1484,27 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                           <div className="flex items-center gap-2 -mt-6 mb-1">
                             <div className="relative shrink-0">
                               <div className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-extrabold shadow-xl overflow-hidden" style={{ ...avatarStyleOf(c), border: '2px solid #0d0d24' }}>
-                                {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-2xl">{cIcon}</span> : avatarLetter(c.name)}
+                                {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(c.name)}
                               </div>
                               {cIcon ? (
-                                <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[12px]" style={{ background: '#0d0d24', border: '1.5px solid rgba(255,255,255,0.25)' }}>
+                                <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[14px]" style={{ background: '#0d0d24', border: '1.5px solid rgba(255,255,255,0.3)' }}>
                                   {cIcon}
                                 </span>
                               ) : (
-                                <span className="absolute -bottom-0.5 -right-0.5 w-4.5 h-4.5 rounded-full flex items-center justify-center" style={{ background: '#0ea5e9', width: 18, height: 18 }}>
+                                <span className="absolute -bottom-0.5 -right-0.5 rounded-full flex items-center justify-center" style={{ background: '#0ea5e9', width: 18, height: 18 }}>
                                   <BadgeCheck className="w-3 h-3 text-white" fill="currentColor" />
                                 </span>
                               )}
                             </div>
+                            {(() => {
+                              const catId = categoryOf(c)
+                              const cat = CATEGORIES.find((k) => k.id === catId)
+                              return cat ? (
+                                <span className="ml-1 px-2 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 shrink-0" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)', color: '#cbd5e1' }}>
+                                  {cat.emoji} {cat.label}
+                                </span>
+                              ) : null
+                            })()}
                           </div>
                           <p className="text-[15px] font-extrabold truncate tracking-tight flex items-center gap-1 text-white">
                             <span className="truncate">{c.name}</span>
@@ -1415,30 +1532,44 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                       </div>
                     )
                   })}
+                  {activeCat && [...featured, ...trendingRows.slice(0, 2)].filter((c: any) => matchesCat(c, activeCat)).length === 0 && (
+                    <p className="px-4 py-3 text-[13px]" style={{ color: '#9ca3af' }}>
+                      Indha category-la innum channel illa — <button onClick={() => setActiveCat(null)} className="font-bold text-purple-300">Clear</button> pannunga.
+                    </p>
+                  )}
                 </div>
               </section>
             )}
-            {/* Categories — Popular Right Now */}
+            {/* Categories — Popular Right Now (real filter) */}
             <section>
               <div className="flex items-center gap-2 px-4 pb-2.5">
                 <Flame className="w-5 h-5 text-pink-400" fill="currentColor" />
                 <p className="text-[17px] font-extrabold text-white">Popular Right Now</p>
+                {activeCat && (
+                  <button onClick={() => setActiveCat(null)} className="ml-auto text-[12px] font-bold text-purple-300">
+                    Clear ✕
+                  </button>
+                )}
               </div>
               <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
                 {CATEGORIES.map((cat) => {
                   const Icon = cat.icon
                   const active = activeCat === cat.id
+                  const count = channels.filter((c: any) => matchesCat(c, cat.id)).length
                   return (
                     <button
                       key={cat.id}
                       onClick={() => {
-                        if (active) { setActiveCat(null); setQuery('') }
-                        else { setActiveCat(cat.id); setQuery(cat.label.split(' ')[0]) }
+                        if (active) setActiveCat(null)
+                        else { setActiveCat(cat.id); setQuery('') }
                       }}
                       className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold transition-all active:scale-95"
                       style={active ? { background: 'linear-gradient(90deg,#3b82f6,#d946ef)', color: '#fff' } : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: cat.color }}
                     >
                       <Icon className="w-4 h-4" /> <span style={{ color: active ? '#fff' : '#cbd5e1' }}>{cat.label}</span>
+                      {count > 0 && (
+                        <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full" style={active ? { background: 'rgba(255,255,255,0.25)', color: '#fff' } : { background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{count}</span>
+                      )}
                     </button>
                   )
                 })}
@@ -1454,7 +1585,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All channels</p>
               </div>
               <div className="px-3">
-                {restChannels.map((c: any) => <ChannelRow key={c.id} c={c} />)}
+                {restChannels.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)}
               </div>
             </section>
             )}
@@ -1483,9 +1614,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             {wizard.step === 1 && (
               <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shrink-0 shadow-lg overflow-hidden">
-                    {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : wizard.icon ? <span className="text-2xl">{wizard.icon}</span> : avatarLetter(wizard.name || '?')}
-                  </div>
+                  <span className="relative shrink-0">
+                    <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white text-xl font-extrabold shadow-lg overflow-hidden flex" style={(() => { const t = AVATAR_THEMES.find((x) => x.id === wizard.avatar_theme); return t ? { background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` } : { background: 'linear-gradient(135deg,#7c5cfc,#22d3ee)' } })()}>
+                      {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(wizard.name || '?')}
+                    </span>
+                    {wizard.icon && (
+                      <span className="absolute -bottom-1.5 -right-1.5 w-7 h-7 rounded-full flex items-center justify-center text-[16px] pointer-events-none" style={{ background: '#14142a', border: '2px solid rgba(255,255,255,0.3)' }}>
+                        {wizard.icon}
+                      </span>
+                    )}
+                  </span>
                   <input
                     autoFocus
                     value={wizard.name}
@@ -1498,11 +1636,43 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — category emoji (logo kela side kaatum)</p>
-                  <div className="grid grid-cols-8 gap-1.5">
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Logo emoji — logo-keela side kaatum</p>
+                  <div className="grid grid-cols-8 gap-1.5 max-h-32 overflow-y-auto pr-0.5">
                     {CHANNEL_ICONS.map((em) => (
-                      <button key={em} onClick={() => setWizard({ ...wizard, icon: wizard.icon === em ? '' : em })} className={`text-xl p-1.5 rounded-lg transition-all active:scale-90 min-h-[44px] ${wizard.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={wizard.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Icon ${em}`}>
+                      <button key={em} onClick={() => setWizard((w) => { if (!w) return w; const icon = w.icon === em ? '' : em; const auto = ICON_CATEGORY[icon]; return { ...w, icon, category: w.category || auto || '' } })} className={`text-2xl p-2 rounded-xl transition-all active:scale-90 min-h-[48px] flex items-center justify-center ${wizard.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={wizard.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Logo emoji ${em}`}>
                         {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Category</p>
+                  <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
+                    {[{ id: '', label: 'General' }, ...CATEGORIES.map((k) => ({ id: k.id, label: `${k.emoji} ${k.label}` }))].map((o) => (
+                      <button key={o.id || 'none'} onClick={() => setWizard({ ...wizard, category: o.id })} className={`shrink-0 px-3 py-2 rounded-full text-xs font-bold transition-all active:scale-95 min-h-[40px] ${wizard.category === o.id ? 'text-white' : 'bg-muted text-muted-foreground'}`} style={wizard.category === o.id ? { background: 'linear-gradient(90deg,#4f46e5,#d946ef)' } : undefined}>
+                        {o.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Logo style — inbuilt</p>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {AVATAR_THEMES.map((t) => (
+                      <button key={t.id} onClick={() => setWizard({ ...wizard, avatar_theme: wizard.avatar_theme === t.id ? '' : t.id })} className={`w-full aspect-square rounded-full transition-all active:scale-90 ${wizard.avatar_theme === t.id ? 'ring-2 ring-primary ring-offset-2 ring-offset-transparent' : 'hover:opacity-90'}`} style={{ background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` }} title={t.id} aria-label={`Logo style ${t.id}`} />
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Logo templates — one tap sample</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    {LOGO_TEMPLATES.map((t) => (
+                      <button key={t.name} onClick={() => setWizard({ ...wizard, icon: t.icon, cover_theme: t.cover, cover_url: '', avatar_theme: t.avatar, category: wizard.category || ICON_CATEGORY[t.icon] || '' })} className="rounded-xl overflow-hidden border border-subtle hover:border-primary/50 transition-all active:scale-95 text-left">
+                        <span className="h-10 block" style={{ backgroundImage: `url(${CHANNEL_THEMES.find((x) => x.id === t.cover)?.url})`, backgroundSize: 'cover', backgroundPosition: 'center' }} />
+                        <span className="p-1.5 flex items-center gap-1.5" style={{ background: 'rgba(20,20,42,0.9)' }}>
+                          <span className="text-lg leading-none">{t.icon}</span>
+                          <span className="text-[11px] font-bold truncate">{t.name}</span>
+                        </span>
                       </button>
                     ))}
                   </div>
@@ -1569,13 +1739,20 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   return { backgroundImage: `url(${CHANNEL_THEMES[0].url})`, backgroundSize: 'cover', backgroundPosition: 'center' }
                 })()} />
                 <div className="p-4 flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 overflow-hidden">
-                    {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : wizard.icon ? <span className="text-2xl">{wizard.icon}</span> : avatarLetter(wizard.name || '?')}
-                  </div>
+                  <span className="relative shrink-0">
+                    <span className="w-12 h-12 rounded-2xl flex items-center justify-center text-white text-lg font-extrabold overflow-hidden flex" style={(() => { const t = AVATAR_THEMES.find((x) => x.id === wizard.avatar_theme); return t ? { background: `linear-gradient(135deg, ${t.c1}, ${t.c2})` } : { background: 'linear-gradient(135deg,#7c5cfc,#22d3ee)' } })()}>
+                      {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(wizard.name || '?')}
+                    </span>
+                    {wizard.icon && (
+                      <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center text-[14px] pointer-events-none" style={{ background: '#14142a', border: '2px solid rgba(255,255,255,0.3)' }}>
+                        {wizard.icon}
+                      </span>
+                    )}
+                  </span>
                   <div className="min-w-0">
                     <p className="font-bold truncate">{wizard.name}</p>
                     <p className="text-xs text-muted-foreground truncate">{wizard.desc || 'No description'}</p>
-                    <p className="text-[11px] text-tertiary mt-0.5">One-way feed · only you can post</p>
+                    <p className="text-[11px] text-tertiary mt-0.5">One-way feed · only you can post{wizard.category ? ` · ${CATEGORIES.find((k) => k.id === wizard.category)?.label || ''}` : ''}</p>
                   </div>
                 </div>
               </div>

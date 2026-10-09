@@ -294,6 +294,8 @@ def logout(
 
 @router.get("/me")
 def get_me(current_user: User = Depends(get_current_user)):
+    from app.api.moderation import is_admin_user
+
     return success_response(
         {
             "id": current_user.id,
@@ -303,6 +305,7 @@ def get_me(current_user: User = Depends(get_current_user)):
             "avatar_url": current_user.avatar_url,
             "about": current_user.about,
             "is_online": current_user.is_online,
+            "is_admin": is_admin_user(current_user),
             "last_seen": current_user.last_seen.isoformat()
             if current_user.last_seen
             else None,

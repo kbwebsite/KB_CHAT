@@ -33,6 +33,8 @@ def _channel_to_dict(db: Session, c: Channel, user_id: int):
         "icon": getattr(c, "icon", None),
         "cover_theme": getattr(c, "cover_theme", None),
         "cover_url": getattr(c, "cover_url", None),
+        "category": getattr(c, "category", None),
+        "avatar_theme": getattr(c, "avatar_theme", None),
         "created_at": c.created_at.isoformat() if c.created_at else None,
     }
 
@@ -91,6 +93,8 @@ def create_channel(
         icon=payload.get("icon"),
         cover_theme=payload.get("cover_theme"),
         cover_url=payload.get("cover_url"),
+        category=payload.get("category"),
+        avatar_theme=payload.get("avatar_theme"),
     )
     return success_response(_channel_to_dict(db, c, current_user.id), "Channel created")
 
@@ -113,6 +117,10 @@ def update_channel(
         icon=payload.get("icon") if "icon" in payload else MISSING,
         cover_theme=payload.get("cover_theme") if "cover_theme" in payload else MISSING,
         cover_url=payload.get("cover_url") if "cover_url" in payload else MISSING,
+        category=payload.get("category") if "category" in payload else MISSING,
+        avatar_theme=payload.get("avatar_theme")
+        if "avatar_theme" in payload
+        else MISSING,
     )
     return success_response(_channel_to_dict(db, c, current_user.id), "Channel updated")
 
