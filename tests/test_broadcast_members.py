@@ -317,3 +317,64 @@ def _login_as(username):
         db.close()
     r2 = client.post("/api/auth/verify-login", json={"email": email, "code": "123456"})
     return {"Authorization": f"Bearer {r2.json()['data']['access_token']}"}
+
+
+def test_send_response_exposes_persisted_per_recipient_messages():
+    ho, _ = make_user()
+    _, m1 = make_user()
+    _, m2 = make_user()
+    bl = make_list(ho, members=[m1, m2])
+    r = client.post(
+        f"/api/broadcasts/{bl['id']}/send",
+        json={"content": "visibility check"},
+        headers=ho,
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    # legacy shape preserved
+    assert sorted(data["sent_to"]) == sorted(_uids(m1, m2))
+    # new additive identity block, one entry per recipient
+    sent = {s["user_id"]: s for s in data["sent"]}
+    assert set(sent) == set(data["sent_to"])
+    for s in data["sent"]:
+        assert isinstance(s["conversation_id"], int)
+        assert isinstance(s["message_id"], int)
+    # identities are real: owner reads them back via the sender-only receipts API
+    for s in data["sent"]:
+        rr = client.get(f"/api/messages/{s['message_id']}/receipts", headers=ho)
+        assert rr.status_code == 200, rr.text
+        assert len(rr.json()["data"]["sent"]) == 1
+        assert rr.json()["data"]["delivered"] == []
+        assert rr.json()["data"]["read"] == []
+
+
+def _uids(*usernames):
+    db = SessionLocal()
+    try:
+        return [db.query(User).filter_by(username=u).first().id for u in usernames]
+    finally:
+        db.close()
+
+
+def test_broadcast_receipts_upgrade_through_real_cursors():
+    ho, _ = make_user()
+    _, m1 = make_user()
+    bl = make_list(ho, members=[m1])
+    r = client.post(
+        f"/api/broadcasts/{bl['id']}/send", json={"content": "cursor check"}, headers=ho
+    )
+    mid = r.json()["data"]["sent"][0]["message_id"]
+    h1 = _login_as(m1)
+    # recipient cannot view receipts (sender-only)
+    rr = client.get(f"/api/messages/{mid}/receipts", headers=h1)
+    assert rr.status_code == 403, rr.text
+    # recipient device arrival → delivered
+    d = client.post(f"/api/messages/{mid}/delivered", headers=h1)
+    assert d.status_code == 200, d.text
+    rr = client.get(f"/api/messages/{mid}/receipts", headers=ho)
+    assert [e["user_id"] for e in rr.json()["data"]["delivered"]] == _uids(m1)
+    # recipient reads → read
+    rd = client.post(f"/api/messages/{mid}/read", headers=h1)
+    assert rd.status_code == 200, rd.text
+    rr = client.get(f"/api/messages/{mid}/receipts", headers=ho)
+    assert [e["user_id"] for e in rr.json()["data"]["read"]] == _uids(m1)

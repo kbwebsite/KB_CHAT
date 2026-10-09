@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Megaphone, Plus, Send, Trash2, X, Users } from 'lucide-react'
-import { broadcastApi } from '../services/api'
+import { Megaphone, Plus, Send, Trash2, X, Users, Check, CheckCheck, MessageCircle } from 'lucide-react'
+import { broadcastApi, msgApi } from '../services/api'
 
 function isCancel(err: any): boolean {
   return !!err && (err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || err.name === 'AbortError')
@@ -13,8 +13,19 @@ function isCancel(err: any): boolean {
  * list / create / delete / send / members / add-member / remove-member.
  * All lists shown are owner-scoped server-side, so the members section
  * needs no additional visibility gating.
+ *
+ * PE-2I delivery: the send response carries persisted per-recipient message
+ * identities (`sent: [{user_id, conversation_id, message_id}]`). The panel
+ * keeps the JUST-COMPLETED send in memory (never persisted, never history)
+ * and resolves each message through the existing sender-only receipts
+ * endpoint into truthful Sent/Delivered/Read labels — the exact server
+ * tick semantics. Skipped recipients (blocked/deleted/self) are not shown:
+ * there is no truthful per-recipient record for them.
  */
-export function BroadcastPanel({ onClose }: { onClose: () => void }) {
+export function BroadcastPanel({ onClose, onOpenChat }: {
+  onClose: () => void
+  onOpenChat?: (cid: number) => void
+}) {
   const [lists, setLists] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -31,6 +42,16 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
   const [members, setMembers] = useState<Record<number, { loading: boolean; error: boolean; items: any[] }>>({})
   const [addName, setAddName] = useState<Record<number, string>>({})
   const [addingId, setAddingId] = useState<number | null>(null)
+  // PE-2I: last completed send only (in-memory, never history).
+  const [lastSend, setLastSend] = useState<null | {
+    listId: number; listName: string; at: number;
+    entries: { user_id: number; conversation_id: number; message_id: number }[]
+  }>(null)
+  const [showDelivery, setShowDelivery] = useState(false)
+  const [delivery, setDelivery] = useState<null | {
+    loading: boolean; error: boolean;
+    rows: { user_id: number; conversation_id: number; message_id: number; name: string; status: 'Sent' | 'Delivered' | 'Read' }[]
+  }>(null)
 
   useEffect(() => {
     const ctrl = new AbortController()
@@ -83,12 +104,13 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
     try {
       await broadcastApi.remove(id)
       setLists((l) => l.filter((x) => x.id !== id))
+      if (lastSend?.listId === id) { setLastSend(null); setDelivery(null); setShowDelivery(false) }
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
     }
   }
 
-  const send = async (id: number) => {
+  const send = async (id: number, listName: string) => {
     const content = (drafts[id] || '').trim()
     if (!content || sendingId) return
     setSendingId(id)
@@ -97,11 +119,42 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
       if (r?.success) {
         setDrafts((d) => ({ ...d, [id]: '' }))
         setMsg(`Sent to ${r.data?.sent_to?.length ?? 0} chats`)
+        const entries = Array.isArray(r.data?.sent) ? r.data.sent : []
+        if (entries.length > 0) {
+          setLastSend({ listId: id, listName, at: Date.now(), entries })
+          setShowDelivery(false)
+          setDelivery(null)
+        } else {
+          setLastSend(null)
+          setDelivery(null)
+        }
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
     } finally {
       setSendingId(null)
+    }
+  }
+
+  const loadDelivery = async () => {
+    if (!lastSend || delivery?.loading) return
+    setDelivery({ loading: true, error: false, rows: delivery?.rows || [] })
+    try {
+      const rows = await Promise.all(lastSend.entries.map(async (s) => {
+        const r = await msgApi.receipts(s.message_id)
+        const d = r?.data || { read: [], delivered: [], sent: [] }
+        const hit = [...(d.read || []), ...(d.delivered || []), ...(d.sent || [])]
+          .find((e: any) => e.user_id === s.user_id)
+        const status: 'Sent' | 'Delivered' | 'Read' =
+          (d.read || []).some((e: any) => e.user_id === s.user_id) ? 'Read'
+          : (d.delivered || []).some((e: any) => e.user_id === s.user_id) ? 'Delivered'
+          : 'Sent'
+        const name = hit?.display_name || hit?.username || 'Unknown'
+        return { ...s, name, status }
+      }))
+      setDelivery({ loading: false, error: false, rows })
+    } catch {
+      setDelivery({ loading: false, error: true, rows: [] })
     }
   }
 
@@ -222,6 +275,75 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
           </div>
         )}
         {msg && <p className="text-xs text-center p-1.5 rounded-lg bg-muted">{msg}</p>}
+        {lastSend && (
+          <div className="rounded-2xl border border-border p-3 space-y-2 bg-muted/40">
+            <button
+              onClick={() => {
+                const next = !showDelivery
+                setShowDelivery(next)
+                if (next && !delivery) void loadDelivery()
+              }}
+              aria-expanded={showDelivery}
+              aria-label={`${showDelivery ? 'Hide' : 'Show'} delivery status for the last broadcast to ${lastSend.listName}`}
+              className="w-full flex items-center gap-2 text-left min-h-[44px]"
+            >
+              <CheckCheck className="w-4 h-4 text-primary shrink-0" aria-hidden="true" />
+              <span className="flex-1 min-w-0">
+                <span className="block text-[13px] font-semibold truncate">
+                  Delivery · {lastSend.listName} · {lastSend.entries.length} sent
+                </span>
+                <span className="block text-[11px] text-muted-foreground">Just now — statuses update as recipients arrive</span>
+              </span>
+            </button>
+            {showDelivery && (
+              <div className="border-t border-border pt-2 space-y-1">
+                {!delivery || delivery.loading ? (
+                  <p className="text-xs text-muted-foreground py-1" aria-label="Loading delivery status">Loading…</p>
+                ) : delivery.error ? (
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground flex-1">Couldn&apos;t load statuses.</p>
+                    <button
+                      onClick={() => void loadDelivery()}
+                      className="px-3 py-2 rounded-xl bg-muted text-xs font-semibold min-h-[44px]"
+                    >
+                      Retry
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    {delivery.rows.map((row) => (
+                      <div key={row.user_id} className="flex items-center gap-2.5">
+                        <span className="flex-1 min-w-0 text-[13px] truncate">{row.name}</span>
+                        <span className="flex items-center gap-1 text-[11px] font-semibold text-muted-foreground shrink-0" aria-label={`${row.name}: ${row.status}`}>
+                          {row.status === 'Read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-500" aria-hidden="true" />
+                            : row.status === 'Delivered' ? <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />
+                            : <Check className="w-3.5 h-3.5" aria-hidden="true" />}
+                          {row.status}
+                        </span>
+                        {onOpenChat && (
+                          <button
+                            onClick={() => onOpenChat(row.conversation_id)}
+                            aria-label={`Open chat with ${row.name}`}
+                            className="w-11 h-11 rounded-full flex items-center justify-center text-muted-foreground hover:bg-background hover:text-primary shrink-0"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                          </button>
+                        )}
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => void loadDelivery()}
+                      className="w-full py-2 rounded-xl bg-muted text-xs font-semibold min-h-[44px]"
+                      aria-label="Refresh delivery status"
+                    >
+                      Refresh
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+        )}
         {loading ? (
           <div aria-label="Loading broadcast lists" aria-busy="true" className="space-y-3">
             {[0, 1].map((i) => (
@@ -353,7 +475,7 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && !e.shiftKey) {
                       e.preventDefault()
-                      void send(l.id)
+                      void send(l.id, l.name)
                     }
                   }}
                   placeholder={`Broadcast to ${l.name}…`}
@@ -361,7 +483,7 @@ export function BroadcastPanel({ onClose }: { onClose: () => void }) {
                   className="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-background border border-transparent focus:border-primary outline-none text-sm min-h-[44px]"
                 />
                 <button
-                  onClick={() => void send(l.id)}
+                  onClick={() => void send(l.id, l.name)}
                   disabled={sendingId === l.id || !(drafts[l.id] || '').trim()}
                   className="px-3 rounded-xl bg-primary text-primary-foreground disabled:opacity-40 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                   aria-label={`Send broadcast to ${l.name}`}

@@ -187,6 +187,7 @@ def send_broadcast(
     from app.api.messages import _broadcast_soon, _member_ids
 
     sent_to = []
+    sent = []
     for uid in bl.member_ids or []:
         if uid == current_user.id:
             continue
@@ -229,5 +230,11 @@ def send_broadcast(
             member_ids=_member_ids(db, conv.id),
         )
         sent_to.append(uid)
+        # PE-2I: expose the persisted per-recipient message identity so the
+        # owner can query real delivery/read state via the existing
+        # sender-only receipts endpoint. `sent_to` shape is unchanged.
+        sent.append({"user_id": uid, "conversation_id": conv.id, "message_id": msg.id})
     db.commit()
-    return success_response({"sent_to": sent_to}, f"Sent to {len(sent_to)} chats")
+    return success_response(
+        {"sent_to": sent_to, "sent": sent}, f"Sent to {len(sent_to)} chats"
+    )

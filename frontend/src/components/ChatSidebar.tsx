@@ -336,7 +336,7 @@ export function ChatSidebar({
         ) : showCalls ? (
           <CallsPanel onClose={() => setShowCalls(false)} />
         ) : showBroadcasts ? (
-          <BroadcastPanel onClose={() => setShowBroadcasts(false)} />
+          <BroadcastPanel onClose={() => setShowBroadcasts(false)} onOpenChat={(cid: number) => { setCurrent(cid); fetchMessages(cid); setShowBroadcasts(false); onMobileViewChange('chat') }} />
         ) : showCommunities ? (
           <CommunitiesPanel
             onClose={() => setShowCommunities(false)}
