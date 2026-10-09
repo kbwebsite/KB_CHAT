@@ -1034,6 +1034,14 @@ export function ChatView({
 
         <EffectOverlay />
 
+        {showIce && currentConversationId && (
+          <IcebreakerSheet
+            conversationId={currentConversationId}
+            onClose={() => setShowIce(false)}
+            onUsed={() => {}}
+          />
+        )}
+
         {deleteTarget && (          <DeleteDialog
             onForMe={() => {
               if (currentConversationId != null) {

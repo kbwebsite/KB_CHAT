@@ -143,6 +143,7 @@ from app.models.sticker import StickerPack, Sticker, UserSticker
 from app.models.agent import AgentConversation, AgentMessage
 from app.models.push_token import DeviceToken  # noqa: F401 (register table)
 from app.models.verification import VerificationCode  # noqa: F401 (register table)
+from app.models.live_location import LiveLocationSession  # noqa: F401 (register table)
 
 
 from app.api.auth import router as auth_router
@@ -173,6 +174,7 @@ from app.api.stickers import router as stickers_router
 from app.api.ai import router as ai_router
 from app.api.agent import router as agent_router
 from app.api.push import router as push_router
+from app.api.live_location import router as live_location_router
 from app.websocket.chat import router as ws_router
 
 create_tables()
@@ -225,6 +227,7 @@ app.include_router(stickers_router)
 app.include_router(ai_router)
 app.include_router(agent_router)
 app.include_router(push_router)
+app.include_router(live_location_router)
 app.include_router(ws_router)
 
 

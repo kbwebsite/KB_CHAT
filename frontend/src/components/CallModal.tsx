@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { PhoneOff, Mic, MicOff, Video, VideoOff, Phone } from 'lucide-react'
+import { PhoneOff, Mic, MicOff, Video, VideoOff, Phone, ScreenShare, ScreenShareOff } from 'lucide-react'
 import wsService from '../services/websocket'
 import { callsApi } from '../services/api'
 
@@ -40,6 +40,9 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   }
   const [connected, setConnected]=useState(false)
   const [statusText, setStatusText]=useState(isIncoming ? `Incoming ${type} call...` : 'Calling...')
+  const [sharing, setSharing]=useState(false)
+  const cameraTrackRef=useRef<MediaStreamTrack|null>(null)
+  const screenStreamRef=useRef<MediaStream|null>(null)
   const localRef=useRef<HTMLVideoElement>(null)
   const remoteRef=useRef<HTMLVideoElement>(null)
   const remoteAudioRef=useRef<HTMLAudioElement>(null)
@@ -354,6 +357,10 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       wsService.off('call.answer', onAnswer)
       wsService.off('call.ice_candidate', onIce)
       wsService.off('call.accepted', onAccepted)
+      try { screenStreamRef.current?.getTracks().forEach(t=>t.stop()) } catch {}
+      screenStreamRef.current=null
+      cameraTrackRef.current=null
+      setSharing(false)
       pcRef.current?.close()
       pcRef.current=null
       streamRef.current?.getTracks().forEach(t=>t.stop())
@@ -364,6 +371,53 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       setElapsed(0)
     }
   }, [open, type, callId, peerId]) // NOT isIncoming - uses isCallerRef instead
+
+  const stopShare = async (silent = false) => {
+    try { screenStreamRef.current?.getTracks().forEach(t=>t.stop()) } catch {}
+    screenStreamRef.current = null
+    const pc = pcRef.current
+    const cam = cameraTrackRef.current
+    try {
+      if (pc && cam) {
+        const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video')
+        if (sender) await sender.replaceTrack(cam)
+      }
+    } catch {}
+    cameraTrackRef.current = null
+    if (streamRef.current && localRef.current) {
+      try { localRef.current.srcObject = streamRef.current } catch {}
+    }
+    setSharing(false)
+    if (!silent) setNotice(null)
+  }
+
+  const startShare = async () => {
+    const pc = pcRef.current
+    if (!pc || !connected) { setNotice('Connect first, then share your screen.'); return }
+    const sender = pc.getSenders().find(s => s.track && s.track.kind === 'video')
+    if (!sender) { setNotice('Screen share needs a video call with camera track.'); return }
+    if (!('getDisplayMedia' in (navigator.mediaDevices || {} as any))) {
+      setNotice('Screen share is not supported in this browser.')
+      return
+    }
+    try {
+      const screen = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+      const track = screen.getVideoTracks()[0]
+      if (!track) { screen.getTracks().forEach(t=>t.stop()); return }
+      if (!cameraTrackRef.current) cameraTrackRef.current = sender.track
+      screenStreamRef.current = screen
+      await sender.replaceTrack(track)
+      if (localRef.current) {
+        try { localRef.current.srcObject = screen } catch {}
+      }
+      setSharing(true)
+      setNotice('You are sharing your screen — peers see it live.')
+      track.onended = () => { void stopShare() }
+    } catch (err: any) {
+      if (err?.name === 'NotAllowedError') setNotice('Screen share cancelled.')
+      else setNotice(err?.message || 'Could not start screen share.')
+    }
+  }
 
   // toggle mic/cam
   useEffect(()=>{
@@ -414,6 +468,14 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       <div className="relative z-10 mt-10 flex items-center gap-4">
         <button onClick={()=> setMicOn(!micOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${micOn ? '' : 'muted'}`}>{micOn ? <Mic className="w-6 h-6"/> : <MicOff className="w-6 h-6"/>}</button>
         {type==='video' && videoLive && <button onClick={()=> setCamOn(!camOn)} className={`call-btn-mic w-14 h-14 rounded-full flex items-center justify-center ${camOn ? '' : 'muted'}`}>{camOn ? <Video className="w-6 h-6"/> : <VideoOff className="w-6 h-6"/>}</button>}
+        {type==='video' && connected && !permissionError && (
+          <button
+            onClick={()=> { void (sharing ? stopShare() : startShare()) }}
+            title={sharing ? 'Stop sharing screen' : 'Share your screen'}
+            aria-label={sharing ? 'Stop sharing screen' : 'Share your screen'}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${sharing ? 'bg-emerald-500 text-white' : 'call-btn-mic'}`}
+          >{sharing ? <ScreenShareOff className="w-6 h-6"/> : <ScreenShare className="w-6 h-6"/>}</button>
+        )}
         {hasAccepted ? (
           <button onClick={onEnd} className="call-btn-end w-16 h-16 rounded-full flex items-center justify-center"><PhoneOff className="w-7 h-7"/></button>
         ) : (

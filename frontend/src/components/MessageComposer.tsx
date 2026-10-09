@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera, Navigation } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
@@ -7,7 +7,8 @@ import { useAuthStore } from '../store/auth'
 import EmojiPicker, { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
-import { uploadApi } from '../services/api'
+import { uploadApi, liveLocationApi } from '../services/api'
+import { startLiveTracking } from '../utils/liveLocation'
 import { useSettingsStore } from '../store/settings'
 import StickerPicker from './StickerPicker'
 import { GifPicker } from './GifPicker'
@@ -33,6 +34,8 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [showMore, setShowMore] = useState(false)
   const [showGames, setShowGames] = useState(false)
   const [showGifs, setShowGifs] = useState(false)
+  const [showLive, setShowLive] = useState(false)
+  const [sharingLive, setSharingLive] = useState(false)
   const [memeFile, setMemeFile] = useState<File | null>(null)
   const memeFileRef = useRef<HTMLInputElement>(null)
   const [showCamera, setShowCamera] = useState(false)
@@ -96,7 +99,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       </div>
         <div className="relative">
           <button
-            onClick={() => { setShowGames(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGifs(false) }}
+            onClick={() => { setShowGames(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGifs(false); setShowLive(false) }}
             className="composer-action-btn"
             aria-label="Start a game"
             title="Challenge chat to a game"
@@ -129,15 +132,46 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       <button onClick={() => memeFileRef.current?.click()} className="composer-action-btn" aria-label="Make a meme" title="Make a meme">
         <Laugh className="w-5 h-5" />
       </button>
-      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Stickers">
+      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false); setShowLive(false) }} className="composer-action-btn" aria-label="Stickers">
         <Image className="w-5 h-5" />
       </button>
-      <button onClick={() => { setShowGifs((v) => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false) }} className="composer-action-btn" aria-label="GIFs" title="Send a GIF">
+      <button onClick={() => { setShowGifs((v) => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowLive(false) }} className="composer-action-btn" aria-label="GIFs" title="Send a GIF">
         <span className="text-[11px] font-black tracking-tight">GIF</span>
       </button>
       <button onClick={handleLocationShare} className="composer-action-btn" aria-label="Share location" title="Share current location">
         <MapPin className="w-5 h-5" />
       </button>
+      <div className="relative">
+        <button
+          onClick={() => { setShowLive(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false); setShowGifs(false) }}
+          className="composer-action-btn"
+          aria-label="Share live location"
+          title="Share live location (updates in real time)"
+          style={sharingLive ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
+        >
+          <Navigation className="w-5 h-5" />
+        </button>
+        {showLive && (
+          <div className="absolute bottom-12 right-0 z-30 w-52 rounded-2xl border bg-card p-1.5 shadow-xl">
+            <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide opacity-60">Live for</p>
+            {[
+              { m: 15, label: '15 minutes' },
+              { m: 60, label: '1 hour' },
+              { m: 480, label: '8 hours' },
+            ].map(o => (
+              <button
+                key={o.m}
+                onClick={() => handleLiveShare(o.m)}
+                disabled={sharingLive}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 disabled:opacity-50"
+              >
+                <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" /> {o.label}
+              </button>
+            ))}
+            <p className="px-3 py-1.5 text-[11px] opacity-60">Members see you move in real time. Stop anytime from the map card.</p>
+          </div>
+        )}
+      </div>
       <button onClick={() => { setShowCamera(true); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Take a photo" title="Take a photo">
         <Camera className="w-5 h-5" />
       </button>
@@ -174,6 +208,20 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   useEffect(() => {
     setText(readDraft(conversationId))
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [conversationId])
+  // Icebreakers (and similar fillers) drop text in from outside the composer.
+  useEffect(() => {
+    const onFill = (e: Event) => {
+      try {
+        const d = (e as CustomEvent).detail
+        if (d && d.cid === conversationId && typeof d.text === 'string') {
+          setText(d.text)
+          requestAnimationFrame(() => textareaRef.current?.focus())
+        }
+      } catch {}
+    }
+    window.addEventListener('kryzen:fill-draft', onFill)
+    return () => window.removeEventListener('kryzen:fill-draft', onFill)
   }, [conversationId])
   useEffect(() => {
     const t = setTimeout(() => writeDraft(conversationId, text), 500)
@@ -311,6 +359,46 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         if (fileRef.current) fileRef.current.value = ''
       }
     }
+  }
+
+  const handleLiveShare = (minutes: number) => {
+    setShowLive(false)
+    if (disabled || sharingLive) return
+    if (!('geolocation' in navigator)) {
+      setUploadError('Geolocation not supported in this browser')
+      return
+    }
+    setSharingLive(true)
+    setUploadError(null)
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        try {
+          const r: any = await liveLocationApi.start({
+            conversation_id: conversationId,
+            lat: pos.coords.latitude,
+            lon: pos.coords.longitude,
+            accuracy: typeof pos.coords.accuracy === 'number' ? pos.coords.accuracy : null,
+            duration_minutes: minutes,
+          })
+          if (r?.success && r.data?.id) {
+            const sid = r.data.id as number
+            onSend(`📍 Live location\n[live:${sid}]`, undefined, 'live_location')
+            startLiveTracking(sid, r.data.expires_at ?? null)
+          } else {
+            setUploadError(r?.message || 'Could not start live location')
+          }
+        } catch (err: any) {
+          setUploadError(err.response?.data?.message || err.response?.data?.detail || 'Could not start live location')
+        } finally {
+          setSharingLive(false)
+        }
+      },
+      () => {
+        setUploadError('Location unavailable — allow location access and retry')
+        setSharingLive(false)
+      },
+      { timeout: 15000 },
+    )
   }
 
   const handleLocationShare = () => {

@@ -253,6 +253,14 @@ export const channelApi = {
   deletePost: (id:number, postId:number) => api.delete(`/api/channels/${id}/posts/${postId}`).then(r=>r.data),
 }
 
+export const liveLocationApi = {
+  start: (data:{conversation_id:number, lat:number, lon:number, accuracy?:number|null, duration_minutes:number}) => api.post('/api/live-location/start', data).then(r=>r.data),
+  update: (id:number, data:{lat:number, lon:number, accuracy?:number|null}) => api.post(`/api/live-location/${id}/update`, data).then(r=>r.data),
+  stop: (id:number) => api.post(`/api/live-location/${id}/stop`).then(r=>r.data),
+  get: (id:number) => api.get(`/api/live-location/${id}`).then(r=>r.data),
+  byConversation: (convId:number, signal?:AbortSignal) => api.get(`/api/live-location/by-conversation/${convId}`, { signal }).then(r=>r.data),
+}
+
 export const msgApi = {
   list: (cid:number, params:any={}, signal?:AbortSignal) => {
     const q = new URLSearchParams()

@@ -1,6 +1,6 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info, MapPin, Navigation } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
 import EmojiPicker, { Theme as EmojiTheme } from 'emoji-picker-react'
 import { useState, useRef, useEffect } from 'react'
@@ -14,11 +14,59 @@ import { prettyPreview } from '../utils/messageEffects'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { useToastStore } from '../store/toast'
 import { parseContactCard } from '../utils/messageEffects'
+import { parseLiveSessionId } from '../utils/liveLocation'
+import { LiveLocationCard } from './LiveLocationCard'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 import { RpsGame, isRpsChallenge, type RpsChoice } from './RockPaperScissors'
 import { ConnectFourGame, isC4Challenge } from './ConnectFour'
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
+
+/** Shared location links (MessageComposer "Share location") arrive as plain
+ * text with an openstreetmap mlat/mlon URL. Render them as a rich map card
+ * instead of a bare link. Pure parse — no backend change. */
+export function parseLocationCard(text: string | null | undefined): { lat: number; lon: number; url: string } | null {
+  if (!text) return null
+  const m = /openstreetmap\.org\/\?mlat=(-?\d+(?:\.\d+)?)&mlon=(-?\d+(?:\.\d+)?)/i.exec(text)
+  if (!m) return null
+  const lat = Number(m[1])
+  const lon = Number(m[2])
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null
+  if (lat < -90 || lat > 90 || lon < -180 || lon > 180) return null
+  const url = `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`
+  return { lat, lon, url }
+}
+
+function LocationCard({ lat, lon, url, isOwn }: { lat: number; lon: number; url: string; isOwn: boolean }) {
+  const d = 0.008
+  const embed = `https://www.openstreetmap.org/export/embed.html?bbox=${lon - d}%2C${lat - d}%2C${lon + d}%2C${lat + d}&layer=mapnik&marker=${lat}%2C${lon}`
+  const dirs = `https://www.google.com/maps/dir/?api=1&destination=${lat}%2C${lon}`
+  return (
+    <div className="mb-2 rounded-xl overflow-hidden border border-current/20 min-w-[230px] max-w-[280px]" onClick={(e) => e.stopPropagation()}>
+      <div className={`flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-semibold ${isOwn ? 'bg-white/15' : 'bg-muted'}`}>
+        <MapPin className="w-3.5 h-3.5" />
+        <span className="truncate">Shared location</span>
+        <span className="ml-auto font-normal opacity-70 tabular-nums">{lat.toFixed(4)}, {lon.toFixed(4)}</span>
+      </div>
+      <a href={url} target="_blank" rel="noreferrer" className="block bg-black/20">
+        <iframe
+          title={`Map ${lat},${lon}`}
+          src={embed}
+          loading="lazy"
+          className="w-full h-36 pointer-events-none"
+        />
+      </a>
+      <div className="flex gap-1.5 p-1.5">
+        <a href={url} target="_blank" rel="noreferrer" className="flex-1 text-center text-xs font-medium px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 transition-colors">
+          Open map
+        </a>
+        <a href={dirs} target="_blank" rel="noreferrer" className="flex-1 text-center text-xs font-medium px-2 py-1.5 rounded-lg bg-muted hover:bg-accent transition-colors flex items-center justify-center gap-1">
+          <Navigation className="w-3 h-3" /> Directions
+        </a>
+      </div>
+    </div>
+  )
+}
 
 const fmtDur = (s: number) => {
   if (!Number.isFinite(s) || s < 0) return '0:00'
@@ -243,6 +291,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
 }) {
   const content = msg.is_deleted ? 'Message deleted' : prettyPreview(msg.content)
   const contact = (msg as any).message_type === 'contact' && !msg.is_deleted ? parseContactCard(msg.content) : null
+  const liveSessionId = (msg as any).message_type === 'live_location' && !msg.is_deleted ? parseLiveSessionId(content) : null
+  const location = !msg.is_deleted && liveSessionId == null ? parseLocationCard(content) : null
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
   const isRps = !msg.is_deleted && isRpsChallenge(msg.content)
   const isC4 = !msg.is_deleted && isC4Challenge(msg.content)
@@ -507,6 +557,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                 Chat
               </button>
             </div>
+          ) : liveSessionId ? (
+            <LiveLocationCard
+              sessionId={liveSessionId}
+              isOwn={isOwn}
+              sharerName={msg.sender_display_name || (msg as any).sender_username}
+              sharerId={(msg as any).sender_id}
+              myId={meId}
+            />
+          ) : location ? (
+            <LocationCard lat={location.lat} lon={location.lon} url={location.url} isOwn={isOwn} />
           ) : loneImageUrl ? (
             <img
               src={loneImageUrl}
@@ -542,7 +602,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <span className="font-medium">Transcription:</span> {transcription}
             </div>
           )}
-          {showLinkPreviews && !msg.is_deleted && !loneImageUrl && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
+          {showLinkPreviews && !msg.is_deleted && !loneImageUrl && !location && content && hasUrl(content) && extractUrls(content).map((url, i) => <LinkPreview key={i} url={url} />)}
           {(msg as any).is_pinned && (
             <div className="flex items-center gap-1 mt-1 text-[10px] text-primary/70"><Pin className="w-3 h-3" /> Pinned</div>
           )}

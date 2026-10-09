@@ -328,7 +328,16 @@ def create_message(
         raise HTTPException(status_code=400, detail="Message too long")
 
     msg_type = payload.message_type or "text"
-    if msg_type not in ("text", "image", "file", "voice", "system"):
+    if msg_type not in (
+        "text",
+        "image",
+        "file",
+        "voice",
+        "system",
+        "live_location",
+        "location",
+        "contact",
+    ):
         msg_type = "text"
 
     voice_duration = payload.voice_duration
