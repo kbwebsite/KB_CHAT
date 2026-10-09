@@ -306,13 +306,17 @@ describe('GlobalSearch', () => {
     expect(onClose).toHaveBeenCalledTimes(2)
   })
 
-  it('Escape closes the panel', async () => {
+  it('Escape is owned by the shell (no standalone dismissal)', async () => {
+    // PE-2J: ChatPage closeTopMost owns Escape so layered overlays dismiss
+    // one at a time; the panel must not self-dismiss underneath a higher
+    // overlay. Shell-level Escape coverage lives in chatShell.test.ts.
     const onClose = vi.fn()
     renderSearch({ onClose })
     act(() => {
       window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
     })
-    expect(onClose).toHaveBeenCalled()
+    expect(onClose).not.toHaveBeenCalled()
+    expect(host.querySelector('#global-search-input')).not.toBeNull()
   })
 
   it('Enter activates the first result', async () => {

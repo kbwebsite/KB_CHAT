@@ -17,6 +17,11 @@ export const MAX_MESSAGES_PER_CONV = 1000
 // surfaced as a user-visible error (see isCancel below).
 const fetchControllers: Record<string, AbortController> = {}
 const fetchSeq: Record<string, number> = {}
+// Message-jump sequence (PE-2J): rapid successive jumps must land on the
+// LATEST target. The per-conv fetch guard above cannot cover this — an
+// aborted/slow earlier jump still reaches its trailing pendingJump write —
+// so only the newest jump is allowed to publish pendingJump.
+let jumpSeq = 0
 
 function isCancel(err: any): boolean {
   return !!err && (err.code === 'ERR_CANCELED' || err.name === 'CanceledError' || err.name === 'AbortError')
@@ -510,12 +515,34 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     // hand off to ChatView for scroll+flash via pendingJump. If the target
     // is cleared/deleted server-side it won't be there — still open the
     // conversation (found=false) rather than stranding the user.
+    const myJump = ++jumpSeq
     get().setCurrent(cid)
+    let failed = false
     try {
       await get().fetchMessages(cid, mid + 1)
-    } catch { /* fall through to plain open */ }
+    } catch { failed = true /* fall through to plain open */ }
+    // Stale jump (a newer jumpToMessageId started since): never overwrite
+    // its pendingJump — last-initiated wins, not last-completed.
+    if (myJump !== jumpSeq) return false
+    // The conversation may be unknown locally (deleted, or simply not in
+    // the loaded list): refresh once so a valid-but-unlisted conversation
+    // still opens and jumps instead of stranding on a spinner.
+    if (!get().conversations.some((c:Conversation)=> c.id === cid)) {
+      try { await get().fetchConversations() } catch { /* keep stale list */ }
+    }
+    if (myJump !== jumpSeq) return false
     const list = get().messages[cid] || []
     const found = list.some((m:Message)=> m.id === mid)
+    if (!get().conversations.some((c:Conversation)=> c.id === cid)) {
+      // Unknown conversation and (failed load or missing target): reset to
+      // the welcome/list view rather than an infinite "Loading" spinner.
+      // A known conversation with a missing target keeps the honest
+      // conversation-open fallback below.
+      if (failed || !found) {
+        get().setCurrent(null)
+        return false
+      }
+    }
     set({ pendingJump: { cid, mid, found } })
     return found
   },

@@ -4,7 +4,6 @@ import { Search, X, ArrowLeft, User, MessageSquare, Users } from 'lucide-react'
 import { useChatStore } from '../store/chat'
 import { usersApi, msgApi } from '../services/api'
 import { useDebounce } from '../hooks/useDebounce'
-import { useEscapeKey } from '../hooks/useDismiss'
 import { prettyPreview } from '../utils/messageEffects'
 
 type Person = {
@@ -51,7 +50,9 @@ export function GlobalSearch({ open, onClose, onOpenConversation }: {
   const seq = useRef(0)
   const conversations = useChatStore((s: any) => s.conversations)
 
-  useEscapeKey(onClose, open)
+  // Escape is owned by the ChatPage shell (PE-2J closeTopMost paint-order
+  // dismissal): a component-level handler would double-dismiss alongside
+  // the shell whenever a higher overlay is open. Backdrop + buttons close.
   useEffect(() => {
     if (open) {
       setQuery('')

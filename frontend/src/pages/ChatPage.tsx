@@ -176,24 +176,21 @@ export default function ChatPage() {
     const onKey = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); setShowCommandPalette(true) }
       if (e.key === 'Escape') {
-        // Global search closes first (PE-2A): it is the topmost layer.
-        if (showSearch) { setShowSearch(false); return }
+        // Top-most overlay first on every form factor (PE-2J): Escape in a
+        // chat with a lightbox/panel/sheet open closes that — not the chat.
+        if (closeTopRef.current()) return
         if (mobileView === 'chat') {
           handleBack()
         } else {
-          setShowProfile(false); setShowSettings(false); setShowNotifications(false)
-          setShowSaved(false); setShowContacts(false); setShowCalls(false); setShowStatus(false)
-    setShowCommunities(false); setShowChannels(false); setShowReminders(false); setShowHighlights(false)
-          setStatusViewer(null); setForwardMsg(null); setLightbox(null); setEditTarget(null)
-          setReplyTo(null); setShowCommandPalette(false); setShowPolls(false); setShowPinned(false)
-          setShowEvents(false); setShowSchedule(false); setShowInsights(false)
-          setMobileActionSheet({ open: false }); setShowMessageSearch(false)
+          setReplyTo(null)
+          setEditTarget(null)
+          setEditText('')
         }
       }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [mobileView, showSearch])
+  }, [mobileView])
 
   // ─── Back navigation (mobile) ───
   const handleBack = () => {
@@ -515,6 +512,35 @@ export default function ChatPage() {
     setShowTheme(false)
   }
 
+  // ─── Top-most overlay dismissal (PE-2J) ───
+  // Single paint-order source of truth for Escape + OS back: z-90 dialogs
+  // first, then the action sheet, ChatModals in reverse DOM order (forward
+  // picker > palette > viewer > lightbox — later DOM paints above at equal
+  // z), global search, full-screen panels, then inline message search.
+  // Returns true when something was closed. CallModal is deliberately
+  // excluded: Back/Escape must never dismiss a ringing call.
+  const closeTopMost = (): boolean => {
+    if (deleteTarget) { setDeleteTarget(null); return true }
+    if (infoMsgId != null) { setInfoMsgId(null); return true }
+    if (mobileActionSheet.open) { setMobileActionSheet({ open: false }); return true }
+    if (forwardMsg) { setForwardMsg(null); return true }
+    if (showCommandPalette) { setShowCommandPalette(false); return true }
+    if (statusViewer) { setStatusViewer(null); return true }
+    if (lightbox) { setLightbox(null); return true }
+    if (showSearch) { setShowSearch(false); return true }
+    if (showProfile || showGroupInfo || showSettings || showNotifications ||
+      showSaved || showReminders || showHighlights || showContacts || showCalls || showStatus || showCommunities || showChannels || showPolls || showPinned ||
+      showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme) {
+      closeAllPanels(); return true
+    }
+    if (showMessageSearch) { setShowMessageSearch(false); setMessageSearch(''); return true }
+    return false
+  }
+  // Fresh-state mirror: the window Escape listener below must see current
+  // overlay state without re-subscribing on every state change.
+  const closeTopRef = useRef(closeTopMost)
+  closeTopRef.current = closeTopMost
+
   // ─── Android system back button (native app only) ───
   // Browser history knows nothing about panels/sheets/chat-view, so without
   // this the OS back button quits the entire app from anywhere. This walks
@@ -522,19 +548,8 @@ export default function ChatPage() {
   const capAppRef = useRef<any>(null)
   const backRef = useRef<() => void>(() => {})
   backRef.current = () => {
-    // Global search is the topmost layer (PE-2A): OS back closes it first.
-    if (showSearch) { setShowSearch(false); return }
-    if (lightbox) { setLightbox(null); return }
-    if (statusViewer) { setStatusViewer(null); return }
-    if (forwardMsg) { setForwardMsg(null); return }
-    if (mobileActionSheet.open) { setMobileActionSheet({ open: false }); return }
-    if (showCommandPalette) { setShowCommandPalette(false); return }
-    if (showMessageSearch) { setShowMessageSearch(false); setMessageSearch(''); return }
-    if (showProfile || showGroupInfo || showSettings || showNotifications ||
-      showSaved || showReminders || showHighlights || showContacts || showCalls || showStatus || showCommunities || showChannels || showPolls || showPinned ||
-      showEvents || showSchedule || showInsights || showAgentPanel || showLeaderboard || showTheme) {
-      closeAllPanels(); return
-    }
+    // One shared paint-order dismissal (PE-2J): overlay → panel → chat→list → quit.
+    if (closeTopMost()) return
     if (mobileView === 'chat') { handleBack(); return }
     // Main list with nothing open: standard Android behavior quits the app.
     try { capAppRef.current?.exitApp() } catch {}

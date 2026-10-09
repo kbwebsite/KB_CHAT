@@ -95,8 +95,8 @@ export function ChatView({
   const [convAccent, setConvAccentState] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
   const pendingJump = useChatStore((s: any) => s.pendingJump)
-  // Global-search jump landing: scroll to the exact message + flash it,
-  // reusing the same affordance as in-conversation search jumps.
+  // Jump landing (PE-2A search/saved jumps, PE-2J in-conversation jumps):
+  // scroll to the exact message + flash it.
   useEffect(() => {
     if (!pendingJump || pendingJump.cid !== currentConversationId) return
     if (!pendingJump.found) {
@@ -137,19 +137,12 @@ export function ChatView({
   }
 
   const jumpToMessage = async (m: any) => {
-    if (m.conversation_id !== currentConversationId) {
-      const st = useChatStore.getState()
-      st.setCurrent(m.conversation_id)
-      await st.fetchMessages(m.conversation_id)
-      onMobileViewChange('chat')
-    }
-    requestAnimationFrame(() => {
-      setTimeout(() => {
-        document.getElementById(`msg-${m.id}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        setFlashId(m.id)
-        setTimeout(() => setFlashId(null), 1800)
-      }, 80)
-    })
+    // Route through the guarded store jump (PE-2J): it fetches the page
+    // ending at the target, so old messages outside the loaded window land
+    // exactly instead of silently missing their scroll target. The plain
+    // latest-page fetch below could never reach them.
+    await useChatStore.getState().jumpToMessageId(m.conversation_id, m.id)
+    onMobileViewChange('chat')
   }
 
   useEffect(() => {
