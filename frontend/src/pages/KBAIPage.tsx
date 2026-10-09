@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { Send, Sparkles, Trash2, Copy, Check, Square, Image as ImageIcon, Download, Paperclip, X } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Send, Sparkles, Trash2, Copy, Check, Square, Image as ImageIcon, Download, Paperclip, X, Search, MessageCircle } from 'lucide-react'
 import { aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
@@ -7,7 +8,8 @@ import { useAuthStore } from '../store/auth'
 const AiMarkdown = lazy(() => import('../components/AiMarkdown'))
 import { AiFace } from '../components/AiFace'
 
-interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date; imageUrl?: string; fileName?: string }
+interface SmartHit { id: number; content: string; sender: string; conversation: string; conversation_id: number; created_at: string | null }
+interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date; imageUrl?: string; fileName?: string; hits?: SmartHit[] }
 
 const HISTORY_CAP = 50
 
@@ -27,6 +29,7 @@ function loadHistory(userId: string | number | undefined): Message[] {
         timestamp: m.timestamp ? new Date(m.timestamp) : new Date(),
         ...(typeof m.imageUrl === 'string' ? { imageUrl: m.imageUrl } : {}),
         ...(typeof m.fileName === 'string' ? { fileName: m.fileName } : {}),
+        ...(Array.isArray(m.hits) ? { hits: m.hits.filter((h: any) => h && typeof h.conversation_id === 'number') } : {}),
       }))
   } catch {
     return []
@@ -89,6 +92,7 @@ const quickQuestions = [
 
 export default function KBAIPage() {
   const user = useAuthStore(s => s.user)
+  const nav = useNavigate()
   const [messages, setMessages] = useState<Message[]>(() => loadHistory(user?.id))
   const [input, setInput] = useState('')
   const [loading, setLoading] = useState(false)
@@ -96,16 +100,23 @@ export default function KBAIPage() {
   const [aiStatus, setAiStatus] = useState<{ live: boolean; provider?: string; model?: string } | null>(null)
   const [streaming, setStreaming] = useState(false)
   const [imageMode, setImageMode] = useState(false)
+  const [searchMode, setSearchMode] = useState(false)
   const [imgLoading, setImgLoading] = useState(false)
   const [anaLoading, setAnaLoading] = useState(false)
+  const [searchLoading, setSearchLoading] = useState(false)
   const [attachFile, setAttachFile] = useState<File | null>(null)
   const attachRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
+  const searchAbortRef = useRef<AbortController | null>(null)
   const streamingRef = useRef(false)
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => { scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight) }, [messages])
+  useEffect(() => () => {
+    abortRef.current?.abort()
+    searchAbortRef.current?.abort()
+  }, [])
 
   // Memory: persist the conversation per user so refreshes keep context.
   useEffect(() => {
@@ -215,6 +226,38 @@ export default function KBAIPage() {
     inputRef.current?.focus()
   }
 
+  const sendSearch = async () => {
+    const query = input.trim()
+    if (!query || searchLoading || loading) return
+    searchAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    searchAbortRef.current = ctrl
+    setMessages(prev => [...prev, { role: 'user', content: query, timestamp: new Date() }])
+    setInput('')
+    setSearchLoading(true)
+    try {
+      // smartSearch is membership-scoped server-side: only chats you belong to.
+      const r: any = await aiApi.smartSearch(query, ctrl.signal)
+      if (ctrl.signal.aborted) return
+      const summary = String(r?.data?.summary ?? r?.summary ?? '').trim()
+      const hits: SmartHit[] = Array.isArray(r?.data?.results ?? r?.results)
+        ? (r.data?.results ?? r.results).filter((h: any) => h && typeof h.conversation_id === 'number')
+        : []
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: summary || (hits.length ? `Found ${hits.length} match${hits.length === 1 ? '' : 'es'}.` : 'No matching messages found.'),
+        timestamp: new Date(),
+        hits,
+      }])
+    } catch (e: any) {
+      if (ctrl.signal.aborted || e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') return
+      setMessages(prev => [...prev, { role: 'assistant', content: 'Search failed — try again in a moment.', timestamp: new Date() }])
+    }
+    if (searchAbortRef.current === ctrl) searchAbortRef.current = null
+    setSearchLoading(false)
+    inputRef.current?.focus()
+  }
+
   const copyMessage = (content: string, idx: number) => {
     navigator.clipboard.writeText(content)
     setCopiedIdx(idx)
@@ -232,10 +275,11 @@ export default function KBAIPage() {
   const sendFile = async () => {
     const file = attachFile
     if (!file || anaLoading || loading) return
+    const isAudio = file.type.startsWith('audio/') || /\.(mp3|wav|ogg|m4a|webm|opus)$/i.test(file.name)
     const question = input.trim()
     setMessages(prev => [...prev, {
       role: 'user',
-      content: question || `Analyze ${file.name}`,
+      content: question || (isAudio ? `Transcribe ${file.name}` : `Analyze ${file.name}`),
       timestamp: new Date(),
       fileName: file.name,
     }])
@@ -249,9 +293,12 @@ export default function KBAIPage() {
       return next
     })
     try {
-      const r: any = await aiApi.analyzeFile(file, question || undefined)
-      const analysis = String(r?.data?.analysis ?? r?.analysis ?? '').trim()
-      if (!analysis) throw new Error('empty analysis')
+      // Audio files go to the transcription endpoint, everything else to analysis.
+      const r: any = isAudio
+        ? await aiApi.transcribe(file)
+        : await aiApi.analyzeFile(file, question || undefined)
+      const analysis = String(r?.data?.transcription ?? r?.transcription ?? r?.data?.analysis ?? r?.analysis ?? '').trim()
+      if (!analysis) throw new Error(isAudio ? 'empty transcription' : 'empty analysis')
       setMessages(prev => {
         const next = [...prev]
         if (next[slot.i] && next[slot.i].role === 'assistant') {
@@ -263,7 +310,7 @@ export default function KBAIPage() {
       setMessages(prev => {
         const next = [...prev]
         if (next[slot.i] && next[slot.i].role === 'assistant') {
-          next[slot.i] = { ...next[slot.i], content: 'Could not analyze that file — try again in a moment.' }
+          next[slot.i] = { ...next[slot.i], content: isAudio ? 'Could not transcribe that audio — try again in a moment.' : 'Could not analyze that file — try again in a moment.' }
         }
         return next
       })
@@ -285,12 +332,12 @@ export default function KBAIPage() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute -inset-1.5 rounded-2xl kryzen-accent-gradient opacity-60 blur-md" aria-hidden />
-            <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : (imgLoading || anaLoading) ? 'thinking' : 'idle'} label="Kryzen AI" />
+            <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : (imgLoading || anaLoading || searchLoading) ? 'thinking' : 'idle'} label="Kryzen AI" />
           </div>
           <div>
             <h1 className="text-base font-extrabold tracking-tight gradient-text">Kryzen AI</h1>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : imgLoading ? 'Dreaming up your image…' : anaLoading ? 'Reading your file…' : 'Your personal assistant'}
+              {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : imgLoading ? 'Dreaming up your image…' : anaLoading ? 'Reading your file…' : searchLoading ? 'Searching your chats…' : 'Your personal assistant'}
               {aiStatus && !loading && (
                 <span
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -376,6 +423,24 @@ export default function KBAIPage() {
                   <AiMarkdown text={m.content} />
                 </Suspense>
               )}
+              {m.role === 'assistant' && m.hits && m.hits.length > 0 && (
+                <div className="mt-2 space-y-1.5">
+                  {m.hits.map(h => (
+                    <button
+                      key={h.id}
+                      onClick={() => nav(`/chat?conv=${h.conversation_id}`)}
+                      aria-label={`Open chat ${h.conversation} with message from ${h.sender}`}
+                      className="w-full flex items-center gap-2 px-2.5 py-2 rounded-xl bg-white/[0.04] border border-white/10 hover:bg-white/[0.09] transition-colors text-left min-h-[44px]"
+                    >
+                      <MessageCircle className="w-3.5 h-3.5 text-primary shrink-0" aria-hidden />
+                      <span className="flex-1 min-w-0">
+                        <span className="block text-xs font-semibold truncate">{h.sender} <span className="font-normal text-muted-foreground">in {h.conversation}</span></span>
+                        <span className="block text-xs text-muted-foreground truncate">{h.content}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              )}
               {m.role === 'assistant' && (
                 <button onClick={() => copyMessage(m.content, i)}
                   className="absolute -right-8 top-1 p-1 rounded opacity-0 group-hover:opacity-100 hover:bg-secondary text-muted-foreground transition-opacity">
@@ -424,6 +489,7 @@ export default function KBAIPage() {
                 } else {
                   setAttachFile(f)
                   setImageMode(false)
+                  setSearchMode(false)
                 }
               }
               e.target.value = ''
@@ -440,7 +506,7 @@ export default function KBAIPage() {
             <Paperclip className="w-4 h-4" />
           </button>
           <button
-            onClick={() => setImageMode(v => !v)}
+            onClick={() => { setImageMode(v => !v); setSearchMode(false) }}
             className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
               imageMode ? 'kryzen-accent-gradient-3 text-white shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
             }`}
@@ -450,9 +516,20 @@ export default function KBAIPage() {
           >
             <ImageIcon className="w-4 h-4" />
           </button>
+          <button
+            onClick={() => { setSearchMode(v => !v); setImageMode(false); setAttachFile(null) }}
+            className={`shrink-0 w-10 h-10 rounded-xl flex items-center justify-center transition-all ${
+              searchMode ? 'kryzen-accent-gradient-3 text-white shadow-lg' : 'text-muted-foreground hover:text-foreground hover:bg-white/5'
+            }`}
+            style={searchMode ? { boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' } : undefined}
+            aria-label="Toggle chat search"
+            title={searchMode ? 'Search mode on — find messages in your chats' : 'Search your chats instead of chatting'}
+          >
+            <Search className="w-4 h-4" />
+          </button>
           <textarea ref={inputRef} value={input} onChange={e => setInput(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); imageMode ? sendImage() : attachFile ? sendFile() : send() } }}
-            placeholder={imageMode ? 'Describe the image…' : 'Ask Kryzen AI anything...'} rows={1}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); searchMode ? sendSearch() : imageMode ? sendImage() : attachFile ? sendFile() : send() } }}
+            placeholder={searchMode ? 'Search your chats…' : imageMode ? 'Describe the image…' : 'Ask Kryzen AI anything...'} rows={1}
             className="flex-1 resize-none px-2 py-2.5 bg-transparent text-sm outline-none max-h-32 placeholder:text-muted-foreground/60" />
           {attachFile ? (
             <button onClick={sendFile} disabled={anaLoading || loading}
@@ -473,6 +550,13 @@ export default function KBAIPage() {
               className="shrink-0 w-10 h-10 rounded-xl bg-destructive text-destructive-foreground flex items-center justify-center hover:bg-destructive/90 transition-opacity"
               aria-label="Stop generating">
               <Square className="w-4 h-4" />
+            </button>
+          ) : searchMode ? (
+            <button onClick={sendSearch} disabled={!input.trim() || searchLoading}
+              className="shrink-0 w-10 h-10 rounded-xl kryzen-accent-gradient-3 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-all"
+              style={{ boxShadow: '0 4px 16px rgba(var(--accent-rgb), 0.5)' }}
+              aria-label="Search chats">
+              <Search className="w-4 h-4" />
             </button>
           ) : (
             <button onClick={send} disabled={!input.trim()}

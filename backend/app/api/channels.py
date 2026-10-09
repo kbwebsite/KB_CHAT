@@ -187,3 +187,21 @@ def create_post(
         content=payload.get("content"),
     )
     return success_response(_post_to_dict(db, p), "Posted to channel")
+
+
+@router.delete("/{channel_id}/posts/{post_id}")
+@service_route
+def delete_post(
+    channel_id: int,
+    post_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Owner-only: delete a channel post."""
+    channel_service.delete_post(
+        db,
+        channel_id=channel_id,
+        post_id=post_id,
+        actor_id=current_user.id,
+    )
+    return success_response(None, "Post deleted")

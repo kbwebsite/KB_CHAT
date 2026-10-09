@@ -271,6 +271,17 @@ def create_message(
     from app.api.extended import _blocked_pair as _is_blocked
 
     _conv = db.query(_Conv).filter_by(id=conv_id).first()
+    if _conv is not None and bool(getattr(_conv, "only_admins_can_send", False)):
+        _my_role = (
+            db.query(ConversationMember)
+            .filter_by(conversation_id=conv_id, user_id=current_user.id)
+            .first()
+        )
+        if not _my_role or (_my_role.role not in ("owner", "admin")):
+            raise HTTPException(
+                status_code=403,
+                detail="Only admins can send messages in this group",
+            )
     if _conv is not None and not _conv.is_group:
         _other = (
             db.query(ConversationMember.user_id)
@@ -282,6 +293,23 @@ def create_message(
         )
         if _other and _is_blocked(db, current_user.id, _other[0]):
             raise HTTPException(status_code=403, detail="You cannot message this user")
+    if (
+        _conv is not None
+        and _conv.is_group
+        and bool(getattr(_conv, "only_admins_can_send", False))
+    ):
+        _role = (
+            db.query(ConversationMember.role)
+            .filter(
+                ConversationMember.conversation_id == conv_id,
+                ConversationMember.user_id == current_user.id,
+            )
+            .scalar()
+        )
+        if _role not in ("owner", "admin"):
+            raise HTTPException(
+                status_code=403, detail="Only admins can send in this group"
+            )
     if not payload.content and not payload.attachment_ids:
         raise HTTPException(
             status_code=400, detail="Message content or attachment required"

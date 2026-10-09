@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { settingsApi } from '../services/api'
+import { isAutoWriting, isThemeAutoOn, setThemeAutoOn } from '../utils/wallpapers'
 
 /**
  * Settings architecture (single source of truth).
@@ -315,6 +316,14 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
 
   update: async (patch) => {
     set(patch as any)
+    // A manual theme edit wins over Auto mode (auto writes bypass this).
+    if (
+      !isAutoWriting() &&
+      isThemeAutoOn() &&
+      ('theme' in patch || 'accent_color' in patch || 'chat_wallpaper' in patch)
+    ) {
+      setThemeAutoOn(false)
+    }
     if (patch.theme) applyTheme(patch.theme)
     if (patch.accent_color) applyAccent(patch.accent_color)
     if (patch.desktop_notifications !== undefined) {

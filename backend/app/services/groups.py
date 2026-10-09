@@ -106,6 +106,7 @@ def update_group_details(
     title=MISSING,
     description=MISSING,
     avatar_url=MISSING,
+    only_admins_can_send=MISSING,
 ) -> Conversation:
     conv = _get_group(db, conv_id)
     mem = _membership(db, conv_id, actor_id)
@@ -117,6 +118,33 @@ def update_group_details(
         conv.description = description
     if avatar_url is not MISSING:
         conv.avatar_url = avatar_url
+    if only_admins_can_send is not MISSING:
+        conv.only_admins_can_send = bool(only_admins_can_send)
+    db.commit()
+    db.refresh(conv)
+    return conv
+
+
+def transfer_ownership(
+    db: Session,
+    *,
+    conv_id: int,
+    actor_id: int,
+    target_user_id: int,
+) -> Conversation:
+    """Owner hands ownership to another member. Old owner becomes admin."""
+    conv = _get_group(db, conv_id)
+    my_mem = _membership(db, conv_id, actor_id)
+    if not my_mem or my_mem.role != "owner":
+        raise forbidden("Only the group owner can transfer ownership")
+    target = _membership(db, conv_id, target_user_id)
+    if not target:
+        raise not_found("Member not found")
+    if target.user_id == actor_id:
+        raise bad_request("You already own this group")
+    target.role = "owner"
+    my_mem.role = "admin"
+    conv.created_by = target.user_id
     db.commit()
     db.refresh(conv)
     return conv

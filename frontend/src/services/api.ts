@@ -209,6 +209,7 @@ export const convApi = {
   addMembers: (id:number, data:any) => api.post(`/api/conversations/groups/${id}/members`, data).then(r=>r.data),
   removeMember: (cid:number, uid:number) => api.delete(`/api/conversations/groups/${cid}/members/${uid}`).then(r=>r.data),
   setMemberRole: (cid:number, uid:number, role:'admin'|'member') => api.patch(`/api/conversations/groups/${cid}/members/${uid}`, {role}).then(r=>r.data),
+  transferOwnership: (cid:number, user_id:number) => api.post(`/api/conversations/groups/${cid}/transfer`, {user_id}).then(r=>r.data),
   setDisappearing: (cid:number, seconds:number|null) => api.patch(`/api/conversations/${cid}/disappearing`, {seconds}).then(r=>r.data),
   pin: (id:number, pinned?:boolean) => api.post(`/api/conversations/${id}/pin`, {pinned}).then(r=>r.data),
   archive: (id:number, archived?:boolean) => api.post(`/api/conversations/${id}/archive`, {archived}).then(r=>r.data),
@@ -249,6 +250,7 @@ export const channelApi = {
   unfollow: (id:number) => api.delete(`/api/channels/${id}/follow`).then(r=>r.data),
   posts: (id:number) => api.get(`/api/channels/${id}/posts`).then(r=>r.data),
   post: (id:number, content:string) => api.post(`/api/channels/${id}/posts`, {content}).then(r=>r.data),
+  deletePost: (id:number, postId:number) => api.delete(`/api/channels/${id}/posts/${postId}`).then(r=>r.data),
 }
 
 export const msgApi = {

@@ -2,6 +2,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from typing import Optional, List
 from datetime import datetime
 
+
 class ConversationCreate(BaseModel):
     participant_username: Optional[str] = None
     participant_id: Optional[int] = None
@@ -11,14 +12,18 @@ class ConversationCreate(BaseModel):
     member_ids: Optional[List[int]] = None  # for group
     member_usernames: Optional[List[str]] = None
 
+
 class GroupUpdate(BaseModel):
     title: Optional[str] = Field(None, min_length=1, max_length=100)
     description: Optional[str] = Field(None, max_length=500)
     avatar_url: Optional[str] = None
+    only_admins_can_send: Optional[bool] = None
+
 
 class GroupMemberAdd(BaseModel):
     user_ids: Optional[List[int]] = None
     usernames: Optional[List[str]] = None
+
 
 class ConversationMemberOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)
@@ -30,6 +35,7 @@ class ConversationMemberOut(BaseModel):
     avatar_url: Optional[str] = None
     role: str
     is_online: bool = False
+
 
 class ConversationOut(BaseModel):
     model_config = ConfigDict(from_attributes=True)

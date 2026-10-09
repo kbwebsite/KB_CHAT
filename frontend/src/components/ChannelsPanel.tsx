@@ -338,6 +338,20 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  const deletePost = async (p: any) => {
+    if (!openChannel?.is_owner) return
+    if (!confirm('Delete this post?')) return
+    try {
+      const r = await channelApi.deletePost(openChannel.id, p.id)
+      if (r?.success) {
+        setPosts((list) => list.filter((x: any) => x.id !== p.id))
+        refreshOne(openChannel.id)
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    }
+  }
+
   const copyInviteLink = async () => {
     const link = `${window.location.origin}/chat#channel-${openChannel?.id}`
     try {
@@ -803,6 +817,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                   >
                                     <Forward className="w-4 h-4" />
                                   </button>
+                                  {openChannel.is_owner && (
+                                    <button
+                                      onClick={() => deletePost(p)}
+                                      className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center text-tertiary hover:text-destructive transition-all active:scale-90 touch-44"
+                                      aria-label="Delete post"
+                                      title="Delete post"
+                                    >
+                                      <Trash2 className="w-4 h-4" />
+                                    </button>
+                                  )}
                                   <span className="flex-1" />
                                   <span className="text-[11px] text-tertiary">{fmtPostTime(p.created_at)}</span>
                                   {openChannel.is_owner && <Check className="w-3.5 h-3.5 text-tertiary" />}

@@ -32,6 +32,9 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
 
   const myRole = members.find(m=> m.user_id===user?.id)?.role
   const canManage = myRole==='owner' || myRole==='admin'
+  const isOwner = myRole==='owner'
+  const [announceOnly, setAnnounceOnly]=useState(!!conversation.only_admins_can_send)
+  const [announceBusy, setAnnounceBusy]=useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
 
@@ -118,6 +121,25 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
       setMsg(role==='admin' ? 'Promoted to admin' : 'Demoted to member')
       onUpdated()
     } catch (e:any) { setMsg(e.response?.data?.message||'Failed') }
+  }
+
+  const handleAnnounceToggle=async ()=>{
+    if (!canManage) return setMsg('Only admins can change this')
+    setAnnounceBusy(true)
+    try {
+      const res = await convApi.updateGroup(conversation.id, { only_admins_can_send: !announceOnly })
+      if (res.success) { setAnnounceOnly(!announceOnly); setMsg(!announceOnly ? 'Only admins can send now' : 'All members can send now'); onUpdated() }
+    } catch (e:any) { setMsg(e.response?.data?.message||'Failed') }
+    finally { setAnnounceBusy(false) }
+  }
+
+  const handleTransfer=async (uid:number, name:string)=>{
+    if (!isOwner) return setMsg('Only the owner can transfer ownership')
+    if (!confirm(`Transfer ownership to ${name}? You become admin.`)) return
+    try {
+      const res = await convApi.transferOwnership(conversation.id, uid)
+      if (res.success) { setMsg('Ownership transferred'); onUpdated() }
+    } catch (e:any) { setMsg(e.response?.data?.message||e.response?.data?.detail||'Failed') }
   }
 
   const handleRemove=async (uid:number)=>{
@@ -252,6 +274,16 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
             )}
           </div>
         )}
+        {conversation.is_group && (
+          <div className="rounded-xl border p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5"><Shield className="w-4 h-4"/>Send permissions</h3>
+            <div className="flex items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground flex-1">{announceOnly ? 'Only admins can send (announcement mode)' : 'All members can send'}</p>
+              <button onClick={handleAnnounceToggle} disabled={!canManage || announceBusy} className={`px-3 py-1.5 rounded-full text-xs font-medium disabled:opacity-50 ${announceOnly ? 'bg-amber-500 text-white' : 'bg-muted'}`}>{announceBusy ? '…' : announceOnly ? 'Admins only: ON' : 'Admins only: OFF'}</button>
+            </div>
+            {!canManage && <p className="text-[11px] text-muted-foreground">Only admins can change this.</p>}
+          </div>
+        )}
 
         <div className="grid grid-cols-2 gap-2">
           <button onClick={()=> handleExport('json')} className="py-2 rounded-xl bg-muted hover:bg-accent text-xs flex items-center justify-center gap-1"><FileDown className="w-3 h-3"/>Export JSON</button>
@@ -276,13 +308,22 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
                   <p className="text-xs text-muted-foreground truncate">@{m.username} {m.is_online ? '• Online' : ''}</p>
                 </div>
                 {myRole==='owner' && m.role!=='owner' && m.user_id!==user?.id && (
-                  <button
-                    onClick={()=>handleRole(m.user_id, m.role==='admin' ? 'member' : 'admin')}
-                    className="p-1.5 hover:bg-background rounded-full text-primary"
-                    title={m.role==='admin' ? 'Demote to member' : 'Promote to admin'}
-                  >
-                    <Shield className="w-4 h-4"/>
-                  </button>
+                  <>
+                    <button
+                      onClick={()=>handleRole(m.user_id, m.role==='admin' ? 'member' : 'admin')}
+                      className="p-1.5 hover:bg-background rounded-full text-primary"
+                      title={m.role==='admin' ? 'Demote to member' : 'Promote to admin'}
+                    >
+                      <Shield className="w-4 h-4"/>
+                    </button>
+                    <button
+                      onClick={()=>handleTransfer(m.user_id, m.display_name)}
+                      className="px-2 py-1 rounded-full bg-amber-500/10 text-amber-600 text-[11px] font-medium hover:bg-amber-500 hover:text-white"
+                      title="Transfer ownership to this member"
+                    >
+                      Transfer
+                    </button>
+                  </>
                 )}
                 {canManage && m.role!=='owner' && m.user_id!==user?.id && <button onClick={()=>handleRemove(m.user_id)} className="p-1.5 hover:bg-background rounded-full text-destructive"><Trash2 className="w-4 h-4"/></button>}
               </div>

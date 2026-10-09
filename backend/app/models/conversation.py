@@ -35,6 +35,9 @@ class Conversation(Base):
     # Disappearing messages: auto-delete new messages after this many
     # seconds. NULL = off. Nullable so the online migration adds it safely.
     disappearing_seconds = Column(Integer, nullable=True)
+    # Announcement mode: when True, only owner/admin may send messages.
+    # Nullable + python-side default so _ensure_missing_columns can backfill.
+    only_admins_can_send = Column(Boolean, default=False, nullable=True)
 
     members = relationship(
         "ConversationMember",

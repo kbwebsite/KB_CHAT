@@ -1,6 +1,7 @@
-import { useRef, useState } from 'react'
-import { Moon, Sun, Monitor, Wallpaper, Upload, Trash2, Lock, Unlock } from 'lucide-react'
+import { useEffect, useRef, useState } from 'react'
+import { Moon, Sun, Monitor, Wallpaper, Upload, Trash2, Lock, Unlock, Sparkles, Shuffle } from 'lucide-react'
 import { useSettingsStore, type UserSettings } from '../../store/settings'
+import { useToastStore } from '../../store/toast'
 import { useThemeStore, THEME_PRESETS } from '../../store/theme'
 import { useLockStore, PIN_RE } from '../../store/lock'
 import {
@@ -11,6 +12,10 @@ import {
   imageFileToWallpaper,
   isSlideshowOn,
   setSlideshowOn,
+  isThemeAutoOn,
+  setThemeAutoOn,
+  applyAutoPackNow,
+  surprisePack,
 } from '../../utils/wallpapers'
 
 /**
@@ -409,6 +414,7 @@ export function LanguagePicker() {
 export function AppearanceSettings() {
   return (
     <div className="space-y-3">
+      <MagicThemes />
       <div>
         <p className="text-xs font-medium mb-2">3D theme presets</p>
         <p className="text-xs text-muted-foreground mb-2">Every theme in the theme store — one tap recolors the whole app</p>

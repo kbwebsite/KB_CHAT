@@ -46,6 +46,7 @@ export interface Conversation {
   is_archived?: boolean;
   is_favorite?: boolean;
   muted_until?: string | null;
+  only_admins_can_send?: boolean;
 }
 
 export interface Attachment {

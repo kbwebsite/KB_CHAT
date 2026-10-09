@@ -2910,6 +2910,35 @@ body {
   .kb-wall-drift { animation: none; }
 }
 
+/* Festival motion: layered-gradient pans with exact layer counts.
+   background-position lists must match the wallpaper's layer count or the
+   animation will not interpolate — keep each pair in sync. */
+@keyframes kb-fx-rain {
+  0% { background-position: 0% 0%, 100% 100%, 0 0; }
+  100% { background-position: 60% 100%, 40% 0%, -140px 420px; }
+}
+.kb-fx-rain {
+  animation: kb-fx-rain 9s linear infinite;
+}
+@keyframes kb-fx-diwali {
+  0% { background-position: 0% 0%, 100% 100%, 50% 50%, 0% 0%, 100% 100%; }
+  50% { background-position: 40% 60%, 60% 40%, 50% 55%, 30% 30%, 70% 70%; }
+  100% { background-position: 0% 0%, 100% 100%, 50% 50%, 0% 0%, 100% 100%; }
+}
+.kb-fx-diwali {
+  animation: kb-fx-diwali 12s ease-in-out infinite;
+}
+@keyframes kb-fx-neon {
+  0% { background-position: 0% 50%, 0 0, 0% 0%; }
+  100% { background-position: 100% 50%, 0 0, 100% 100%; }
+}
+.kb-fx-neon {
+  animation: kb-fx-neon 14s ease-in-out infinite alternate;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kb-fx-rain, .kb-fx-diwali, .kb-fx-neon { animation: none; }
+}
+
 /* Full-screen message effects (confetti / hearts / fireworks / slam).
    Particles are emoji spans; drift comes from --fx-drift per particle. */
 @keyframes kryzen-fx-fall {

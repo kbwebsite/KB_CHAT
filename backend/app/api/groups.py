@@ -48,6 +48,9 @@ def update_group(
         title=payload.get("title") if payload.get("title") else M,
         description=payload.get("description") if "description" in payload else M,
         avatar_url=payload.get("avatar_url") if "avatar_url" in payload else M,
+        only_admins_can_send=payload.get("only_admins_can_send")
+        if "only_admins_can_send" in payload
+        else M,
     )
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group updated"
@@ -153,4 +156,34 @@ def join_by_invite(
         )
     return success_response(
         {"conversation_id": conversation_id, "already_member": False}, "Joined group"
+    )
+
+
+@router.post("/{group_id}/transfer")
+@service_route
+def transfer_ownership(
+    group_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Owner hands ownership to another member (old owner becomes admin)."""
+    target_id = payload.get("user_id")
+    try:
+        target_id = int(target_id) if target_id is not None else None
+    except (TypeError, ValueError):
+        target_id = None
+    if not target_id:
+        from app.services.errors import bad_request as _bad
+
+        raise _bad("user_id required")
+    conv = group_service.transfer_ownership(
+        db,
+        conv_id=group_id,
+        actor_id=current_user.id,
+        target_user_id=target_id,
+    )
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id),
+        "Ownership transferred",
     )

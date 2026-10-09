@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
-import { Send, Sparkles, Plus } from 'lucide-react'
+import { Send, Sparkles, Plus, FileSearch, Database, X } from 'lucide-react'
 import { AiFace } from './AiFace'
 import { agentApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
@@ -35,6 +35,17 @@ export function AgentPanel({
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
   const user = useAuthStore(s => s.user)
+  // Code search over the server's code index (existing retrieve endpoint).
+  const [showCode, setShowCode] = useState(false)
+  const [codeQuery, setCodeQuery] = useState('')
+  const [codeResults, setCodeResults] = useState<any[]>([])
+  const [codeLoading, setCodeLoading] = useState(false)
+  const [codeSearched, setCodeSearched] = useState(false)
+  const codeAbortRef = useRef<AbortController | null>(null)
+  // Code index state (existing index/status + incremental index endpoints).
+  const [indexInfo, setIndexInfo] = useState<{ total_vectors?: number } | null>(null)
+  const [indexLoading, setIndexLoading] = useState(false)
+  const [indexMsg, setIndexMsg] = useState<string | null>(null)
 
   useEffect(() => {
     scrollRef.current?.scrollTo(0, scrollRef.current.scrollHeight)
@@ -182,6 +193,65 @@ export function AgentPanel({
     'My messages aren\'t sending — help!',
   ]
 
+  const searchCode = async () => {
+    const q = codeQuery.trim()
+    if (!q || codeLoading) return
+    codeAbortRef.current?.abort()
+    const ctrl = new AbortController()
+    codeAbortRef.current = ctrl
+    setCodeLoading(true)
+    setCodeSearched(false)
+    try {
+      const res: any = await agentApi.retrieve(q, 5, ctrl.signal)
+      if (ctrl.signal.aborted) return
+      const rows = res?.data?.results ?? res?.results
+      setCodeResults(Array.isArray(rows) ? rows : [])
+    } catch (e: any) {
+      if (ctrl.signal.aborted || e?.code === 'ERR_CANCELED' || e?.name === 'CanceledError') return
+      setCodeResults([])
+    }
+    if (codeAbortRef.current === ctrl) codeAbortRef.current = null
+    setCodeLoading(false)
+    setCodeSearched(true)
+  }
+
+  const loadIndexStatus = async () => {
+    try {
+      const res: any = await agentApi.indexStatus()
+      const info = res?.data ?? res
+      if (info && typeof info.total_vectors === 'number') setIndexInfo(info)
+    } catch {
+      /* index status is best-effort; the section explains on failure */
+    }
+  }
+
+  const refreshIndex = async () => {
+    if (indexLoading) return
+    setIndexLoading(true)
+    setIndexMsg(null)
+    try {
+      // Incremental only: full reindex is admin-gated server-side.
+      const res: any = await agentApi.index(true)
+      const msg = String(res?.data?.message ?? res?.message ?? '').trim()
+      const total = res?.data?.total_vectors ?? res?.total_vectors
+      if (typeof total === 'number') setIndexInfo({ total_vectors: total })
+      setIndexMsg(msg || 'Index refreshed.')
+    } catch (e: any) {
+      const status = e?.response?.status
+      setIndexMsg(status === 403
+        ? 'Index refresh needs admin rights on the server.'
+        : 'Could not refresh the index — try again in a moment.')
+    }
+    setIndexLoading(false)
+  }
+
+  useEffect(() => {
+    if (showCode && !indexInfo) void loadIndexStatus()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCode])
+
+  useEffect(() => () => { codeAbortRef.current?.abort() }, [])
+
   return (
     <div className="agent-panel flex flex-col h-full bg-card">
       {/* Header */}
@@ -200,6 +270,9 @@ export function AgentPanel({
           </div>
         </div>
         <div className="flex items-center gap-1">
+          <button onClick={() => setShowCode(v => !v)} className={`icon-btn w-7 h-7 ${showCode ? 'text-primary' : ''}`} title="Code search" aria-label="Toggle code search" aria-expanded={showCode}>
+            <FileSearch className="w-4 h-4" />
+          </button>
           <button onClick={newChat} className="icon-btn w-7 h-7" title="New chat">
             <Plus className="w-4 h-4" />
           </button>
@@ -264,6 +337,63 @@ export function AgentPanel({
           </div>
         )}
       </div>
+
+      {/* Code search over the server code index */}
+      {showCode && (
+        <div className="shrink-0 border-t border-border p-3 space-y-2 max-h-[45%] overflow-y-auto min-h-0">
+          <div className="flex gap-2">
+            <label htmlFor="agent-code-query" className="sr-only">Search codebase</label>
+            <input
+              id="agent-code-query"
+              value={codeQuery}
+              onChange={e => setCodeQuery(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void searchCode() }}
+              placeholder="Search codebase…"
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-secondary text-sm outline-none focus:ring-2 focus:ring-ring min-h-[44px]"
+            />
+            <button
+              onClick={() => void searchCode()}
+              disabled={!codeQuery.trim() || codeLoading}
+              className="shrink-0 px-3 rounded-xl bg-primary text-primary-foreground text-xs font-semibold disabled:opacity-40 min-h-[44px] min-w-[44px]"
+              aria-label="Search codebase"
+            >
+              {codeLoading ? '…' : 'Go'}
+            </button>
+          </div>
+          {codeLoading ? (
+            <p className="text-xs text-muted-foreground" aria-label="Searching codebase">Searching…</p>
+          ) : codeSearched && codeResults.length === 0 ? (
+            <p className="text-xs text-muted-foreground">No code matches found.</p>
+          ) : (
+            codeResults.map((r: any, i: number) => (
+              <div key={`${r.file_path}:${r.start_line}:${i}`} className="rounded-xl bg-secondary/60 border border-border/50 px-2.5 py-2 min-w-0">
+                <p className="text-xs font-semibold truncate" title={r.file_path}>
+                  {r.file_path}{typeof r.start_line === 'number' ? `:${r.start_line}` : ''}
+                </p>
+                <p className="text-[11px] text-muted-foreground truncate">
+                  {[r.name, r.language, r.chunk_type].filter(Boolean).join(' · ')}
+                  {typeof r.score === 'number' ? ` · ${r.score.toFixed(2)}` : ''}
+                </p>
+              </div>
+            ))
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <Database className="w-3.5 h-3.5 text-muted-foreground shrink-0" aria-hidden />
+            <p className="flex-1 text-[11px] text-muted-foreground min-w-0 truncate">
+              {indexInfo ? `${indexInfo.total_vectors} vectors indexed` : 'Code index status unknown'}
+            </p>
+            <button
+              onClick={() => void refreshIndex()}
+              disabled={indexLoading}
+              className="shrink-0 px-3 py-2 rounded-xl bg-secondary text-[11px] font-semibold disabled:opacity-40 min-h-[44px]"
+              aria-label="Refresh code index"
+            >
+              {indexLoading ? '…' : 'Refresh'}
+            </button>
+          </div>
+          {indexMsg && <p className="text-[11px] text-muted-foreground">{indexMsg}</p>}
+        </div>
+      )}
 
       {/* Input */}
       <div className="shrink-0 p-3 pb-[max(16px,env(safe-area-inset-bottom))] border-t border-border">

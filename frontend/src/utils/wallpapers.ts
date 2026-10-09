@@ -187,6 +187,39 @@ export const WALLPAPERS: WallpaperDef[] = [
       backgroundSize: '300% 300%',
     },
   },
+  {
+    id: 'monsoon',
+    label: 'Monsoon · live',
+    className: 'kb-fx-rain',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(ellipse 70% 50% at 20% 30%, rgba(34,211,238,0.13), transparent 70%), radial-gradient(ellipse 70% 50% at 80% 75%, rgba(59,130,246,0.12), transparent 70%), repeating-linear-gradient(105deg, rgba(148,197,255,0.10) 0 2px, transparent 2px 14px)',
+      backgroundSize: '180% 180%, 180% 180%, 120px 120px',
+    },
+  },
+  {
+    id: 'diwali',
+    label: 'Diwali · live',
+    className: 'kb-fx-diwali',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'radial-gradient(circle at 18% 82%, rgba(251,191,36,0.22) 0 2px, transparent 3px), radial-gradient(circle at 74% 88%, rgba(251,146,60,0.20) 0 2px, transparent 3px), radial-gradient(circle at 48% 92%, rgba(253,224,71,0.18) 0 1px, transparent 2px), radial-gradient(ellipse 55% 40% at 30% 85%, rgba(249,115,22,0.15), transparent 70%), radial-gradient(ellipse 45% 35% at 72% 90%, rgba(251,191,36,0.13), transparent 70%)',
+      backgroundSize: 'auto, auto, auto, 180% 180%, 180% 180%',
+    },
+  },
+  {
+    id: 'neon-party',
+    label: 'Neon party · live',
+    className: 'kb-fx-neon',
+    css: {
+      ...PATTERN_BASE,
+      backgroundImage:
+        'linear-gradient(115deg, transparent 30%, rgba(232,121,249,0.12) 45%, rgba(34,211,238,0.12) 60%, transparent 75%), repeating-linear-gradient(90deg, rgba(232,121,249,0.07) 0 2px, transparent 2px 40px), radial-gradient(ellipse 60% 40% at 50% 100%, rgba(168,85,247,0.14), transparent 70%)',
+      backgroundSize: '300% 300%, auto, 180% 180%',
+    },
+  },
 ]
 
 /** One-tap theme packs: mode + accent + wallpaper applied together. */
@@ -298,6 +331,33 @@ export const THEME_PACKS: ThemePack[] = [
     accent: 'emerald',
     wallpaper: 'waves',
     preview: { backgroundImage: 'linear-gradient(135deg, #f0fdf4, #6ee7b7 55%, #34d399)' },
+  },
+  {
+    id: 'diwali-glow',
+    label: 'Diwali Glow',
+    desc: 'Festival of lights, animated sparks',
+    theme: 'dark',
+    accent: 'gold',
+    wallpaper: 'diwali',
+    preview: { backgroundImage: 'linear-gradient(135deg, #170c06, #b45309 50%, #fbbf24)' },
+  },
+  {
+    id: 'monsoon-night',
+    label: 'Monsoon Night',
+    desc: 'Animated rain over deep blue',
+    theme: 'dark',
+    accent: 'cyan',
+    wallpaper: 'monsoon',
+    preview: { backgroundImage: 'linear-gradient(135deg, #04121f, #0369a1 55%, #67e8f9)' },
+  },
+  {
+    id: 'neon-carnival',
+    label: 'Neon Carnival',
+    desc: 'Party sheen that never sits still',
+    theme: 'dark',
+    accent: 'fuchsia',
+    wallpaper: 'neon-party',
+    preview: { backgroundImage: 'linear-gradient(135deg, #150826, #a21caf 50%, #22d3ee)' },
   },
 ]
 
@@ -464,4 +524,87 @@ export function imageFileToWallpaper(
     }
     img.src = url
   })
+}
+
+/* ── Auto-magic themes: time-of-day packs + surprise shuffle ──────────── */
+
+const AUTO_KEY = 'kb_theme_auto'
+
+/** Guard so the store can tell auto writes apart from manual edits. */
+let autoWriting = false
+
+export function isThemeAutoOn(): boolean {
+  try {
+    return localStorage.getItem(AUTO_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function setThemeAutoOn(v: boolean): void {
+  try {
+    if (v) localStorage.setItem(AUTO_KEY, '1')
+    else localStorage.removeItem(AUTO_KEY)
+  } catch {}
+}
+
+export function isAutoWriting(): boolean {
+  return autoWriting
+}
+
+/** Period pack by local hour: morning calm, daylight, sunset, night. */
+export function autoPackForHour(h: number): ThemePack {
+  if (h >= 5 && h < 9) return THEME_PACKS.find((p) => p.id === 'mint-fresh')!
+  if (h >= 9 && h < 17) return THEME_PACKS.find((p) => p.id === 'porcelain-glow')!
+  if (h >= 17 && h < 20) return THEME_PACKS.find((p) => p.id === 'golden-reel')!
+  return THEME_PACKS.find((p) => p.id === 'midnight-cinema')!
+}
+
+/** Apply the period pack when auto is on and it differs. Returns applied. */
+export async function applyAutoPackNow(
+  current: { theme: string; accent_color: string; chat_wallpaper: string },
+  update: (patch: {
+    theme: ThemePack['theme']
+    accent_color: string
+    chat_wallpaper: string
+  }) => unknown,
+): Promise<boolean> {
+  if (!isThemeAutoOn()) return false
+  const pack = autoPackForHour(new Date().getHours())
+  if (
+    current.theme === pack.theme &&
+    current.accent_color === pack.accent &&
+    current.chat_wallpaper === pack.wallpaper
+  ) {
+    return false
+  }
+  autoWriting = true
+  try {
+    await update({
+      theme: pack.theme,
+      accent_color: pack.accent,
+      chat_wallpaper: pack.wallpaper,
+    })
+  } finally {
+    autoWriting = false
+  }
+  return true
+}
+
+/** Random pack different from the current triple (surprise shuffle). */
+export function surprisePack(current: {
+  theme: string
+  accent_color: string
+  chat_wallpaper: string
+}): ThemePack {
+  const others = THEME_PACKS.filter(
+    (p) =>
+      !(
+        p.theme === current.theme &&
+        p.accent === current.accent_color &&
+        p.wallpaper === current.chat_wallpaper
+      ),
+  )
+  const pool = others.length > 0 ? others : THEME_PACKS
+  return pool[Math.floor(Math.random() * pool.length)]
 }

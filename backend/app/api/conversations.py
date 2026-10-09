@@ -167,6 +167,9 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         if my_membership and hasattr(my_membership, "is_favorite")
         else False,
         "disappearing_seconds": getattr(conv, "disappearing_seconds", None),
+        "only_admins_can_send": bool(
+            getattr(conv, "only_admins_can_send", False) or False
+        ),
     }
 
 
@@ -607,6 +610,9 @@ def update_group(
         title=payload.title if payload.title is not None else M,
         description=payload.description if payload.description is not None else M,
         avatar_url=payload.avatar_url if payload.avatar_url is not None else M,
+        only_admins_can_send=payload.only_admins_can_send
+        if payload.only_admins_can_send is not None
+        else M,
     )
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group updated"
@@ -670,6 +676,36 @@ def set_group_member_role(
     return success_response(
         conversation_to_dict(db, conv, current_user.id),
         f"Member is now {role}",
+    )
+
+
+@router.post("/groups/{conv_id}/transfer")
+@service_route
+def transfer_group_ownership(
+    conv_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Owner hands ownership to another member (old owner becomes admin)."""
+    target_id = payload.get("user_id")
+    try:
+        target_id = int(target_id) if target_id is not None else None
+    except (TypeError, ValueError):
+        target_id = None
+    if not target_id:
+        from app.services.errors import bad_request as _bad
+
+        raise _bad("user_id required")
+    conv = group_service.transfer_ownership(
+        db,
+        conv_id=conv_id,
+        actor_id=current_user.id,
+        target_user_id=target_id,
+    )
+    return success_response(
+        conversation_to_dict(db, conv, current_user.id),
+        "Ownership transferred",
     )
 
 

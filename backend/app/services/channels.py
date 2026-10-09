@@ -162,3 +162,14 @@ def create_post(db: Session, *, channel_id: int, sender_id: int, content: str):
     db.commit()
     db.refresh(p)
     return p
+
+
+def delete_post(db: Session, *, channel_id: int, post_id: int, actor_id: int) -> None:
+    """Owner-only post delete."""
+    c = get_channel(db, channel_id)
+    _require_owner(c, actor_id, "delete posts in")
+    p = db.query(ChannelPost).filter_by(id=post_id, channel_id=c.id).first()
+    if not p:
+        raise not_found("Post not found")
+    db.delete(p)
+    db.commit()
