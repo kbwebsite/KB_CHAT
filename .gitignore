@@ -13,6 +13,9 @@ uploads/*
 node_modules/
 frontend/dist/
 frontend/build/
+# Playwright E2E artifacts (PE-2K): failure screenshots + HTML report
+frontend/test-results/
+frontend/e2e/.report/
 # Capacitor Android: keep sources, ignore machine-local + build outputs
 frontend/android/local.properties
 # Firebase Android config (per-developer; CI injects it as a secret)
