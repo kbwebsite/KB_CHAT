@@ -1335,6 +1335,8 @@ body {
   display: flex;
   align-items: flex-end;
   gap: 4px;
+  min-width: 0;
+  width: 100%;
 }
 
 .composer-action-btn {
@@ -1384,6 +1386,7 @@ body {
 
 .composer-textarea {
   flex: 1;
+  min-width: 0;
   min-height: 40px;
   max-height: 120px;
   padding: 8px 12px;
@@ -1412,6 +1415,18 @@ body {
   min-width: 0;
   max-width: 100%;
   overflow-x: clip;
+}
+/* GIF grid: definite height cap so the grid scrolls internally instead of
+   growing the panel (mobile WebViews won't scroll an unbounded flex child).
+   Contained overscroll keeps the chat list behind it still. */
+.gif-grid {
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: min(300px, 38dvh);
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 /* Keep third-party emoji panel inside the composer on narrow screens */
 .composer-picker .EmojiPickerReact,

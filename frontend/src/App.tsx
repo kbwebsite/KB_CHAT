@@ -6,6 +6,7 @@ import { useLockStore } from './store/lock'
 import { LockScreen } from './components/LockScreen'
 import { useToastStore } from './store/toast'
 import { popDueReminders } from './utils/reminders'
+import { isNativeApp } from './services/api'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 import { ToastContainer } from './components/Toast'
@@ -119,7 +120,10 @@ export default function App() {
       <BrowserRouter>
         <Suspense fallback={<div className="h-screen flex items-center justify-center"><LoadingState text="Loading..." /></div>}>
           <Routes>
-            <Route path="/" element={<LandingPage />} />
+            {/* Marketing landing is web-only: inside the native shell there is
+                nothing to download, so skip straight to login (PublicOnly
+                bounces signed-in users to /chat). */}
+            <Route path="/" element={isNativeApp() ? <Navigate to="/login" replace /> : <LandingPage />} />
             <Route path="/login" element={<PublicOnly><LoginPage /></PublicOnly>} />
             <Route path="/signup" element={<PublicOnly><SignupPage /></PublicOnly>} />
             <Route path="/forgot-password" element={<PublicOnly><ForgotPasswordPage /></PublicOnly>} />

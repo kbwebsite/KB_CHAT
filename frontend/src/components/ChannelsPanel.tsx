@@ -788,7 +788,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     rows={1}
                     onChange={(e) => { setDraft(e.target.value); autogrow(e.target) }}
                     onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') post(openChannel.id) }}
-                    placeholder="Write an update… (Enter for new line)"
+                    placeholder="Write an update…"
+                    title="Enter for new line"
                     className="flex-1 min-w-0 bg-transparent outline-none text-[15px] py-1.5 resize-none max-h-32 overflow-y-auto"
                     style={{ color: '#f0f0ff', caretColor: '#f0f0ff' }}
                     aria-label="Write an update"

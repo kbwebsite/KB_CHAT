@@ -37,7 +37,7 @@ export function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
   }
 
   return (
-    <div className="flex flex-col min-h-0">
+    <div className="flex flex-col min-h-0 max-h-full">
       <div className="relative mb-2">
         <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
         <input
@@ -54,7 +54,7 @@ export function GifPicker({ onSelect }: { onSelect: (url: string) => void }) {
       ) : items.length === 0 ? (
         <p className="text-xs text-muted-foreground text-center py-6">No GIFs found</p>
       ) : (
-        <div className="grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1.5 overflow-y-auto overflow-x-hidden pr-0.5 min-h-0 min-w-0">
+        <div className="gif-grid grid grid-cols-[repeat(3,minmax(0,1fr))] gap-1.5 overflow-y-auto overflow-x-hidden pr-0.5 min-h-0 min-w-0">
           {items.map((g: any) => (
             <button
               key={g.id}

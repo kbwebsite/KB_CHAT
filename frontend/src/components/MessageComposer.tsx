@@ -461,7 +461,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             <Plus className="w-5 h-5" />
           </button>
           {showMore && (
-            <div className="absolute bottom-12 right-0 z-30 rounded-2xl border bg-card p-2 shadow-xl flex items-center gap-1">
+            <div className="absolute bottom-12 left-2 right-2 z-30 rounded-2xl border bg-card p-2 shadow-xl flex flex-wrap items-center gap-1">
               {renderExtras()}
             </div>
           )}

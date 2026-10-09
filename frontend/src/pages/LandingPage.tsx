@@ -76,9 +76,8 @@ const FEATURES = [
 
 export default function LandingPage() {
   const { user } = useAuthStore()
-  // The APK download is for web visitors only — inside the native app it
-  // would offer to download the app you're already running.
-  const showApk = !isNativeApp()
+  // APK promo is web-only: pointless (and confusing) inside the app itself.
+  const native = isNativeApp()
   const rootRef = useRef<HTMLDivElement>(null)
   const reducedMotion = usePrefersReducedMotion()
 
@@ -257,20 +256,20 @@ export default function LandingPage() {
                     Sign In
                   </Link>
                 ) : null}
-                {showApk ? (
-                <a
-                  href={APK_URL}
-                  className="lp-magnetic lp-cta-secondary px-7 py-3 rounded-full font-semibold inline-flex items-center gap-2 min-h-[48px]"
-                >
-                  <Smartphone className="w-4 h-4" aria-hidden="true" /> Android app
-                </a>
-                ) : null}
+                {!native && (
+                  <a
+                    href={APK_URL}
+                    className="lp-magnetic lp-cta-secondary px-7 py-3 rounded-full font-semibold inline-flex items-center gap-2 min-h-[48px]"
+                  >
+                    <Smartphone className="w-4 h-4" aria-hidden="true" /> Android app
+                  </a>
+                )}
               </div>
-              {showApk ? (
-              <p className="lp-hero-el mt-3 text-xs text-muted-foreground">
-                Free download · v{APK_VERSION} · direct APK, no account needed
-              </p>
-              ) : null}
+              {!native && (
+                <p className="lp-hero-el mt-3 text-xs text-muted-foreground">
+                  Free download · v{APK_VERSION} · direct APK, no account needed
+                </p>
+              )}
               <ul aria-label="Highlights" className="lp-hero-el mt-6 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-muted-foreground">
                 <li className="flex items-center gap-1.5">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" aria-hidden="true" /> E2E-ready architecture
@@ -401,14 +400,14 @@ export default function LandingPage() {
           <Link to="/login" className="underline underline-offset-4 rounded px-1 py-1">Sign In</Link>
           {' • '}
           <Link to="/signup" className="underline underline-offset-4 rounded px-1 py-1">Get Started</Link>
-          {showApk ? (
+          {!native && (
             <>
-          {' • '}
-          <a href={APK_URL} className="underline underline-offset-4 rounded px-1 py-1 inline-flex items-center gap-1">
-            <Download className="w-3 h-3" aria-hidden="true" /> Android app (APK)
-          </a>
+              {' • '}
+              <a href={APK_URL} className="underline underline-offset-4 rounded px-1 py-1 inline-flex items-center gap-1">
+                <Download className="w-3 h-3" aria-hidden="true" /> Android app (APK)
+              </a>
             </>
-          ) : null}
+          )}
         </p>
       </footer>
     </div>
