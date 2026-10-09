@@ -38,7 +38,7 @@ import { compact, compactPlural } from '../utils/format'
  * Same backend, same flows — new presentation only.
  */
 
-const COVERS = [
+const COVERS: [string, string][] = [
   ['#7c5cfc', '#22d3ee'],
   ['#a855f7', '#f472b6'],
   ['#0ea5e9', '#6366f1'],
@@ -47,6 +47,20 @@ const COVERS = [
   ['#8b5cf6', '#ec4899'],
   ['#06b6d4', '#3b82f6'],
   ['#f59e0b', '#ef4444'],
+]
+
+// Customizable channel identity: emoji icons + gradient themes.
+// cover_theme stores the theme id; avatar_url / cover_url store uploads.
+const CHANNEL_ICONS = ['🚀', '🔥', '⭐', '💜', '🌊', '🌿', '🎮', '🎨', '📢', '💡', '🎵', '⚽', '📚', '🍔', '✈️', '💰']
+const CHANNEL_THEMES = [
+  { id: 'violet-cyan', name: 'Violet Cyan', c1: '#7c5cfc', c2: '#22d3ee' },
+  { id: 'purple-pink', name: 'Purple Pink', c1: '#a855f7', c2: '#f472b6' },
+  { id: 'ocean', name: 'Ocean', c1: '#0ea5e9', c2: '#6366f1' },
+  { id: 'sunset', name: 'Sunset', c1: '#f43f5e', c2: '#f59e0b' },
+  { id: 'emerald', name: 'Emerald', c1: '#10b981', c2: '#06b6d4' },
+  { id: 'neon', name: 'Neon', c1: '#8b5cf6', c2: '#ec4899' },
+  { id: 'sky', name: 'Sky', c1: '#06b6d4', c2: '#3b82f6' },
+  { id: 'fire', name: 'Fire', c1: '#f59e0b', c2: '#ef4444' },
 ]
 
 const MUTE_KEY = 'kb_channel_muted'
@@ -79,13 +93,14 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [showEmoji, setShowEmoji] = useState(false)
   const [showJump, setShowJump] = useState(false)
   const [mutedMap, setMutedMap] = useState<Record<string, boolean>>(readMuted)
-  // Create wizard
-  const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string }>(null)
+  // Create wizard — everything customizable: name, desc, icon, theme, images.
+  const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string }>(null)
   const [creating, setCreating] = useState(false)
-  // Owner edit dialog (PATCH): preloaded from the open channel.
-  const [edit, setEdit] = useState<null | { name: string; desc: string }>(null)
+  // Owner edit dialog (PATCH): preloaded from the open channel — all fields editable.
+  const [edit, setEdit] = useState<null | { name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string }>(null)
   const [savingEdit, setSavingEdit] = useState(false)
   const [editError, setEditError] = useState<string | null>(null)
+  const [uploadingAvatar, setUploadingAvatar] = useState(false)
   useEscapeKey(() => { if (edit && !savingEdit) setEdit(null) }, !!edit)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   const feedRef = useRef<HTMLDivElement>(null)
@@ -156,7 +171,14 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     if (!name) return setMsg('Name your channel first')
     setCreating(true)
     try {
-      const r = await channelApi.create({ name, description: (wizard?.desc || '').trim() || undefined })
+      const r = await channelApi.create({
+        name,
+        description: (wizard?.desc || '').trim() || undefined,
+        icon: wizard?.icon?.trim() || undefined,
+        cover_theme: wizard?.cover_theme?.trim() || undefined,
+        avatar_url: wizard?.avatar_url?.trim() || undefined,
+        cover_url: wizard?.cover_url?.trim() || undefined,
+      })
       if (r?.success) {
         setChannels((l) => [r.data, ...l])
         setWizard(null)
@@ -198,6 +220,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       const r = await channelApi.update(openChannel.id, {
         name,
         description: edit.desc.trim() ? edit.desc.trim() : null,
+        icon: edit.icon.trim() ? edit.icon.trim() : null,
+        cover_theme: edit.cover_theme.trim() ? edit.cover_theme.trim() : null,
+        avatar_url: edit.avatar_url.trim() ? edit.avatar_url.trim() : null,
+        cover_url: edit.cover_url.trim() ? edit.cover_url.trim() : null,
       })
       if (r?.success && r.data) {
         // Server returns the full channel dict: swap it in place so the
@@ -341,6 +367,36 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   const coverOf = (id: number) => COVERS[Math.abs(id) % COVERS.length]
 
+  // Custom theme wins; otherwise fall back to id-based gradient.
+  const coverOfChannel = (c: any): [string, string] => {
+    if (c?.cover_theme) {
+      const t = CHANNEL_THEMES.find((t) => t.id === c.cover_theme)
+      if (t) return [t.c1, t.c2]
+    }
+    return coverOf(c?.id ?? 0)
+  }
+
+  const channelIcon = (c: any): string => (c?.icon || '').trim()
+
+  const uploadChannelImage = async (f: File | undefined, target: 'avatar' | 'cover') => {
+    if (!f || uploadingAvatar) return
+    setUploadingAvatar(true)
+    try {
+      const r: any = await uploadApi.upload(f)
+      const url = r?.data?.cloudinary_url || r?.data?.url
+      if (!url) {
+        setMsg('Upload unavailable — try again')
+        return
+      }
+      if (edit) setEdit({ ...edit, ...(target === 'avatar' ? { avatar_url: url } : { cover_url: url }) })
+      else if (wizard) setWizard({ ...wizard, ...(target === 'avatar' ? { avatar_url: url } : { cover_url: url }) })
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || 'Upload failed')
+    } finally {
+      setUploadingAvatar(false)
+    }
+  }
+
   const asDate = (iso?: string) => {
     if (!iso) return null
     const normalized = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso) ? iso : `${iso}Z`
@@ -476,7 +532,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   /* ═══════════ PROFILE VIEW ═══════════ */
   if (openChannel) {
-    const [c1, c2] = coverOf(openChannel.id)
+    const [c1, c2] = coverOfChannel(openChannel)
+    const openIcon = channelIcon(openChannel)
     const shownPosts = profileTab === 'media' ? mediaPosts : posts
     return (
       <div className="h-full min-h-0 flex flex-col bg-card overflow-hidden">
@@ -484,8 +541,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <button onClick={backToList} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Back to channels">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white text-base font-extrabold shrink-0 ring-2 ring-[var(--k-border)]">
-            {avatarLetter(openChannel.name)}
+          <div className="w-10 h-10 rounded-full gradient-primary flex items-center justify-center text-white text-base font-extrabold shrink-0 ring-2 ring-[var(--k-border)] overflow-hidden">
+            {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : openIcon ? <span className="text-lg">{openIcon}</span> : avatarLetter(openChannel.name)}
           </div>
           <div className="flex-1 min-w-0">
             <p className="font-bold text-[15px] flex items-center gap-1 truncate tracking-tight">
@@ -525,7 +582,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     <Link2 className="w-4 h-4" /> Copy invite link
                   </button>
                   {openChannel.is_owner && (
-                    <button onClick={() => { setEdit({ name: openChannel.name || '', desc: openChannel.description || '' }); setEditError(null); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                    <button onClick={() => { setEdit({ name: openChannel.name || '', desc: openChannel.description || '', icon: openChannel.icon || '', cover_theme: openChannel.cover_theme || '', avatar_url: openChannel.avatar_url || '', cover_url: openChannel.cover_url || '' }); setEditError(null); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
                       <Pencil className="w-4 h-4" /> Edit channel
                     </button>
                   )}
@@ -547,16 +604,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <div ref={feedRef} onScroll={onFeedScroll} className="flex-1 overflow-y-auto min-h-0" style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(var(--accent-rgb), 0.10) 0%, transparent 55%), var(--bg-primary)' }}>
             {/* Identity */}
             <div className="m-3 rounded-[24px] overflow-hidden border border-subtle" style={{ background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(20,20,42,0.98))', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-              <div className="relative h-24 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+              <div className="relative h-24 overflow-hidden" style={openChannel.cover_url ? { backgroundImage: `url(${openChannel.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
                 <span className="absolute -right-2 -bottom-7 text-[104px] leading-none font-extrabold text-white/10 select-none">
-                  {avatarLetter(openChannel.name)}
+                  {openIcon || avatarLetter(openChannel.name)}
                 </span>
                 <div className="absolute w-40 h-40 rounded-full bg-white/10 blur-2xl -left-10 -top-16" />
               </div>
               <div className="px-4 pt-2.5 pb-3.5">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0 ring-2 ring-white/10">
-                    {avatarLetter(openChannel.name)}
+                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shadow-lg shrink-0 ring-2 ring-white/10 overflow-hidden">
+                    {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : openIcon ? <span className="text-2xl">{openIcon}</span> : avatarLetter(openChannel.name)}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-[17px] tracking-tight flex items-center gap-1.5 truncate">
@@ -838,7 +895,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
 
-        {/* Owner edit dialog (PATCH) */}
+        {/* Owner edit dialog (PATCH) — name, desc, icon, theme, avatar, cover */}
         {edit && openChannel?.is_owner && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => !savingEdit && setEdit(null)}>
             <div role="dialog" aria-label="Edit channel" className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
@@ -847,6 +904,19 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <button onClick={() => !savingEdit && setEdit(null)} className="p-2 rounded-full hover:bg-muted touch-44" aria-label="Cancel editing">
                   <X className="w-5 h-5" />
                 </button>
+              </div>
+              {/* Live preview */}
+              <div className="rounded-2xl overflow-hidden border border-subtle mb-3">
+                <div className="h-16" style={edit.cover_url ? { backgroundImage: `url(${edit.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : edit.cover_theme ? (() => { const t = CHANNEL_THEMES.find((x) => x.id === edit.cover_theme); return { background: `linear-gradient(120deg, ${t?.c1}, ${t?.c2})` } })() : { background: 'linear-gradient(120deg,#7c5cfc,#22d3ee)' }} />
+                <div className="p-3 flex items-center gap-3" style={{ background: 'rgba(20,20,42,0.9)' }}>
+                  <div className="w-11 h-11 rounded-xl gradient-primary flex items-center justify-center text-white font-extrabold shrink-0 overflow-hidden">
+                    {edit.avatar_url ? <img src={edit.avatar_url} alt="" className="w-full h-full object-cover" /> : edit.icon ? <span className="text-xl">{edit.icon}</span> : avatarLetter(edit.name || '?')}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold truncate text-sm">{edit.name || 'Channel name'}</p>
+                    <p className="text-xs text-muted-foreground truncate">{edit.desc || 'No description'}</p>
+                  </div>
+                </div>
               </div>
               <div className="space-y-3">
                 <div>
@@ -875,6 +945,52 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     className="mt-1 w-full px-4 py-2.5 rounded-xl border outline-none text-sm min-h-[44px]"
                     style={fieldStyle}
                   />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — emoji</p>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {CHANNEL_ICONS.map((em) => (
+                      <button key={em} onClick={() => setEdit({ ...edit, icon: edit.icon === em ? '' : em })} className={`text-xl p-1.5 rounded-lg transition-all active:scale-90 min-h-[44px] ${edit.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={edit.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Icon ${em}`}>
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover theme</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {CHANNEL_THEMES.map((t) => (
+                      <button key={t.id} onClick={() => setEdit({ ...edit, cover_theme: edit.cover_theme === t.id ? '' : t.id })} className={`h-12 rounded-xl transition-all active:scale-95 ${edit.cover_theme === t.id ? 'ring-2 ring-primary' : 'hover:opacity-90'}`} style={{ background: `linear-gradient(120deg, ${t.c1}, ${t.c2})` }} title={t.name} aria-label={`Theme ${t.name}`} />
+                    ))}
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-subtle p-2.5">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">Avatar photo</p>
+                    {edit.avatar_url && <img src={edit.avatar_url} alt="" className="w-full h-16 object-cover rounded-lg mb-1.5" />}
+                    <div className="flex gap-1.5">
+                      <button onClick={() => document.getElementById('edit-avatar-input')?.click()} disabled={savingEdit || uploadingAvatar} className="flex-1 px-2 py-2 rounded-lg bg-muted text-xs font-semibold disabled:opacity-50 min-h-[44px]">
+                        {uploadingAvatar ? '…' : edit.avatar_url ? 'Change' : 'Upload'}
+                      </button>
+                      {edit.avatar_url && (
+                        <button onClick={() => setEdit({ ...edit, avatar_url: '' })} disabled={savingEdit} className="px-2 py-2 rounded-lg text-xs text-destructive hover:bg-muted min-h-[44px]">X</button>
+                      )}
+                    </div>
+                    <input id="edit-avatar-input" type="file" accept="image/*" className="hidden" hidden style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadChannelImage(f, 'avatar'); e.target.value = '' }} />
+                  </div>
+                  <div className="rounded-xl border border-subtle p-2.5">
+                    <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover photo</p>
+                    {edit.cover_url && <img src={edit.cover_url} alt="" className="w-full h-16 object-cover rounded-lg mb-1.5" />}
+                    <div className="flex gap-1.5">
+                      <button onClick={() => document.getElementById('edit-cover-input')?.click()} disabled={savingEdit || uploadingAvatar} className="flex-1 px-2 py-2 rounded-lg bg-muted text-xs font-semibold disabled:opacity-50 min-h-[44px]">
+                        {uploadingAvatar ? '…' : edit.cover_url ? 'Change' : 'Upload'}
+                      </button>
+                      {edit.cover_url && (
+                        <button onClick={() => setEdit({ ...edit, cover_url: '' })} disabled={savingEdit} className="px-2 py-2 rounded-lg text-xs text-destructive hover:bg-muted min-h-[44px]">X</button>
+                      )}
+                    </div>
+                    <input id="edit-cover-input" type="file" accept="image/*" className="hidden" hidden style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadChannelImage(f, 'cover'); e.target.value = '' }} />
+                  </div>
                 </div>
               </div>
               {editError && <p className="text-xs text-destructive mt-2">{editError}</p>}
@@ -915,7 +1031,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="w-11 h-11 rounded-2xl flex items-center justify-center text-purple-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)' }} aria-label="New channel">
+          <button onClick={() => setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' })} className="w-11 h-11 rounded-2xl flex items-center justify-center text-purple-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)' }} aria-label="New channel">
             <Plus className="w-5 h-5" />
           </button>
           <button onClick={onClose} className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} aria-label="Close">
@@ -1013,7 +1129,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             <p className="text-[13px] text-muted-foreground mt-1 max-w-[240px] mx-auto">
               Follow channels that match your interests and build your feed.
             </p>
-            <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold shadow-lg transition-all active:scale-95">
+            <button onClick={() => setWizard({ step: 1, name: '', desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' })} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold shadow-lg transition-all active:scale-95">
               Create a channel
             </button>
           </div>
@@ -1023,7 +1139,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <div className="py-10 text-center px-8">
                 <p className="text-[15px] font-semibold">Nothing matches “{query}”</p>
                 <p className="text-[13px] text-muted-foreground mt-1">Try a different search — or start the channel yourself.</p>
-                <button onClick={() => { setWizard({ step: 1, name: query, desc: '' }); setQuery('') }} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold transition-all active:scale-95">
+                <button onClick={() => { setWizard({ step: 1, name: query, desc: '', icon: '', cover_theme: '', avatar_url: '', cover_url: '' }); setQuery('') }} className="mt-4 px-5 py-2.5 rounded-full btn-primary text-sm font-semibold transition-all active:scale-95">
                   Create “{query.trim().slice(0, 24)}”
                 </button>
               </div>
@@ -1065,7 +1181,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <div className="flex gap-4 overflow-x-auto px-4 pb-2 snap-x no-scrollbar">
                   {[...featured, ...trendingRows.slice(0, 2)].map((c: any, idx: number) => {
                     const isFeatured = idx < featured.length
-                    const [f1, f2] = coverOf(c.id)
+                    const [f1, f2] = coverOfChannel(c)
+                    const cIcon = channelIcon(c)
                     const canOpen = c.followed || c.is_owner
                     const created = c.created_at && asDate(c.created_at)
                       ? asDate(c.created_at)!.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
@@ -1082,9 +1199,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         className="snap-start shrink-0 w-[300px] rounded-[24px] overflow-hidden transition-all active:scale-[0.98]"
                         style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.35)' : 'rgba(52,211,153,0.3)'}`, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
                       >
-                        <div className="relative h-32 overflow-hidden" style={{ background: `linear-gradient(120deg, ${f1}, ${f2})` }}>
+                        <div className="relative h-32 overflow-hidden" style={c.cover_url ? { backgroundImage: `url(${c.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: `linear-gradient(120deg, ${f1}, ${f2})` }}>
                           <span className="absolute -right-1 -bottom-6 text-[84px] leading-none font-extrabold text-white/10 select-none">
-                            {avatarLetter(c.name)}
+                            {cIcon || avatarLetter(c.name)}
                           </span>
                           <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25) 0%, transparent 50%)' }} />
                           <span className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 text-white" style={{ background: isFeatured ? 'rgba(168,85,247,0.55)' : 'rgba(16,185,129,0.5)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}>
@@ -1102,8 +1219,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         </div>
                         <div className="px-4 pb-4">
                           <div className="flex items-end gap-3 -mt-8 mb-1">
-                            <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-white text-2xl font-extrabold shrink-0 shadow-xl" style={{ boxShadow: '0 4px 20px rgba(124,92,252,0.5)', border: '3px solid #0d0d24' }}>
-                              {avatarLetter(c.name)}
+                            <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-white text-2xl font-extrabold shrink-0 shadow-xl overflow-hidden" style={{ boxShadow: '0 4px 20px rgba(124,92,252,0.5)', border: '3px solid #0d0d24' }}>
+                              {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-3xl">{cIcon}</span> : avatarLetter(c.name)}
                             </div>
                             <div className="flex-1 min-w-0 pb-1">
                               <p className="text-[19px] font-extrabold truncate tracking-tight flex items-center gap-1.5 text-white">
@@ -1190,13 +1307,13 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               ))}
             </div>
             <p className="text-xs text-tertiary font-semibold uppercase tracking-wider mb-2">
-              {wizard.step === 1 ? '01 · Identity' : wizard.step === 2 ? '02 · Details' : '03 · Review'}
+              {wizard.step === 1 ? '01 · Name & icon' : wizard.step === 2 ? '02 · Theme & details' : '03 · Review'}
             </p>
             {wizard.step === 1 && (
-              <div className="space-y-2.5">
+              <div className="space-y-3">
                 <div className="flex items-center gap-3">
-                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shrink-0 shadow-lg">
-                    {avatarLetter(wizard.name || '?')}
+                  <div className="w-14 h-14 rounded-2xl gradient-primary flex items-center justify-center text-white text-xl font-extrabold shrink-0 shadow-lg overflow-hidden">
+                    {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : wizard.icon ? <span className="text-2xl">{wizard.icon}</span> : avatarLetter(wizard.name || '?')}
                   </div>
                   <input
                     autoFocus
@@ -1209,29 +1326,71 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     style={fieldStyle}
                   />
                 </div>
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Icon — pick an emoji</p>
+                  <div className="grid grid-cols-8 gap-1.5">
+                    {CHANNEL_ICONS.map((em) => (
+                      <button key={em} onClick={() => setWizard({ ...wizard, icon: wizard.icon === em ? '' : em })} className={`text-xl p-1.5 rounded-lg transition-all active:scale-90 min-h-[44px] ${wizard.icon === em ? 'ring-2 ring-primary' : 'hover:bg-muted'}`} style={wizard.icon === em ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined} aria-label={`Icon ${em}`}>
+                        {em}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => document.getElementById('wizard-avatar-input')?.click()} disabled={uploadingAvatar} className="px-3 py-2 rounded-xl bg-muted text-xs font-semibold disabled:opacity-50 min-h-[44px]">
+                    {uploadingAvatar ? 'Uploading…' : wizard.avatar_url ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  {wizard.avatar_url && (
+                    <button onClick={() => setWizard({ ...wizard, avatar_url: '' })} className="px-3 py-2 rounded-xl text-xs text-destructive hover:bg-muted min-h-[44px]">Remove</button>
+                  )}
+                  <input id="wizard-avatar-input" type="file" accept="image/*" className="hidden" hidden style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadChannelImage(f, 'avatar'); e.target.value = '' }} />
+                </div>
               </div>
             )}
             {wizard.step === 2 && (
-              <input
-                autoFocus
-                value={wizard.desc}
-                onChange={(e) => setWizard({ ...wizard, desc: e.target.value })}
-                onKeyDown={(e) => { if (e.key === 'Enter') setWizard({ ...wizard, step: 3 }) }}
-                placeholder="What is this channel about?"
-                maxLength={500}
-                className="w-full px-4 py-2.5 rounded-xl border outline-none text-sm"
-                style={fieldStyle}
-              />
+              <div className="space-y-3">
+                <input
+                  autoFocus
+                  value={wizard.desc}
+                  onChange={(e) => setWizard({ ...wizard, desc: e.target.value })}
+                  onKeyDown={(e) => { if (e.key === 'Enter') setWizard({ ...wizard, step: 3 }) }}
+                  placeholder="What is this channel about?"
+                  maxLength={500}
+                  className="w-full px-4 py-2.5 rounded-xl border outline-none text-sm"
+                  style={fieldStyle}
+                />
+                <div>
+                  <p className="text-xs font-semibold text-muted-foreground mb-1.5">Cover theme</p>
+                  <div className="grid grid-cols-4 gap-2">
+                    {CHANNEL_THEMES.map((t) => (
+                      <button key={t.id} onClick={() => setWizard({ ...wizard, cover_theme: wizard.cover_theme === t.id ? '' : t.id })} className={`h-14 rounded-xl transition-all active:scale-95 ${wizard.cover_theme === t.id ? 'ring-2 ring-primary' : 'hover:opacity-90'}`} style={{ background: `linear-gradient(120deg, ${t.c1}, ${t.c2})` }} title={t.name} aria-label={`Theme ${t.name}`} />
+                    ))}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button onClick={() => document.getElementById('wizard-cover-input')?.click()} disabled={uploadingAvatar} className="px-3 py-2 rounded-xl bg-muted text-xs font-semibold disabled:opacity-50 min-h-[44px]">
+                    {uploadingAvatar ? 'Uploading…' : wizard.cover_url ? 'Change cover' : 'Upload cover'}
+                  </button>
+                  {wizard.cover_url && (
+                    <button onClick={() => setWizard({ ...wizard, cover_url: '' })} className="px-3 py-2 rounded-xl text-xs text-destructive hover:bg-muted min-h-[44px]">Remove</button>
+                  )}
+                  <input id="wizard-cover-input" type="file" accept="image/*" className="hidden" hidden style={{ display: 'none' }} onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadChannelImage(f, 'cover'); e.target.value = '' }} />
+                </div>
+                {wizard.cover_url && <img src={wizard.cover_url} alt="" className="w-full h-20 object-cover rounded-xl" />}
+              </div>
             )}
             {wizard.step === 3 && (
-              <div className="rounded-2xl bg-elevated border border-subtle p-4 flex items-center gap-3">
-                <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0">
-                  {avatarLetter(wizard.name || '?')}
-                </div>
-                <div className="min-w-0">
-                  <p className="font-bold truncate">{wizard.name}</p>
-                  <p className="text-xs text-muted-foreground truncate">{wizard.desc || 'No description'}</p>
-                  <p className="text-[11px] text-tertiary mt-0.5">One-way feed · only you can post</p>
+              <div className="rounded-2xl bg-elevated border border-subtle overflow-hidden">
+                <div className="h-16" style={wizard.cover_url ? { backgroundImage: `url(${wizard.cover_url})`, backgroundSize: 'cover', backgroundPosition: 'center' } : wizard.cover_theme ? (() => { const t = CHANNEL_THEMES.find((x) => x.id === wizard.cover_theme); return { background: `linear-gradient(120deg, ${t?.c1}, ${t?.c2})` } })() : { background: 'linear-gradient(120deg,#7c5cfc,#22d3ee)' }} />
+                <div className="p-4 flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 overflow-hidden">
+                    {wizard.avatar_url ? <img src={wizard.avatar_url} alt="" className="w-full h-full object-cover" /> : wizard.icon ? <span className="text-2xl">{wizard.icon}</span> : avatarLetter(wizard.name || '?')}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold truncate">{wizard.name}</p>
+                    <p className="text-xs text-muted-foreground truncate">{wizard.desc || 'No description'}</p>
+                    <p className="text-[11px] text-tertiary mt-0.5">One-way feed · only you can post</p>
+                  </div>
                 </div>
               </div>
             )}
@@ -1265,10 +1424,11 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   /* ── Shared channel row ── */
   function ChannelRow({ c }: { c: any }) {
     const canOpen = c.followed || c.is_owner
+    const cIcon = channelIcon(c)
     return (
       <div className="flex items-center gap-3 px-1 py-2.5 border-b border-[var(--k-border)]/60 last:border-0">
-        <button onClick={() => open(c)} disabled={!canOpen} className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 disabled:cursor-default shadow ring-2 ring-[var(--k-border)] transition-transform active:scale-95">
-          {avatarLetter(c.name)}
+        <button onClick={() => open(c)} disabled={!canOpen} className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 disabled:cursor-default shadow ring-2 ring-[var(--k-border)] transition-transform active:scale-95 overflow-hidden">
+          {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-xl">{cIcon}</span> : avatarLetter(c.name)}
         </button>
         <button onClick={() => open(c)} disabled={!canOpen} className="flex-1 min-w-0 text-left disabled:cursor-default">
           <p className="text-[15px] font-semibold flex items-center gap-1 truncate tracking-tight">

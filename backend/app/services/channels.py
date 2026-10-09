@@ -41,7 +41,15 @@ def list_channels(db: Session, limit: int = 200) -> list:
 
 
 def create_channel(
-    db: Session, *, owner_id: int, name: str, description=None
+    db: Session,
+    *,
+    owner_id: int,
+    name: str,
+    description=None,
+    avatar_url=None,
+    icon=None,
+    cover_theme=None,
+    cover_url=None,
 ) -> Channel:
     clean = (name or "").strip()
     if not clean:
@@ -50,6 +58,10 @@ def create_channel(
         owner_id=owner_id,
         name=clean[:100],
         description=(description or "").strip() or None,
+        avatar_url=(str(avatar_url).strip()[:500] or None) if avatar_url else None,
+        icon=(str(icon).strip()[:16] or None) if icon else None,
+        cover_theme=(str(cover_theme).strip()[:50] or None) if cover_theme else None,
+        cover_url=(str(cover_url).strip()[:500] or None) if cover_url else None,
     )
     db.add(c)
     db.commit()
@@ -64,6 +76,10 @@ def update_channel(
     actor_id: int,
     name=MISSING,
     description=MISSING,
+    avatar_url=MISSING,
+    icon=MISSING,
+    cover_theme=MISSING,
+    cover_url=MISSING,
 ) -> Channel:
     c = get_channel(db, channel_id)
     _require_owner(c, actor_id, "edit")
@@ -75,6 +91,14 @@ def update_channel(
     if description is not MISSING:
         desc = description
         c.description = str(desc).strip() or None if desc else None
+    if avatar_url is not MISSING:
+        c.avatar_url = str(avatar_url).strip()[:500] or None if avatar_url else None
+    if icon is not MISSING:
+        c.icon = str(icon).strip()[:16] or None if icon else None
+    if cover_theme is not MISSING:
+        c.cover_theme = str(cover_theme).strip()[:50] or None if cover_theme else None
+    if cover_url is not MISSING:
+        c.cover_url = str(cover_url).strip()[:500] or None if cover_url else None
     db.commit()
     db.refresh(c)
     return c

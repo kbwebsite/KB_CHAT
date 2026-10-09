@@ -242,8 +242,8 @@ export const communityApi = {
 
 export const channelApi = {
   list: () => api.get(`/api/channels`).then(r=>r.data),
-  create: (data:{name:string, description?:string}) => api.post(`/api/channels`, data).then(r=>r.data),
-  update: (id:number, data:{name?:string, description?:string|null}) => api.patch(`/api/channels/${id}`, data).then(r=>r.data),
+  create: (data:{name:string, description?:string, avatar_url?:string|null, icon?:string|null, cover_theme?:string|null, cover_url?:string|null}) => api.post(`/api/channels`, data).then(r=>r.data),
+  update: (id:number, data:{name?:string, description?:string|null, avatar_url?:string|null, icon?:string|null, cover_theme?:string|null, cover_url?:string|null}) => api.patch(`/api/channels/${id}`, data).then(r=>r.data),
   remove: (id:number) => api.delete(`/api/channels/${id}`).then(r=>r.data),
   follow: (id:number) => api.post(`/api/channels/${id}/follow`).then(r=>r.data),
   unfollow: (id:number) => api.delete(`/api/channels/${id}/follow`).then(r=>r.data),
@@ -499,8 +499,8 @@ export const aiApi = {
     fd.append('file', file)
     return api.post('/api/ai/transcribe', fd, { headers: { 'Content-Type': 'multipart/form-data' } }).then(r=>r.data)
   },
-  smartSearch: (query: string) =>
-    api.post('/api/ai/smart-search', { message: query }).then(r=>r.data),
+  smartSearch: (query: string, signal?: AbortSignal) =>
+    api.post('/api/ai/smart-search', { message: query }, { signal }).then(r=>r.data),
 }
 
 export const blockApi = {
@@ -526,8 +526,8 @@ export const agentApi = {
     api.get(`/api/ai/agent/conversations/${conversationId}/messages`).then(r=>r.data),
   removeConversation: (conversationId: number) =>
     api.delete(`/api/ai/agent/conversations/${conversationId}`).then(r=>r.data),
-  retrieve: (query: string, k: number = 10) =>
-    api.post('/api/ai/agent/retrieve', { query, k }).then(r=>r.data),
+  retrieve: (query: string, k: number = 10, signal?: AbortSignal) =>
+    api.post('/api/ai/agent/retrieve', { query, k }, { signal }).then(r=>r.data),
   index: (incremental: boolean = false, files?: string[]) =>
     api.post('/api/ai/agent/index', { incremental, files }).then(r=>r.data),
   indexStatus: () =>

@@ -29,6 +29,10 @@ def _channel_to_dict(db: Session, c: Channel, user_id: int):
         "followed": followed,
         "follower_count": follower_count,
         "post_count": post_count,
+        "avatar_url": getattr(c, "avatar_url", None),
+        "icon": getattr(c, "icon", None),
+        "cover_theme": getattr(c, "cover_theme", None),
+        "cover_url": getattr(c, "cover_url", None),
         "created_at": c.created_at.isoformat() if c.created_at else None,
     }
 
@@ -83,6 +87,10 @@ def create_channel(
         owner_id=current_user.id,
         name=payload.get("name"),
         description=payload.get("description"),
+        avatar_url=payload.get("avatar_url"),
+        icon=payload.get("icon"),
+        cover_theme=payload.get("cover_theme"),
+        cover_url=payload.get("cover_url"),
     )
     return success_response(_channel_to_dict(db, c, current_user.id), "Channel created")
 
@@ -101,6 +109,10 @@ def update_channel(
         actor_id=current_user.id,
         name=payload.get("name") if payload.get("name") is not None else MISSING,
         description=payload.get("description") if "description" in payload else MISSING,
+        avatar_url=payload.get("avatar_url") if "avatar_url" in payload else MISSING,
+        icon=payload.get("icon") if "icon" in payload else MISSING,
+        cover_theme=payload.get("cover_theme") if "cover_theme" in payload else MISSING,
+        cover_url=payload.get("cover_url") if "cover_url" in payload else MISSING,
     )
     return success_response(_channel_to_dict(db, c, current_user.id), "Channel updated")
 

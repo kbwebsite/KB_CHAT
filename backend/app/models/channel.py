@@ -27,6 +27,12 @@ class Channel(Base):
     )
     name = Column(String(100), nullable=False)
     description = Column(Text, nullable=True)
+    # Customizable identity: emoji icon, image avatar, cover theme / image.
+    # All nullable so old rows keep working; auto-migrated by _ensure_missing_columns.
+    avatar_url = Column(String(500), nullable=True)
+    icon = Column(String(16), nullable=True)
+    cover_theme = Column(String(50), nullable=True)
+    cover_url = Column(String(500), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
