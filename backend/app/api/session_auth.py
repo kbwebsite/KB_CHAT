@@ -13,6 +13,7 @@ a ``refresh_token`` body field is accepted (documented in WAVE2B2_REPORT).
 from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
@@ -22,6 +23,10 @@ from app.database.connection import get_db
 from app.models.user import User
 from app.services import auth_sessions as sessions
 from app.services.errors import service_route
+
+import logging
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
@@ -219,6 +224,14 @@ async def refresh_token(
         raise HTTPException(status_code=401, detail="Invalid refresh token")
     try:
         new_row, new_plaintext = sessions.refresh_session(db, presented)
+    except SQLAlchemyError:
+        # Store failure (missing/locked/unreachable DB): diagnosable 503,
+        # never a 401 (would mask the outage) and never success. The token
+        # itself is never logged.
+        logger.exception("refresh failed: session store unavailable")
+        raise HTTPException(
+            status_code=503, detail="Authentication service temporarily unavailable"
+        )
     except sessions.ServiceError as e:
         # Reuse kills the family: sweep every socket it ever held so a
         # thief's live connections die with it (per-message validation would
@@ -242,7 +255,13 @@ async def refresh_token(
             except Exception:
                 pass
         raise
-    user = db.query(User).filter_by(id=new_row.user_id).first()
+    try:
+        user = db.query(User).filter_by(id=new_row.user_id).first()
+    except SQLAlchemyError:
+        logger.exception("refresh failed: user lookup unavailable")
+        raise HTTPException(
+            status_code=503, detail="Authentication service temporarily unavailable"
+        )
     access = sessions.issue_access_token(user, new_row.id)
     set_refresh_cookie(response, new_plaintext)
     return {
