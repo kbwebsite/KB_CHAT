@@ -474,7 +474,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     const [c1, c2] = coverOf(openChannel.id)
     const shownPosts = profileTab === 'media' ? mediaPosts : posts
     return (
-      <div className="h-full flex flex-col bg-card">
+      <div className="h-full min-h-0 flex flex-col bg-card overflow-hidden">
         <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
           <button onClick={backToList} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Back to channels">
             <ArrowLeft className="w-5 h-5" />
@@ -506,7 +506,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             {menuOpen && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-subtle bg-elevated shadow-xl py-1 z-20 text-sm">
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-border bg-card kryzen-dropdown-glass shadow-2xl py-1 z-30 text-sm text-foreground overflow-hidden">
                   {!openChannel.is_owner && (
                     <button
                       onClick={() => follow(openChannel.id, !openChannel.followed)}
@@ -767,7 +767,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           )}
 
           {openChannel.is_owner ? (
-            <div className="shrink-0 px-2.5 pt-1.5 channel-composer">
+            <div className="shrink-0 px-2.5 pt-1.5 channel-composer bg-card border-t border-border">
               {showEmoji && (
                 <div className="flex gap-1.5 px-1 pb-2">
                   {EMOJIS.map((e) => (
@@ -817,7 +817,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   </button>
                 )}
               </div>
-              <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" onChange={(e) => handleFile(e.target.files?.[0])} />
+              <input ref={fileRef} type="file" accept="image/*,video/*" className="hidden" hidden aria-hidden="true" tabIndex={-1} style={{ display: 'none' }} onChange={(e) => handleFile(e.target.files?.[0])} />
               {uploading && <p className="text-[11px] text-tertiary px-2 pt-1">Uploading media…</p>}
             </div>
           ) : (

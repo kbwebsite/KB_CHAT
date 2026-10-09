@@ -554,10 +554,26 @@ body {
   box-shadow: 0 -4px 24px rgba(0, 0, 0, 0.5);
 }
 
-/* Channels owner composer must clear the fixed bottom nav on mobile.
-   !important beats Bootstrap's !important spacing utilities. */
+/* ── Compat: legacy utility names used across panels ──
+   Tailwind only generates bg-card / bg-muted / text-primary etc. These
+   map the old names (bg-elevated, border-subtle, text-tertiary …) to the
+   design-system vars so dropdowns/borders never render transparent. */
+.bg-elevated { background-color: var(--bg-elevated); }
+.bg-surface { background-color: var(--bg-surface); }
+.border-subtle { border-color: var(--border-subtle); }
+.border-medium { border-color: var(--border-medium); }
+.text-secondary { color: var(--text-secondary) !important; }
+.text-tertiary { color: var(--text-tertiary) !important; }
+.hover\:bg-elevated:hover { background-color: var(--bg-elevated); }
+.hover\:text-secondary:hover { color: var(--text-secondary); }
+.hover\:text-primary:hover { color: var(--accent-primary); }
+
+/* Channels owner composer sits inside .chat-panels-sheet, which already
+   clears the fixed bottom nav on mobile (see .chat-panels-sheet rule).
+   Only the safe-area is needed here — adding bottom-nav-height again
+   double-offsets and squeezes the feed. */
 .channel-composer {
-  padding-bottom: calc(0.75rem + var(--bottom-nav-height) + var(--safe-bottom)) !important;
+  padding-bottom: calc(0.75rem + var(--safe-bottom)) !important;
 }
 
 /* Channel cover art: slow-panning gradient + dot texture. */
@@ -2779,8 +2795,11 @@ body {
     -webkit-tap-highlight-color: transparent;
   }
   /* Opaque bars on small screens: translucent blur is off here, so keep
-     the header solid — messages can never show through or cross it. */
+     the header AND bottom nav solid — feed text can never bleed through. */
   .chat-header {
+    background: #06060e !important;
+  }
+  .bottom-nav {
     background: #06060e !important;
   }
   /* 3D tilt needs a pointer; on touch it only risks sideways overflow. */

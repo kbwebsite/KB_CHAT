@@ -304,7 +304,7 @@ export function CommunitiesPanel({
             {menuOpen && isOwner && (
               <>
                 <div className="fixed inset-0 z-10" onClick={() => setMenuOpen(false)} />
-                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-subtle bg-elevated shadow-xl py-1 z-20 text-sm">
+                <div className="absolute right-0 top-full mt-1 w-48 rounded-xl border border-border bg-card kryzen-dropdown-glass shadow-2xl py-1 z-30 text-sm text-foreground overflow-hidden">
                   <button onClick={() => remove(c.id)} className="w-full text-left px-3 py-2 hover:bg-muted text-destructive flex items-center gap-2">
                     <Trash2 className="w-4 h-4" /> Delete community
                   </button>

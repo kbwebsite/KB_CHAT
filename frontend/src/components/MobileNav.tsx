@@ -17,7 +17,7 @@ export function MobileNav({ active, onTabChange, unreadCounts }: {
   ]
 
   return (
-    <nav className="bottom-nav" role="navigation" aria-label="Main navigation" style={{ background: 'rgba(6,6,14,0.97)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderTop: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)' }}>
+    <nav className="bottom-nav" role="navigation" aria-label="Main navigation" style={{ background: '#06060e', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderTop: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.5)' }}>
       <div className="flex items-stretch" style={{ height: 'var(--bottom-nav-height)' }}>
         {tabs.map(tab => {
           const Icon = tab.icon
