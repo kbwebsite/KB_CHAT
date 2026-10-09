@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState, useMemo, lazy, Suspense } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
+import { useGroupCallStore } from '../store/groupCall'
 import { useSettingsStore, getAccentVars, getConvAccent, setConvAccent } from '../store/settings'
 import { useLockStore } from '../store/lock'
 import { ACCENTS } from './settings/shared'
@@ -89,6 +90,16 @@ export function ChatView({
   const typingSet = useChatStore((s: any) => currentConversationId ? s.typingUsers[currentConversationId] : undefined)
   const myRole = (currentConv as any)?.members?.find((m: any) => m.user_id === user?.id)?.role
   const announceLocked = !!(currentConv as any)?.is_group && !!(currentConv as any)?.only_admins_can_send && myRole !== 'owner' && myRole !== 'admin'
+  // Group call room banner (store-driven; invite/end arrive over WS).
+  const groupRoom = useGroupCallStore((s) =>
+    currentConversationId != null ? (s.activeByConv[currentConversationId] ?? null) : null,
+  )
+  const groupJoinedId = useGroupCallStore((s) => s.joined?.session.id ?? null)
+  useEffect(() => {
+    if ((currentConv as any)?.is_group && currentConversationId) {
+      useGroupCallStore.getState().fetchActive(currentConversationId).catch(() => {})
+    }
+  }, [currentConversationId, (currentConv as any)?.is_group])
 
   const [isAtBottom, setIsAtBottom] = useState(true)
   const [showWallpaper, setShowWallpaper] = useState(false)
@@ -659,6 +670,17 @@ export function ChatView({
             else if (key === 'archive') toggleArchive()
           }}
         />
+
+        {!!(currentConv as any)?.is_group && groupRoom && groupRoom.id !== groupJoinedId && (
+          <button
+            onClick={() =>
+              useGroupCallStore.getState().join(groupRoom, (currentConv as any)?.title || 'Group call')
+            }
+            className="mx-3 mt-2 px-3 py-2 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-600 text-sm font-medium flex items-center justify-center gap-2 shrink-0"
+          >
+            📞 Group {groupRoom.call_type} call in progress — tap to join
+          </button>
+        )}
 
         {showWallpaper && currentConversationId && (
           <div className="px-3 py-2 border-b border-border shrink-0">

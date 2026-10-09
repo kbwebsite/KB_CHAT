@@ -12,7 +12,9 @@ import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
 import { DeleteDialog } from '../components/DeleteDialog'
 import { hideMessage } from '../utils/hidden'
 import { msgPinApi, aiApi, agentApi } from '../services/api'
-import { convApi, extendedApi, savedApi, callsApi, isNativeApp } from '../services/api'
+import { convApi, extendedApi, savedApi, callsApi, groupCallsApi, isNativeApp } from '../services/api'
+import { useGroupCallStore } from '../store/groupCall'
+import { GroupCallModal } from '../components/GroupCallModal'
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
@@ -97,7 +99,7 @@ export default function ChatPage() {
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set())
   const [lightbox, setLightbox] = useState<{ images: { url: string; name: string }[]; idx: number } | null>(null)
   const [forwardMsg, setForwardMsg] = useState<Message | null>(null)
-  const [callModal, setCallModal] = useState<{ open: boolean; type: 'voice' | 'video'; peerName: string; peerAvatar?: string | null; incoming?: boolean; callId?: number; peerId?: number } | null>(null)
+  const [callModal, setCallModal] = useState<{ open: boolean; type: 'voice' | 'video'; peerName: string; peerAvatar?: string | null; incoming?: boolean; callId?: number; peerId?: number; conversationId?: number | null } | null>(null)
   const [statusViewer, setStatusViewer] = useState<{ statuses: any[]; idx: number } | null>(null)
   const [isMuted, setIsMuted] = useState(false)
   const [aiResult, setAiResult] = useState<{ text: string; action: string; provider?: string } | null>(null)
@@ -153,7 +155,7 @@ export default function ChatPage() {
     } catch {}
     savedApi.list().then((r: any) => { if (r.success) setSavedIds(new Set(r.data.map((x: any) => x.message_id))) })
     const off1 = wsService.on('call.incoming', (p: any) => {
-      setCallModal({ open: true, type: p.call_type || 'voice', peerName: p.caller_display || p.caller_username || 'Unknown', peerAvatar: null, incoming: true, callId: p.id, peerId: p.caller_id })
+      setCallModal({ open: true, type: p.call_type || 'voice', peerName: p.caller_display || p.caller_username || 'Unknown', peerAvatar: null, incoming: true, callId: p.id, peerId: p.caller_id, conversationId: p.conversation_id ?? null })
     })
     const off2 = wsService.on('call.ended', () => setCallModal(null))
     const off3 = wsService.on('call.accepted', () => {})
@@ -396,11 +398,20 @@ export default function ChatPage() {
   // ─── Call ───
   const handleCall = (type: 'voice' | 'video') => {
     if (!currentConv) return
-    if (currentConv.is_group) return toast('Voice/video calls work in direct chats for now', 'error')
+    if (currentConv.is_group) {
+      // Group room: start (idempotent) and join immediately.
+      groupCallsApi.start({ conversation_id: currentConv.id, call_type: type })
+        .then((r: any) => {
+          if (r?.success && r.data) useGroupCallStore.getState().join(r.data, currentConv.title || 'Group call')
+          else toast(r?.message || 'Group call failed', 'error')
+        })
+        .catch((e: any) => toast(e.response?.data?.detail || e.response?.data?.message || 'Group call failed', 'error'))
+      return
+    }
     const other = (currentConv.members || []).find((m: any) => m.user_id !== user?.id)
     if (!other) return toast('No peer to call', 'error')
     callsApi.start({ callee_id: other.user_id, conversation_id: currentConv.id, call_type: type })
-      .then((r: any) => { if (r.success) setCallModal({ open: true, type, peerName: other.display_name, peerAvatar: other.avatar_url, incoming: false, callId: r.data.id, peerId: other.user_id }) })
+      .then((r: any) => { if (r.success) setCallModal({ open: true, type, peerName: other.display_name, peerAvatar: other.avatar_url, incoming: false, callId: r.data.id, peerId: other.user_id, conversationId: currentConv.id }) })
       .catch((e: any) => toast(e.response?.data?.detail || 'Call failed', 'error'))
   }
   const handleCallAccept = async () => {
@@ -790,6 +801,9 @@ export default function ChatPage() {
           onCallRejectOrEnd={handleCallRejectOrEnd}
           onCallMissed={handleCallMissed}
         />
+
+        {/* Mesh group call room (own modal; store-driven) */}
+        <GroupCallModal />
 
         {/* Mobile action sheet */}
         <BottomSheet open={mobileActionSheet.open} onClose={() => setMobileActionSheet({ open: false })} title="Message Actions">

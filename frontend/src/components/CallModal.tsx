@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { PhoneOff, Mic, MicOff, Video, VideoOff, Phone, ScreenShare, ScreenShareOff } from 'lucide-react'
 import wsService from '../services/websocket'
-import { callsApi } from '../services/api'
+import { callsApi, msgApi, uploadApi } from '../services/api'
+import { useAuthStore } from '../store/auth'
 
 type CallType = 'voice' | 'video'
 
-export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId, peerId, onAccept, onReject, onEnd, onMissed }: {
+export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId, peerId, conversationId, onAccept, onReject, onEnd, onMissed }: {
   open: boolean,
   type: CallType,
   peerName: string,
@@ -13,6 +14,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   isIncoming?: boolean,
   callId?: number,
   peerId?: number,
+  conversationId?: number | null,
   onAccept?: ()=>void,
   onReject?: ()=>void,
   onEnd: ()=>void,
@@ -41,6 +43,20 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   const [connected, setConnected]=useState(false)
   const [statusText, setStatusText]=useState(isIncoming ? `Incoming ${type} call...` : 'Calling...')
   const [sharing, setSharing]=useState(false)
+  const [recording, setRecording]=useState(false)
+  const [recElapsed, setRecElapsed]=useState(0)
+  const [recBusy, setRecBusy]=useState(false)
+  const meName = useAuthStore(s=>s.user?.display_name || s.user?.username || 'Someone')
+  const mountedRef=useRef(true)
+  const recCtxRef=useRef<AudioContext|null>(null)
+  const recStreamRef=useRef<MediaStream|null>(null)
+  const recorderRef=useRef<MediaRecorder|null>(null)
+  const chunksRef=useRef<Blob[]>([])
+  const canvasRef=useRef<HTMLCanvasElement|null>(null)
+  const rafRef=useRef<number>(0)
+  const recTimerRef=useRef<ReturnType<typeof setInterval>|null>(null)
+  const recMimeRef=useRef('')
+  useEffect(()=>{ mountedRef.current = true; return ()=>{ mountedRef.current = false } }, [])
   const cameraTrackRef=useRef<MediaStreamTrack|null>(null)
   const screenStreamRef=useRef<MediaStream|null>(null)
   const localRef=useRef<HTMLVideoElement>(null)
@@ -361,6 +377,17 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       screenStreamRef.current=null
       cameraTrackRef.current=null
       setSharing(false)
+      try {
+        if (recorderRef.current && recorderRef.current.state !== 'inactive') {
+          const r = recorderRef.current
+          recorderRef.current = null
+          r.stop() // onstop finalizes: uploads + posts to chat even as we unmount
+        } else {
+          stopRecTracks()
+        }
+      } catch {}
+      if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
+      setRecording(false)
       pcRef.current?.close()
       pcRef.current=null
       streamRef.current?.getTracks().forEach(t=>t.stop())
@@ -427,6 +454,187 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
     }
   }, [micOn, camOn])
 
+  const pickRecMime = (wantVideo: boolean): string => {
+    const cands = wantVideo
+      ? ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+      : ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4']
+    try {
+      for (const m of cands) {
+        if (typeof MediaRecorder !== 'undefined' && (MediaRecorder as any).isTypeSupported?.(m)) return m
+      }
+    } catch {}
+    return ''
+  }
+
+  const stopRecTracks = () => {
+    if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
+    cancelAnimationFrame(rafRef.current)
+    try { recCtxRef.current?.close() } catch {}
+    recCtxRef.current = null
+    recStreamRef.current?.getTracks().forEach((t) => {
+      // Local/remote call tracks are owned by the call — never stop those.
+      if (t.readyState === 'live' && (t as any).__recOwn) {
+        try { t.stop() } catch {}
+      }
+    })
+    recStreamRef.current = null
+    canvasRef.current = null
+  }
+
+  const markOwn = (s: MediaStream) => {
+    s.getTracks().forEach((t) => { (t as any).__recOwn = true })
+    return s
+  }
+
+  const startRecording = async () => {
+    if (!connected || recording || recBusy || conversationId == null) return
+    const local = streamRef.current
+    const remote = remoteRef.current?.srcObject as MediaStream | null
+    if (!local) { setNotice('No audio to record yet.'); return }
+    if (typeof MediaRecorder === 'undefined') { setNotice('Recording is not supported in this browser.'); return }
+    setRecBusy(true)
+    try {
+      const Ctx = window.AudioContext || (window as any).webkitAudioContext
+      if (!Ctx) throw new Error('Audio capture unavailable')
+      const ctx = new Ctx()
+      try { await ctx.resume() } catch {}
+      recCtxRef.current = ctx
+      const dest = ctx.createMediaStreamDestination()
+      for (const s of [local, remote]) {
+        const tracks = (s?.getAudioTracks() ?? []).filter((t) => t.readyState === 'live')
+        for (const tr of tracks) {
+          try { ctx.createMediaStreamSource(new MediaStream([tr])).connect(dest) } catch {}
+        }
+      }
+      const remoteVideo = remote?.getVideoTracks().find((t) => t.readyState === 'live') ?? null
+      const localVideo = local.getVideoTracks().find((t) => t.readyState === 'live' && t.enabled) ?? null
+      const wantVideo = type === 'video' && !!remoteVideo
+      let recStream: MediaStream
+      if (wantVideo && remoteVideo) {
+        const canvas = document.createElement('canvas')
+        canvas.width = 640
+        canvas.height = 480
+        canvasRef.current = canvas
+        const g = canvas.getContext('2d')!
+        const rv = document.createElement('video')
+        rv.muted = true
+        rv.playsInline = true
+        rv.srcObject = new MediaStream([remoteVideo])
+        await rv.play().catch(() => {})
+        const lv = document.createElement('video')
+        let lvReady = false
+        if (localVideo) {
+          lv.muted = true
+          lv.playsInline = true
+          lv.srcObject = new MediaStream([localVideo])
+          await lv.play().then(() => { lvReady = true }).catch(() => {})
+        }
+        const draw = () => {
+          try {
+            g.fillStyle = '#000'
+            g.fillRect(0, 0, 640, 480)
+            if (rv.videoWidth > 0) g.drawImage(rv, 0, 0, 640, 480)
+            if (lvReady && lv.videoWidth > 0) {
+              const w = 160
+              const h = Math.max(90, Math.round((160 * lv.videoHeight) / Math.max(1, lv.videoWidth)))
+              g.drawImage(lv, 640 - w - 12, 480 - h - 12, w, h)
+            }
+          } catch {}
+          rafRef.current = requestAnimationFrame(draw)
+        }
+        draw()
+        const mixed = markOwn(canvas.captureStream(30))
+        dest.stream.getAudioTracks().forEach((t) => mixed.addTrack(t))
+        recStream = mixed
+      } else {
+        recStream = dest.stream
+      }
+      recStreamRef.current = recStream
+      const mime = pickRecMime(wantVideo)
+      recMimeRef.current = mime
+      const rec = mime ? new MediaRecorder(recStream, { mimeType: mime }) : new MediaRecorder(recStream)
+      chunksRef.current = []
+      rec.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) chunksRef.current.push(e.data)
+      }
+      rec.onstop = () => { void finalizeRecording() }
+      recorderRef.current = rec
+      rec.start(1000)
+      setRecElapsed(0)
+      setRecording(true)
+      recTimerRef.current = setInterval(() => setRecElapsed((e) => e + 1), 1000)
+      // Consent: the peer sees this in chat the moment recording starts.
+      try {
+        await msgApi.send(conversationId, {
+          content: `📹 ${meName} started recording this call`,
+          message_type: 'text',
+        })
+      } catch {}
+      setNotice('Recording — the other person was notified in chat.')
+    } catch (err: any) {
+      setNotice(err?.message || 'Could not start recording.')
+      stopRecTracks()
+    } finally {
+      if (mountedRef.current) setRecBusy(false)
+    }
+  }
+
+  const finalizeRecording = async () => {
+    const chunks = chunksRef.current.splice(0)
+    const wasVideo = recMimeRef.current.startsWith('video') || recMimeRef.current === 'video/mp4'
+    const ext = recMimeRef.current.includes('mp4') ? 'mp4' : 'webm'
+    const mime = recMimeRef.current || (wasVideo ? 'video/webm' : 'audio/webm')
+    const secs = recElapsed
+    stopRecTracks()
+    if (mountedRef.current) {
+      setRecording(false)
+      setRecBusy(true)
+    }
+    try {
+      if (chunks.length === 0) throw new Error('Empty recording')
+      const blob = new Blob(chunks, { type: mime })
+      const mm = Math.floor(secs / 60)
+      const ss = String(secs % 60).padStart(2, '0')
+      const file = new File([blob], `call_recording_${Date.now()}.${ext}`, { type: mime })
+      const up: any = await uploadApi.upload(file)
+      const att = up?.data
+      if (!att?.id) throw new Error('Upload failed')
+      if (conversationId != null) {
+        await msgApi.send(conversationId, {
+          content: `📹 Call recording • ${mm}:${ss}`,
+          attachment_ids: [att.id],
+          message_type: wasVideo ? 'file' : 'voice',
+          ...(wasVideo ? {} : { voice_duration: Math.min(secs, 3600) }),
+        })
+      }
+      if (mountedRef.current) setNotice('Recording saved to chat.')
+    } catch {
+      // Never lose the take: fall back to a local download.
+      try {
+        const blob = new Blob(chunks, { type: mime })
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `call_recording_${Date.now()}.${ext}`
+        a.click()
+        setTimeout(() => URL.revokeObjectURL(url), 10000)
+        if (mountedRef.current) setNotice('Upload failed — recording downloaded instead.')
+      } catch {
+        if (mountedRef.current) setNotice('Recording failed.')
+      }
+    } finally {
+      if (mountedRef.current) setRecBusy(false)
+    }
+  }
+
+  const stopRecording = () => {
+    const rec = recorderRef.current
+    recorderRef.current = null
+    if (rec && rec.state !== 'inactive') {
+      try { rec.stop() } catch { void finalizeRecording() }
+    }
+  }
+
   if (!open) return null
   const format = (s:number)=> `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
 
@@ -463,6 +671,15 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
         {permissionError && <p className="text-xs bg-red-500/15 border border-red-500/25 px-3 py-1.5 rounded-full max-w-sm text-center">{permissionError}</p>}
         {!permissionError && notice && <p className="text-xs bg-amber-500/15 border border-amber-500/25 px-3 py-1.5 rounded-full max-w-sm text-center">{notice}</p>}
         {!permissionError && type==='video' && !connected && <p className="text-xs text-white/40">Waiting for answer...</p>}
+        {recording && (
+          <p className="text-xs bg-red-500/20 border border-red-500/40 px-3 py-1.5 rounded-full flex items-center gap-2" aria-live="polite">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-500 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-red-500" />
+            </span>
+            REC {format(recElapsed)}
+          </p>
+        )}
       </div>
 
       <div className="relative z-10 mt-10 flex items-center gap-4">
@@ -475,6 +692,17 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
             aria-label={sharing ? 'Stop sharing screen' : 'Share your screen'}
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${sharing ? 'bg-emerald-500 text-white' : 'call-btn-mic'}`}
           >{sharing ? <ScreenShareOff className="w-6 h-6"/> : <ScreenShare className="w-6 h-6"/>}</button>
+        )}
+        {connected && !permissionError && conversationId != null && (
+          <button
+            onClick={()=> { void (recording ? stopRecording() : startRecording()) }}
+            disabled={recBusy}
+            title={recording ? `Stop recording (${format(recElapsed)})` : 'Record this call (peer is notified in chat)'}
+            aria-label={recording ? 'Stop recording' : 'Record this call'}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${recording ? 'bg-red-500 text-white' : 'call-btn-mic'}`}
+          >
+            <span className={`w-5 h-5 rounded-full border-2 ${recording ? 'bg-white border-white animate-pulse' : 'border-current'}`} />
+          </button>
         )}
         {hasAccepted ? (
           <button onClick={onEnd} className="call-btn-end w-16 h-16 rounded-full flex items-center justify-center"><PhoneOff className="w-7 h-7"/></button>

@@ -41,6 +41,7 @@ export function ChatModals({
           isIncoming={callModal.incoming}
           callId={callModal.callId}
           peerId={callModal.peerId}
+          conversationId={callModal.conversationId}
           onAccept={onCallAccept}
           onReject={onCallRejectOrEnd}
           onEnd={onCallRejectOrEnd}

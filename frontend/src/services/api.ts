@@ -261,6 +261,12 @@ export const liveLocationApi = {
   byConversation: (convId:number, signal?:AbortSignal) => api.get(`/api/live-location/by-conversation/${convId}`, { signal }).then(r=>r.data),
 }
 
+export const groupCallsApi = {
+  start: (data:{conversation_id:number, call_type:'voice'|'video'}) => api.post('/api/group-calls/start', data).then(r=>r.data),
+  end: (id:number) => api.post(`/api/group-calls/${id}/end`).then(r=>r.data),
+  active: (convId:number, signal?:AbortSignal) => api.get(`/api/group-calls/active?conversation_id=${convId}`, { signal }).then(r=>r.data),
+}
+
 export const msgApi = {
   list: (cid:number, params:any={}, signal?:AbortSignal) => {
     const q = new URLSearchParams()

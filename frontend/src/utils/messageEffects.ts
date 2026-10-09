@@ -114,6 +114,8 @@ export function prettyPreview(text: any): any {
       contact.username && contact.display_name !== contact.username ? ` (@${contact.username})` : ''
     }`
   }
+  if (/\[live:\d+\]/.test(clean)) return '📍 Live location'
+  if (/^Video \d+:\d\d$/.test(clean)) return '🎥 Video message'
   if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'

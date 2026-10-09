@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera, Navigation } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera, Navigation, Video } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
+import { VideoNoteRecorder } from './VideoNoteRecorder'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
 import type { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
@@ -24,7 +25,6 @@ function pickEmojiTheme(): EmojiTheme {
     return 'light' as EmojiTheme
   }
 }
-
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
   onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
   onTyping: (isTyping: boolean) => void,
@@ -51,6 +51,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [memeFile, setMemeFile] = useState<File | null>(null)
   const memeFileRef = useRef<HTMLInputElement>(null)
   const [showCamera, setShowCamera] = useState(false)
+  const [showVideoNote, setShowVideoNote] = useState(false)
   const { user } = useAuthStore()
 
   const sendChallenge = (kind: 'ttt' | 'rps' | 'c4') => {
@@ -186,6 +187,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       </div>
       <button onClick={() => { setShowCamera(true); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Take a photo" title="Take a photo">
         <Camera className="w-5 h-5" />
+      </button>
+      <button onClick={() => { setShowVideoNote(true); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Record video message" title="Record video message (up to 1:00)">
+        <Video className="w-5 h-5" />
       </button>
     </>
   )
@@ -450,8 +454,33 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     })
   }
 
-  const handleVoiceSend = async (blob: Blob, duration: number) => {
-    const type = blob.type || 'audio/webm'
+  const handleVideoNoteSend = async (blob: Blob, duration: number) => {
+    const type = blob.type || 'video/webm'
+    const ext = type.includes('mp4') ? 'mp4' : 'webm'
+    const file = new File([blob], `video_note_${Date.now()}.${ext}`, { type })
+    setShowVideoNote(false)
+    setUploading(true)
+    setProgress(0)
+    abortRef.current = new AbortController()
+    try {
+      const res = await uploadApi.upload(file, (p) => setProgress(p), abortRef.current.signal)
+      if (res.success) {
+        const att = res.data
+        const secs = Math.max(1, Math.min(Math.round(duration), 60))
+        onSend(`Video ${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`, [att.id], 'video_note' as any, secs)
+      } else {
+        setUploadError('Video message upload failed')
+      }
+    } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') setUploadError('Upload cancelled')
+      else setUploadError(err.response?.data?.message || err.message || 'Video message upload failed')
+    } finally {
+      setUploading(false)
+      setProgress(0)
+    }
+  }
+
+  const handleVoiceSend = async (blob: Blob, duration: number) => {    const type = blob.type || 'audio/webm'
     const ext = type.includes('mp4') ? 'm4a' : type.includes('wav') ? 'wav' : type.includes('ogg') ? 'ogg' : 'webm'
     const file = new File([blob], `voice_${Date.now()}.${ext}`, { type })
     setUploading(true)
@@ -473,7 +502,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false); setShowCamera(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false); setShowCamera(false); setShowVideoNote(false) }
   }
 
   return (
@@ -617,6 +646,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* In-app camera */}
       {showCamera && (
         <CameraModal onClose={() => setShowCamera(false)} onCapture={handleDirectImageSend} />
+      )}
+
+      {/* Round video messages */}
+      {showVideoNote && (
+        <VideoNoteRecorder onClose={() => setShowVideoNote(false)} onSend={handleVideoNoteSend} />
       )}
     </div>
   )

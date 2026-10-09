@@ -1,8 +1,9 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info, MapPin, Navigation } from 'lucide-react'
+import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
 import type { Theme as EmojiTheme } from 'emoji-picker-react'
+// Heavy picker loads on first open, never with the chat bundle.
 const EmojiPicker = lazy(() => import('emoji-picker-react'))
 
 // Theme enum lives in the lazily-loaded picker bundle; these literals match
@@ -285,6 +286,73 @@ function VoicePlayer({ src, duration, isOwn, fileName }: { src: string; duration
   )
 }
 
+/** Round video-note player: autoplay muted loop, tap to pause, speaker to
+ * unmute, duration badge. Telegram-style circle. */
+function VideoNotePlayer({ src, duration }: { src: string; duration?: number | null }) {
+  const ref = useRef<HTMLVideoElement>(null)
+  const [playing, setPlaying] = useState(true)
+  const [muted, setMuted] = useState(true)
+  const [failed, setFailed] = useState(false)
+  useEffect(() => {
+    ref.current?.play().catch(() => setPlaying(false))
+  }, [src])
+  const toggle = () => {
+    const v = ref.current
+    if (!v) return
+    if (v.paused) {
+      v.play().catch(() => {})
+      setPlaying(true)
+    } else {
+      v.pause()
+      setPlaying(false)
+    }
+  }
+  const secs = typeof duration === 'number' && Number.isFinite(duration) ? Math.max(0, Math.round(duration)) : null
+  if (failed) {
+    return (
+      <a href={src} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="text-xs underline opacity-80">
+        Open video
+      </a>
+    )
+  }
+  return (
+    <div className="relative w-44 h-44 rounded-full overflow-hidden bg-black cursor-pointer shrink-0" onClick={(e) => { e.stopPropagation(); toggle() }} title={playing ? 'Pause' : 'Play'}>
+      <video
+        ref={ref}
+        src={src}
+        autoPlay
+        muted={muted}
+        loop
+        playsInline
+        preload="metadata"
+        className="w-full h-full object-cover"
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onError={() => setFailed(true)}
+      />
+      {!playing && (
+        <span className="absolute inset-0 flex items-center justify-center">
+          <span className="w-11 h-11 rounded-full bg-black/60 flex items-center justify-center">
+            <Play className="w-5 h-5 text-white ml-0.5" />
+          </span>
+        </span>
+      )}
+      <button
+        onClick={(e) => { e.stopPropagation(); setMuted((m) => !m) }}
+        aria-label={muted ? 'Unmute video message' : 'Mute video message'}
+        className="absolute top-2 right-2 p-1.5 rounded-full bg-black/60 text-white hover:bg-black/80"
+      >
+        {muted ? <VolumeX className="w-3.5 h-3.5" /> : <Volume2 className="w-3.5 h-3.5" />}
+      </button>
+      {secs != null && (
+        <span className="absolute bottom-2 left-1/2 -translate-x-1/2 text-[11px] tabular-nums px-2 py-0.5 rounded-full bg-black/60 text-white">
+          🎥 {Math.floor(secs / 60)}:{String(secs % 60).padStart(2, '0')}
+        </span>
+      )}
+    </div>
+  )
+}
+
 export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onContactChat, convTitle }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
@@ -383,6 +451,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const safeSelect = onSelect || (()=>{})
   const safeImageClick = onImageClick || ((url:string, name:string)=> window.open(url, '_blank'))
   const isVoice = msg.message_type === 'voice'
+  const isVideoNote = (msg as any).message_type === 'video_note' && !msg.is_deleted
   const [transcription, setTranscription] = useState<string|null>(null)
   const [transcribing, setTranscribing] = useState(false)
 
@@ -434,7 +503,15 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               })}
             </div>
           )}
-          {videoAtts.length>0 && !msg.is_deleted && !mediaGated && (
+          {isVideoNote && videoAtts.length>0 && !mediaGated && (
+            <div className="flex flex-col items-center gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden">
+              {videoAtts.map((v) => {
+                const url = resolveAttUrl(v)
+                return <VideoNotePlayer key={v.id} src={url} duration={(msg as any).voice_duration} />
+              })}
+            </div>
+          )}
+          {!isVideoNote && videoAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className="flex flex-col gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden">
               {videoAtts.map((v, vi) => {
                 const url = resolveAttUrl(v)

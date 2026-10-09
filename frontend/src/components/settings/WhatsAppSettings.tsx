@@ -720,7 +720,7 @@ export function WhatsAppSettings({
           </div>
           <div className="divide-y divide-[var(--k-border)]/40">
             <InfoRow title="Groups" value="Everyone" sub="Per-group privacy isn't available yet." />
-            <InfoRow title="Live location" sub="Live location sharing isn't available yet." />
+            <InfoRow title="Live location" sub="Share real-time location from any chat (＋ → navigate icon → duration)." />
             <InfoRow title="Calls" sub="Silence unknown callers isn't available yet — unknown calls ring normally." />
           </div>
           <div>

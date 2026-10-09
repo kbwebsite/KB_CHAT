@@ -333,6 +333,7 @@ def create_message(
         "image",
         "file",
         "voice",
+        "video_note",
         "system",
         "live_location",
         "location",

@@ -129,6 +129,8 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
                 await _handle_read_receipt(user.id, payload)
             elif mtype in ("call.offer", "call.answer", "call.ice_candidate"):
                 await _handle_call_signaling(user.id, mtype, payload)
+            elif mtype in ("group_call.join", "group_call.leave", "group_call.mute"):
+                await _handle_group_call(user.id, mtype, payload)
             else:
                 await websocket.send_text(
                     json.dumps(
@@ -358,3 +360,51 @@ async def _handle_call_signaling(user_id: int, mtype: str, payload: dict):
         logger.error(f"Failed to handle call signaling: {e}")
     finally:
         db.close()
+
+
+async def _handle_group_call(user_id: int, mtype: str, payload: dict):
+    """Relay group-call roster events (join/leave/mute) to the conversation.
+
+    Only conversation members may speak, and only for a live room of that
+    conversation. Clients address peers with the existing 1-1
+    ``call.offer/answer/ice_candidate`` path (``to_user_id``); this channel
+    carries presence only, so the payload is relayed verbatim + sender id.
+    """
+    try:
+        conv_id = payload.get("conversation_id")
+        session_id = payload.get("session_id") or payload.get("callId")
+        try:
+            cid = int(conv_id)
+        except (TypeError, ValueError):
+            return
+        db = SessionLocal()
+        try:
+            member = (
+                db.query(ConversationMember)
+                .filter_by(conversation_id=cid, user_id=user_id)
+                .first()
+            )
+            if not member:
+                return
+            if session_id is not None:
+                from app.models.group_call import GroupCallSession
+
+                try:
+                    s = (
+                        db.query(GroupCallSession)
+                        .filter_by(id=int(session_id), conversation_id=cid)
+                        .first()
+                    )
+                except (TypeError, ValueError):
+                    s = None
+                if not s or s.status != "ongoing":
+                    return
+            await manager.broadcast_to_conversation(
+                cid,
+                {"type": mtype, "payload": {**payload, "from_user_id": user_id}},
+                exclude_user=user_id,
+            )
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"Failed to handle group call event: {e}")
