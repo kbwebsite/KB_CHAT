@@ -11,7 +11,9 @@ import {
   Bell,
   Link2,
   MoreVertical,
+  MoreHorizontal,
   Search,
+  SlidersHorizontal,
   Smile,
   Paperclip,
   Camera,
@@ -22,6 +24,9 @@ import {
   Flame,
   Compass,
   Pencil,
+  Users,
+  Star,
+  Zap,
 } from 'lucide-react'
 import { channelApi, uploadApi } from '../services/api'
 import { useEscapeKey } from '../hooks/useDismiss'
@@ -890,55 +895,76 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   /* ═══════════ DISCOVER VIEW ═══════════ */
   return (
-    <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
-        <p className="font-bold text-[17px] flex-1 px-2 tracking-tight flex items-center gap-1.5">
-          <Compass className="w-4 h-4 text-primary" /> Channels
-          {channels.length > 0 && (
-            <span className="text-xs font-semibold text-tertiary align-middle">{channels.length}</span>
-          )}
-        </p>
-        <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="New channel">
-          <Plus className="w-5 h-5" />
-        </button>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Close">
-          <X className="w-5 h-5" />
-        </button>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: '#08081a' }}>
+      {/* Header — screenshot style */}
+      <div className="px-4 pt-4 pb-1 flex items-start justify-between gap-3 shrink-0">
+        <div className="flex items-start gap-3 min-w-0">
+          <div className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#0ea5e9,#a855f7,#ec4899)', padding: 2 }}>
+            <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: '#0b0b22' }}>
+              <Zap className="w-6 h-6 text-cyan-300" fill="currentColor" />
+            </div>
+          </div>
+          <div className="min-w-0">
+            <p className="font-extrabold text-[22px] tracking-tight flex items-center gap-2 text-white">
+              Channels
+              {channels.length > 0 && (
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'rgba(168,85,247,0.35)' }}>{channels.length}</span>
+              )}
+            </p>
+            <p className="text-[13px] mt-0.5" style={{ color: '#9ca3af' }}>Discover. Follow. Be part of the conversation.</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <button onClick={() => setWizard({ step: 1, name: '', desc: '' })} className="w-11 h-11 rounded-2xl flex items-center justify-center text-purple-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(168,85,247,0.12)', border: '1px solid rgba(168,85,247,0.3)' }} aria-label="New channel">
+            <Plus className="w-5 h-5" />
+          </button>
+          <button onClick={onClose} className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} aria-label="Close">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
       </div>
 
-      <div className="px-3 pt-2.5 shrink-0">
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle focus-within:border-primary/50 transition-colors">
-          <Search className="w-4 h-4 text-tertiary shrink-0" />
+      <div className="px-4 pt-2.5 shrink-0">
+        <div className="flex items-center gap-2 pl-4 pr-2 py-2 rounded-full transition-colors" style={{ background: '#12122e', border: '1px solid rgba(168,85,247,0.25)' }}>
+          <Search className="w-5 h-5 shrink-0" style={{ color: '#9ca3af' }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search channels…"
-            className="flex-1 min-w-0 bg-transparent outline-none text-sm"
+            placeholder="Search channels..."
+            className="flex-1 min-w-0 bg-transparent outline-none text-[15px]"
             style={{ color: '#f0f0ff' }}
             aria-label="Search channels"
           />
-          {query && (
-            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted touch-44" aria-label="Clear search">
-              <X className="w-3.5 h-3.5 text-tertiary" />
+          {query ? (
+            <button onClick={() => setQuery('')} className="p-2 rounded-full hover:bg-white/10 touch-44" aria-label="Clear search">
+              <X className="w-4 h-4 text-slate-400" />
+            </button>
+          ) : (
+            <button className="p-2 rounded-full hover:bg-white/10 touch-44" aria-label="Filter">
+              <SlidersHorizontal className="w-5 h-5 text-slate-300" />
             </button>
           )}
         </div>
         {!q && (
-          <div className="flex rounded-full bg-elevated border border-subtle p-1 mt-2.5">
-            {(['discover', 'following'] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
-                  tab === t ? 'gradient-primary text-white shadow' : 'text-tertiary'
-                }`}
-              >
-                {t}
-                {t === 'following' && following.length > 0 && (
-                  <span className="ml-1.5 text-[11px] opacity-80">{following.length}</span>
-                )}
-              </button>
-            ))}
+          <div className="flex rounded-full p-1.5 mt-3" style={{ background: '#12122e', border: '1px solid rgba(255,255,255,0.06)' }}>
+            <button
+              onClick={() => setTab('discover')}
+              className="flex-1 py-2.5 min-h-[48px] rounded-full text-[15px] font-bold flex items-center justify-center gap-2 transition-all text-white"
+              style={tab === 'discover' ? { background: 'linear-gradient(90deg,#4f46e5,#d946ef)', boxShadow: '0 4px 20px rgba(217,70,239,0.35)' } : { color: '#9ca3af' }}
+            >
+              <Compass className="w-5 h-5" /> Discover
+              <span className="text-[13px] opacity-60">{channels.length > 0 ? channels.length : ''}</span>
+            </button>
+            <button
+              onClick={() => setTab('following')}
+              className="flex-1 py-2.5 min-h-[48px] rounded-full text-[15px] font-bold flex items-center justify-center gap-2 transition-all"
+              style={tab === 'following' ? { background: 'linear-gradient(90deg,#4f46e5,#d946ef)', boxShadow: '0 4px 20px rgba(217,70,239,0.35)', color: '#fff' } : { color: '#9ca3af' }}
+            >
+              <Users className="w-5 h-5" /> Following
+              {following.length > 0 && (
+                <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{following.length}</span>
+              )}
+            </button>
           </div>
         )}
       </div>
@@ -1023,17 +1049,28 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             )}
           </div>
         ) : (
-          <div className="pt-3 space-y-5">
+          <div className="pt-3 space-y-5 pb-6">
             {featured.length > 0 && (
               <section>
-                <div className="flex items-center gap-1.5 px-4 pb-2">
-                  <Sparkles className="w-3.5 h-3.5 text-primary" />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Featured</p>
+                <div className="flex items-center justify-between px-4 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Sparkles className="w-4 h-4" style={{ color: '#fb923c' }} />
+                    <span style={{ color: '#4c1d95' }}>|</span>
+                    <p className="text-[13px] font-extrabold uppercase tracking-[0.12em] text-slate-300">Featured</p>
+                  </div>
+                  <button onClick={() => document.getElementById('all-channels')?.scrollIntoView({ behavior: 'smooth' })} className="text-[14px] font-semibold text-purple-400 flex items-center gap-1">
+                    View all <span>→</span>
+                  </button>
                 </div>
-                <div className="flex gap-3 overflow-x-auto px-4 pb-1 snap-x no-scrollbar">
-                  {featured.map((c: any) => {
+                <div className="flex gap-4 overflow-x-auto px-4 pb-2 snap-x no-scrollbar">
+                  {[...featured, ...trendingRows.slice(0, 2)].map((c: any, idx: number) => {
+                    const isFeatured = idx < featured.length
                     const [f1, f2] = coverOf(c.id)
                     const canOpen = c.followed || c.is_owner
+                    const created = c.created_at && asDate(c.created_at)
+                      ? asDate(c.created_at)!.toLocaleDateString(undefined, { month: 'short', year: 'numeric' })
+                      : '—'
+                    const extra = Math.max(0, (c.follower_count ?? 0) > 10 ? 12 : 5)
                     return (
                       <div
                         key={c.id}
@@ -1042,34 +1079,78 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         tabIndex={canOpen ? 0 : undefined}
                         onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c) } }}
                         aria-label={canOpen ? `Open ${c.name}` : undefined}
-                        className={`snap-start shrink-0 w-64 rounded-[22px] overflow-hidden border border-subtle transition-all active:scale-[0.98] ${canOpen ? 'cursor-pointer hover:border-primary/40' : ''}`}
-                        style={{ background: 'linear-gradient(180deg, rgba(34,34,68,0.98), rgba(20,20,42,0.98))', boxShadow: '0 8px 28px rgba(0,0,0,0.45)' }}
+                        className="snap-start shrink-0 w-[300px] rounded-[24px] overflow-hidden transition-all active:scale-[0.98]"
+                        style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.35)' : 'rgba(52,211,153,0.3)'}`, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
                       >
-                        <div className="relative h-20 overflow-hidden" style={{ background: `linear-gradient(120deg, ${f1}, ${f2})` }}>
-                          <span className="absolute -right-1 -bottom-5 text-[72px] leading-none font-extrabold text-white/10 select-none">
+                        <div className="relative h-32 overflow-hidden" style={{ background: `linear-gradient(120deg, ${f1}, ${f2})` }}>
+                          <span className="absolute -right-1 -bottom-6 text-[84px] leading-none font-extrabold text-white/10 select-none">
                             {avatarLetter(c.name)}
                           </span>
+                          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25) 0%, transparent 50%)' }} />
+                          <span className="absolute top-3 left-3 px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 text-white" style={{ background: isFeatured ? 'rgba(168,85,247,0.55)' : 'rgba(16,185,129,0.5)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}>
+                            {isFeatured ? <Star className="w-3.5 h-3.5" fill="currentColor" /> : <Flame className="w-3.5 h-3.5" fill="currentColor" />}
+                            {isFeatured ? 'Featured' : 'Trending'}
+                          </span>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }}
+                            className="absolute top-3 right-3 w-9 h-9 rounded-full flex items-center justify-center text-white"
+                            style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(12px)' }}
+                            aria-label="More options"
+                          >
+                            <MoreHorizontal className="w-5 h-5" />
+                          </button>
                         </div>
-                        <div className="p-3">
-                          <div className="flex items-center gap-2.5 -mt-9 mb-2">
-                            <div className="w-12 h-12 rounded-2xl gradient-primary flex items-center justify-center text-white text-lg font-extrabold shadow-lg ring-2 ring-[var(--bg-card)] shrink-0">
+                        <div className="px-4 pb-4">
+                          <div className="flex items-end gap-3 -mt-8 mb-1">
+                            <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-white text-2xl font-extrabold shrink-0 shadow-xl" style={{ boxShadow: '0 4px 20px rgba(124,92,252,0.5)', border: '3px solid #0d0d24' }}>
                               {avatarLetter(c.name)}
                             </div>
-                            <div className="flex-1 min-w-0 pt-7">
-                              <p className="text-[15px] font-bold truncate tracking-tight flex items-center gap-1">
+                            <div className="flex-1 min-w-0 pb-1">
+                              <p className="text-[19px] font-extrabold truncate tracking-tight flex items-center gap-1.5 text-white">
                                 <span className="truncate">{c.name}</span>
-                                {c.is_owner && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
+                                <BadgeCheck className="w-5 h-5 text-sky-400 shrink-0" fill="currentColor" />
                               </p>
                             </div>
                           </div>
-                          {c.description
-                            ? <p className="text-xs text-muted-foreground line-clamp-2 leading-relaxed min-h-8">{c.description}</p>
-                            : <p className="text-xs text-tertiary italic min-h-8">No description</p>}
-                          <div className="flex items-center justify-between mt-2.5">
-                            <p className="text-[11px] text-tertiary">
-                              {compactPlural(c.follower_count ?? 0, 'follower')} · {compactPlural(c.post_count ?? 0, 'post')}
-                            </p>
-                            {followBtn(c)}
+                          <p className="text-[14px] font-medium truncate" style={{ color: '#c4b5fd' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
+                          <div className="grid grid-cols-3 gap-2 mt-3">
+                            {[
+                              [compact(c.follower_count ?? 0), 'Followers'],
+                              [String(c.post_count ?? 0), 'Posts'],
+                              [created, 'Created'],
+                            ].map(([v, l]) => (
+                              <div key={l} className="rounded-xl px-1 py-2 text-center" style={{ background: 'rgba(255,255,255,0.04)' }}>
+                                <p className="text-[13px] font-extrabold text-white truncate">{v}</p>
+                                <p className="text-[11px]" style={{ color: '#9ca3af' }}>{l}</p>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[13px] leading-relaxed mt-3 line-clamp-2 min-h-10" style={{ color: '#9ca3af' }}>
+                            {c.description || 'The official channel for updates, features, and community discussions.'}
+                          </p>
+                          <div className="flex items-center justify-between mt-3">
+                            <div className="flex items-center">
+                              <div className="flex -space-x-2">
+                                {['#f472b6', '#22d3ee', '#a855f7'].map((g, i) => (
+                                  <span key={i} className="w-7 h-7 rounded-full border-2 shrink-0" style={{ background: `linear-gradient(135deg, ${g}, #4f46e5)`, borderColor: '#0d0d24' }} />
+                                ))}
+                              </div>
+                              <span className="text-[12px] ml-1.5" style={{ color: '#9ca3af' }}>+{extra} more ›</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {!c.is_owner && !c.followed ? (
+                                <button onClick={(e) => { e.stopPropagation(); follow(c.id, true) }} className="px-4 py-2 rounded-full text-[13px] font-bold text-white transition-all active:scale-95" style={{ background: 'linear-gradient(90deg,#4f46e5,#d946ef)' }}>
+                                  Follow
+                                </button>
+                              ) : (
+                                <span className="px-4 py-2 rounded-full text-[13px] font-bold flex items-center gap-1" style={{ background: isFeatured ? 'rgba(168,85,247,0.15)' : 'rgba(16,185,129,0.12)', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(16,185,129,0.35)'}`, color: isFeatured ? '#c4b5fd' : '#6ee7b7' }}>
+                                  <Check className="w-4 h-4" /> Following
+                                </span>
+                              )}
+                              <button onClick={(e) => { e.stopPropagation(); toggleMute(c.id) }} className="w-9 h-9 rounded-full flex items-center justify-center transition-all active:scale-90" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)', color: mutedMap[c.id] ? '#6b7280' : '#e9d5ff' }} aria-label="Toggle notifications">
+                                {mutedMap[c.id] ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+                              </button>
+                            </div>
                           </div>
                         </div>
                       </div>
@@ -1078,19 +1159,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </div>
               </section>
             )}
-            {trendingRows.length > 0 && (
-              <section>
-                <div className="flex items-center gap-1.5 px-4 pb-1">
-                  <Flame className="w-3.5 h-3.5 text-primary" />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Trending</p>
-                </div>
-                <div className="px-3">
-                  {trendingRows.map((c: any) => <ChannelRow key={c.id} c={c} />)}
-                </div>
-              </section>
-            )}
             {restChannels.length > 0 && (
-            <section>
+            <section id="all-channels">
               <div className="flex items-center gap-1.5 px-4 pb-1">
                 <Compass className="w-3.5 h-3.5 text-primary" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All channels</p>
