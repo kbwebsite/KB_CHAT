@@ -45,8 +45,10 @@ import {
   Plus,
   Send,
   Info,
+  Download,
 } from 'lucide-react'
 import PrivacyCenter from '../PrivacyCenter'
+import { PwaInstallSection } from '../PwaInstallSection'
 import {
   AppearanceSettings,
   NotificationSettings,
@@ -1043,6 +1045,13 @@ export function WhatsAppSettings({
           <p className="text-xs text-muted-foreground text-center">The web app updates itself on every deploy — reloading pulls the latest build.</p>
         </div>
       ),
+    },
+    {
+      id: 'install',
+      icon: Download,
+      title: 'Install app',
+      subtitle: 'Home-screen app with offline shell',
+      body: <PwaInstallSection />,
     },
     {
       id: 'accounts',

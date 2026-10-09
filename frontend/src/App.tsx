@@ -10,6 +10,7 @@ import { isNativeApp } from './services/api'
 import { ErrorBoundary } from './components/ErrorBoundary'
 import { LoadingState } from './components/LoadingState'
 import { ToastContainer } from './components/Toast'
+import { OfflineBanner } from './components/OfflineBanner'
 import { BootSplash } from './components/BootSplash'
 
 const LandingPage = lazy(() => import('./pages/LandingPage'))
@@ -136,6 +137,7 @@ export default function App() {
           </Routes>
         </Suspense>
         <ToastContainer />
+        <OfflineBanner />
       </BrowserRouter>
     </ErrorBoundary>
   )

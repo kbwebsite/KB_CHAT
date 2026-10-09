@@ -34,11 +34,11 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
-    { name: 'smoke', testMatch: /landing\.spec\.ts/ },
+    { name: 'smoke', testMatch: /(landing|pwa)\.spec\.ts/ },
     {
       name: 'e2e',
       testMatch: /.*\.spec\.ts/,
-      testIgnore: /landing\.spec\.ts/,
+      testIgnore: /(landing|pwa)\.spec\.ts/,
       use: { ...devices['Desktop Chrome'] },
     },
   ],

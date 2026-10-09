@@ -36,6 +36,9 @@ reference-frames/
 *.png
 # Brand + launcher artwork stays tracked despite *.png above
 !frontend/public/krizen-logo.png
+!frontend/public/icon-192.png
+!frontend/public/icon-512.png
+!frontend/public/icon-maskable-512.png
 !frontend/android/app/src/main/res/mipmap-*/ic_launcher*.png
 !frontend/android/app/src/main/res/drawable/splash.png
 !frontend/android/app/src/main/res/drawable-port-*/splash.png
