@@ -1,31 +1,17 @@
-import { useState, useRef, useEffect, useCallback, lazy, Suspense } from 'react'
-import { Send, Smile, Paperclip, X, Image, Eye, Sparkles, Gamepad2, Plus, Laugh, MapPin, Camera, Navigation, Video } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { VideoNoteRecorder } from './VideoNoteRecorder'
+import { MediaSheet, type MediaTab } from './MediaSheet'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
-import type { EmojiClickData, Theme as EmojiTheme } from 'emoji-picker-react'
+import type { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
 import { uploadApi, liveLocationApi } from '../services/api'
 import { startLiveTracking } from '../utils/liveLocation'
 import { useSettingsStore } from '../store/settings'
-import StickerPicker from './StickerPicker'
-import { GifPicker } from './GifPicker'
-
-// Heavy picker (~300KB) loads on first open, never with the chat bundle.
-const EmojiPicker = lazy(() => import('emoji-picker-react'))
-
-// Theme enum lives in the lazily-loaded picker bundle; these literals match
-// its values ('dark' | 'light') without statically importing the module.
-function pickEmojiTheme(): EmojiTheme {
-  try {
-    return (document.documentElement.classList.contains('dark') ? 'dark' : 'light') as EmojiTheme
-  } catch {
-    return 'light' as EmojiTheme
-  }
-}
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
   onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
   onTyping: (isTyping: boolean) => void,
@@ -38,22 +24,31 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [viewOnce, setViewOnce] = useState(false)
   const [effect, setEffect] = useState<EffectKind | null>(null)
   const [showEffects, setShowEffects] = useState(false)
-  const [showEmoji, setShowEmoji] = useState(false)
-  const [showStickers, setShowStickers] = useState(false)
+  const [showMedia, setShowMedia] = useState(false)
+  const [mediaTab, setMediaTab] = useState<MediaTab>('emoji')
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState(0)
   const [uploadError, setUploadError] = useState<string | null>(null)
   const [sending, setSending] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showGames, setShowGames] = useState(false)
-  const [showGifs, setShowGifs] = useState(false)
   const [showLive, setShowLive] = useState(false)
   const [sharingLive, setSharingLive] = useState(false)
   const [memeFile, setMemeFile] = useState<File | null>(null)
-  const memeFileRef = useRef<HTMLInputElement>(null)
   const [showCamera, setShowCamera] = useState(false)
   const [showVideoNote, setShowVideoNote] = useState(false)
   const { user } = useAuthStore()
+
+  // Sub-popups (effects/games/live) and the ＋ sheet dismiss together.
+  const closeSubPopups = () => { setShowEffects(false); setShowGames(false); setShowLive(false) }
+  const closeMore = () => { setShowMore(false); closeSubPopups() }
+  // One unified media sheet (emoji/GIF/sticker/meme tabs).
+  const openMedia = (t: MediaTab) => {
+    if (showMedia && mediaTab === t) setShowMedia(false)
+    else { setMediaTab(t); setShowMedia(true) }
+    closeSubPopups()
+    setShowMore(false)
+  }
 
   const sendChallenge = (kind: 'ttt' | 'rps' | 'c4') => {
     const name = user?.display_name || user?.username || 'Someone'
@@ -83,7 +78,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Send-with-effect picker */}
       <div className="relative">
         <button
-            onClick={() => { setShowEffects(v => !v); setShowEmoji(false); setShowStickers(false); setShowGames(false); setShowGifs(false) }}
+            onClick={() => { setShowEffects(v => !v); setShowMedia(false); setShowGames(false); setShowLive(false) }}
           className="composer-action-btn"
           aria-label="Send with effect"
           title={effect ? `Effect: ${effect} (tap to change)` : 'Send with effect'}
@@ -92,7 +87,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <Sparkles className="w-5 h-5" />
         </button>
         {showEffects && (
-          <div className="absolute bottom-12 right-0 z-30 w-44 rounded-2xl border bg-card p-1.5 shadow-xl">
+          <div className="fixed left-1/2 -translate-x-1/2 bottom-40 z-40 w-52 max-w-[calc(100vw-24px)] rounded-2xl border bg-card p-1.5 shadow-xl">
             <button
               onClick={() => { setEffect(null); setShowEffects(false) }}
               className={`w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2 ${!effect ? 'text-primary font-medium' : ''}`}
@@ -113,7 +108,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       </div>
         <div className="relative">
           <button
-            onClick={() => { setShowGames(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGifs(false); setShowLive(false) }}
+            onClick={() => { setShowGames(v => !v); setShowMedia(false); setShowEffects(false); setShowLive(false) }}
             className="composer-action-btn"
             aria-label="Start a game"
             title="Challenge chat to a game"
@@ -121,7 +116,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             <Gamepad2 className="w-5 h-5" />
           </button>
           {showGames && (
-            <div className="absolute bottom-12 right-0 z-30 w-52 rounded-2xl border bg-card p-1.5 shadow-xl">
+            <div className="fixed left-1/2 -translate-x-1/2 bottom-40 z-40 w-52 max-w-[calc(100vw-24px)] rounded-2xl border bg-card p-1.5 shadow-xl">
               <button
                 onClick={() => sendChallenge('ttt')}
                 className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
@@ -143,21 +138,13 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             </div>
           )}
         </div>
-      <button onClick={() => memeFileRef.current?.click()} className="composer-action-btn" aria-label="Make a meme" title="Make a meme">
-        <Laugh className="w-5 h-5" />
-      </button>
-      <button onClick={() => { setShowStickers(!showStickers); setShowEmoji(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false); setShowLive(false) }} className="composer-action-btn" aria-label="Stickers">
-        <Image className="w-5 h-5" />
-      </button>
-      <button onClick={() => { setShowGifs((v) => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowLive(false) }} className="composer-action-btn" aria-label="GIFs" title="Send a GIF">
-        <span className="text-[11px] font-black tracking-tight">GIF</span>
-      </button>
-      <button onClick={handleLocationShare} className="composer-action-btn" aria-label="Share location" title="Share current location">
-        <MapPin className="w-5 h-5" />
+      {/* Emoji, GIFs, stickers, memes — all in one sheet */}
+      <button onClick={() => openMedia('sticker')} className="composer-action-btn" aria-label="Emoji, GIFs and stickers" title="Emoji, GIFs, stickers and memes">
+        <Smile className="w-5 h-5" />
       </button>
       <div className="relative">
         <button
-          onClick={() => { setShowLive(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false); setShowGifs(false) }}
+          onClick={() => { setShowLive(v => !v); setShowMedia(false); setShowEffects(false); setShowGames(false) }}
           className="composer-action-btn"
           aria-label="Share live location"
           title="Share live location (updates in real time)"
@@ -166,7 +153,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <Navigation className="w-5 h-5" />
         </button>
         {showLive && (
-          <div className="absolute bottom-12 right-0 z-30 w-52 rounded-2xl border bg-card p-1.5 shadow-xl">
+          <div className="fixed left-1/2 -translate-x-1/2 bottom-40 z-40 w-52 max-w-[calc(100vw-24px)] rounded-2xl border bg-card p-1.5 shadow-xl">
             <p className="px-3 pt-1.5 pb-1 text-[11px] font-semibold uppercase tracking-wide opacity-60">Live for</p>
             {[
               { m: 15, label: '15 minutes' },
@@ -186,10 +173,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           </div>
         )}
       </div>
-      <button onClick={() => { setShowCamera(true); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Take a photo" title="Take a photo">
+      <button onClick={() => { setShowCamera(true); setShowMedia(false); closeSubPopups(); setShowMore(false) }} className="composer-action-btn" aria-label="Take a photo" title="Take a photo">
         <Camera className="w-5 h-5" />
       </button>
-      <button onClick={() => { setShowVideoNote(true); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Record video message" title="Record video message (up to 1:00)">
+      <button onClick={() => { setShowVideoNote(true); setShowMedia(false); closeSubPopups(); setShowMore(false) }} className="composer-action-btn" aria-label="Record video message" title="Record video message (up to 1:00)">
         <Video className="w-5 h-5" />
       </button>
     </>
@@ -290,12 +277,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     const fx = effect
     setViewOnce(false)
     setEffect(null)
-    setShowEffects(false)
     setText('')
     writeDraft(conversationId, '')
     onCancelReply()
     lastTyping.current = false
     emitTyping(false)
+    closeSubPopups()
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     // Call onSend and reset sending state after a delay (onSend is void, not async).
     // A chosen effect rides along as a marker tag so the RECEIVER celebrates
@@ -311,12 +298,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 
   const handleSticker = (url: string) => {
     onSend(url, undefined, 'text')
-    setShowStickers(false)
+    setShowMedia(false)
   }
 
   const handleGif = (url: string) => {
     onSend(url, undefined, 'text')
-    setShowGifs(false)
+    setShowMedia(false)
   }
 
   const handleDirectImageSend = async (file: File) => {
@@ -418,23 +405,6 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     )
   }
 
-  const handleLocationShare = () => {
-    if (!('geolocation' in navigator)) {
-      setUploadError('Geolocation not supported in this browser')
-      return
-    }
-    setUploadError(null)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const lat = pos.coords.latitude.toFixed(5)
-        const lon = pos.coords.longitude.toFixed(5)
-        onSend(`📍 Location\nhttps://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=16/${lat}/${lon}`, undefined, 'text')
-      },
-      () => setUploadError('Location unavailable — allow location access and retry'),
-      { timeout: 15000 },
-    )
-  }
-
   const probeAudioDuration = (file: File): Promise<number | undefined> => {
     return new Promise((resolve) => {
       try {
@@ -503,7 +473,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false); setShowCamera(false); setShowVideoNote(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowMedia(false); closeSubPopups(); setShowMore(false); setShowCamera(false); setShowVideoNote(false) }
   }
 
   return (
@@ -549,7 +519,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         <button
           aria-label="Close more actions"
           className="fixed inset-0 z-20 bg-transparent border-0 p-0 cursor-default"
-          onClick={() => setShowMore(false)}
+          onClick={closeMore}
         />
       )}
       {showMore && (
@@ -568,17 +538,6 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
           <Paperclip className="w-5 h-5" />
         </button>
         <input ref={fileRef} type="file" className="hidden" onChange={handleFile} accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.txt,.zip,.mp4,.mp3,.webm,.m4a,.wav,.ogg,.aac,.amr" multiple />
-        <input
-          ref={memeFileRef}
-          type="file"
-          className="hidden"
-          accept="image/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0]
-            if (memeFileRef.current) memeFileRef.current.value = ''
-            if (f) setMemeFile(f)
-          }}
-        />
 
         {/* Textarea */}
         <textarea
@@ -594,7 +553,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         />
 
         {/* Right side buttons */}
-        <button onClick={() => { setShowEmoji(!showEmoji); setShowStickers(false); setShowEffects(false); setShowMore(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="Emoji">
+        <button onClick={() => openMedia('emoji')} className="composer-action-btn" aria-label="Emoji">
           <Smile className="w-5 h-5" />
         </button>
         {/* Extra actions: inline on desktop… */}
@@ -604,7 +563,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
             inside this tiny button box — anchoring left/right insets here
             collapses it into a thin vertical strip over the messages. */}
         <div className="sm:hidden">
-          <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
+          <button onClick={() => { setShowMore(v => !v); setShowMedia(false); closeSubPopups() }} className="composer-action-btn" aria-label="More actions" title="More actions">
             <Plus className="w-5 h-5" />
           </button>
         </div>
@@ -628,27 +587,17 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         )}
       </div>
 
-      {/* Emoji picker */}
-      {showEmoji && (
-        <div className="composer-picker">
-          <Suspense fallback={<div className="h-[280px] skeleton" aria-label="Loading emoji" />}>
-            <EmojiPicker onEmojiClick={handleEmoji} height={280} width="100%" theme={pickEmojiTheme()} />
-          </Suspense>
-        </div>
-      )}
-
-      {/* Sticker picker */}
-      {showStickers && (
-        <div className="composer-picker">
-          <StickerPicker onSelect={handleSticker} />
-        </div>
-      )}
-
-      {/* GIF picker */}
-      {showGifs && (
-        <div className="composer-picker max-h-[340px] overflow-hidden flex flex-col">
-          <GifPicker onSelect={handleGif} />
-        </div>
+      {/* Unified media sheet: emoji / GIF / stickers / meme tabs */}
+      {showMedia && (
+        <MediaSheet
+          tab={mediaTab}
+          onTab={setMediaTab}
+          onEmoji={handleEmoji}
+          onSticker={handleSticker}
+          onGif={handleGif}
+          onMemeFile={(f) => setMemeFile(f)}
+          onClose={() => setShowMedia(false)}
+        />
       )}
 
       {/* Meme maker */}
