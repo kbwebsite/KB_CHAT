@@ -555,21 +555,36 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' })
   }
 
-  const IMAGE_RE = /https?:\/\/[^\s)]+?\.(?:jpg|jpeg|png|gif|webp)(?:\?[^\s)]*)?/gi
   const URL_RE = /(https?:\/\/[^\s)]+)/gi
+  // Extension match must tolerate query/hash suffixes AND doubled
+  // extensions from older uploads (e.g. ".mp4.mp4").
+  const IMAGE_EXT_RE = /\.(jpg|jpeg|png|gif|webp|bmp|avif)(\?|#|$)/i
+  const VIDEO_EXT_RE = /\.(mp4|webm|mov|m4v)(\?|#|$)/i
+  // Cloudinary delivery URLs always carry /image/upload/ or
+  // /video/upload/ — classify by path first so uploads render even
+  // when the extension form is unusual.
+  const isVideoUrl = (u: string) => /\/video\/upload\//i.test(u) || VIDEO_EXT_RE.test(u)
+  const isImageUrl = (u: string) => !isVideoUrl(u) && (/\/image\/upload\//i.test(u) || IMAGE_EXT_RE.test(u))
 
-  const postImages = (content: string): string[] => {
+  const postUrls = (content: string): string[] => {
     if (!content) return []
-    const m = content.match(IMAGE_RE)
+    const m = content.match(URL_RE)
     return m ? [...new Set(m)] : []
   }
 
+  const postImages = (content: string): string[] => postUrls(content).filter(isImageUrl)
+
+  const postVideos = (content: string): string[] => postUrls(content).filter(isVideoUrl)
+
   const postText = (p: any): string => {
     const content: string = p?.content || ''
-    const imgs = postImages(content)
+    const media = [...postImages(content), ...postVideos(content)]
     let text = content
-    for (const u of imgs) text = text.split(u).join('').trim()
-    return text.replace(/\n{3,}/g, '\n\n').trim() || (imgs.length ? '' : content)
+    for (const u of media) text = text.split(u).join('').trim()
+    text = text.replace(/\n{3,}/g, '\n\n').trim()
+    // Stray leftover like ".jpg" when only a fragment remained.
+    if (/^\.\w{2,5}$/.test(text)) return ''
+    return text || (media.length ? '' : content)
   }
 
   const renderRichText = (text: string) => {
@@ -878,6 +893,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                       <div className="space-y-4">
                         {g.items.map((p: any, i: number) => {
                           const imgs = postImages(p.content || '')
+                          const vids = postVideos(p.content || '')
                           const text = postText(p)
                           const isLatest = i === g.items.length - 1 && g.key === grouped[grouped.length - 1].key
                           return (
@@ -922,6 +938,13 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                       <a key={u} href={u} target="_blank" rel="noreferrer">
                                         <img src={u} alt="" loading="lazy" decoding="async" className="w-full max-h-80 object-cover" />
                                       </a>
+                                    ))}
+                                  </div>
+                                )}
+                                {vids.length > 0 && (
+                                  <div className="mt-2.5 bg-black">
+                                    {vids.map((u) => (
+                                      <video key={u} src={u} controls playsInline preload="metadata" className="w-full max-h-80 bg-black" />
                                     ))}
                                   </div>
                                 )}

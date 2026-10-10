@@ -1,8 +1,9 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video, Pencil } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { VideoNoteRecorder } from './VideoNoteRecorder'
+import { DoodlePad } from './DoodlePad'
 import { MediaSheet, type MediaTab } from './MediaSheet'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
@@ -37,6 +38,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [memeFile, setMemeFile] = useState<File | null>(null)
   const [showCamera, setShowCamera] = useState(false)
   const [showVideoNote, setShowVideoNote] = useState(false)
+  const [showDoodle, setShowDoodle] = useState(false)
   const { user } = useAuthStore()
 
   // Sub-popups (effects/games/live) and the ＋ sheet dismiss together.
@@ -178,6 +180,9 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       </button>
       <button onClick={() => { setShowVideoNote(true); setShowMedia(false); closeSubPopups(); setShowMore(false) }} className="composer-action-btn" aria-label="Record video message" title="Record video message (up to 1:00)">
         <Video className="w-5 h-5" />
+      </button>
+      <button onClick={() => { setShowDoodle(true); setShowMedia(false); closeSubPopups(); setShowMore(false) }} className="composer-action-btn" aria-label="Draw a doodle" title="Draw a doodle">
+        <Pencil className="w-5 h-5" />
       </button>
     </>
   )
@@ -467,13 +472,37 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } finally { setUploading(false) }
   }
 
+  const handleDoodleSend = async (file: File) => {
+    setShowDoodle(false)
+    setUploading(true)
+    setProgress(0)
+    setUploadError(null)
+    abortRef.current = new AbortController()
+    try {
+      const res = await uploadApi.upload(file, (p) => setProgress(p), abortRef.current.signal)
+      if (res.success) {
+        const att = res.data
+        onSend(text || 'Doodle', [att.id], 'image' as any, undefined)
+        setText('')
+      } else {
+        setUploadError('Doodle upload failed')
+      }
+    } catch (err: any) {
+      if (err.name === 'CanceledError' || err.code === 'ERR_CANCELED') setUploadError('Upload cancelled')
+      else setUploadError(err.response?.data?.message || err.message || 'Doodle upload failed')
+    } finally {
+      setUploading(false)
+      setProgress(0)
+    }
+  }
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (enterToSend) {
       if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend() }
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowMedia(false); closeSubPopups(); setShowMore(false); setShowCamera(false); setShowVideoNote(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowMedia(false); closeSubPopups(); setShowMore(false); setShowCamera(false); setShowVideoNote(false); setShowDoodle(false) }
   }
 
   return (
@@ -613,6 +642,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Round video messages */}
       {showVideoNote && (
         <VideoNoteRecorder onClose={() => setShowVideoNote(false)} onSend={handleVideoNoteSend} />
+      )}
+
+      {/* Hand-drawn doodles */}
+      {showDoodle && (
+        <DoodlePad onClose={() => setShowDoodle(false)} onSend={handleDoodleSend} />
       )}
     </div>
   )

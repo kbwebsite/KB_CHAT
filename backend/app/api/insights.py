@@ -107,6 +107,32 @@ def chat_insights(
             .scalar()
         )
         total_bytes = result or 0
+    # Top chatters: most prolific senders in this conversation.
+    top_rows = (
+        db.query(Message.sender_id, func.count(Message.id).label("n"))
+        .filter_by(conversation_id=conv_id, is_deleted=False)
+        .filter(Message.sender_id.isnot(None))
+        .group_by(Message.sender_id)
+        .order_by(desc("n"))
+        .limit(3)
+        .all()
+    )
+    top_ids = [r[0] for r in top_rows]
+    top_users = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(top_ids)).all()}
+        if top_ids
+        else {}
+    )
+    top_chatters = [
+        {
+            "user_id": sid,
+            "display_name": (top_users[sid].display_name if sid in top_users else None),
+            "username": (top_users[sid].username if sid in top_users else None),
+            "count": n,
+            "is_me": sid == current_user.id,
+        }
+        for sid, n in top_rows
+    ]
     return success_response(
         {
             "total_messages": total_msgs,
@@ -117,6 +143,7 @@ def chat_insights(
             "audio": audio,
             "shared_days": shared_days,
             "total_media_bytes": total_bytes,
+            "top_chatters": top_chatters,
         }
     )
 

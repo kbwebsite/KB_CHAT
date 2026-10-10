@@ -11,6 +11,7 @@ import React from 'react'
 vi.mock('../../services/api', () => ({
   agentApi: {
     chat: vi.fn(),
+    chatStream: vi.fn(),
     history: vi.fn(),
     retrieve: vi.fn(),
     index: vi.fn(),

@@ -10,6 +10,7 @@ interface Insights {
   audio: number
   shared_days: number
   total_media_bytes: number
+  top_chatters?: { user_id: number; display_name?: string | null; username?: string | null; count: number; is_me: boolean }[]
 }
 
 function formatBytes(bytes: number) {
@@ -56,6 +57,24 @@ export default function ChatInsights({ convId }: { convId: number }) {
           </div>
         ))}
       </div>
+      {(data.top_chatters || []).length > 0 && (
+        <div className="px-3 pb-3">
+          <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">🏆 Top chatters</p>
+          <div className="space-y-1.5">
+            {data.top_chatters!.map((t, i) => (
+              <div key={t.user_id} className="flex items-center gap-2.5 p-2 rounded-lg border border-[var(--border)] bg-[var(--bg-secondary)]">
+                <span className="text-base w-6 text-center">{['🥇', '🥈', '🥉'][i] || '🏅'}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">
+                    {t.is_me ? 'You' : t.display_name || t.username || 'Someone'}
+                  </p>
+                </div>
+                <span className="text-xs text-gray-400 tabular-nums">{t.count} msgs</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

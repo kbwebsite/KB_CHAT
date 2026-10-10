@@ -119,54 +119,15 @@ export function AgentPanel({
     }
 
     try {
-      // Use streaming endpoint
-      const { getAccessToken } = await import('../services/session')
-      const token = getAccessToken()
-      const response = await fetch('/api/ai/agent/chat/stream', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+      // Shared-brain streaming chat (same helper KBAI uses).
+      const full = await agentApi.chatStream(currentInput, conversationId, {
+        onConversation: (id, provider) => {
+          persistConversation(id)
+          if (provider) setProvider(provider)
         },
-        body: JSON.stringify({ message: currentInput, conversation_id: conversationId })
+        onFinal: fillSlot,
       })
-
-      if (!response.ok) throw new Error('Stream failed')
-
-      const reader = response.body?.getReader()
-      const decoder = new TextDecoder()
-      let buffer = ''
-
-      setMessages(prev => [...prev, userMsg, assistantMsg])
-      const parseLine = (line: string) => {
-        if (!line.startsWith('data: ')) return
-        const data = line.slice(6)
-        if (data === '[DONE]') return
-        try {
-          const event = JSON.parse(data)
-          if (event.type === 'conversation') {
-            persistConversation(event.conversation_id)
-            if (event.provider) setProvider(event.provider)
-          } else if (event.type === 'final') {
-            fillSlot(event.content ?? '')
-          }
-        } catch (e) {
-          console.error('Parse error:', e)
-        }
-      }
-
-      while (reader) {
-        const { done, value } = await reader.read()
-        if (done) break
-        buffer += decoder.decode(value, { stream: true })
-        const lines = buffer.split('\n')
-        buffer = lines.pop() || ''
-
-        for (const line of lines) parseLine(line)
-      }
-      // A final event split across the last chunks has no trailing newline
-      // to trigger parsing above — flush the tail or the bubble stays empty.
-      if (buffer.trim()) parseLine(buffer)
+      if (!full.trim()) fillSlot('Sorry, something went wrong. Please try again.')
     } catch (error) {
       console.error('Stream error:', error)
       // Fallback to non-streaming (fills the placeholder, never duplicates)
@@ -416,6 +377,7 @@ export function AgentPanel({
           <button
             onClick={send}
             disabled={loading || !input.trim()}
+            aria-label="Send message"
             className="shrink-0 w-9 h-9 rounded-xl bg-primary text-primary-foreground flex items-center justify-center hover:bg-primary/90 disabled:opacity-40 transition-opacity"
           >
             <Send className="w-4 h-4" />

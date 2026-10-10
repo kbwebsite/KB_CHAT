@@ -18,10 +18,15 @@ vi.mock('../../services/api', () => ({
     transcribe: vi.fn(),
     smartSearch: vi.fn(),
   },
+  agentApi: {
+    chat: vi.fn(),
+    chatStream: vi.fn(),
+    history: vi.fn(),
+  },
 }))
 
 import KBAIPage from '../KBAIPage'
-import { aiApi } from '../../services/api'
+import { aiApi, agentApi } from '../../services/api'
 import { useAuthStore } from '../../store/auth'
 
 let seenSearch = ''
@@ -76,6 +81,7 @@ beforeEach(() => {
   if (!window.HTMLElement.prototype.scrollTo) {
     (window.HTMLElement.prototype as any).scrollTo = vi.fn()
   }
+  ;(agentApi.history as any).mockResolvedValue({ success: false })
   host = document.createElement('div')
   document.body.appendChild(host)
   root = createRoot(host)
@@ -175,5 +181,64 @@ describe('KBAI audio transcribe', () => {
     expect(aiApi.analyzeFile).toHaveBeenCalledTimes(1)
     expect(aiApi.transcribe).not.toHaveBeenCalled()
     expect(host.textContent).toContain('looks good')
+  })
+})
+
+describe('KBAI shared assistant thread', () => {
+  function mockStreamOk() {
+    ;(agentApi.chatStream as any).mockImplementation(
+      async (msg: string, cid: number | null, handlers: any) => {
+        handlers.onConversation?.(11, 'mock')
+        handlers.onFinal?.('shared reply')
+        return 'shared reply'
+      },
+    )
+  }
+
+  it('sends chat through the shared agent thread and persists it', async () => {
+    mockStreamOk()
+    renderPage()
+    await act(async () => {})
+    setInput('hello assistant')
+    await act(async () => {
+      host.querySelector('button[aria-label="Send"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(agentApi.chatStream).toHaveBeenCalledWith(
+      'hello assistant', null, expect.objectContaining({}), expect.any(AbortSignal),
+    )
+    expect(aiApi.chatStream).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('shared reply')
+    expect(localStorage.getItem('kb_agent_conv_id')).toBe('11')
+  })
+
+  it('restores server history for the shared thread on mount', async () => {
+    localStorage.setItem('kb_agent_conv_id', '11')
+    ;(agentApi.history as any).mockResolvedValue({
+      success: true,
+      data: { messages: [{ role: 'user', content: 'earlier q', created_at: null }, { role: 'assistant', content: 'earlier a', created_at: null }] },
+    })
+    renderPage()
+    await act(async () => {})
+    expect(agentApi.history).toHaveBeenCalledWith(11)
+    expect(host.textContent).toContain('earlier q')
+    expect(host.textContent).toContain('earlier a')
+  })
+
+  it('falls back to non-streaming agent chat when the stream fails', async () => {
+    ;(agentApi.chatStream as any).mockRejectedValueOnce(new Error('down'))
+    ;(agentApi.chat as any).mockResolvedValue({
+      success: true, data: { response: 'fallback reply', conversation_id: 12, provider: 'mock' },
+    })
+    renderPage()
+    await act(async () => {})
+    setInput('fallback me')
+    await act(async () => {
+      host.querySelector('button[aria-label="Send"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(agentApi.chat).toHaveBeenCalledWith('fallback me', null)
+    expect(host.textContent).toContain('fallback reply')
+    expect(localStorage.getItem('kb_agent_conv_id')).toBe('12')
   })
 })

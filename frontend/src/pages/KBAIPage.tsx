@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send, Sparkles, Trash2, Copy, Check, Square, Image as ImageIcon, Download, Paperclip, X, Search, MessageCircle } from 'lucide-react'
-import { aiApi } from '../services/api'
+import { aiApi, agentApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
 
 // Split the markdown renderer out of the route chunk; plain text shows first.
@@ -98,7 +98,6 @@ export default function KBAIPage() {
   const [loading, setLoading] = useState(false)
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [aiStatus, setAiStatus] = useState<{ live: boolean; provider?: string; model?: string } | null>(null)
-  const [streaming, setStreaming] = useState(false)
   const [imageMode, setImageMode] = useState(false)
   const [searchMode, setSearchMode] = useState(false)
   const [imgLoading, setImgLoading] = useState(false)
@@ -108,7 +107,17 @@ export default function KBAIPage() {
   const attachRef = useRef<HTMLInputElement | null>(null)
   const abortRef = useRef<AbortController | null>(null)
   const searchAbortRef = useRef<AbortController | null>(null)
-  const streamingRef = useRef(false)
+  // Shared assistant thread (PE-2K unification): the same server-side agent
+  // conversation the in-chat Agent panel uses, keyed by one localStorage id.
+  const [agentConvId, setAgentConvId] = useState<number | null>(() => {
+    try {
+      const raw = localStorage.getItem('kb_agent_conv_id')
+      const n = raw ? parseInt(raw, 10) : NaN
+      return Number.isFinite(n) ? n : null
+    } catch {
+      return null
+    }
+  })
   const scrollRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
 
@@ -125,6 +134,41 @@ export default function KBAIPage() {
       localStorage.setItem(`kb_ai_history_${user.id}`, JSON.stringify(messages.slice(-HISTORY_CAP)))
     } catch {}
   }, [messages, user?.id])
+
+  const persistAgentConv = (id: number | null | undefined) => {
+    if (id == null) return
+    setAgentConvId(id)
+    try {
+      localStorage.setItem('kb_agent_conv_id', String(id))
+    } catch {}
+  }
+
+  // Shared thread restore: server history wins when a shared conversation
+  // exists; otherwise the legacy local history stands (first run).
+  useEffect(() => {
+    if (agentConvId == null) return
+    let cancelled = false
+    agentApi.history(agentConvId).then((res: any) => {
+      if (cancelled || !res?.success) return
+      const rows = res.data?.messages || []
+      if (rows.length === 0) return
+      setMessages(rows
+        .filter((r: any) => r && (r.role === 'user' || r.role === 'assistant') && typeof r.content === 'string')
+        .map((r: any) => ({
+          role: r.role as 'user' | 'assistant',
+          content: r.content,
+          timestamp: r.created_at ? new Date(r.created_at) : new Date(),
+        })))
+    }).catch(() => {
+      // Conversation was deleted elsewhere — drop the stale key.
+      if (!cancelled) {
+        try { localStorage.removeItem('kb_agent_conv_id') } catch {}
+        setAgentConvId(null)
+      }
+    })
+    return () => { cancelled = true }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [agentConvId])
 
   useEffect(() => {
     aiApi.status()
@@ -179,46 +223,37 @@ export default function KBAIPage() {
     setMessages(prev => [...prev, msg])
     setInput('')
     abortRef.current = new AbortController()
-    streamingRef.current = false
-    setStreaming(false)
+    const signal = abortRef.current.signal
     setLoading(true)
+    const pushReply = (text: string) => {
+      setMessages(prev => [...prev, { role: 'assistant' as const, content: text, timestamp: new Date() }])
+    }
     try {
-      const history = messages.map(m => ({ role: m.role, content: m.content }))
-      // Placeholder the assistant bubble, then fill it word-by-word as
-      // tokens stream in (no more staring at dots for the full reply).
-      const slot = { i: -1 }
-      setMessages(prev => {
-        const next = [...prev, { role: 'assistant' as const, content: '', timestamp: new Date() }]
-        slot.i = next.length - 1
-        return next
-      })
-      const append = (t: string) => {
-        if (!streamingRef.current) {
-          streamingRef.current = true
-          setStreaming(true)
-        }
-        setMessages(prev => {
-          const next = [...prev]
-          if (next[slot.i] && next[slot.i].role === 'assistant') {
-            next[slot.i] = { ...next[slot.i], content: next[slot.i].content + t }
+      const full = await agentApi.chatStream(msg.content, agentConvId, {
+        onConversation: (id, provider) => {
+          persistAgentConv(id)
+          if (provider) {
+            setAiStatus(s => ({ live: provider.toLowerCase() !== 'mock', provider, model: s?.model }))
           }
-          return next
-        })
-      }
-      const full = await aiApi.chatStream(msg.content, history, append, abortRef.current?.signal)
+        },
+        onFinal: pushReply,
+      }, signal)
       if (!full.trim()) {
-        setMessages(prev => {
-          const next = [...prev]
-          if (next[slot.i] && next[slot.i].role === 'assistant' && !next[slot.i].content) {
-            next[slot.i] = { ...next[slot.i], content: 'Sorry, something went wrong. Please try again.' }
-          }
-          return next
-        })
+        pushReply('Sorry, something went wrong. Please try again.')
       }
     } catch {
-      // Aborted streams keep their partial text; only real failures get a bubble.
-      if (!abortRef.current?.signal.aborted) {
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Sorry, something went wrong. Please try again.', timestamp: new Date() }])
+      if (!signal.aborted) {
+        // Stream failed: fall back to the non-streaming turn.
+        try {
+          const res: any = await agentApi.chat(msg.content, agentConvId)
+          persistAgentConv(res.data?.conversation_id)
+          if (res.data?.provider) {
+            setAiStatus(s => ({ live: String(res.data.provider).toLowerCase() !== 'mock', provider: res.data.provider, model: s?.model }))
+          }
+          pushReply(res.data.response)
+        } catch {
+          pushReply('Sorry, something went wrong. Please try again.')
+        }
       }
     }
     abortRef.current = null
@@ -267,8 +302,13 @@ export default function KBAIPage() {
   const clearChat = () => {
     setMessages([])
     setAttachFile(null)
+    // One shared thread: clearing here resets it everywhere.
+    setAgentConvId(null)
     if (user?.id != null) {
-      try { localStorage.removeItem(`kb_ai_history_${user.id}`) } catch {}
+      try {
+        localStorage.removeItem(`kb_ai_history_${user.id}`)
+        localStorage.removeItem('kb_agent_conv_id')
+      } catch {}
     }
   }
 
@@ -332,12 +372,12 @@ export default function KBAIPage() {
         <div className="flex items-center gap-3">
           <div className="relative">
             <div className="absolute -inset-1.5 rounded-2xl kryzen-accent-gradient opacity-60 blur-md" aria-hidden />
-            <AiFace size={42} state={loading ? (streaming ? 'working' : 'thinking') : (imgLoading || anaLoading || searchLoading) ? 'thinking' : 'idle'} label="Kryzen AI" />
+            <AiFace size={42} state={loading || imgLoading || anaLoading || searchLoading ? 'thinking' : 'idle'} label="Kryzen AI" />
           </div>
           <div>
             <h1 className="text-base font-extrabold tracking-tight gradient-text">Kryzen AI</h1>
             <p className="text-xs text-muted-foreground flex items-center gap-1.5">
-              {loading ? (streaming ? 'Working on your reply…' : 'Thinking…') : imgLoading ? 'Dreaming up your image…' : anaLoading ? 'Reading your file…' : searchLoading ? 'Searching your chats…' : 'Your personal assistant'}
+              {loading ? 'Thinking…' : imgLoading ? 'Dreaming up your image…' : anaLoading ? 'Reading your file…' : searchLoading ? 'Searching your chats…' : 'Your personal assistant'}
               {aiStatus && !loading && (
                 <span
                   className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-semibold ${
@@ -384,15 +424,13 @@ export default function KBAIPage() {
           </div>
         )}
         {messages.map((m, i) => {
-          const isLiveBubble =
-            m.role === 'assistant' && loading && streaming && i === messages.length - 1
           return (
           <div key={i} className={`ai-msg-in flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
             <div
               className={`max-w-[80%] min-w-0 group relative px-4 py-3 rounded-2xl text-sm ${
                 m.role === 'user'
                   ? 'text-white rounded-br-md whitespace-pre-wrap kryzen-accent-gradient-3'
-                  : `rounded-bl-md border border-white/10 ${isLiveBubble ? 'ai-working-glow' : ''}`
+                  : 'rounded-bl-md border border-white/10'
               }`}
               style={m.role === 'user'
                 ? { boxShadow: '0 6px 24px rgba(var(--accent-rgb), 0.35), inset 0 1px 0 rgba(255,255,255,0.25)' }
@@ -451,7 +489,7 @@ export default function KBAIPage() {
           </div>
           )
         })}
-        {loading && !streaming && (
+        {loading && (
           <div className="ai-msg-in flex justify-start">
             <div className="px-3 py-2 rounded-2xl rounded-bl-md text-sm flex items-center gap-2.5 border border-white/10" style={{ background: 'rgba(255,255,255,0.05)', backdropFilter: 'blur(12px)' }}>
               <AiFace size={28} state="thinking" />

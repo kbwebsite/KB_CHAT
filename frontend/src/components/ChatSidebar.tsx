@@ -11,8 +11,9 @@ import { CallsPanel } from './CallsPanel'
 import { BroadcastPanel } from './BroadcastPanel'
 import { CommunitiesPanel } from './CommunitiesPanel'
 import { ChannelsPanel } from './ChannelsPanel'
+import { MemoriesPanel } from './MemoriesPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Star, Moon, Sun, Lock, Megaphone, Network, Radio } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Star, Moon, Sun, Lock, Megaphone, Network, Radio, History } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -67,6 +68,7 @@ export function ChatSidebar({
   const [showBroadcasts, setShowBroadcasts] = useState(false)
   const [showCommunities, setShowCommunities] = useState(false)
   const [showChannels, setShowChannels] = useState(false)
+  const [showMemories, setShowMemories] = useState(false)
   const [shareContact, setShareContact] = useState<any | null>(null)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [groupTitle, setGroupTitle] = useState('')
@@ -247,6 +249,10 @@ export function ChatSidebar({
                   <Radio className="w-4 h-4 text-primary" />
                   Channels
                 </button>
+                <button role="menuitem" onClick={menuFire(() => setShowMemories(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <History className="w-4 h-4 text-primary" />
+                  Memories
+                </button>
                 {lockEnabled && (
                   <button role="menuitem" onClick={menuFire(lockNow)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Lock className="w-4 h-4 text-primary" />
@@ -345,6 +351,8 @@ export function ChatSidebar({
           />
         ) : showChannels ? (
           <ChannelsPanel onClose={() => setShowChannels(false)} />
+        ) : showMemories ? (
+          <MemoriesPanel onClose={() => setShowMemories(false)} onJump={(cid: number, mid: number) => { useChatStore.getState().jumpToMessageId(cid, mid); setShowMemories(false); onMobileViewChange('chat') }} />
         ) : (
           <>
             {showUserSearch && (

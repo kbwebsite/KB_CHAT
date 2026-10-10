@@ -98,6 +98,63 @@ def _display_name(db: Session, user_id: int) -> str:
     return (u.display_name or u.username) if u else f"user {user_id}"
 
 
+def _welcome_new_members(db: Session, conv: Conversation, user_ids: list) -> None:
+    """Post a join greeting. Best-effort: never breaks the add flow."""
+    try:
+        ids = list(user_ids or [])[:5]
+        if not ids:
+            return
+        names = [_display_name(db, uid) for uid in ids]
+        extra = f" +{len(user_ids) - 5} more" if len(user_ids) > 5 else ""
+        text = f"👋 Welcome {', '.join(names)}{extra} to {conv.title or 'the group'}! Say hi 👋"
+        msg = Message(
+            conversation_id=conv.id,
+            sender_id=None,
+            content=text,
+            message_type="text",
+        )
+        db.add(msg)
+        db.commit()
+        db.refresh(msg)
+        from app.websocket.manager import manager
+
+        member_ids = [
+            m.user_id
+            for m in db.query(ConversationMember)
+            .filter_by(conversation_id=conv.id)
+            .all()
+        ]
+        manager.spawn(
+            manager.broadcast_to_conversation(
+                conv.id,
+                {
+                    "type": "message.new",
+                    "payload": {
+                        "id": msg.id,
+                        "conversation_id": conv.id,
+                        "sender_id": None,
+                        "sender_username": None,
+                        "sender_display_name": None,
+                        "sender_avatar": None,
+                        "content": text,
+                        "message_type": "text",
+                        "is_deleted": False,
+                        "is_edited": False,
+                        "created_at": msg.created_at.isoformat()
+                        if msg.created_at
+                        else None,
+                        "attachments": [],
+                        "reactions": [],
+                        "status": "sent",
+                    },
+                },
+                member_ids=member_ids,
+            )
+        )
+    except Exception as e:
+        print(f"[groups] welcome failed: {e}")
+
+
 def create_group(
     db: Session,
     *,
@@ -216,6 +273,7 @@ def add_group_members(
             wanted.append(u.id)
     added = 0
     skipped = []
+    added_ids = []
     for uid in wanted:
         if _membership(db, conv_id, uid):
             continue
@@ -226,7 +284,9 @@ def add_group_members(
             continue
         db.add(ConversationMember(conversation_id=conv_id, user_id=uid, role="member"))
         added += 1
+        added_ids.append(uid)
     db.commit()
+    _welcome_new_members(db, conv, added_ids)
     return conv, added, skipped
 
 
@@ -364,4 +424,5 @@ def join_group_by_token(db: Session, *, token: str, user_id: int) -> tuple:
         return conv.id, True
     db.add(ConversationMember(conversation_id=conv.id, user_id=user_id, role="member"))
     db.commit()
+    _welcome_new_members(db, conv, [user_id])
     return conv.id, False

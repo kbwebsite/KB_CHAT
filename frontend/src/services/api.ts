@@ -452,6 +452,10 @@ export const securityApi = {
   markSeen: () => api.post('/api/security/alerts/seen').then(r=>r.data),
 }
 
+export const memoriesApi = {
+  list: (limit=20, signal?:AbortSignal) => api.get(`/api/memories?limit=${limit}`, { signal }).then(r=>r.data),
+}
+
 export const recentlyContactedApi = {
   list: () => api.get('/api/recently-contacted').then(r=>r.data),
 }
@@ -559,6 +563,60 @@ export const agentApi = {
     api.delete(`/api/ai/agent/conversations/${conversationId}`).then(r=>r.data),
   retrieve: (query: string, k: number = 10, signal?: AbortSignal) =>
     api.post('/api/ai/agent/retrieve', { query, k }, { signal }).then(r=>r.data),
+  // Shared-brain streaming chat (PE-2K unification): the agent SSE protocol
+  // emits `conversation` (persisted thread id + provider) then one `final`
+  // event — no per-token deltas. Resolves with the full reply text.
+  chatStream: async (
+    message: string,
+    conversationId: number | null | undefined,
+    handlers: {
+      onConversation?: (id: number, provider?: string) => void,
+      onFinal?: (text: string) => void,
+    },
+    signal?: AbortSignal,
+  ): Promise<string> => {
+    const base = isNativeApp() ? PROD_ORIGIN : ''
+    const token = getAccessToken()
+    const res = await fetch(`${base}/api/ai/agent/chat/stream`, {
+      method: 'POST',
+      signal,
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify({ message, conversation_id: conversationId ?? null }),
+    })
+    if (!res.ok || !res.body) throw new Error('Stream failed')
+    const reader = res.body.getReader()
+    const decoder = new TextDecoder()
+    let buffer = ''
+    let full = ''
+    const parseLine = (line: string) => {
+      if (!line.startsWith('data: ')) return
+      const data = line.slice(6)
+      if (data === '[DONE]') return
+      try {
+        const ev = JSON.parse(data)
+        if (ev.type === 'conversation' && typeof ev.conversation_id === 'number') {
+          handlers.onConversation?.(ev.conversation_id, ev.provider)
+        } else if ((ev.type === 'final' || (ev.type === 'error' && !full)) && typeof ev.content === 'string') {
+          full = ev.content
+          handlers.onFinal?.(ev.content)
+        }
+      } catch { /* partial line; next chunk completes it */ }
+    }
+    for (;;) {
+      const { done, value } = await reader.read()
+      if (done) break
+      buffer += decoder.decode(value, { stream: true })
+      const lines = buffer.split('\n')
+      buffer = lines.pop() || ''
+      for (const line of lines) parseLine(line)
+    }
+    // A final event split across the last chunks has no trailing newline.
+    if (buffer.trim()) parseLine(buffer)
+    return full
+  },
   index: (incremental: boolean = false, files?: string[]) =>
     api.post('/api/ai/agent/index', { incremental, files }).then(r=>r.data),
   indexStatus: () =>
