@@ -20,6 +20,7 @@ import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg 
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
 import { IcebreakerSheet } from './IcebreakerSheet'
+import { LuckyDraw } from './LuckyDraw'
 import { ReportDialog } from './ReportDialog'
 import { hiddenIds, hideMessage } from '../utils/hidden'
 import type { RpsChoice } from './RockPaperScissors'
@@ -110,6 +111,7 @@ export function ChatView({
   const [convAccent, setConvAccentState] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
   const [showIce, setShowIce] = useState(false)
+  const [showDraw, setShowDraw] = useState(false)
   const [reportTarget, setReportTarget] = useState<any | null>(null)
   const pendingJump = useChatStore((s: any) => s.pendingJump)
   // Jump landing (PE-2A search/saved jumps, PE-2J in-conversation jumps):
@@ -430,13 +432,15 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' = 'ttt') => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
       await sendMessage(currentConversationId, `🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`)
     } else if (kind === 'c4') {
       await sendMessage(currentConversationId, `🎮C4:new\n${name} started Connect Four — tap a column to drop!`)
+    } else if (kind === 'emoji') {
+      await sendMessage(currentConversationId, `🎮EMOJI:new\n${name} started an emoji movie game — guess the movie!`)
     } else {
       await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
     }
@@ -458,6 +462,14 @@ export function ChatView({
     if (!currentConversationId || !(challenge.id > 0)) return
     // Marker only — move messages stay out of history (filtered below).
     await sendMessage(currentConversationId, `🎮TTT:move:${challenge.id}:${pos}`)
+  }
+
+  const handleEmojiGuess = async (challenge: any, guess: string) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    const clean = (guess || '').trim().slice(0, 80)
+    if (!clean) return
+    // Marker only — guesses stay out of history (filtered below).
+    await sendMessage(currentConversationId, `🎮EMOJI:move:${challenge.id}:${clean}`)
   }
 
   const handleConvCustomFile = async (f: File | undefined) => {
@@ -665,6 +677,7 @@ export function ChatView({
             else if (key === 'pinned') setShowPinned(true)
             else if (key === 'schedule') setShowSchedule(true)
             else if (key === 'insights') setShowInsights(true)
+            else if (key === 'draw') setShowDraw(true)
             else if (key === 'export') exportChat()
             else if (key === 'wallpaper') setShowWallpaper((v) => !v)
             else if (key === 'lock') toggleChatLock()
@@ -940,6 +953,7 @@ export function ChatView({
                       onGameRematch={(kind) => sendChallenge(kind)}
                       onRpsThrow={handleRpsThrow}
                       onC4Move={handleC4Move}
+                      onEmojiGuess={handleEmojiGuess}
                       onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}
                     />
@@ -1064,6 +1078,15 @@ export function ChatView({
             conversationId={currentConversationId}
             onClose={() => setShowIce(false)}
             onUsed={() => {}}
+          />
+        )}
+
+        {showDraw && currentConv && (
+          <LuckyDraw
+            members={(currentConv as any).members || []}
+            meId={user?.id}
+            onClose={() => setShowDraw(false)}
+            onAnnounce={(winnerName) => handleSend(`🎉 Lucky draw winner: ${winnerName}!`)}
           />
         )}
 

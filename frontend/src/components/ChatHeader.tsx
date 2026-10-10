@@ -1,11 +1,11 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer, Archive } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer, Archive, Dices } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 import { useState } from 'react'
 import { useEscapeKey } from '../hooks/useDismiss'
 
-export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock' | 'timer' | 'archive'
+export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock' | 'timer' | 'archive' | 'draw'
 
 export function ChatHeader({
   conv,
@@ -56,6 +56,7 @@ export function ChatHeader({
     { key: 'pinned', label: 'Pinned messages', icon: Pin },
     { key: 'schedule', label: 'Scheduled', icon: Clock3 },
     { key: 'insights', label: 'Insights', icon: Lightbulb },
+    { key: 'draw', label: 'Lucky draw', icon: Dices },
     { key: 'export', label: 'Export chat (.txt)', icon: Download },
     { key: 'wallpaper', label: 'Chat wallpaper', icon: Image },
     { key: 'timer', label: 'Disappearing', icon: Timer },

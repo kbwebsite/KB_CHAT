@@ -52,12 +52,14 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setShowMore(false)
   }
 
-  const sendChallenge = (kind: 'ttt' | 'rps' | 'c4') => {
+  const sendChallenge = (kind: 'ttt' | 'rps' | 'c4' | 'emoji') => {
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
       onSend(`🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`, undefined, 'text')
     } else if (kind === 'c4') {
       onSend(`🎮C4:new\n${name} started Connect Four — tap a column to drop!`, undefined, 'text')
+    } else if (kind === 'emoji') {
+      onSend(`🎮EMOJI:new\n${name} started an emoji movie game — guess the movie!`, undefined, 'text')
     } else {
       onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
     }
@@ -136,6 +138,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
                 className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
               >
                 <span className="w-5 text-center text-base">🔴</span> Connect Four
+              </button>
+              <button
+                onClick={() => sendChallenge('emoji')}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">🎬</span> Emoji Movies
               </button>
             </div>
           )}

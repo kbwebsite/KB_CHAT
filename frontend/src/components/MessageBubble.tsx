@@ -19,6 +19,7 @@ import { LiveLocationCard } from './LiveLocationCard'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 import { RpsGame, isRpsChallenge, type RpsChoice } from './RockPaperScissors'
 import { ConnectFourGame, isC4Challenge } from './ConnectFour'
+import { EmojiMovieGame, isEmojiChallenge } from './EmojiMovieGame'
 
 // Heavy picker loads on first open, never with the chat bundle.
 const EmojiPicker = lazy(() => import('emoji-picker-react'))
@@ -354,7 +355,7 @@ function VideoNotePlayer({ src, duration }: { src: string; duration?: number | n
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onContactChat, convTitle }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onEmojiGuess, onContactChat, convTitle }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean, onReport?:(m:Message)=>void,
@@ -364,8 +365,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void,
   onRetry?:(msg:Message)=>void,
-  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4')=>void,
+  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4' | 'emoji')=>void,
   onRpsThrow?:(challenge:any, choice:RpsChoice)=>void, onC4Move?:(challenge:any, col:number)=>void,
+  onEmojiGuess?:(challenge:any, guess:string)=>void,
   onContactChat?:(u:{id?:number, username?:string, display_name?:string, avatar_url?:string|null})=>void,
   convTitle?:string
 }) {
@@ -376,6 +378,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isChallenge = !msg.is_deleted && isTTTChallenge(msg.content)
   const isRps = !msg.is_deleted && isRpsChallenge(msg.content)
   const isC4 = !msg.is_deleted && isC4Challenge(msg.content)
+  const isEmoji = !msg.is_deleted && isEmojiChallenge(msg.content)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
   // stored key; otherwise show a placeholder instead of base64.
   const legacySealed = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
@@ -631,6 +634,13 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               meId={meId}
               onMove={(c, col) => onC4Move?.(c, col)}
               onRematch={() => onGameRematch?.('c4')}
+            />
+          ) : isEmoji ? (
+            <EmojiMovieGame
+              challenge={msg}
+              msgs={gameMsgs || []}
+              onGuess={(c, guess) => onEmojiGuess?.(c, guess)}
+              onRematch={() => onGameRematch?.('emoji')}
             />
           ) : contact ? (
             <div className="flex items-center gap-3 min-w-[210px] max-w-[260px]">
