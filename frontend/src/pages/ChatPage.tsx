@@ -10,6 +10,7 @@ import { ChatModals } from '../components/ChatModals'
 import { MobileNav } from '../components/MobileNav'
 import { BottomSheet, BottomSheetAction } from '../components/BottomSheet'
 import { DeleteDialog } from '../components/DeleteDialog'
+import { ReportDialog } from '../components/ReportDialog'
 import { hideMessage } from '../utils/hidden'
 import { msgPinApi, aiApi, agentApi } from '../services/api'
 import { convApi, extendedApi, savedApi, callsApi, groupCallsApi, isNativeApp } from '../services/api'
@@ -18,7 +19,7 @@ import { GroupCallModal } from '../components/GroupCallModal'
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
-import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise, Info } from 'lucide-react'
+import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise, Info, Flag } from 'lucide-react'
 import { MessageInfo } from '../components/MessageInfo'
 import { OnboardingPanel, isOnboarded } from '../components/OnboardingPanel'
 import { GlobalSearch } from '../components/GlobalSearch'
@@ -105,6 +106,7 @@ export default function ChatPage() {
   const [aiResult, setAiResult] = useState<{ text: string; action: string; provider?: string } | null>(null)
   const [pinnedMessages, setPinnedMessages] = useState<any[]>([])
   const [mobileActionSheet, setMobileActionSheet] = useState<{ open: boolean; msg?: Message }>({ open: false })
+  const [reportTarget, setReportTarget] = useState<Message | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
   const [infoMsgId, setInfoMsgId] = useState<number | null>(null)
   const [aiPanelOpen, setAiPanelOpen] = useState(false)
@@ -821,6 +823,9 @@ export default function ChatPage() {
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Clock className="w-5 h-5" />} label="In 1 hour" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'hour').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
               <BottomSheetAction icon={<Sunrise className="w-5 h-5" />} label="At 9 AM" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'morning').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
+              {mobileActionSheet.msg && mobileActionSheet.msg.sender_id !== user?.id && !(mobileActionSheet.msg as any).is_deleted && (
+                <BottomSheetAction icon={<Flag className="w-5 h-5" />} label="Report" onClick={() => { if (mobileActionSheet.msg) { setReportTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              )}
               {mobileActionSheet.msg.sender_id === user?.id && (
                 <>
                   <BottomSheetAction icon={<Info className="w-5 h-5" />} label="Info" onClick={() => { if (mobileActionSheet.msg) { setInfoMsgId(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
@@ -834,6 +839,13 @@ export default function ChatPage() {
 
         {infoMsgId != null && (
           <MessageInfo msgId={infoMsgId} onClose={() => setInfoMsgId(null)} />
+        )}
+
+        {reportTarget && (
+          <ReportDialog
+            messageId={reportTarget.id}
+            onClose={() => setReportTarget(null)}
+          />
         )}
 
         {deleteTarget && (
