@@ -48,8 +48,29 @@ no backend changes, no new endpoints.
 ## 4. Intentionally NOT built
 
 - Tools UI: endpoint returns `[]` — rendering it would be fake UI.
-- Assistant consolidation (product-copy decision + migration — larger wave).
 - Any backend, schema, or auth change.
+- The old stateless `aiApi.chat` path stays unused by KBAI but kept (harmless).
+
+## 4b. Unification: one shared assistant thread (IMPLEMENTED)
+
+- Both stream protocols are SSE JSON, but only the agent protocol carries
+  a persisted thread: `conversation` event (id + provider) then one
+  `final` event — no token deltas. KBAI's old token streaming cannot be
+  preserved on a shared thread without backend changes (out of scope).
+- New `agentApi.chatStream(message, conversationId, {onConversation,
+  onFinal}, signal?)` helper mirrors the existing `aiApi.chatStream`
+  conventions (auth header, native base, `[DONE]`, tail flush).
+- KBAIPage chat now sends through the shared agent thread keyed by the
+  existing `kb_agent_conv_id` id both surfaces already used: server
+  history restores on mount (legacy local history stands only when no
+  shared thread exists; a deleted thread clears the stale key); replies
+  append on `final` with the Thinking indicator while waiting;
+  non-streaming `agentApi.chat` remains the fallback; Stop drops the wait
+  with no phantom bubble; clear-chat resets the shared thread everywhere.
+- AgentPanel `send` refactored onto the same helper — byte-identical
+  behavior (same events, same fallback, same persistence).
+- First-send context note: legacy local-only turns stay visible but are
+  not retro-sent as server context (no import endpoint exists).
 
 ## 5. Tests (VERIFIED)
 
@@ -78,9 +99,13 @@ no backend changes, no new endpoints.
 
 ## 7. Files changed
 
-- `frontend/src/pages/KBAIPage.tsx` — search mode, hits UI, audio branch.
-- `frontend/src/components/AgentPanel.tsx` — code search + index footer.
-- `frontend/src/services/api.ts` — optional signals on 2 helpers.
+- `frontend/src/pages/KBAIPage.tsx` — search mode, hits UI, audio branch,
+  shared-thread chat (server history, agent stream + fallback, shared
+  clear).
+- `frontend/src/components/AgentPanel.tsx` — code search + index footer,
+  send refactored onto shared `chatStream`, send-button label.
+- `frontend/src/services/api.ts` — optional signals on 2 helpers +
+  new `agentApi.chatStream`.
 - `frontend/src/pages/__tests__/kbaiTools.test.ts` (new).
 - `frontend/src/components/__tests__/agentTools.test.ts` (new).
 - This report.

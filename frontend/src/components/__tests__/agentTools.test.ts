@@ -136,3 +136,56 @@ describe('AgentPanel code search', () => {
     expect(host.textContent).toContain('admin rights')
   })
 })
+
+describe('AgentPanel shared thread', () => {
+  it('sends through the shared chatStream helper and persists the thread', async () => {
+    ;(agentApi.chatStream as any).mockImplementation(
+      async (msg: string, cid: number | null, handlers: any) => {
+        handlers.onConversation?.(21, 'mock')
+        handlers.onFinal?.('agent says hi')
+        return 'agent says hi'
+      },
+    )
+    renderPanel()
+    await act(async () => {})
+    const ta = host.querySelector('textarea') as HTMLTextAreaElement
+    act(() => {
+      ta.focus()
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+      setter.call(ta, 'hello agent')
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      host.querySelector('button[aria-label="Send message"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(agentApi.chatStream).toHaveBeenCalledWith(
+      'hello agent', null, expect.objectContaining({}),
+    )
+    expect(host.textContent).toContain('agent says hi')
+    expect(localStorage.getItem('kb_agent_conv_id')).toBe('21')
+  })
+
+  it('falls back to non-streaming chat when the stream fails', async () => {
+    ;(agentApi.chatStream as any).mockRejectedValueOnce(new Error('down'))
+    ;(agentApi.chat as any).mockResolvedValue({
+      success: true, data: { response: 'fallback says hi', conversation_id: 22, provider: 'mock' },
+    })
+    renderPanel()
+    await act(async () => {})
+    const ta = host.querySelector('textarea') as HTMLTextAreaElement
+    act(() => {
+      ta.focus()
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+      setter.call(ta, 'retry me')
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      host.querySelector('button[aria-label="Send message"]')!
+        .dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(agentApi.chat).toHaveBeenCalledWith('retry me', null)
+    expect(host.textContent).toContain('fallback says hi')
+    expect(localStorage.getItem('kb_agent_conv_id')).toBe('22')
+  })
+})
