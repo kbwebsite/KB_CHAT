@@ -655,7 +655,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [posts])
 
-  const mediaPosts = useMemo(() => posts.filter((p: any) => postImages(p.content || '').length > 0), [posts])
+  const hasMedia = (content: string) => postImages(content).length > 0 || postVideos(content).length > 0
+
+  const mediaPosts = useMemo(() => posts.filter((p: any) => hasMedia(p.content || '')), [posts])
 
   const EMOJIS = ['😀', '😂', '😍', '👍', '🙏', '🎉', '❤️', '🔥']
 
@@ -880,7 +882,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 {grouped
                   .map((g) => ({
                     ...g,
-                    items: profileTab === 'media' ? g.items.filter((p: any) => postImages(p.content || '').length > 0) : g.items,
+                    items: profileTab === 'media' ? g.items.filter((p: any) => hasMedia(p.content || '')) : g.items,
                   }))
                   .filter((g) => g.items.length > 0)
                   .map((g) => (

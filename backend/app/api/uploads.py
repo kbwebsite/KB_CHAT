@@ -56,7 +56,9 @@ async def upload_to_cloudinary(content: bytes, filename: str, folder: str = "kbc
 
         result = cloudinary.uploader.upload(
             content,
-            public_id=f"{folder}/{generate_stored_filename(filename)}",
+            # No extension in public_id: Cloudinary appends the delivery
+            # format itself, otherwise video URLs come out as ".mp4.mp4".
+            public_id=f"{folder}/{os.path.splitext(generate_stored_filename(filename))[0]}",
             resource_type="auto",
             overwrite=True,
         )
