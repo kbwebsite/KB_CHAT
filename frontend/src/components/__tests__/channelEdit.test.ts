@@ -152,7 +152,7 @@ describe('Channel owner edit', () => {
       Array.from(host.querySelectorAll('button')).find((b) => b.textContent === 'Save changes')!
         .dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
-    expect(cUpdate).toHaveBeenCalledWith(1, { name: 'World', description: 'New desc', icon: null, cover_theme: null, avatar_url: null, cover_url: null })
+    expect(cUpdate).toHaveBeenCalledWith(1, { name: 'World', description: 'New desc', icon: null, cover_theme: null, avatar_url: null, cover_url: null, category: null, avatar_theme: null })
     // Visible channel updates immediately from the response; dialog closes.
     expect(host.textContent).toContain('World')
     expect(host.querySelector('[aria-label="Edit channel"]')).toBeNull()

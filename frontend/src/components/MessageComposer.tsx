@@ -507,7 +507,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   }
 
   return (
-    <div className="composer-wrapper" style={{ background: 'rgba(6,6,14,0.97)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderTop: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.4)' }}>
+    <div className="composer-wrapper relative" style={{ background: 'rgba(6,6,14,0.97)', backdropFilter: 'blur(40px) saturate(200%)', WebkitBackdropFilter: 'blur(40px) saturate(200%)', borderTop: '1px solid rgba(255,255,255,0.05)', boxShadow: '0 -4px 24px rgba(0,0,0,0.4)' }}>
       {/* Reply preview */}
       {replyTo && (
         <div className="composer-reply-preview">
@@ -543,6 +543,20 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       )}
 
       {/* Main input row */}
+      {/* Mobile ＋ sheet: full composer width, floating above the input row.
+          Tap-outside dismisses it. */}
+      {showMore && (
+        <button
+          aria-label="Close more actions"
+          className="fixed inset-0 z-20 bg-transparent border-0 p-0 cursor-default"
+          onClick={() => setShowMore(false)}
+        />
+      )}
+      {showMore && (
+        <div data-testid="more-actions-sheet" className="absolute bottom-full left-2 right-2 z-30 mb-2 rounded-2xl border bg-card p-2 shadow-xl flex flex-wrap items-center gap-1">
+          {renderExtras()}
+        </div>
+      )}
       <div className="composer-input-row">
         {/* Attachment */}
         <button
@@ -585,16 +599,14 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         </button>
         {/* Extra actions: inline on desktop… */}
         <div className="hidden sm:flex sm:items-center">{renderExtras()}</div>
-        {/* …behind ＋ on mobile: attach, typing, emoji, voice stay in the row */}
-        <div className="sm:hidden relative">
+        {/* …behind ＋ on mobile: attach, typing, emoji, voice stay in the row.
+            NOTE: the sheet lives on the composer wrapper (see below), NOT
+            inside this tiny button box — anchoring left/right insets here
+            collapses it into a thin vertical strip over the messages. */}
+        <div className="sm:hidden">
           <button onClick={() => { setShowMore(v => !v); setShowEmoji(false); setShowStickers(false); setShowEffects(false); setShowGames(false); setShowGifs(false) }} className="composer-action-btn" aria-label="More actions" title="More actions">
             <Plus className="w-5 h-5" />
           </button>
-          {showMore && (
-            <div className="absolute bottom-12 left-2 right-2 z-30 rounded-2xl border bg-card p-2 shadow-xl flex flex-wrap items-center gap-1">
-              {renderExtras()}
-            </div>
-          )}
         </div>
 
         {/* Voice recorder - shown when empty, send when has text */}
