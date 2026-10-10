@@ -1215,29 +1215,29 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   return (
     <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: '#08081a' }}>
       {/* Header — new mock: hamburger, avatar, title, bell, menu, close */}
-      <div className="px-4 pt-4 pb-1 flex items-center gap-3 shrink-0">
-        <button onClick={onClose} className="text-slate-200 touch-44" aria-label="Menu">
-          <Menu className="w-6 h-6" />
+      <div className="px-3 min-[380px]:px-4 pt-3 min-[380px]:pt-4 pb-1 flex items-center gap-2 min-[380px]:gap-3 shrink-0">
+        <button onClick={onClose} className="text-slate-200 touch-44 shrink-0" aria-label="Menu">
+          <Menu className="w-5 h-5 min-[380px]:w-6 min-[380px]:h-6" />
         </button>
-        <div className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center text-white text-xl font-extrabold" style={{ background: 'linear-gradient(135deg,#a855f7,#22d3ee)', boxShadow: '0 4px 20px rgba(168,85,247,0.45)' }}>
-          {channels[0]?.avatar_url ? <img src={channels[0].avatar_url} alt="" className="w-full h-full object-cover rounded-full" /> : channels[0]?.icon ? <span className="text-2xl">{channels[0].icon}</span> : 'K'}
+        <div className="w-10 h-10 min-[380px]:w-12 min-[380px]:h-12 rounded-full shrink-0 flex items-center justify-center text-white text-lg min-[380px]:text-xl font-extrabold overflow-hidden" style={{ background: 'linear-gradient(135deg,#a855f7,#22d3ee)', boxShadow: '0 4px 20px rgba(168,85,247,0.45)' }}>
+          {channels[0]?.avatar_url ? <img src={channels[0].avatar_url} alt="" className="w-full h-full object-cover rounded-full" /> : channels[0]?.icon ? <span className="text-xl min-[380px]:text-2xl">{channels[0].icon}</span> : 'K'}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-extrabold text-[22px] tracking-tight flex items-center gap-2 text-white">
-            Channels
+          <p className="font-extrabold text-[19px] min-[380px]:text-[22px] tracking-tight flex items-center gap-1.5 text-white truncate">
+            <span className="truncate">Channels</span>
             {channels.length > 0 && (
-              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md text-white" style={{ background: 'rgba(168,85,247,0.55)' }}>{channels.length}</span>
+              <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md text-white shrink-0" style={{ background: 'rgba(168,85,247,0.55)' }}>{channels.length}</span>
             )}
           </p>
-          <p className="text-[13px] mt-0.5 truncate" style={{ color: '#9ca3af' }}>Discover. Follow. Be part of the conversation.</p>
+          <p className="text-[12px] min-[380px]:text-[13px] mt-0 truncate" style={{ color: '#9ca3af' }}>Discover. Follow. Be part of the conversation.</p>
         </div>
-        <button onClick={() => setMsg('You are all caught up')} className="relative p-1 text-slate-200 touch-44" aria-label="Notifications">
-          <Bell className="w-6 h-6" />
-          <span className="absolute top-0.5 right-0.5 w-2.5 h-2.5 rounded-full" style={{ background: '#f472b6' }} />
+        <button onClick={() => setMsg('You are all caught up')} className="relative p-1 text-slate-200 touch-44 shrink-0" aria-label="Notifications">
+          <Bell className="w-5 h-5 min-[380px]:w-6 min-[380px]:h-6" />
+          <span className="absolute top-1 right-1 w-2 h-2 min-[380px]:w-2.5 min-[380px]:h-2.5 rounded-full" style={{ background: '#f472b6' }} />
         </button>
-        <div className="relative">
+        <div className="relative shrink-0">
           <button onClick={() => setMenuOpen((v) => !v)} className="p-1 text-slate-200 touch-44" aria-label="Channels menu">
-            <MoreVertical className="w-6 h-6" />
+            <MoreVertical className="w-5 h-5 min-[380px]:w-6 min-[380px]:h-6" />
           </button>
           {menuOpen && (
             <>
@@ -1256,7 +1256,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             </>
           )}
         </div>
-        <button onClick={onClose} className="w-10 h-10 rounded-full flex items-center justify-center text-slate-200 transition-all active:scale-95 touch-44" style={{ background: 'rgba(255,255,255,0.06)' }} aria-label="Close">
+        <button onClick={onClose} className="w-9 h-9 min-[380px]:w-10 min-[380px]:h-10 rounded-full flex items-center justify-center text-slate-200 transition-all active:scale-95 touch-44 shrink-0" style={{ background: 'rgba(255,255,255,0.06)' }} aria-label="Close">
           <X className="w-5 h-5" />
         </button>
       </div>
@@ -1283,7 +1283,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           )}
         </div>
         {!q && (
-          <div className="flex rounded-full p-1.5 mt-3 gap-1" style={{ background: '#12122e', border: '1px solid rgba(255,255,255,0.06)' }}>
+          <div className="flex gap-1 rounded-full p-1.5 mt-3 overflow-x-auto no-scrollbar" style={{ background: '#12122e', border: '1px solid rgba(255,255,255,0.06)' }}>
             {([
               { id: 'discover', label: 'Discover', icon: Compass, count: channels.length },
               { id: 'following', label: 'Following', icon: Users, count: following.length },
@@ -1295,12 +1295,12 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <button
                   key={t.id}
                   onClick={() => setTab(t.id)}
-                  className="flex-1 py-2.5 min-h-[48px] rounded-full text-[14px] font-bold flex items-center justify-center gap-1.5 transition-all whitespace-nowrap px-2"
+                  className="shrink-0 flex-1 min-w-fit py-2 min-[380px]:py-2.5 min-h-[44px] min-[380px]:min-h-[48px] px-3 rounded-full text-[13px] min-[380px]:text-[14px] font-bold flex items-center justify-center gap-1.5 whitespace-nowrap transition-all"
                   style={active ? { background: 'linear-gradient(90deg,#3b82f6,#d946ef)', boxShadow: '0 4px 20px rgba(217,70,239,0.35), inset 0 -2px 0 rgba(34,211,238,0.8)', color: '#fff' } : { color: '#9ca3af' }}
                 >
-                  <Icon className="w-5 h-5 shrink-0" /> {t.label}
+                  <Icon className="w-4 h-4 min-[380px]:w-5 min-[380px]:h-5 shrink-0" /> {t.label}
                   {t.count > 0 && (
-                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md" style={active ? { background: 'rgba(217,70,239,0.6)', color: '#fff' } : { background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{t.count}</span>
+                    <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md shrink-0" style={active ? { background: 'rgba(217,70,239,0.6)', color: '#fff' } : { background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{t.count}</span>
                   )}
                 </button>
               )
@@ -1402,32 +1402,32 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
         ) : (
           <div className="pt-2 space-y-4 pb-6">
             {/* HERO — Discover Amazing Communities & Creators */}
-            <section className="px-4">
-              <div className="relative rounded-[24px] overflow-hidden" style={{ border: '1px solid rgba(168,85,247,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
+            <section className="px-3 min-[380px]:px-4">
+              <div className="relative rounded-[20px] min-[380px]:rounded-[24px] overflow-hidden" style={{ border: '1px solid rgba(168,85,247,0.3)', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
                 <img src={HERO_IMG} alt="" className="absolute inset-0 w-full h-full object-cover" />
-                <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,8,26,0.92) 30%, rgba(8,8,26,0.45) 60%, rgba(8,8,26,0.15) 100%)' }} />
-                <div className="relative p-4 min-h-[150px] flex flex-col justify-center">
-                  <p className="text-[11px] font-extrabold uppercase tracking-[0.15em] text-orange-300 flex items-center gap-1.5">🔥 Featured</p>
-                  <p className="text-[20px] leading-[1.15] font-extrabold text-white mt-1">Discover Amazing<br /><span style={{ background: 'linear-gradient(90deg,#c4b5fd,#f472b6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Communities & Creators</span></p>
-                  <p className="text-[12px] mt-1 max-w-[230px]" style={{ color: '#cbd5e1' }}>Join channels, meet new people, and be part of something great.</p>
-                  <div className="flex items-end justify-between mt-2.5 gap-3">
-                    <button onClick={() => document.getElementById('trending-channels')?.scrollIntoView({ behavior: 'smooth' })} className="px-5 py-2.5 rounded-full text-[14px] font-bold text-white flex items-center gap-2 transition-all active:scale-95" style={{ background: 'linear-gradient(90deg,#3b82f6,#e879f9)', boxShadow: '0 4px 20px rgba(217,70,239,0.4)' }}>
-                      Explore Now <ArrowRight className="w-4 h-4" />
+                <div className="absolute inset-0" style={{ background: 'linear-gradient(90deg, rgba(8,8,26,0.94) 25%, rgba(8,8,26,0.55) 60%, rgba(8,8,26,0.2) 100%)' }} />
+                <div className="relative p-3.5 min-[380px]:p-4 min-h-[150px] flex flex-col justify-center">
+                  <p className="text-[10px] min-[380px]:text-[11px] font-extrabold uppercase tracking-[0.15em] text-orange-300 flex items-center gap-1.5">🔥 Featured</p>
+                  <p className="text-[18px] min-[380px]:text-[21px] leading-[1.2] font-extrabold text-white mt-1">Discover Amazing<br /><span style={{ background: 'linear-gradient(90deg,#c4b5fd,#f472b6)', WebkitBackgroundClip: 'text', backgroundClip: 'text', color: 'transparent' }}>Communities & Creators</span></p>
+                  <p className="text-[12px] mt-1 max-w-[220px]" style={{ color: '#cbd5e1' }}>Join channels, meet new people, and be part of something great.</p>
+                  <div className="flex items-center justify-between mt-2.5 gap-2">
+                    <button onClick={() => document.getElementById('trending-channels')?.scrollIntoView({ behavior: 'smooth' })} className="shrink-0 px-4 min-[380px]:px-5 py-2 min-[380px]:py-2.5 rounded-full text-[13px] min-[380px]:text-[14px] font-bold text-white flex items-center gap-1.5 whitespace-nowrap transition-all active:scale-95" style={{ background: 'linear-gradient(90deg,#3b82f6,#e879f9)', boxShadow: '0 4px 20px rgba(217,70,239,0.4)' }}>
+                      Explore Now <ArrowRight className="w-3.5 h-3.5 min-[380px]:w-4 min-[380px]:h-4 shrink-0" />
                     </button>
-                    <div className="flex items-center gap-2">
-                      <div className="flex -space-x-2">
-                        {['#f472b6', '#22d3ee', '#a855f7', '#fb923c'].map((g, i) => (
-                          <span key={i} className="w-7 h-7 rounded-full border-2 shrink-0" style={{ background: `linear-gradient(135deg, ${g}, #4f46e5)`, borderColor: 'rgba(8,8,26,0.9)' }} />
+                    <div className="flex items-center gap-1.5 shrink-0 min-w-0">
+                      <div className="flex -space-x-1.5">
+                        {['#f472b6', '#22d3ee', '#a855f7'].map((g, i) => (
+                          <span key={i} className="w-6 h-6 min-[380px]:w-7 min-[380px]:h-7 rounded-full border-2 shrink-0" style={{ background: `linear-gradient(135deg, ${g}, #4f46e5)`, borderColor: 'rgba(8,8,26,0.9)' }} />
                         ))}
                       </div>
-                      <div>
-                        <p className="text-[13px] font-extrabold text-white leading-none">+12k</p>
-                        <p className="text-[11px] mt-0.5 flex items-center gap-1" style={{ color: '#9ca3af' }}>active now <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ background: '#22c55e' }} /></p>
+                      <div className="hidden min-[340px]:block">
+                        <p className="text-[12px] min-[380px]:text-[13px] font-extrabold text-white leading-none whitespace-nowrap">+12k</p>
+                        <p className="text-[10px] min-[380px]:text-[11px] mt-0.5 flex items-center gap-1 whitespace-nowrap" style={{ color: '#9ca3af' }}>active now <span className="w-1.5 h-1.5 rounded-full inline-block shrink-0" style={{ background: '#22c55e' }} /></p>
                       </div>
                     </div>
                   </div>
                 </div>
-                <div className="absolute bottom-3 right-4 flex gap-1.5">
+                <div className="absolute bottom-2.5 right-3.5 flex gap-1.5">
                   <span className="w-5 h-1.5 rounded-full" style={{ background: '#c4b5fd' }} />
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.35)' }} />
                   <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'rgba(255,255,255,0.35)' }} />
@@ -1436,16 +1436,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             </section>
             {featured.length > 0 && (
               <section id="trending-channels">
-                <div className="flex items-center justify-between px-4 pb-2.5">
-                  <div className="flex items-center gap-2">
-                    <Rocket className="w-5 h-5 text-pink-300" />
-                    <p className="text-[17px] font-extrabold text-white">Trending Channels</p>
+                <div className="flex items-center justify-between px-3 min-[380px]:px-4 pb-2">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <Rocket className="w-4 h-4 min-[380px]:w-5 min-[380px]:h-5 text-pink-300 shrink-0" />
+                    <p className="text-[15px] min-[380px]:text-[17px] font-extrabold text-white truncate">Trending Channels</p>
                   </div>
-                  <button onClick={() => setTab('all')} className="text-[14px] font-semibold text-purple-400 flex items-center gap-1">
+                  <button onClick={() => setTab('all')} className="text-[13px] min-[380px]:text-[14px] font-semibold text-purple-400 flex items-center gap-1 shrink-0">
                     View all <span>→</span>
                   </button>
                 </div>
-                <div className="flex gap-3 overflow-x-auto px-4 pb-2 snap-x no-scrollbar">
+                <div className="flex gap-2.5 min-[380px]:gap-3 overflow-x-auto px-3 min-[380px]:px-4 pb-2 snap-x no-scrollbar">
                   {[...featured, ...trendingRows.slice(0, 2)].filter((c: any) => matchesCat(c, activeCat)).map((c: any, idx: number) => {
                     const isFeatured = idx < featured.length
                     const cIcon = channelIcon(c)
@@ -1461,7 +1461,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         tabIndex={canOpen ? 0 : undefined}
                         onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c) } }}
                         aria-label={canOpen ? `Open ${c.name}` : undefined}
-                        className="snap-start shrink-0 w-[190px] rounded-[18px] overflow-hidden transition-all active:scale-[0.98]"
+                        className="snap-start shrink-0 w-[172px] min-[380px]:w-[190px] rounded-[18px] overflow-hidden transition-all active:scale-[0.98]"
                         style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(52,211,153,0.35)'}`, boxShadow: '0 6px 22px rgba(0,0,0,0.5)' }}
                       >
                         <div className="relative h-24 overflow-hidden" style={coverStyleOf(c)}>
@@ -1506,17 +1506,17 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                               ) : null
                             })()}
                           </div>
-                          <p className="text-[15px] font-extrabold truncate tracking-tight flex items-center gap-1 text-white">
+                          <p className="text-[14px] min-[380px]:text-[15px] font-extrabold truncate tracking-tight flex items-center gap-1 text-white">
                             <span className="truncate">{c.name}</span>
                             <BadgeCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" fill="currentColor" />
                           </p>
-                          <p className="text-[12px] truncate" style={{ color: '#9ca3af' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
-                          <div className="flex items-center gap-2.5 mt-2 text-[11px] font-bold text-white">
-                            <span className="flex items-center gap-1"><Users className="w-3 h-3" style={{ color: '#f472b6' }} /> {compact(c.follower_count ?? 0)}</span>
-                            <span className="flex items-center gap-1"><MessageSquare className="w-3 h-3" style={{ color: '#9ca3af' }} /> {c.post_count ?? 0}</span>
-                            <span className="flex items-center gap-1"><Calendar className="w-3 h-3" style={{ color: '#9ca3af' }} /> {created}</span>
+                          <p className="text-[11px] min-[380px]:text-[12px] truncate" style={{ color: '#9ca3af' }}>{(c.description || '').split('\n')[0] || 'Build. Share. Grow.'}</p>
+                          <div className="flex items-center gap-2 mt-2 text-[10px] min-[380px]:text-[11px] font-bold text-white">
+                            <span className="flex items-center gap-0.5 whitespace-nowrap"><Users className="w-3 h-3 shrink-0" style={{ color: '#f472b6' }} /> {compact(c.follower_count ?? 0)}</span>
+                            <span className="flex items-center gap-0.5 whitespace-nowrap"><MessageSquare className="w-3 h-3 shrink-0" style={{ color: '#9ca3af' }} /> {c.post_count ?? 0}</span>
+                            <span className="flex items-center gap-0.5 whitespace-nowrap"><Calendar className="w-3 h-3 shrink-0" style={{ color: '#9ca3af' }} /> {created}</span>
                           </div>
-                          <div className="flex items-center gap-2.5 mt-0.5 text-[10px]" style={{ color: '#6b7280' }}>
+                          <div className="flex items-center gap-2 mt-0.5 text-[9px] min-[380px]:text-[10px]" style={{ color: '#6b7280' }}>
                             <span>Followers</span><span>Posts</span><span>Created</span>
                           </div>
                           {!c.is_owner && !c.followed ? (
@@ -1542,16 +1542,16 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             )}
             {/* Categories — Popular Right Now (real filter) */}
             <section>
-              <div className="flex items-center gap-2 px-4 pb-2.5">
-                <Flame className="w-5 h-5 text-pink-400" fill="currentColor" />
-                <p className="text-[17px] font-extrabold text-white">Popular Right Now</p>
+              <div className="flex items-center gap-1.5 px-3 min-[380px]:px-4 pb-2">
+                <Flame className="w-4 h-4 min-[380px]:w-5 min-[380px]:h-5 text-pink-400 shrink-0" fill="currentColor" />
+                <p className="text-[15px] min-[380px]:text-[17px] font-extrabold text-white truncate">Popular Right Now</p>
                 {activeCat && (
-                  <button onClick={() => setActiveCat(null)} className="ml-auto text-[12px] font-bold text-purple-300">
+                  <button onClick={() => setActiveCat(null)} className="ml-auto text-[12px] font-bold text-purple-300 shrink-0">
                     Clear ✕
                   </button>
                 )}
               </div>
-              <div className="flex gap-2.5 overflow-x-auto px-4 pb-1 no-scrollbar">
+              <div className="flex gap-2 overflow-x-auto px-3 min-[380px]:px-4 pb-1 no-scrollbar">
                 {CATEGORIES.map((cat) => {
                   const Icon = cat.icon
                   const active = activeCat === cat.id
@@ -1563,7 +1563,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         if (active) setActiveCat(null)
                         else { setActiveCat(cat.id); setQuery('') }
                       }}
-                      className="shrink-0 flex items-center gap-2 px-4 py-2.5 rounded-full text-[13px] font-bold transition-all active:scale-95"
+                      className="shrink-0 flex items-center gap-1.5 px-3 min-[380px]:px-4 py-2 min-[380px]:py-2.5 rounded-full text-[12px] min-[380px]:text-[13px] font-bold transition-all active:scale-95 whitespace-nowrap"
                       style={active ? { background: 'linear-gradient(90deg,#3b82f6,#d946ef)', color: '#fff' } : { background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: cat.color }}
                     >
                       <Icon className="w-4 h-4" /> <span style={{ color: active ? '#fff' : '#cbd5e1' }}>{cat.label}</span>
