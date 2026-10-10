@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react'
-import { pollApi } from '../services/api'
+import { useState, useEffect, useRef } from 'react'
+import { pollApi, aiApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { BarChart3, Plus, X, Check } from 'lucide-react'
+import { BarChart3, Plus, X, Check, Sparkles } from 'lucide-react'
 
 interface PollOption {
   id: number
@@ -30,6 +30,39 @@ export function quizHit(pollData: any, optionIds: number[]): boolean {
   return optionIds.includes(correct)
 }
 
+export interface PollSuggestion {
+  question?: string
+  options: string[]
+}
+
+/**
+ * Parse an AI poll suggestion: the model is asked for raw JSON, but free
+ * text may surround it — extract the first {...} block and validate strictly.
+ * Returns null when unusable (caller shows an honest error, never fake data).
+ */
+export function parsePollSuggestion(text: unknown): PollSuggestion | null {
+  if (typeof text !== 'string') return null
+  const start = text.indexOf('{')
+  const end = text.lastIndexOf('}')
+  if (start < 0 || end <= start) return null
+  let obj: any
+  try {
+    obj = JSON.parse(text.slice(start, end + 1))
+  } catch {
+    return null
+  }
+  if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return null
+  const options = Array.isArray(obj.options)
+    ? obj.options.filter((o: any) => typeof o === 'string' && o.trim()).slice(0, 10)
+    : []
+  if (options.length < 2) return null
+  const out: PollSuggestion = { options }
+  if (typeof obj.question === 'string' && obj.question.trim()) {
+    out.question = obj.question.trim().slice(0, 200)
+  }
+  return out
+}
+
 export function PollPanel({ conversationId, onClose }: { conversationId: number, onClose: () => void }) {
   const { user } = useAuthStore()
   const [polls, setPolls] = useState<Poll[]>([])
@@ -40,6 +73,10 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
   const [isQuiz, setIsQuiz] = useState(false)
   const [correctPos, setCorrectPos] = useState(0)
   const [loading, setLoading] = useState(false)
+  const [suggesting, setSuggesting] = useState(false)
+  const [suggestError, setSuggestError] = useState<string | null>(null)
+  // Ref guard: two taps in one render batch must not double-fire.
+  const suggestingRef = useRef(false)
 
   useEffect(() => { loadPolls() }, [conversationId])
 
@@ -69,6 +106,33 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
         setShowCreate(false)
       }
     } finally { setLoading(false) }
+  }
+
+  const handleSuggest = async () => {
+    const topic = question.trim()
+    if (!topic || suggestingRef.current) return
+    suggestingRef.current = true
+    setSuggesting(true)
+    setSuggestError(null)
+    try {
+      const r: any = await aiApi.chat(
+        `Suggest a group poll about: "${topic}". Reply with ONLY raw JSON, no other text: {"question": "a short poll question", "options": ["3 to 5 short distinct options"]}`,
+      )
+      const reply = String(r?.data?.reply ?? r?.reply ?? '')
+      const parsed = parsePollSuggestion(reply)
+      if (!parsed) {
+        setSuggestError('AI could not suggest options — try rephrasing the topic.')
+        return
+      }
+      if (parsed.question) setQuestion(parsed.question)
+      setOptions(parsed.options)
+      setCorrectPos(0)
+    } catch {
+      setSuggestError('Suggestion failed — check connection and retry.')
+    } finally {
+      suggestingRef.current = false
+      setSuggesting(false)
+    }
   }
 
   const handleVote = async (pollId: number, optionIds: number[]) => {
@@ -103,7 +167,19 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
       <div className="flex-1 overflow-y-auto p-3 space-y-3">
         {showCreate && (
           <div className="p-3 rounded-xl border bg-background space-y-3">
-            <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="Ask a question..." className="w-full px-3 py-2 rounded-lg bg-muted text-sm outline-none focus:ring-1 focus:ring-primary" />
+            <input value={question} onChange={e => setQuestion(e.target.value)} placeholder="Ask a question... or a topic for AI ideas" className="w-full px-3 py-2 rounded-lg bg-muted text-sm outline-none focus:ring-1 focus:ring-primary" />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSuggest}
+                disabled={!question.trim() || suggesting}
+                aria-label="Suggest poll options with AI"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-primary/10 text-primary text-xs font-semibold hover:bg-primary/20 transition disabled:opacity-40 min-h-[44px]"
+              >
+                <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                {suggesting ? 'Thinking…' : 'Suggest with AI'}
+              </button>
+              {suggestError && <p className="text-xs text-destructive flex-1" role="alert">{suggestError}</p>}
+            </div>
             {options.map((opt, i) => (
               <div key={i} className="flex gap-2">
                 <input value={opt} onChange={e => { const n = [...options]; n[i] = e.target.value; setOptions(n) }} placeholder={`Option ${i + 1}`} className="flex-1 px-3 py-2 rounded-lg bg-muted text-sm outline-none" />
