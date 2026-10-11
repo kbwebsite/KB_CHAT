@@ -20,11 +20,12 @@ import { isGameCardMsg, isMediaMsg } from '../../utils/messageEffects'
 import { useAuthStore } from '../../store/auth'
 
 describe('action-scope helpers', () => {
-  it('detects all nine game cards, rejects the rest', () => {
+  it('detects all ten game cards, rejects the rest', () => {
     for (const p of ['TTT', 'RPS', 'C4', 'EMOJI', 'CHESS', 'TOD', 'WC', 'WT']) {
       expect(isGameCardMsg({ content: `🎮${p}:new\nhello`, is_deleted: false })).toBe(true)
     }
     expect(isGameCardMsg({ content: '🎮MYS:new:manor\nhello', is_deleted: false })).toBe(true)
+    expect(isGameCardMsg({ content: '🎮TH:new\n{"title":"x"}', is_deleted: false })).toBe(true)
     expect(isGameCardMsg({ content: '🎮TTT:move:1:5', is_deleted: false })).toBe(false)
     expect(isGameCardMsg({ content: 'hello', is_deleted: false })).toBe(false)
     expect(isGameCardMsg({ content: '🎮TTT:new', is_deleted: true })).toBe(false)
@@ -212,6 +213,20 @@ describe('MessageBubble action scoping', () => {
       baseMsg({ id: 71, content: '🎮MYS:new:manor\nMe started a murder mystery' }),
       { isOwn: true, onMobileMore, onDelete: () => {} },
     )
+    expect(host.querySelector('button[title="Delete"]')).not.toBeNull()
+  })
+
+  it('hunt cards show clues + check-in; own cards keep Delete', () => {
+    const onMobileMore = vi.fn()
+    const hunt = `🎮TH:new\n${JSON.stringify({ title: 'Campus dash', clues: [{ t: 'Banyan shade', la: 13, lo: 80.2, r: 100 }] })}\nAmy hid a treasure`
+    renderBubble(baseMsg({ id: 80, content: hunt }), { onMobileMore })
+    expect(host.querySelector('button[title="More"]')).toBeNull()
+    expect(host.querySelector('button[title="Delete"]')).toBeNull()
+    expect(host.textContent).toContain('Campus dash')
+    expect(host.textContent).toContain('Banyan shade')
+    expect(host.textContent).toContain('Check in')
+
+    renderBubble(baseMsg({ id: 81, content: hunt }), { isOwn: true, onMobileMore, onDelete: () => {} })
     expect(host.querySelector('button[title="Delete"]')).not.toBeNull()
   })
 

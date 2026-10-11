@@ -4,6 +4,7 @@ import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { VideoNoteRecorder } from './VideoNoteRecorder'
 import { DoodlePad } from './DoodlePad'
+import { HuntBuilder } from './HuntBuilder'
 import { MediaSheet, type MediaTab } from './MediaSheet'
 import { fireEffect, withFxMarker, EFFECT_OPTIONS, type EffectKind } from '../utils/messageEffects'
 import { useAuthStore } from '../store/auth'
@@ -36,6 +37,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [showGames, setShowGames] = useState(false)
   const [showWatchInput, setShowWatchInput] = useState(false)
   const [watchUrl, setWatchUrl] = useState('')
+  const [showHunt, setShowHunt] = useState(false)
   const [showLive, setShowLive] = useState(false)
   const [sharingLive, setSharingLive] = useState(false)
   const [memeFile, setMemeFile] = useState<File | null>(null)
@@ -287,6 +289,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
                 className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
               >
                 <span className="w-5 text-center text-base">🎭</span> Murder Mystery
+              </button>
+              <button
+                onClick={() => { setShowHunt(true); setShowGames(false) }}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">🗺️</span> Treasure Hunt
               </button>
               <button
                 onClick={() => setShowWatchInput(v => !v)}
@@ -684,7 +692,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     } else {
       if (e.key === 'Enter' && e.ctrlKey) { e.preventDefault(); handleSend() }
     }
-    if (e.key === 'Escape') { onCancelReply(); setShowMedia(false); closeSubPopups(); setShowMore(false); setShowCamera(false); setShowVideoNote(false); setShowDoodle(false) }
+    if (e.key === 'Escape') { onCancelReply(); setShowMedia(false); closeSubPopups(); setShowMore(false); setShowCamera(false); setShowVideoNote(false); setShowDoodle(false); setShowHunt(false) }
   }
 
   return (
@@ -839,6 +847,18 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       {/* Hand-drawn doodles */}
       {showDoodle && (
         <DoodlePad onClose={() => setShowDoodle(false)} onSend={handleDoodleSend} />
+      )}
+
+      {/* Treasure-hunt builder */}
+      {showHunt && (
+        <HuntBuilder
+          onClose={() => setShowHunt(false)}
+          onStart={(json) => {
+            const name = user?.display_name || user?.username || 'Someone'
+            onSend(`🎮TH:new\n${json}\n${name} hid a treasure — follow the clues! 🗺️`, undefined, 'text')
+            setShowHunt(false)
+          }}
+        />
       )}
     </div>
   )

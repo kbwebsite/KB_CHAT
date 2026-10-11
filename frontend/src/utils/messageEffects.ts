@@ -128,6 +128,7 @@ export function prettyPreview(text: any): any {
   if (clean.startsWith('🎮WC:new')) return '🔗 Word chain'
   if (clean.startsWith('🎮WT:new')) return '📺 Watch together'
   if (clean.startsWith('🎮MYS:new')) return '🎭 Murder mystery'
+  if (clean.startsWith('🎮TH:new')) return '🗺️ Treasure hunt'
   return stripFormatting(clean)
 }
 
@@ -181,7 +182,9 @@ export function isGameMoveMsg(text: unknown): boolean {
     isWcMove(text) ||
     (typeof text === 'string' && text.startsWith('🎮WT:move:')) ||
     (typeof text === 'string' &&
-      (text.startsWith('🎮MYS:clue:') || text.startsWith('🎮MYS:accuse:') || text.startsWith('🎮MYS:done:')))
+      (text.startsWith('🎮MYS:clue:') || text.startsWith('🎮MYS:accuse:') || text.startsWith('🎮MYS:done:'))) ||
+    (typeof text === 'string' &&
+      (text.startsWith('🎮TH:found:') || text.startsWith('🎮TH:done:')))
   )
 }
 
@@ -195,6 +198,7 @@ const GAME_CARD_PREFIXES = [
   '🎮WC:new',
   '🎮WT:new',
   '🎮MYS:new',
+  '🎮TH:new',
 ]
 
 /** True for a rendered game card (challenge message). Action menus stay

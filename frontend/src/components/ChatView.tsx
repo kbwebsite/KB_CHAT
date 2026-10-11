@@ -531,7 +531,7 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' | 'mys' = 'ttt') => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' | 'mys' | 'th' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
@@ -550,6 +550,9 @@ export function ChatView({
       const packs = ['manor', 'train', 'ship']
       const pack = packs[Math.floor(Math.random() * packs.length)]
       await sendMessage(currentConversationId, `🎮MYS:new:${pack}\n${name} started a murder mystery — who did it? 🕯️`)
+    } else if (kind === 'th') {
+      toast('New hunt? Open ＋ → 🎮 → 🗺️ Treasure Hunt to hide fresh clues.', 'info')
+      return
     } else {
       await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
     }
@@ -623,6 +626,16 @@ export function ChatView({
   const handleMysDone = async (challenge: any) => {
     if (!currentConversationId || !(challenge.id > 0)) return
     await sendMessage(currentConversationId, `🎮MYS:done:${challenge.id}`)
+  }
+
+  const handleTHFound = async (challenge: any, n: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮TH:found:${challenge.id}:${Math.max(0, Math.floor(Number(n) || 0))}`)
+  }
+
+  const handleTHDone = async (challenge: any) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮TH:done:${challenge.id}`)
   }
 
   const handleConvCustomFile = async (f: File | undefined) => {
@@ -1129,6 +1142,8 @@ export function ChatView({
                       onMysClue={handleMysClue}
                       onMysAccuse={handleMysAccuse}
                       onMysDone={handleMysDone}
+                      onTHFound={handleTHFound}
+                      onTHDone={handleTHDone}
                       onEmojiGuess={handleEmojiGuess}
                       onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}
