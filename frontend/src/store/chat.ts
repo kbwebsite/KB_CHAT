@@ -52,12 +52,12 @@ interface ChatState {
   bumpHiddenTick: ()=>void
   // Unsent payloads keyed by optimistic temp id — kept so a failed send
   // can be retried verbatim (including the sealed E2EE body).
-  pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, clientId:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean} }>
+  pendingSends: Record<number, { convId:number, body:string, replyTo?:number, attachmentIds?:number[], type:string, clientId:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean, passport?:boolean} }>
   // actions
   fetchConversations: (search?:string)=>Promise<void>
   setCurrent: (id:number|null)=>void
   fetchMessages: (convId:number, before?:number)=>Promise<void>
-  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean})=>Promise<void>
+  sendMessage: (convId:number, content:string, replyTo?:number, attachmentIds?:number[], type?:string, extra?:{voice_duration?:number, is_encrypted?:boolean, nonce?:string, displayContent?:string, view_once?:boolean, passport?:boolean})=>Promise<void>
   retryMessage: (tempId:number)=>Promise<void>
   retryAllFailed: (convId?:number)=>void
   addMessage: (msg:Message)=>void
@@ -219,16 +219,18 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
       attachments: [], reactions: [], status: 'sending' as any,
     }
     if (extra?.view_once) (temp as any).view_once = true
+    if (extra?.passport) (temp as any).is_passport = true
     get().addOptimistic(temp)
     // Plaintext sends (E2EE removed). Retries reuse the exact same body.
     const body = content
     const finalExtra: NonNullable<ChatState['pendingSends'][number]['extra']> =
       extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}
     if (extra?.view_once) finalExtra.view_once = true
+    if (extra?.passport) finalExtra.passport = true
     const stash = { convId, body, replyTo, attachmentIds, type: type || 'text', clientId, extra: finalExtra }
     set(state=> ({ pendingSends: { ...state.pendingSends, [tempId]: stash } }))
     try {
-      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, client_id: clientId, ...(finalExtra.voice_duration != null ? { voice_duration: finalExtra.voice_duration } : {}), ...(finalExtra.is_encrypted ? { is_encrypted: true, nonce: finalExtra.nonce } : {}), ...(finalExtra.view_once ? { view_once: true } : {}) })
+      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, client_id: clientId, ...(finalExtra.voice_duration != null ? { voice_duration: finalExtra.voice_duration } : {}), ...(finalExtra.is_encrypted ? { is_encrypted: true, nonce: finalExtra.nonce } : {}), ...(finalExtra.view_once ? { view_once: true } : {}), ...(finalExtra.passport ? { passport: true } : {}) })
       if (res.success) {
         set(state=> {
           const pending = { ...state.pendingSends }
@@ -253,7 +255,7 @@ export const useChatStore = create<ChatState>((set, get)=> ({  conversations: []
     const { convId, body, replyTo, attachmentIds, type, clientId, extra } = stash
     get().setMessageStatus(convId, tempId, 'sending')
     try {
-      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, client_id: clientId, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}) })
+      const res = await msgApi.send(convId, { content: body, reply_to_id: replyTo, attachment_ids: attachmentIds, message_type: type, client_id: clientId, ...(extra?.voice_duration != null ? { voice_duration: extra.voice_duration } : {}), ...(extra?.is_encrypted ? { is_encrypted: true, nonce: extra.nonce } : {}), ...(extra?.view_once ? { view_once: true } : {}), ...(extra?.passport ? { passport: true } : {}) })
       if (res.success) {
         set(state=> {
           const pending = { ...state.pendingSends }

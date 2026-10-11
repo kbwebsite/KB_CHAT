@@ -27,6 +27,8 @@ import { TruthOrDareGame, isTodChallenge } from './TruthOrDareGame'
 import { WordChainGame, isWordChainChallenge } from './WordChainGame'
 import { WatchTogether } from './WatchTogether'
 import { isWTChallenge } from '../utils/watchTogether'
+import { MysteryGame } from './MysteryGame'
+import { isMysChallenge } from '../utils/mystery'
 
 // Heavy picker loads on first open, never with the chat bundle.
 const EmojiPicker = lazy(() => import('emoji-picker-react'))
@@ -365,7 +367,7 @@ function VideoNotePlayer({ src, duration }: { src: string; duration?: number | n
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, onPassportJourney, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onChessMove, onTodSpin, onTodDone, onWordChain, onWTState, onEmojiGuess, onContactChat, convTitle, autoTranslateLang }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, onPassportJourney, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onChessMove, onTodSpin, onTodDone, onWordChain, onWTState, onMysClue, onMysAccuse, onMysDone, onEmojiGuess, onContactChat, convTitle, autoTranslateLang }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean, onReport?:(m:Message)=>void,
@@ -376,13 +378,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onMobileMore?:(msg:Message)=>void,
   onRetry?:(msg:Message)=>void,
   onPassportJourney?:(msg:Message)=>void,
-  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc')=>void,
+  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' | 'mys')=>void,
   onRpsThrow?:(challenge:any, choice:RpsChoice)=>void, onC4Move?:(challenge:any, col:number)=>void,
   onChessMove?:(challenge:any, from:number, to:number)=>void,
   onTodSpin?:(challenge:any, kind:'truth'|'dare', index:number)=>void,
   onTodDone?:(challenge:any)=>void,
   onWordChain?:(challenge:any, word:string)=>void,
   onWTState?:(challenge:any, action:'play'|'pause'|'seek', pos:number)=>void,
+  onMysClue?:(challenge:any, n:number)=>void,
+  onMysAccuse?:(challenge:any, suspect:number)=>void,
+  onMysDone?:(challenge:any)=>void,
   onEmojiGuess?:(challenge:any, guess:string)=>void,
   onContactChat?:(u:{id?:number, username?:string, display_name?:string, avatar_url?:string|null})=>void,
   convTitle?:string,
@@ -400,6 +405,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isTod = !msg.is_deleted && isTodChallenge(msg.content)
   const isWc = !msg.is_deleted && isWordChainChallenge(msg.content)
   const isWt = !msg.is_deleted && isWTChallenge(msg.content)
+  const isMys = !msg.is_deleted && isMysChallenge(msg.content)
   // Game cards carry their own inline play UI — row actions only disturb.
   // Exception: deleting your OWN game card stays available (nothing else).
   const isGameCard = isGameCardMsg(msg)
@@ -750,6 +756,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               msgs={gameMsgs || []}
               meId={meId}
               onState={(c, action, pos) => onWTState?.(c, action, pos)}
+            />
+          ) : isMys ? (
+            <MysteryGame
+              challenge={msg}
+              msgs={gameMsgs || []}
+              meId={meId}
+              onClue={(c, n) => onMysClue?.(c, n)}
+              onAccuse={(c, s) => onMysAccuse?.(c, s)}
+              onDone={(c) => onMysDone?.(c)}
+              onRematch={() => onGameRematch?.('mys')}
             />
           ) : contact ? (
             <div className="flex items-center gap-3 min-w-[210px] max-w-[260px]">

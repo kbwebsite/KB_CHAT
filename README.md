@@ -21,6 +21,9 @@ Live: https://kb-chat-1.onrender.com · Android: [v1.2.0 APK](https://github.com
 - **Statuses**: Sending → Sent → Delivered → Read (UI indicators), with read-receipt opt-out honored end to end
 - **Conversations**: 1-to-1 auto-dedup, Groups (owner/admin/member roles), Channels, Communities, Broadcasts, unread counts, mark read/unread, pin/archive/mute/favorite
 - **Moderation**: Group slow mode (Telegram-style: 5s–1h per-member cooldown, admins exempt) + announcement-only mode
+- **Group Pet**: Shared creature that grows +1 XP per message (egg → legend), admin-renamable, mood from daily chatter
+- **Passports**: Forward-once message chains with a visible journey (each hand stamps exactly once)
+- **Chat weather**: Local-only ambient vibe (sunny/stormy/rainy) from recent activity + sentiment — no tracking
 - **Backup**: Full account backup & restore (profile + settings + every chat as one JSON download; merge-safe restore, file blobs stay as links)
 - **Calls**: Voice/video calls (WebRTC) with history
 - **Extras**: Stories + highlights, polls, events, saved messages, statuses, stickers, AI chat + in-app agent, link previews, chat export + full backup
@@ -233,6 +236,7 @@ Auth: query param `token` → `decode_token` → `User`; close `1008` if invalid
 **Settings**: `GET /api/settings`, `PATCH /api/settings` (mute, previews, notifications, privacy, chat prefs)
 **Calls / Polls / Stories / Events / Extras**: see `/docs` for the full route list
 **Backup**: `GET /api/backup/export`, `POST /api/backup/restore` (full account JSON)
+**Passports**: `GET /api/messages/{id}/passport` (chain journey)
 **WS**: `WS /ws/chat?token=JWT`
 
 All REST responses: `{ success: bool, data: ..., message: str|null }`.

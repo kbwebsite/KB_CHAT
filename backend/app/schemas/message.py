@@ -23,6 +23,10 @@ class MessageCreate(BaseModel):
     view_once: bool = Field(
         default=False, description="Burn after first explicit view (1-1 text only)"
     )
+    passport: bool = Field(
+        default=False,
+        description="Message passport: forward-once chain with visible journey",
+    )
     client_id: Optional[str] = Field(
         default=None,
         max_length=64,

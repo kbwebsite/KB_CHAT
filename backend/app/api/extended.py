@@ -53,6 +53,22 @@ async def forward_message(
         target_ids = [payload.get("conversation_id")]
     if not target_ids:
         raise HTTPException(status_code=400, detail="Target conversation required")
+    from app.models.message import PassportHop
+
+    # Passport chain: each hand forwards exactly once, journey is stamped.
+    passport_root = None
+    if bool(getattr(msg, "is_passport", False) or False) or getattr(
+        msg, "passport_root_id", None
+    ):
+        passport_root = getattr(msg, "passport_root_id", None) or msg.id
+        if (
+            db.query(PassportHop)
+            .filter_by(root_message_id=passport_root, user_id=current_user.id)
+            .first()
+        ):
+            raise HTTPException(
+                status_code=400, detail="You already passed this passport on"
+            )
     created = []
     for cid in target_ids:
         if (
@@ -61,14 +77,29 @@ async def forward_message(
             .first()
         ):
             continue
+        if passport_root is not None and cid == msg.conversation_id:
+            raise HTTPException(
+                status_code=400, detail="Passports travel to a different chat"
+            )
         new_msg = Message(
             conversation_id=cid,
             sender_id=current_user.id,
             content=msg.content,
             message_type=msg.message_type,
         )
+        if passport_root is not None:
+            new_msg.is_passport = True
+            new_msg.passport_root_id = passport_root
         db.add(new_msg)
         db.flush()
+        if passport_root is not None:
+            db.add(
+                PassportHop(
+                    root_message_id=passport_root,
+                    message_id=new_msg.id,
+                    user_id=current_user.id,
+                )
+            )
         # copy attachments metadata? For now just reference original? We copy attachments if any
         for att in db.query(Attachment).filter_by(message_id=msg.id).all():
             new_att = Attachment(
@@ -112,6 +143,8 @@ async def forward_message(
                 "reply_to_id": None,
                 "is_deleted": False,
                 "is_edited": False,
+                "is_passport": bool(getattr(last, "is_passport", False) or False),
+                "passport_root_id": getattr(last, "passport_root_id", None),
                 "created_at": last.created_at.isoformat() if last.created_at else None,
                 "updated_at": last.updated_at.isoformat() if last.updated_at else None,
                 "attachments": [],
@@ -131,6 +164,63 @@ async def forward_message(
             )
     return success_response(
         {"forwarded_to": created}, f"Forwarded to {len(created)} conversations"
+    )
+
+
+# Message passport journey: every hand the chain passed through, in order.
+@router.get("/messages/{message_id}/passport")
+def passport_journey(
+    message_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    from app.models.message import PassportHop
+
+    msg = db.query(Message).filter_by(id=message_id).first()
+    if not msg or msg.is_deleted:
+        raise HTTPException(status_code=404, detail="Message not found")
+    root = getattr(msg, "passport_root_id", None) or (
+        msg.id if getattr(msg, "is_passport", False) else None
+    )
+    if not root:
+        raise HTTPException(status_code=400, detail="Not a passport message")
+    if (
+        not db.query(ConversationMember)
+        .filter_by(conversation_id=msg.conversation_id, user_id=current_user.id)
+        .first()
+    ):
+        raise HTTPException(status_code=403, detail="Not member of original")
+    hops = (
+        db.query(PassportHop)
+        .filter_by(root_message_id=root)
+        .order_by(PassportHop.id.asc())
+        .all()
+    )
+    user_ids = list({h.user_id for h in hops if h.user_id})
+    users = (
+        {u.id: u for u in db.query(User).filter(User.id.in_(user_ids)).all()}
+        if user_ids
+        else {}
+    )
+    return success_response(
+        {
+            "root_message_id": root,
+            "hop_count": len(hops),
+            "journey": [
+                {
+                    "user_id": h.user_id,
+                    "display_name": users.get(h.user_id).display_name
+                    if h.user_id and users.get(h.user_id)
+                    else "Someone",
+                    "username": users.get(h.user_id).username
+                    if h.user_id and users.get(h.user_id)
+                    else None,
+                    "message_id": h.message_id,
+                    "created_at": h.created_at.isoformat() if h.created_at else None,
+                }
+                for h in hops
+            ],
+        }
     )
 
 

@@ -531,7 +531,7 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' = 'ttt') => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' | 'mys' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
@@ -546,6 +546,10 @@ export function ChatView({
       await sendMessage(currentConversationId, `🎮TOD:new\n${name} started truth or dare — spin the wheel!`)
     } else if (kind === 'wc') {
       await sendMessage(currentConversationId, `🎮WC:new\n${name} started a word chain — drop the first word!`)
+    } else if (kind === 'mys') {
+      const packs = ['manor', 'train', 'ship']
+      const pack = packs[Math.floor(Math.random() * packs.length)]
+      await sendMessage(currentConversationId, `🎮MYS:new:${pack}\n${name} started a murder mystery — who did it? 🕯️`)
     } else {
       await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
     }
@@ -604,6 +608,21 @@ export function ChatView({
     const p = Math.max(0, Math.floor(Number(pos) || 0))
     if (action !== 'play' && action !== 'pause' && action !== 'seek') return
     await sendMessage(currentConversationId, `🎮WT:move:${challenge.id}:${action}:${p}`)
+  }
+
+  const handleMysClue = async (challenge: any, n: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮MYS:clue:${challenge.id}:${Math.max(0, Math.floor(Number(n) || 0))}`)
+  }
+
+  const handleMysAccuse = async (challenge: any, suspect: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮MYS:accuse:${challenge.id}:${Math.max(0, Math.floor(Number(suspect) || 0))}`)
+  }
+
+  const handleMysDone = async (challenge: any) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮MYS:done:${challenge.id}`)
   }
 
   const handleConvCustomFile = async (f: File | undefined) => {
@@ -1107,6 +1126,9 @@ export function ChatView({
                       onTodDone={handleTodDone}
                       onWordChain={handleWordChain}
                       onWTState={handleWTState}
+                      onMysClue={handleMysClue}
+                      onMysAccuse={handleMysAccuse}
+                      onMysDone={handleMysDone}
                       onEmojiGuess={handleEmojiGuess}
                       onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}

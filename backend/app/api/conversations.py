@@ -171,6 +171,7 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
             getattr(conv, "only_admins_can_send", False) or False
         ),
         "slow_mode_seconds": getattr(conv, "slow_mode_seconds", None) or None,
+        "pet": group_service.pet_state(conv) if conv.is_group else None,
     }
 
 
@@ -358,6 +359,7 @@ def list_conversations(
                 getattr(c, "only_admins_can_send", False) or False
             ),
             "slow_mode_seconds": getattr(c, "slow_mode_seconds", None) or None,
+            "pet": group_service.pet_state(c) if c.is_group else None,
         }
 
     # Hide 1-1 chats with blocked users (either direction) from the list.
@@ -622,6 +624,7 @@ def update_group(
         slow_mode_seconds=payload.slow_mode_seconds
         if payload.slow_mode_seconds is not None
         else M,
+        pet_name=payload.pet_name if payload.pet_name is not None else M,
     )
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group updated"

@@ -42,6 +42,11 @@ class Conversation(Base):
     # messages from the same non-admin member. NULL/0 = off. Nullable so the
     # online migration adds it safely.
     slow_mode_seconds = Column(Integer, nullable=True)
+    # Group Pet: shared creature that grows as the group chats. NULL name =
+    # auto ("Puddi"), NULL xp reads as 0. Nullable so the online migration
+    # adds it safely.
+    pet_name = Column(String(50), nullable=True)
+    pet_xp = Column(Integer, nullable=True)
 
     members = relationship(
         "ConversationMember",

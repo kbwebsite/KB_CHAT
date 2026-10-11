@@ -20,10 +20,11 @@ import { isGameCardMsg, isMediaMsg } from '../../utils/messageEffects'
 import { useAuthStore } from '../../store/auth'
 
 describe('action-scope helpers', () => {
-  it('detects all eight game cards, rejects the rest', () => {
+  it('detects all nine game cards, rejects the rest', () => {
     for (const p of ['TTT', 'RPS', 'C4', 'EMOJI', 'CHESS', 'TOD', 'WC', 'WT']) {
       expect(isGameCardMsg({ content: `🎮${p}:new\nhello`, is_deleted: false })).toBe(true)
     }
+    expect(isGameCardMsg({ content: '🎮MYS:new:manor\nhello', is_deleted: false })).toBe(true)
     expect(isGameCardMsg({ content: '🎮TTT:move:1:5', is_deleted: false })).toBe(false)
     expect(isGameCardMsg({ content: 'hello', is_deleted: false })).toBe(false)
     expect(isGameCardMsg({ content: '🎮TTT:new', is_deleted: true })).toBe(false)
@@ -194,6 +195,24 @@ describe('MessageBubble action scoping', () => {
     })
     expect(ownDelete).toHaveBeenCalledTimes(1)
     expect(ownSheet).not.toHaveBeenCalled()
+  })
+
+  it('mystery cards render suspects; own cards keep Delete', () => {
+    const onMobileMore = vi.fn()
+    renderBubble(
+      baseMsg({ id: 70, content: '🎮MYS:new:manor\nAmy started a murder mystery' }),
+      { onMobileMore },
+    )
+    expect(host.querySelector('button[title="More"]')).toBeNull()
+    expect(host.querySelector('button[title="Delete"]')).toBeNull()
+    expect(host.textContent).toContain('Midnight Manor')
+    expect(host.textContent).toContain('Butler Ames')
+
+    renderBubble(
+      baseMsg({ id: 71, content: '🎮MYS:new:manor\nMe started a murder mystery' }),
+      { isOwn: true, onMobileMore, onDelete: () => {} },
+    )
+    expect(host.querySelector('button[title="Delete"]')).not.toBeNull()
   })
 
   it('media messages get a slim menu without text-only actions', () => {

@@ -57,6 +57,11 @@ class Message(Base):
         DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     deleted_at = Column(DateTime(timezone=True), nullable=True)
+    # Message passport: a forward-once chain with a visible journey.
+    # is_passport marks chain members; passport_root_id points at the first
+    # message of the chain. Nullable for online-migration safety.
+    is_passport = Column(Boolean, default=False, nullable=True)
+    passport_root_id = Column(Integer, nullable=True, index=True)
 
     conversation = relationship("Conversation", back_populates="messages")
     sender = relationship("User", foreign_keys=[sender_id])
@@ -126,3 +131,29 @@ class Attachment(Base):
 
     message = relationship("Message", back_populates="attachments")
     uploader = relationship("User")
+
+
+class PassportHop(Base):
+    """One stamp in a message passport's journey.
+
+    Each row = one hand the passport passed through. A user may hold (and
+    forward) a given passport chain only once, enforced in the forward
+    endpoint via (root_message_id, user_id).
+    """
+
+    __tablename__ = "passport_hops"
+
+    id = Column(Integer, primary_key=True, index=True)
+    root_message_id = Column(Integer, nullable=False, index=True)
+    message_id = Column(
+        Integer,
+        ForeignKey("messages.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (Index("ix_passport_root_user", "root_message_id", "user_id"),)

@@ -49,6 +49,7 @@ export interface Conversation {
   muted_until?: string | null;
   only_admins_can_send?: boolean;
   slow_mode_seconds?: number | null;
+  pet?: { name: string; xp: number; stage: string; emoji: string; next_stage_xp: number | null } | null;
 }
 
 export interface Attachment {
@@ -82,6 +83,8 @@ export interface Message {
   nonce?: string | null;
   view_once?: boolean;
   viewed_once?: boolean;
+  is_passport?: boolean;
+  passport_root_id?: number | null;
   voice_duration?: number | null;
   voice_cloudinary_url?: string | null;
   reply_to_id?: number | null;

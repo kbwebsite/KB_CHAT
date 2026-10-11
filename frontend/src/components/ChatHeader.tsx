@@ -2,6 +2,7 @@ import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
 import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer, Archive, Dices, Reply, Languages } from 'lucide-react'
 import { useLockStore } from '../store/lock'
+import { useDisplayTitle } from '../utils/nicknames'
 import { useState } from 'react'
 import { useEscapeKey } from '../hooks/useDismiss'
 
@@ -67,7 +68,7 @@ export function ChatHeader({
     { key: 'archive', label: (conv as any)?.is_archived ? 'Unarchive chat' : 'Archive chat', icon: Archive },
     { key: 'lock', label: chatLocked ? 'Unlock chat' : 'Lock chat', icon: chatLocked ? Unlock : Lock },
   ] : []
-  const title = conv?.title || 'Unknown'
+  const title = useDisplayTitle(conv?.id, conv?.title)
   const members = conv?.members || []
   const isOnline = conv && !conv.is_group && members.some(m => m.user_id !== currentUserId && m.is_online)
   const subtitle = conv?.is_group

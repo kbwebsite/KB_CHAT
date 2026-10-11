@@ -55,6 +55,7 @@ def update_group(
         slow_mode_seconds=payload.get("slow_mode_seconds")
         if "slow_mode_seconds" in payload
         else M,
+        pet_name=payload.get("pet_name") if "pet_name" in payload else M,
     )
     return success_response(
         conversation_to_dict(db, conv, current_user.id), "Group updated"

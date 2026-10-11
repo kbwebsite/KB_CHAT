@@ -32,6 +32,34 @@ _MANAGER_ROLES = ("owner", "admin")
 # Telegram-style slow-mode presets. 0/None = off.
 SLOW_MODE_CHOICES = (0, 5, 10, 30, 60, 300, 900, 3600)
 
+# Group Pet stages: (min_xp, id, emoji). Thresholds are mirrored in
+# frontend/src/utils/pet.ts — keep both in sync.
+PET_STAGES = (
+    (0, "egg", "🥚"),
+    (10, "baby", "🐣"),
+    (30, "teen", "🐥"),
+    (70, "adult", "🦅"),
+    (150, "legend", "🐉"),
+)
+PET_XP_PER_MESSAGE = 1
+
+
+def pet_state(conv: Conversation) -> dict:
+    """Cheap column-only pet snapshot for conversation dicts."""
+    xp = getattr(conv, "pet_xp", None) or 0
+    stage_id, emoji = "egg", "🥚"
+    for min_xp, sid, emo in PET_STAGES:
+        if xp >= min_xp:
+            stage_id, emoji = sid, emo
+    next_xp = next((m for m, _, _ in PET_STAGES if m > xp), None)
+    return {
+        "name": getattr(conv, "pet_name", None) or "Puddi",
+        "xp": xp,
+        "stage": stage_id,
+        "emoji": emoji,
+        "next_stage_xp": next_xp,
+    }
+
 
 def _normalize_slow_mode(value) -> int | None:
     if value is None:
@@ -229,6 +257,7 @@ def update_group_details(
     avatar_url=MISSING,
     only_admins_can_send=MISSING,
     slow_mode_seconds=MISSING,
+    pet_name=MISSING,
 ) -> Conversation:
     conv = _get_group(db, conv_id)
     mem = _membership(db, conv_id, actor_id)
@@ -244,6 +273,12 @@ def update_group_details(
         conv.only_admins_can_send = bool(only_admins_can_send)
     if slow_mode_seconds is not MISSING:
         conv.slow_mode_seconds = _normalize_slow_mode(slow_mode_seconds)
+    if pet_name is not MISSING:
+        if pet_name is None:
+            conv.pet_name = None
+        else:
+            name = str(pet_name).strip()[:30]
+            conv.pet_name = name or None
     db.commit()
     db.refresh(conv)
     return conv

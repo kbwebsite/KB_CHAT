@@ -109,7 +109,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setShowMore(false)
   }
 
-  const sendChallenge = (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc') => {
+  const sendChallenge = (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' | 'mys') => {
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
       onSend(`🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`, undefined, 'text')
@@ -123,6 +123,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       onSend(`🎮TOD:new\n${name} started truth or dare — spin the wheel!`, undefined, 'text')
     } else if (kind === 'wc') {
       onSend(`🎮WC:new\n${name} started a word chain — drop the first word!`, undefined, 'text')
+    } else if (kind === 'mys') {
+      const packs = ['manor', 'train', 'ship']
+      const pack = packs[Math.floor(Math.random() * packs.length)]
+      onSend(`🎮MYS:new:${pack}\n${name} started a murder mystery — who did it? 🕯️`, undefined, 'text')
     } else {
       onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
     }
@@ -277,6 +281,12 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
                 className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
               >
                 <span className="w-5 text-center text-base">🔗</span> Word Chain
+              </button>
+              <button
+                onClick={() => sendChallenge('mys')}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">🎭</span> Murder Mystery
               </button>
               <button
                 onClick={() => setShowWatchInput(v => !v)}

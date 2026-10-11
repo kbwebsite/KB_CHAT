@@ -320,6 +320,8 @@ def _message_to_dict(msg: Message, receipts: dict = None, viewer_id: int = None)
         "is_edited": msg.is_edited,
         "is_pinned": msg.is_pinned,
         "pinned_at": msg.pinned_at.isoformat() if msg.pinned_at else None,
+        "is_passport": bool(getattr(msg, "is_passport", False) or False),
+        "passport_root_id": getattr(msg, "passport_root_id", None),
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
         "updated_at": msg.updated_at.isoformat() if msg.updated_at else None,
         "attachments": [
@@ -577,6 +579,11 @@ def create_message(
     is_encrypted = bool(payload.is_encrypted)
     nonce = payload.nonce
 
+    # Message passport v1: plain text only (no view-once/ciphertext chains).
+    want_passport = bool(getattr(payload, "passport", False) or False)
+    if want_passport and (view_once or is_encrypted or msg_type != "text"):
+        raise HTTPException(status_code=400, detail="Passports support plain text only")
+
     msg = Message(
         conversation_id=conv_id,
         sender_id=current_user.id,
@@ -590,6 +597,12 @@ def create_message(
     )
     db.add(msg)
     db.flush()
+    if want_passport:
+        from app.models.message import PassportHop as _Hop
+
+        msg.is_passport = True
+        msg.passport_root_id = msg.id
+        db.add(_Hop(root_message_id=msg.id, message_id=msg.id, user_id=current_user.id))
 
     # attach attachments if any (collect them for the echo below)
     linked_atts = []
@@ -626,6 +639,12 @@ def create_message(
     conv = db.query(Conversation).filter_by(id=conv_id).first()
     if conv:
         conv.updated_at = datetime.now(timezone.utc)
+        # Group Pet grows as the group chats (+1 XP per message).
+        if conv.is_group:
+            try:
+                conv.pet_xp = (conv.pet_xp or 0) + 1
+            except Exception:
+                pass
 
     db.commit()
     # Columns only (id, server timestamps) — no joined reload. The echo is
@@ -670,6 +689,8 @@ def create_message(
         "is_edited": False,
         "is_pinned": False,
         "pinned_at": None,
+        "is_passport": want_passport,
+        "passport_root_id": msg.id if want_passport else None,
         "created_at": msg.created_at.isoformat() if msg.created_at else None,
         "updated_at": msg.updated_at.isoformat() if msg.updated_at else None,
         "attachments": [

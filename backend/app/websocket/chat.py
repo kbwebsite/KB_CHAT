@@ -129,7 +129,12 @@ async def _handle_ws(websocket: WebSocket, token: str | None):
                 await _handle_read_receipt(user.id, payload)
             elif mtype in ("call.offer", "call.answer", "call.ice_candidate"):
                 await _handle_call_signaling(user.id, mtype, payload)
-            elif mtype in ("group_call.join", "group_call.leave", "group_call.mute"):
+            elif mtype in (
+                "group_call.join",
+                "group_call.leave",
+                "group_call.mute",
+                "group_call.caption",
+            ):
                 await _handle_group_call(user.id, mtype, payload)
             else:
                 await websocket.send_text(

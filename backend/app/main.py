@@ -127,7 +127,7 @@ from app.models.user import User
 from app.models.conversation import Conversation, ConversationMember
 from app.models.broadcast import BroadcastList
 from app.models.community import Community, CommunityGroup
-from app.models.message import Message, MessageReaction, Attachment
+from app.models.message import Message, MessageReaction, Attachment, PassportHop  # noqa: F401 (register tables)
 from app.models.settings import UserSettings
 from app.models.saved import SavedMessage
 from app.models.call import CallHistory

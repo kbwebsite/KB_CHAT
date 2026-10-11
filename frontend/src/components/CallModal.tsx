@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { PhoneOff, Mic, MicOff, Video, VideoOff, Phone, ScreenShare, ScreenShareOff } from 'lucide-react'
+import { PhoneOff, Mic, MicOff, Video, VideoOff, Phone, ScreenShare, ScreenShareOff, Captions } from 'lucide-react'
 import wsService from '../services/websocket'
 import { callsApi, msgApi, uploadApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
+import { captionsSupported, createCaptionRecognizer, fitCaption, shouldSendCaption } from '../utils/captions'
 
 type CallType = 'voice' | 'video'
 
@@ -46,6 +47,12 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
   const [recording, setRecording]=useState(false)
   const [recElapsed, setRecElapsed]=useState(0)
   const [recBusy, setRecBusy]=useState(false)
+  const [ccOn, setCcOn]=useState(false)
+  const [caption, setCaption]=useState<string|null>(null)
+  const ccRef=useRef(false)
+  const recCtlRef=useRef<{start:()=>boolean;stop:()=>void}|null>(null)
+  const lastCapSentRef=useRef(0)
+  const capExpireRef=useRef<ReturnType<typeof setTimeout>|null>(null)
   const meName = useAuthStore(s=>s.user?.display_name || s.user?.username || 'Someone')
   const mountedRef=useRef(true)
   const recCtxRef=useRef<AudioContext|null>(null)
@@ -365,6 +372,16 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
     wsService.on('call.ice_candidate', onIce)
     wsService.on('call.accepted', onAccepted)
 
+    const onCaption = (p:any)=>{
+      if (p?.from_user_id == null || p.from_user_id !== peerId) return
+      const t = fitCaption(p?.text || '')
+      if (!t) return
+      setCaption(t)
+      if (capExpireRef.current) clearTimeout(capExpireRef.current)
+      capExpireRef.current = setTimeout(()=> setCaption(null), 8000)
+    }
+    wsService.on('group_call.caption', onCaption)
+
     return ()=>{
       cancelled=true
       setupDoneRef.current = false
@@ -373,6 +390,7 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       wsService.off('call.answer', onAnswer)
       wsService.off('call.ice_candidate', onIce)
       wsService.off('call.accepted', onAccepted)
+      wsService.off('group_call.caption', onCaption)
       try { screenStreamRef.current?.getTracks().forEach(t=>t.stop()) } catch {}
       screenStreamRef.current=null
       cameraTrackRef.current=null
@@ -388,6 +406,12 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
       } catch {}
       if (recTimerRef.current) { clearInterval(recTimerRef.current); recTimerRef.current = null }
       setRecording(false)
+      try { recCtlRef.current?.stop() } catch {}
+      recCtlRef.current = null
+      ccRef.current = false
+      if (capExpireRef.current) { clearTimeout(capExpireRef.current); capExpireRef.current = null }
+      setCcOn(false)
+      setCaption(null)
       pcRef.current?.close()
       pcRef.current=null
       streamRef.current?.getTracks().forEach(t=>t.stop())
@@ -635,6 +659,37 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
     }
   }
 
+  const toggleCC = () => {
+    if (ccRef.current) {
+      ccRef.current = false
+      try { recCtlRef.current?.stop() } catch {}
+      recCtlRef.current = null
+      setCcOn(false)
+      setCaption(null)
+      return
+    }
+    if (!connected) { setNotice('Connect first, then enable captions.'); return }
+    if (!captionsSupported()) { setNotice('Live captions are not supported in this browser.'); return }
+    const ctl = createCaptionRecognizer((text, isFinal) => {
+      const now = Date.now()
+      if (!shouldSendCaption(lastCapSentRef.current, now, isFinal)) return
+      lastCapSentRef.current = now
+      if (conversationId != null) {
+        try {
+          wsService.send({ type: 'group_call.caption', payload: { conversation_id: conversationId, text: fitCaption(text) } })
+        } catch {}
+      }
+    })
+    if (!ctl.start()) {
+      setNotice('Could not start speech recognition.')
+      return
+    }
+    recCtlRef.current = ctl
+    ccRef.current = true
+    setCcOn(true)
+    setNotice('Live captions on — both sides see subtitles.')
+  }
+
   if (!open) return null
   const format = (s:number)=> `${String(Math.floor(s/60)).padStart(2,'0')}:${String(s%60).padStart(2,'0')}`
 
@@ -680,6 +735,11 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
             REC {format(recElapsed)}
           </p>
         )}
+        {ccOn && caption && (
+          <p className="text-sm bg-black/60 border border-white/15 px-4 py-2 rounded-2xl max-w-sm text-center" aria-live="polite">
+            <span className="font-semibold">{peerName}: </span>{caption}
+          </p>
+        )}
       </div>
 
       <div className="relative z-10 mt-10 flex items-center gap-4">
@@ -702,6 +762,16 @@ export function CallModal({ open, type, peerName, peerAvatar, isIncoming, callId
             className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors disabled:opacity-50 ${recording ? 'bg-red-500 text-white' : 'call-btn-mic'}`}
           >
             <span className={`w-5 h-5 rounded-full border-2 ${recording ? 'bg-white border-white animate-pulse' : 'border-current'}`} />
+          </button>
+        )}
+        {connected && !permissionError && conversationId != null && (
+          <button
+            onClick={toggleCC}
+            title={ccOn ? 'Turn off live captions' : 'Live captions (subtitles from speech)'}
+            aria-label={ccOn ? 'Turn off live captions' : 'Turn on live captions'}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${ccOn ? 'bg-emerald-500 text-white' : 'call-btn-mic'}`}
+          >
+            <Captions className="w-6 h-6" />
           </button>
         )}
         {hasAccepted ? (

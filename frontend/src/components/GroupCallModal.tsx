@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { PhoneOff, Mic, MicOff, Video, VideoOff } from 'lucide-react'
+import { PhoneOff, Mic, MicOff, Video, VideoOff, Captions } from 'lucide-react'
 import wsService from '../services/websocket'
 import { callsApi, groupCallsApi } from '../services/api'
+import { captionsSupported, createCaptionRecognizer, fitCaption, shouldSendCaption } from '../utils/captions'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
 import { useGroupCallStore } from '../store/groupCall'
@@ -45,6 +46,11 @@ export function GroupCallModal() {
   const [remotes, setRemotes] = useState<Record<number, MediaStream>>({})
   const [localStream, setLocalStream] = useState<MediaStream | null>(null)
   const [mutedMap, setMutedMap] = useState<Record<number, boolean>>({})
+  const [ccOn, setCcOn] = useState(false)
+  const [caps, setCaps] = useState<Record<number, { text: string; at: number }>>({})
+  const ccRef = useRef(false)
+  const capCtlRef = useRef<{start:()=>boolean;stop:()=>void}|null>(null)
+  const lastCapSentRef = useRef(0)
   const [, setTick] = useState(0)
 
   const session = joined?.session ?? null
@@ -71,6 +77,11 @@ export function GroupCallModal() {
   const avatarOf = (uid: number) => members.find((m: any) => m.user_id === uid)?.avatar_url || null
 
   const closeAll = () => {
+    try { capCtlRef.current?.stop() } catch {}
+    capCtlRef.current = null
+    ccRef.current = false
+    setCcOn(false)
+    setCaps({})
     pcsRef.current.forEach(({ pc }) => {
       try {
         pc.close()
@@ -95,6 +106,46 @@ export function GroupCallModal() {
     }
     closeAll()
     leaveStore()
+  }
+
+  const toggleCC = () => {
+    if (ccRef.current) {
+      ccRef.current = false
+      try { capCtlRef.current?.stop() } catch {}
+      capCtlRef.current = null
+      setCcOn(false)
+      setCaps({})
+      return
+    }
+    if (!streamRef.current) {
+      setNotice('Join the audio first, then enable captions.')
+      return
+    }
+    if (!captionsSupported()) {
+      setNotice('Live captions are not supported in this browser.')
+      return
+    }
+    const ctl = createCaptionRecognizer((text, isFinal) => {
+      const now = Date.now()
+      if (!shouldSendCaption(lastCapSentRef.current, now, isFinal)) return
+      lastCapSentRef.current = now
+      if (convId != null && sessionId != null) {
+        try {
+          wsService.send({
+            type: 'group_call.caption',
+            payload: { conversation_id: convId, session_id: sessionId, text: fitCaption(text) },
+          })
+        } catch {}
+      }
+    })
+    if (!ctl.start()) {
+      setNotice('Could not start speech recognition.')
+      return
+    }
+    capCtlRef.current = ctl
+    ccRef.current = true
+    setCcOn(true)
+    setNotice('Live captions on — everyone hears the words too.')
   }
 
   const sendOffer = async (peerId: number) => {
@@ -326,6 +377,15 @@ export function GroupCallModal() {
       setMutedMap((m) => ({ ...m, [from]: !!p.muted }))
     }
 
+    const onCaption = (p: any) => {
+      if (!sameRoom(p)) return
+      const from = p.from_user_id
+      if (from == null || from === myIdRef.current) return
+      const t = fitCaption(p?.text || '')
+      if (!t) return
+      setCaps((c) => ({ ...c, [from]: { text: t, at: Date.now() } }))
+    }
+
     const onEnd = (p: any) => {
       if (p?.id !== session.id) return
       doLeave(false)
@@ -338,6 +398,7 @@ export function GroupCallModal() {
     const off5 = wsService.on('group_call.leave', onLeave)
     const off6 = wsService.on('group_call.mute', onMute)
     const off7 = wsService.on('group_call.end', onEnd)
+    const off8 = wsService.on('group_call.caption', onCaption)
     const clock = setInterval(() => setElapsed((e) => e + 1), 1000)
 
     return () => {
@@ -350,6 +411,7 @@ export function GroupCallModal() {
       off5()
       off6()
       off7()
+      off8()
       // StrictMode-safe: only tear down media when actually leaving.
       if (leftRef.current) return
     }
@@ -377,6 +439,9 @@ export function GroupCallModal() {
   const fmt = (s: number) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
   const peerIds = Object.keys(remotes).map(Number)
   const total = peerIds.length + 1
+  const liveCaps = Object.entries(caps)
+    .filter(([, c]) => Date.now() - c.at < 8000)
+    .slice(-3)
   const showVideo = (uid: number | 'me') => {
     if (!isVideo) return false
     if (uid === 'me') {
@@ -440,6 +505,17 @@ export function GroupCallModal() {
           {peerIds.map((id) => tile(id))}
         </div>
 
+        {ccOn && liveCaps.length > 0 && (
+          <div className="mt-3 mx-auto max-w-xl w-full space-y-1" aria-live="polite">
+            {liveCaps.map(([uid, c]) => (
+              <p key={uid} className="text-[13px] bg-black/60 border border-white/15 px-3 py-1.5 rounded-xl text-center">
+                <span className="font-semibold">{nameOf(Number(uid))}: </span>
+                {c.text}
+              </p>
+            ))}
+          </div>
+        )}
+
         <div className="mt-4 pb-[max(16px,env(safe-area-inset-bottom))] flex items-center justify-center gap-4">
           <button
             onClick={() => setMicOn((v) => !v)}
@@ -457,6 +533,14 @@ export function GroupCallModal() {
               {camOn ? <Video className="w-6 h-6" /> : <VideoOff className="w-6 h-6" />}
             </button>
           )}
+          <button
+            onClick={toggleCC}
+            title={ccOn ? 'Turn off live captions' : 'Live captions (subtitles from speech)'}
+            aria-label={ccOn ? 'Turn off live captions' : 'Turn on live captions'}
+            className={`w-14 h-14 rounded-full flex items-center justify-center transition-colors ${ccOn ? 'bg-emerald-500 text-white' : 'bg-white/10'}`}
+          >
+            <Captions className="w-6 h-6" />
+          </button>
           <button
             onClick={async () => {
               try {

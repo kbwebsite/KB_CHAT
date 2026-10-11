@@ -6,6 +6,7 @@ import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Sh
 import { shareText } from '../utils/share'
 import { UserSearch } from './UserSearch'
 import { AiArtDialog } from './AiArtDialog'
+import { useNicknameStore } from '../utils/nicknames'
 
 export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:Conversation, onClose:()=>void, onUpdated:()=>void }) {
   const { user } = useAuthStore()
@@ -48,9 +49,21 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   ]
   const [slowMode, setSlowMode]=useState<number|null>((conversation as any).slow_mode_seconds ?? null)
   const [slowBusy, setSlowBusy]=useState(false)
+  const [petName, setPetName]=useState<string>((conversation as any).pet?.name ?? 'Puddi')
+  const [petBusy, setPetBusy]=useState(false)
+  const pet = (conversation as any).pet ?? null
   const photoRef = useRef<HTMLInputElement>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [showArt, setShowArt] = useState(false)
+  const [nick, setNick] = useState(() => useNicknameStore.getState().get(conversation.id) || '')
+  useEffect(() => {
+    setNick(useNicknameStore.getState().get(conversation.id) || '')
+  }, [conversation.id])
+
+  const saveNick = () => {
+    useNicknameStore.getState().set(conversation.id, nick)
+    setMsg(nick.trim() ? `Nickname saved — only you see “${nick.trim()}”` : 'Nickname cleared')
+  }
 
   const handleArtPick = async (url: string) => {
     if (!canManage) return
@@ -173,6 +186,19 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
     finally { setSlowBusy(false) }
   }
 
+  const handlePetRename=async ()=>{
+    if (!canManage) return setMsg('Only admins can name the pet')
+    const name = petName.trim().slice(0, 30)
+    if (!name) return setMsg('Give the pet a name first')
+    setPetBusy(true)
+    try {
+      const res = await convApi.updateGroup(conversation.id, { pet_name: name })
+      if (res.success) { setPetName(name); setMsg(`${name} it is!`); onUpdated() }
+      else setMsg(res.message || 'Failed')
+    } catch (e:any) { setMsg(e.response?.data?.detail || e.response?.data?.message || 'Failed') }
+    finally { setPetBusy(false) }
+  }
+
   const handleTransfer=async (uid:number, name:string)=>{
     if (!isOwner) return setMsg('Only the owner can transfer ownership')
     if (!confirm(`Transfer ownership to ${name}? You become admin.`)) return
@@ -289,6 +315,21 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
             <button onClick={handleLeave} className="px-3 py-1.5 rounded-full bg-destructive text-destructive-foreground text-xs flex items-center gap-1"><LogOut className="w-3 h-3"/>Leave</button>
           </div>
         </div>
+        <div className="rounded-xl border p-3 space-y-2">
+          <h3 className="text-sm font-semibold">Nickname <span className="text-[11px] font-normal text-muted-foreground">(only you see this)</span></h3>
+          <div className="flex gap-2">
+            <input
+              value={nick}
+              onChange={e=>setNick(e.target.value)}
+              placeholder={conversation.title || 'Chat'}
+              maxLength={60}
+              onKeyDown={e => { if (e.key === 'Enter') saveNick() }}
+              className="flex-1 min-w-0 px-3 py-2 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm"
+            />
+            <button onClick={saveNick} className="px-4 py-2 rounded-xl bg-primary text-primary-foreground text-sm font-medium shrink-0">Save</button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Empty + Save clears it.</p>
+        </div>
         {conversation.is_group && (
           <div className="space-y-3">
             <div>
@@ -347,6 +388,29 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
               ))}
             </div>
             {!canManage && <p className="text-[11px] text-muted-foreground">Only admins can change this.</p>}
+          </div>
+        )}
+        {conversation.is_group && (
+          <div className="rounded-xl border p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">🐣 Group Pet</h3>
+            <div className="flex items-center gap-3">
+              <span className="text-4xl">{pet?.emoji || '🥚'}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold truncate">{pet?.name || 'Puddi'} <span className="text-[11px] font-normal text-muted-foreground">· {pet?.stage || 'egg'}</span></p>
+                <div className="h-1.5 rounded-full bg-muted mt-1.5 overflow-hidden">
+                  <div className="h-full bg-primary rounded-full transition-all" style={{ width: pet?.next_stage_xp ? `${Math.min(100, Math.round(((pet?.xp || 0) / pet.next_stage_xp) * 100))}%` : '100%' }} />
+                </div>
+                <p className="text-[11px] text-muted-foreground mt-1">{pet?.xp || 0} XP{pet?.next_stage_xp ? ` · ${pet.next_stage_xp - (pet?.xp || 0)} to evolve` : ' · maxed out!'}</p>
+              </div>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Every message feeds it +1 XP. Chat daily to evolve it — silence makes it sleepy.</p>
+            {canManage && (
+              <div className="flex gap-2">
+                <input value={petName} onChange={e=>setPetName(e.target.value)} maxLength={30} placeholder="Pet name"
+                  className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm" />
+                <button onClick={handlePetRename} disabled={petBusy} className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50">Name</button>
+              </div>
+            )}
           </div>
         )}
 

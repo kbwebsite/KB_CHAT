@@ -118,7 +118,7 @@ export function prettyPreview(text: any): any {
   }
   if (/\[live:\d+\]/.test(clean)) return '📍 Live location'
   if (/^Video \d+:\d\d$/.test(clean)) return '🎥 Video message'
-  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:') || clean.startsWith('🎮TOD:spin:') || clean.startsWith('🎮TOD:done:') || clean.startsWith('🎮WC:word:') || clean.startsWith('🎮WT:move:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:') || clean.startsWith('🎮TOD:spin:') || clean.startsWith('🎮TOD:done:') || clean.startsWith('🎮WC:word:') || clean.startsWith('🎮WT:move:') || clean.startsWith('🎮MYS:clue:') || clean.startsWith('🎮MYS:accuse:') || clean.startsWith('🎮MYS:done:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'
   if (clean.startsWith('🎮C4:new')) return '🔴 Connect Four'
@@ -127,6 +127,7 @@ export function prettyPreview(text: any): any {
   if (clean.startsWith('🎮TOD:new')) return '🎡 Truth or dare'
   if (clean.startsWith('🎮WC:new')) return '🔗 Word chain'
   if (clean.startsWith('🎮WT:new')) return '📺 Watch together'
+  if (clean.startsWith('🎮MYS:new')) return '🎭 Murder mystery'
   return stripFormatting(clean)
 }
 
@@ -178,7 +179,9 @@ export function isGameMoveMsg(text: unknown): boolean {
     isChessMove(text) ||
     isTodMove(text) ||
     isWcMove(text) ||
-    (typeof text === 'string' && text.startsWith('🎮WT:move:'))
+    (typeof text === 'string' && text.startsWith('🎮WT:move:')) ||
+    (typeof text === 'string' &&
+      (text.startsWith('🎮MYS:clue:') || text.startsWith('🎮MYS:accuse:') || text.startsWith('🎮MYS:done:')))
   )
 }
 
@@ -191,6 +194,7 @@ const GAME_CARD_PREFIXES = [
   '🎮TOD:new',
   '🎮WC:new',
   '🎮WT:new',
+  '🎮MYS:new',
 ]
 
 /** True for a rendered game card (challenge message). Action menus stay

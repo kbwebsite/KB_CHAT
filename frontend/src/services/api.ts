@@ -564,6 +564,10 @@ export const backupApi = {
   restore: (backup: any) => api.post('/api/backup/restore', backup).then(r=>r.data),
 }
 
+export const passportApi = {
+  journey: (mid:number) => api.get(`/api/messages/${mid}/passport`).then(r=>r.data),
+}
+
 export const pushApi = {
   register: (data: { token: string; platform?: string; device_id?: string }) =>
     api.post('/api/push/tokens', data).then(r=>r.data),

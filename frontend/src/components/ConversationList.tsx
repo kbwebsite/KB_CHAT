@@ -8,6 +8,7 @@ import { convApi, extendedApi } from '../services/api'
 import { useLongPress } from '../hooks/useDismiss'
 import { useLockStore } from '../store/lock'
 import { LockScreen } from './LockScreen'
+import { useDisplayTitle } from '../utils/nicknames'
 
 const avatarGradients = [
   'linear-gradient(135deg, #6366f1, #8b5cf6)',
@@ -26,7 +27,7 @@ function ConversationItemInner({ conv, active, onClick, isTyping, currentUserId,
   conv: Conversation, active: boolean, onClick: () => void, isTyping?: boolean, currentUserId?: number, onPin?: (id: number) => void, onMute?: (id: number) => void, onArchive?: (id: number) => void
 }) {
   const isGroup = conv.is_group
-  const title = conv.title || 'Unknown'
+  const title = useDisplayTitle(conv.id, conv.title)
   const avatar = conv.avatar_url
   const last = conv.last_message
   const hasUnread = conv.unread_count > 0
