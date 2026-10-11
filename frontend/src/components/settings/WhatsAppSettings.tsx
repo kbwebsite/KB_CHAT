@@ -51,6 +51,7 @@ import {
 import PrivacyCenter from '../PrivacyCenter'
 import { PwaInstallSection } from '../PwaInstallSection'
 import { SecurityAlerts } from './SecurityAlerts'
+import { PasskeySettings } from './PasskeySettings'
 import {
   AppearanceSettings,
   NotificationSettings,
@@ -655,7 +656,10 @@ export function WhatsAppSettings({
           <div>
             <SectionLabel>Login and security</SectionLabel>
             <div className="mt-1 divide-y divide-[var(--k-border)]/40">
-              <InfoRow title="Passkeys" sub="Not available yet — your password + app PIN protect this account." />
+              <InfoRow title="Passkeys" sub="Sign in with fingerprint, face or device PIN." />
+              <div className="py-1">
+                <PasskeySettings />
+              </div>
               <div className="py-1">
                 <div className="flex justify-between text-xs gap-2 py-1">
                   <span className="text-muted-foreground shrink-0">Password</span>

@@ -20,6 +20,7 @@
     "@capacitor/core": "^8.5.1",
     "@capacitor/push-notifications": "^8.1.2",
     "@rive-app/react-canvas": "^4.35.0",
+    "@simplewebauthn/browser": "^14.0.0",
     "@splinetool/react-spline": "^4.1.0",
     "axios": "^1.6.7",
     "bootstrap": "^5.3.8",

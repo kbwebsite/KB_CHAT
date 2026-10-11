@@ -4,6 +4,7 @@ import { convApi, msgApi } from '../services/api'
 import { useAuthStore } from './auth'
 import { useSettingsStore } from './settings'
 import { isGameMoveMsg } from '../utils/messageEffects'
+import { shouldAutoReply, markAutoReplied, getAutoReply } from '../utils/autoReply'
 import wsService from '../services/websocket'
 
 // Wave 4B provisional bound: client keeps at most this many messages per
@@ -612,6 +613,23 @@ export function initChatWS() {
     // payload is Message
     const msg = payload as Message
     useChatStore.getState().addMessage(msg)
+    try {
+      const me = useAuthStore.getState().user?.id
+      // Away auto-reply (per-chat, local-only): first incoming message per
+      // hour gets the configured reply via the normal send path. Skips own
+      // messages and game markers; the hourly cap is the ping-pong guard.
+      if (
+        me != null && msg.sender_id !== me && msg.id > 0 &&
+        !msg.is_deleted && !isGameMoveMsg((msg as any).content) &&
+        shouldAutoReply(msg.conversation_id)
+      ) {
+        const cfg = getAutoReply(msg.conversation_id)
+        markAutoReplied(msg.conversation_id)
+        useChatStore.getState()
+          .sendMessage(msg.conversation_id, cfg.text)
+          .catch(() => {})
+      }
+    } catch {}
     // Device-arrival ack: message reached us -> sender upgrades to double tick.
     // Fire-and-forget; the server also backfills on history fetch.
     try {

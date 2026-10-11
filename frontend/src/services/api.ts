@@ -320,6 +320,7 @@ export const moderationApi = {
   users: (search='') => api.get('/api/moderation/users', { params: { search } }).then(r=>r.data),
   deactivate: (id:number) => api.post(`/api/moderation/users/${id}/deactivate`).then(r=>r.data),
   reactivate: (id:number) => api.post(`/api/moderation/users/${id}/reactivate`).then(r=>r.data),
+  stats: () => api.get('/api/moderation/stats').then(r=>r.data),
 }
 
 export const callsApi = {
@@ -450,6 +451,15 @@ export const privacyApi = {
 export const securityApi = {
   alerts: () => api.get('/api/security/alerts').then(r=>r.data),
   markSeen: () => api.post('/api/security/alerts/seen').then(r=>r.data),
+}
+
+export const passkeyApi = {
+  list: () => api.get('/api/passkeys').then(r=>r.data),
+  registerOptions: () => api.post('/api/passkeys/register/options', {}).then(r=>r.data),
+  registerVerify: (data:{challenge_id:string, credential:any, label?:string}) => api.post('/api/passkeys/register/verify', data).then(r=>r.data),
+  remove: (id:number) => api.delete(`/api/passkeys/${id}`).then(r=>r.data),
+  loginOptions: (identifier?:string) => api.post('/api/passkeys/login/options', identifier ? {identifier} : {}).then(r=>r.data),
+  loginVerify: (data:{identifier?:string, challenge_id:string, credential:any}) => api.post('/api/passkeys/login/verify', data).then(r=>r.data),
 }
 
 export const memoriesApi = {

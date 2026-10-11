@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef } from 'react'
-import { pollApi, aiApi } from '../services/api'
+import { pollApi, aiApi, uploadApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { BarChart3, Plus, X, Check, Sparkles } from 'lucide-react'
+import { BarChart3, Plus, X, Check, Sparkles, Dices, Image as ImageIcon, Loader2 } from 'lucide-react'
+import { randomDilemma, dilemmaToPoll } from '../utils/wouldYouRather'
 
 interface PollOption {
   id: number
@@ -21,6 +22,21 @@ interface Poll {
   options: PollOption[]
   creator_id: number | null
   creator_name: string
+}
+
+const IMAGE_URL_RE = /(https?:\/\/[^\s)]+)/gi
+const IMAGE_EXT_RE = /\.(jpg|jpeg|png|gif|webp|bmp|avif)(\?|#|$)/i
+
+/** Split an option into an optional photo URL + caption text.
+ * Photo polls are frontend-only: the backend stores plain option text, and
+ * any image URL inside it renders as a photo (same convention as channel
+ * posts). No schema change needed. */
+export function splitOptionMedia(text: unknown): { img: string | null; text: string } {
+  if (typeof text !== 'string' || !text) return { img: null, text: '' }
+  const m = text.match(IMAGE_URL_RE) || []
+  const img = m.find((u) => /\/image\/upload\//i.test(u) || IMAGE_EXT_RE.test(u)) || null
+  const rest = img ? text.split(img).join(' ').replace(/\s+/g, ' ').trim() : text.trim()
+  return { img, text: rest }
 }
 
 /** True when this vote hit the quiz answer (no quiz = always celebrate). */
@@ -77,6 +93,10 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
   const [suggestError, setSuggestError] = useState<string | null>(null)
   // Ref guard: two taps in one render batch must not double-fire.
   const suggestingRef = useRef(false)
+  const [uploadingIdx, setUploadingIdx] = useState<number | null>(null)
+  const [photoError, setPhotoError] = useState<string | null>(null)
+  const photoRef = useRef<HTMLInputElement | null>(null)
+  const photoTarget = useRef(0)
 
   useEffect(() => { loadPolls() }, [conversationId])
 
@@ -135,6 +155,46 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
     }
   }
 
+  const handleSurprise = () => {
+    const draft = dilemmaToPoll(randomDilemma())
+    setQuestion(draft.question)
+    setOptions(draft.options)
+    setCorrectPos(0)
+    setSuggestError(null)
+  }
+
+  const pickPhoto = (i: number) => {
+    photoTarget.current = i
+    photoRef.current?.click()
+  }
+
+  const handlePhoto = async (f: File | undefined) => {
+    if (!f || uploadingIdx != null) return
+    const i = photoTarget.current
+    if (!f.type.startsWith('image/')) {
+      setPhotoError('Only image files work as option photos.')
+      return
+    }
+    setUploadingIdx(i)
+    setPhotoError(null)
+    try {
+      const r: any = await uploadApi.upload(f)
+      let url = r?.data?.cloudinary_url || r?.data?.url || r?.cloudinary_url || r?.url
+      if (url && url.startsWith('/')) url = `${window.location.origin}${url}`
+      if (!url) throw new Error('no url')
+      setOptions((prev) => {
+        const n = [...prev]
+        n[i] = `${(n[i] || '').trim()} ${url}`.trim().slice(0, 500)
+        return n
+      })
+    } catch {
+      setPhotoError('Photo upload failed — try again.')
+    } finally {
+      setUploadingIdx(null)
+      if (photoRef.current) photoRef.current.value = ''
+    }
+  }
+
   const handleVote = async (pollId: number, optionIds: number[]) => {
     const res = await pollApi.vote(pollId, optionIds)
     if (res.success) {
@@ -180,12 +240,34 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
               </button>
               {suggestError && <p className="text-xs text-destructive flex-1" role="alert">{suggestError}</p>}
             </div>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={handleSurprise}
+                aria-label="Surprise me with a Would You Rather poll"
+                className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-muted text-xs font-semibold hover:bg-accent transition min-h-[44px]"
+              >
+                <Dices className="w-3.5 h-3.5" aria-hidden="true" />
+                Surprise me
+              </button>
+              <p className="text-[11px] text-muted-foreground flex-1">Random dilemma — edit anything, then Create.</p>
+            </div>
             {options.map((opt, i) => (
               <div key={i} className="flex gap-2">
-                <input value={opt} onChange={e => { const n = [...options]; n[i] = e.target.value; setOptions(n) }} placeholder={`Option ${i + 1}`} className="flex-1 px-3 py-2 rounded-lg bg-muted text-sm outline-none" />
-                {options.length > 2 && <button onClick={() => setOptions(options.filter((_, j) => j !== i))} className="text-muted-foreground hover:text-destructive"><X className="w-4 h-4" /></button>}
+                <input value={opt} onChange={e => { const n = [...options]; n[i] = e.target.value; setOptions(n) }} placeholder={`Option ${i + 1}`} className="flex-1 px-3 py-2 rounded-lg bg-muted text-sm outline-none min-w-0" />
+                <button
+                  onClick={() => pickPhoto(i)}
+                  disabled={uploadingIdx != null}
+                  aria-label={`Add photo to option ${i + 1}`}
+                  title="Add a photo to this option"
+                  className="px-2.5 rounded-lg bg-muted text-muted-foreground hover:text-primary hover:bg-accent transition disabled:opacity-40 shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
+                >
+                  {uploadingIdx === i ? <Loader2 className="w-4 h-4 animate-spin" /> : <ImageIcon className="w-4 h-4" />}
+                </button>
+                {options.length > 2 && <button onClick={() => setOptions(options.filter((_, j) => j !== i))} aria-label={`Remove option ${i + 1}`} className="text-muted-foreground hover:text-destructive px-1 min-h-[44px]"><X className="w-4 h-4" /></button>}
               </div>
             ))}
+            <input ref={photoRef} type="file" accept="image/*" className="hidden" onChange={(e) => handlePhoto(e.target.files?.[0])} />
+            {photoError && <p className="text-xs text-destructive" role="alert">{photoError}</p>}
             {options.length < 10 && <button onClick={() => setOptions([...options, ''])} className="text-xs text-primary hover:underline">+ Add option</button>}
             <div className="flex items-center gap-2">
               <label className="flex items-center gap-2 text-xs cursor-pointer">
@@ -207,9 +289,10 @@ export function PollPanel({ conversationId, onClose }: { conversationId: number,
                   onChange={e => setCorrectPos(Number(e.target.value))}
                   className="mt-1 w-full px-3 py-2 rounded-lg bg-muted text-sm outline-none"
                 >
-                  {options.map((t, i) => (
-                    <option key={i} value={i}>{t.trim() || `Option ${i + 1}`}</option>
-                  ))}
+                  {options.map((t, i) => {
+                    const m = splitOptionMedia(t)
+                    return <option key={i} value={i}>{(m.text || (m.img ? `Photo ${i + 1}` : `Option ${i + 1}`))}</option>
+                  })}
                 </select>
               </label>
             )}
@@ -275,6 +358,8 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
           const pct = poll.total_votes > 0 ? Math.round((opt.vote_count / poll.total_votes) * 100) : 0
           const isSelected = selected.includes(opt.id)
           const isMyVote = myVotes.includes(opt.id)
+          const media = splitOptionMedia(opt.text)
+          const label = media.text || 'Photo'
           return (
             <button key={opt.id} onClick={() => toggleOption(opt.id)} className={`w-full relative rounded-lg p-2.5 text-left text-sm border transition ${isSelected && !hasVoted ? 'border-primary bg-primary/5' : isMyVote ? 'border-primary bg-primary/10' : 'border-muted hover:border-primary/50'}`}>
               {(hasVoted || isClosed) && (
@@ -282,15 +367,18 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
                   <div className={`h-full transition-[width] duration-700 ease-out ${isMyVote ? 'bg-primary/15' : 'bg-muted/50'}`} style={{ width: `${pct}%` }} />
                 </div>
               )}
-              <span className="relative flex items-center justify-between">
-                <span className="flex items-center gap-2">
-                  {(hasVoted || isClosed) && isMyVote && <Check className="w-3 h-3 text-primary" />}
-                  {opt.text}
+              <span className="relative flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2 min-w-0">
+                  {(hasVoted || isClosed) && isMyVote && <Check className="w-3 h-3 text-primary shrink-0" />}
+                  {media.img && (
+                    <img src={media.img} alt="" loading="lazy" className="w-12 h-12 rounded-lg object-cover shrink-0 border border-border/60" />
+                  )}
+                  <span className="truncate">{label}</span>
                   {revealed && poll.correct_option_id === opt.id && (
-                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-semibold">✓ Correct</span>
+                    <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-500 font-semibold shrink-0">✓ Correct</span>
                   )}
                 </span>
-                {(hasVoted || isClosed) && <span className="text-xs text-muted-foreground">{opt.vote_count} ({pct}%)</span>}
+                {(hasVoted || isClosed) && <span className="text-xs text-muted-foreground shrink-0">{opt.vote_count} ({pct}%)</span>}
               </span>
             </button>
           )
@@ -305,7 +393,7 @@ export function PollCard({ poll, userId, onVote, onDelete, onClosePoll }: { poll
         </p>
       )}
       {userId && pollOptions.some(o => (o.voter_ids || []).includes(userId)) && (
-        <div className="text-[11px] text-muted-foreground">Your votes: {pollOptions.filter(o => (o.voter_ids || []).includes(userId!)).map(o => o.text).join(', ')}</div>
+        <div className="text-[11px] text-muted-foreground">Your votes: {pollOptions.filter(o => (o.voter_ids || []).includes(userId!)).map(o => { const m = splitOptionMedia(o.text); return m.text || 'Photo' }).join(', ')}</div>
       )}
     </div>
   )

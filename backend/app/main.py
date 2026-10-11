@@ -147,6 +147,7 @@ from app.models.live_location import LiveLocationSession  # noqa: F401 (register
 from app.models.group_call import GroupCallSession  # noqa: F401 (register table)
 from app.models.report import Report  # noqa: F401 (register table)
 from app.models.security_alert import SecurityAlert  # noqa: F401 (register table)
+from app.models.passkey import PasskeyCredential, WebauthnChallenge  # noqa: F401 (register table)
 
 
 from app.api.auth import router as auth_router
@@ -181,6 +182,7 @@ from app.api.live_location import router as live_location_router
 from app.api.group_calls import router as group_calls_router
 from app.api.moderation import router as moderation_router
 from app.api.security import router as security_router
+from app.api.passkeys import router as passkeys_router
 from app.api.memories import router as memories_router
 from app.websocket.chat import router as ws_router
 
@@ -238,6 +240,7 @@ app.include_router(live_location_router)
 app.include_router(group_calls_router)
 app.include_router(moderation_router)
 app.include_router(security_router)
+app.include_router(passkeys_router)
 app.include_router(memories_router)
 app.include_router(ws_router)
 

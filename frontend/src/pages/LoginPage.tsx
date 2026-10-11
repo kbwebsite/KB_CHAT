@@ -7,7 +7,10 @@ import { FirebaseAuth } from '../components/FirebaseAuth'
 import {
   Eye, EyeOff, Lock, User, Loader2, ArrowRight, Send,
   ShieldCheck, Zap, MessageCircle, Sparkles, Check, Heart, AlertTriangle,
+  Fingerprint,
 } from 'lucide-react'
+import { startAuthentication } from '@simplewebauthn/browser'
+import { passkeyApi } from '../services/api'
 
 type Particle = { left: string; size: number; duration: string; delay: string; color: string; bottom: string }
 type DemoMsg = { id: number; from: 'them' | 'me'; text: string; likes: number; liked: boolean }
@@ -131,6 +134,7 @@ function DemoChat({ idPrefix }: { idPrefix: string }) {
 export default function LoginPage() {
   const [identifier, setIdentifier] = useState('')
   const [password, setPassword] = useState('')
+  const [pkBusy, setPkBusy] = useState(false)
   const [show, setShow] = useState(false)
   const [caps, setCaps] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -237,12 +241,36 @@ export default function LoginPage() {
     }
   }
 
+  // Passkey sign-in: identifier filled = that account, empty = usernameless
+  // (browser offers a registered passkey, account resolved server-side).
+  const handlePasskey = async () => {
+    if (pkBusy) return
+    setError('')
+    setPkBusy(true)
+    try {
+      const id = identifier.trim() || undefined
+      const opt = await passkeyApi.loginOptions(id)
+      if (!opt?.success) throw new Error(opt?.message || 'Passkeys not set up for this account.')
+      const credential = await startAuthentication({ optionsJSON: opt.data.options })
+      const res = await passkeyApi.loginVerify({ identifier: id, challenge_id: opt.data.challenge_id, credential })
+      if (res?.success) {
+        setToken(res.data.access_token)
+        setUser(res.data.user)
+        navPostAuth(nav)
+      } else throw new Error(res?.message || 'Sign-in rejected.')
+    } catch (e: any) {
+      if (e?.name === 'NotAllowedError') setError('Cancelled — no sign-in happened.')
+      else setError(e?.response?.data?.detail || e?.message || 'Passkey sign-in failed.')
+    } finally {
+      setPkBusy(false)
+    }
+  }
+
   // Exchanges a Firebase ID token for a regular app session.
   // NOTE: must go through the auth store (not raw localStorage) — the
   // Protected/PublicOnly guards read store state, so a direct localStorage
   // write leaves /chat bouncing back to /login until a full page reload.
-  const handleFirebaseSession = async (idToken: string) => {
-    const res = await authApi.firebase(idToken)
+  const handleFirebaseSession = async (idToken: string) => {    const res = await authApi.firebase(idToken)
     if (res.success) {
       setToken(res.data.access_token)
       setUser(res.data.user)
@@ -427,6 +455,15 @@ export default function LoginPage() {
                 <div className="mt-4">
                   <FirebaseAuth onSession={handleFirebaseSession} tabs={['google']} />
                 </div>
+                <button
+                  type="button"
+                  onClick={handlePasskey}
+                  disabled={pkBusy}
+                  className="mt-3 w-full py-3 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-60 transition-colors"
+                >
+                  {pkBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Fingerprint className="w-4 h-4" />}
+                  {pkBusy ? 'Follow the browser prompt…' : 'Sign in with passkey'}
+                </button>
               </div>
             </div>
           </div>

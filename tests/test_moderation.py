@@ -274,3 +274,20 @@ def test_resolve_user_deactivation_guards(monkeypatch):
         ).status_code
         == 400
     )
+
+
+def test_platform_stats_shape_and_gating(monkeypatch):
+    _, token_plain, _, _ = _signup()
+    _, admin_token, _, admin_email = _signup()
+    monkeypatch.setattr(settings, "ADMIN_EMAILS", admin_email)
+    denied = client.get("/api/moderation/stats", headers=_auth(token_plain))
+    assert denied.status_code == 403
+    r = client.get("/api/moderation/stats", headers=_auth(admin_token))
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data["users"]["total"] >= 2
+    assert data["conversations"]["total"] >= 0
+    assert len(data["messages"]["per_day"]) == 14
+    assert all(set(d) == {"date", "count"} for d in data["messages"]["per_day"])
+    assert data["reports"]["open"] >= 0
+    assert isinstance(data["reports"]["by_reason"], list)

@@ -17,10 +17,12 @@ import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
+import { parseSlashCommand } from '../utils/slashCommands'
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
 import { IcebreakerSheet } from './IcebreakerSheet'
 import { LuckyDraw } from './LuckyDraw'
+import { getAutoReply, setAutoReply, DEFAULT_REPLY_TEXT } from '../utils/autoReply'
 import { ReportDialog } from './ReportDialog'
 import { hiddenIds, hideMessage } from '../utils/hidden'
 import type { RpsChoice } from './RockPaperScissors'
@@ -112,6 +114,9 @@ export function ChatView({
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
   const [showIce, setShowIce] = useState(false)
   const [showDraw, setShowDraw] = useState(false)
+  const [showAutoReply, setShowAutoReply] = useState(false)
+  const [autoReplyOn, setAutoReplyOn] = useState(false)
+  const [autoReplyText, setAutoReplyText] = useState(DEFAULT_REPLY_TEXT)
   const [reportTarget, setReportTarget] = useState<any | null>(null)
   const pendingJump = useChatStore((s: any) => s.pendingJump)
   // Jump landing (PE-2A search/saved jumps, PE-2J in-conversation jumps):
@@ -309,6 +314,10 @@ export function ChatView({
     lastFxIdRef.current = null
     setConvWp(getConvWallpaper(currentConversationId))
     setConvAccentState(getConvAccent(currentConversationId))
+    const ar = getAutoReply(currentConversationId)
+    setAutoReplyOn(ar.on)
+    setAutoReplyText(ar.text)
+    setShowAutoReply(false)
   }, [currentConversationId])
 
   // Wallpaper slideshow: rotate the global wallpaper every 45s (local only,
@@ -413,11 +422,19 @@ export function ChatView({
       if ((editTarget as any).view_once) { setEditTarget(null); setEditText(''); return }
       await editMessage(editTarget.id, content); setEditTarget(null); setEditText(''); return
     }
+    // Slash commands (text-only new sends): /roll, /flip, /8ball, /shrug.
+    // Unknown /words stay plain text; /help and bad usage show a hint.
+    let body = content
+    if (!attachmentIds && (!type || type === 'text')) {
+      const slash = parseSlashCommand(content)
+      if (slash?.kind === 'hint') { toast(slash.text, 'info'); return }
+      if (slash?.kind === 'send') body = slash.text
+    }
     try {
       const extra: { voice_duration?: number; view_once?: boolean } =
         voiceDuration != null ? { voice_duration: voiceDuration } : {}
       if (opts?.view_once) extra.view_once = true
-      await sendMessage(currentConversationId, content, replyTo?.id, attachmentIds, type, extra)
+      await sendMessage(currentConversationId, body, replyTo?.id, attachmentIds, type, extra)
       awardActivity(true)
     }
     catch (e: any) { toast('Failed to send — tap the message to retry. ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
@@ -681,6 +698,7 @@ export function ChatView({
             else if (key === 'schedule') setShowSchedule(true)
             else if (key === 'insights') setShowInsights(true)
             else if (key === 'draw') setShowDraw(true)
+            else if (key === 'autoreply') setShowAutoReply((v) => !v)
             else if (key === 'export') exportChat()
             else if (key === 'wallpaper') setShowWallpaper((v) => !v)
             else if (key === 'lock') toggleChatLock()
@@ -1091,6 +1109,38 @@ export function ChatView({
             onClose={() => setShowDraw(false)}
             onAnnounce={(winnerName) => handleSend(`🎉 Lucky draw winner: ${winnerName}!`)}
           />
+        )}
+
+        {showAutoReply && currentConversationId && (
+          <div className="px-3 py-2 border-b border-border shrink-0">
+            <p className="text-xs text-muted-foreground">Auto-reply — this conversation only</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Replies once per hour to new messages while the app is open.</p>
+            <label className="flex items-center gap-2.5 mt-2 cursor-pointer min-h-[44px]">
+              <input
+                type="checkbox"
+                checked={autoReplyOn}
+                onChange={(e) => {
+                  const next = setAutoReply(currentConversationId, { on: e.target.checked })
+                  setAutoReplyOn(next.on)
+                }}
+                className="w-4 h-4 accent-primary"
+              />
+              <span className="text-sm">Reply automatically when I&apos;m away</span>
+            </label>
+            <label htmlFor="autoreply-text" className="sr-only">Auto-reply message</label>
+            <textarea
+              id="autoreply-text"
+              value={autoReplyText}
+              onChange={(e) => {
+                setAutoReplyText(e.target.value)
+                setAutoReply(currentConversationId, { text: e.target.value })
+              }}
+              rows={2}
+              maxLength={500}
+              placeholder="Your away message…"
+              className="mt-1.5 w-full px-3 py-2 rounded-xl bg-muted text-sm outline-none resize-none focus:border-primary/60 border border-transparent"
+            />
+          </div>
         )}
 
         {reportTarget && (

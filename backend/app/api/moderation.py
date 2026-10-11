@@ -7,9 +7,10 @@ old databases never 500) OR membership in the `ADMIN_EMAILS` env allowlist
 the report row (audit trail); reports are never deleted.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
@@ -269,3 +270,80 @@ def reactivate_user(
     target.is_active = True
     db.commit()
     return success_response(_user_admin_view(target), "User reactivated")
+
+
+@router.get("/stats")
+def platform_stats(
+    days: int = 14,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Platform overview for the admin console (counts + 14-day series).
+
+    All queries are bounded aggregates; no message content leaves the
+    server (only counts and per-day buckets).
+    """
+    require_admin(current_user)
+    days = max(1, min(int(days or 14), 60))
+    # Naive UTC for SQL bounds (SQLite stores naive datetimes; Postgres
+    # compares fine against naive values for these overview buckets).
+    now = datetime.utcnow()
+    since = now - timedelta(days=days)
+
+    def day_series(day_col):
+        rows = (
+            db.query(func.date(day_col).label("day"), func.count().label("n"))
+            .filter(day_col >= since)
+            .group_by(func.date(day_col))
+            .all()
+        )
+        # func.date yields str on SQLite, date on Postgres — normalize.
+        out = {str(r.day): r.n for r in rows}
+        return [
+            {
+                "date": (since + timedelta(days=i)).date().isoformat(),
+                "count": out.get((since + timedelta(days=i)).date().isoformat(), 0),
+            }
+            for i in range(days)
+        ]
+
+    reasons = (
+        db.query(Report.reason, func.count().label("n")).group_by(Report.reason).all()
+    )
+    return success_response(
+        {
+            "users": {
+                "total": db.query(func.count(User.id)).scalar() or 0,
+                "active": db.query(func.count(User.id))
+                .filter(User.is_active.is_(True))
+                .scalar()
+                or 0,
+                "new_7d": db.query(func.count(User.id))
+                .filter(User.created_at >= now - timedelta(days=7))
+                .scalar()
+                or 0,
+            },
+            "messages": {
+                "total": db.query(func.count(Message.id)).scalar() or 0,
+                "per_day": day_series(Message.created_at),
+            },
+            "conversations": {
+                "total": db.query(func.count(Conversation.id)).scalar() or 0,
+                "groups": db.query(func.count(Conversation.id))
+                .filter(Conversation.is_group.is_(True))
+                .scalar()
+                or 0,
+            },
+            "reports": {
+                "open": db.query(func.count(Report.id))
+                .filter_by(status="open")
+                .scalar()
+                or 0,
+                "resolved": db.query(func.count(Report.id))
+                .filter(Report.status != "open")
+                .scalar()
+                or 0,
+                "by_reason": [{"reason": r, "count": n} for r, n in reasons],
+            },
+        }
+    )
