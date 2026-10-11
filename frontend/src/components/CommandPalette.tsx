@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from 'react'
-import { Search, MessageSquare, Users, Image, Phone, Settings, Bookmark, Moon, Sun, LogOut, Bell, Plus, BarChart3, Palette } from 'lucide-react'
+import { Search, MessageSquare, Users, Image, Phone, Settings, Bookmark, Moon, Sun, LogOut, Bell, Plus, BarChart3, Palette, Megaphone } from 'lucide-react'
 
 interface Command {
   id: string
@@ -82,6 +82,7 @@ export function buildCommands(actions: {
     { id: 'new-group', label: 'New group', icon: <Users className="w-4 h-4" />, action: actions.onNewGroup, category: 'Actions' },
     { id: 'new-status', label: 'New status', icon: <Image className="w-4 h-4" />, action: actions.onNewStatus, category: 'Actions' },
     { id: 'saved', label: 'Saved messages', icon: <Bookmark className="w-4 h-4" />, shortcut: '', action: actions.onSaved, category: 'Navigation' },
+    { id: 'broadcasts', label: 'Broadcast lists', icon: <Megaphone className="w-4 h-4" />, shortcut: '', action: () => window.dispatchEvent(new Event('kb:open-broadcasts')), category: 'Navigation' },
     { id: 'calls', label: 'Calls', icon: <Phone className="w-4 h-4" />, action: actions.onCalls, category: 'Navigation' },
     { id: 'notifications', label: 'Notifications', icon: <Bell className="w-4 h-4" />, action: actions.onNotifications, category: 'Navigation' },
     { id: 'settings', label: 'Settings', icon: <Settings className="w-4 h-4" />, action: actions.onSettings, category: 'Navigation' },

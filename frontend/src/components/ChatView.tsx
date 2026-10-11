@@ -38,7 +38,7 @@ function timerLabel(seconds: number | null | undefined): string {
 import { addXp, countSent } from '../utils/levels'
 import { Message } from '../types'
 
-import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon } from 'lucide-react'
+import { X, Bot, Sparkles, FileText, Reply, Edit3, Languages, Bookmark, MessageSquare, Users, Phone, Shield, Globe, ChevronRight, Settings as SettingsIcon, Megaphone } from 'lucide-react'
 import { Bell, Search as SearchIcon, Moon, Sun } from 'lucide-react'
 
 // Stable empty-array identity for selectors: returning a fresh [] literal
@@ -595,6 +595,9 @@ export function ChatView({
             </button>
             <button onClick={onSaved} className="icon-btn" title="Saved messages">
               <Bookmark className="w-[18px] h-[18px]" />
+            </button>
+            <button onClick={() => window.dispatchEvent(new Event('kb:open-broadcasts'))} className="icon-btn" title="Broadcast lists" aria-label="Broadcast lists">
+              <Megaphone className="w-[18px] h-[18px]" />
             </button>
             <button onClick={onSettings} className="icon-btn" title="Settings">
               <SettingsIcon className="w-[18px] h-[18px]" />

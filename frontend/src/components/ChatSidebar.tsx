@@ -87,6 +87,15 @@ export function ChatSidebar({
     return () => window.removeEventListener('kb:new-group', open)
   }, [])
 
+  // Broadcasts lived only in the mobile overflow menu; desktop reaches them
+  // through the welcome header button and the command palette, both of which
+  // dispatch 'kb:open-broadcasts'.
+  useEffect(() => {
+    const open = () => setShowBroadcasts(true)
+    window.addEventListener('kb:open-broadcasts', open)
+    return () => window.removeEventListener('kb:open-broadcasts', open)
+  }, [])
+
   const typingMap = typingUsers
 
   const filteredByTab = useMemo(() => {

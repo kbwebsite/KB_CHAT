@@ -103,6 +103,25 @@ test.describe('broadcast visibility', () => {
     }
   });
 
+  test('desktop: welcome header button and palette open the lists', async ({
+    page,
+  }) => {
+    const owner = await apiSignup(page.request, 'e2ebdh');
+    await openChatWithJarredSession(page, owner.userId);
+    await page.setViewportSize({ width: 1280, height: 800 });
+
+    await page.getByRole('button', { name: 'Broadcast lists' }).click();
+    await expect(page.getByRole('dialog', { name: 'Broadcast lists' })).toBeVisible();
+    await page.getByRole('button', { name: 'Close broadcast lists' }).click();
+    await expect(page.getByRole('dialog', { name: 'Broadcast lists' })).toBeHidden();
+
+    await page.keyboard.press('Control+k');
+    await page.getByPlaceholder('Type a command...').fill('broadcast');
+    const palette = page.locator('div.fixed.inset-0');
+    await palette.getByRole('button', { name: 'Broadcast lists' }).click();
+    await expect(page.getByRole('dialog', { name: 'Broadcast lists' })).toBeVisible();
+  });
+
   test('API: accepted-only recipients, receipts contract, empty cases', async ({
     page,
   }) => {
