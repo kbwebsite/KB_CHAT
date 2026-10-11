@@ -153,6 +153,25 @@ describe('MessageBubble action scoping', () => {
     expect(onMobileMore).toHaveBeenCalledTimes(1)
   })
 
+  it('own word-chain card shows Share + Delete, and typing never opens the sheet', () => {
+    const onMobileMore = vi.fn()
+    const onDelete = vi.fn()
+    renderBubble(
+      baseMsg({ id: 52, content: '🎮WC:new\nplay!' }),
+      { isOwn: true, onMobileMore, onDelete },
+    )
+    const btns = Array.from(host.querySelectorAll('button')).map((b) => b.getAttribute('title'))
+    expect(btns).toContain('Share this result')
+    expect(btns).toContain('Delete')
+    const input = host.querySelector('input[placeholder*="word"]') as HTMLElement
+    expect(input).not.toBeNull()
+    act(() => {
+      input.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onMobileMore).not.toHaveBeenCalled()
+    expect(onDelete).not.toHaveBeenCalled()
+  })
+
   it('media messages get a slim menu without text-only actions', () => {
     const onMobileMore = vi.fn()
     renderBubble(
