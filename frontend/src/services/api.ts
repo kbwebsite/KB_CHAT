@@ -251,6 +251,7 @@ export const channelApi = {
   posts: (id:number) => api.get(`/api/channels/${id}/posts`).then(r=>r.data),
   post: (id:number, content:string) => api.post(`/api/channels/${id}/posts`, {content}).then(r=>r.data),
   deletePost: (id:number, postId:number) => api.delete(`/api/channels/${id}/posts/${postId}`).then(r=>r.data),
+  reactPost: (id:number, postId:number, emoji:string) => api.post(`/api/channels/${id}/posts/${postId}/reactions`, {emoji}).then(r=>r.data),
 }
 
 export const liveLocationApi = {
@@ -317,6 +318,7 @@ export const moderationApi = {
     api.post('/api/moderation/reports', { target_type, target_id, reason, details }).then(r=>r.data),
   reports: (status='open') => api.get('/api/moderation/reports', { params: { status } }).then(r=>r.data),
   resolve: (id:number, action:string) => api.post(`/api/moderation/reports/${id}/resolve`, { action }).then(r=>r.data),
+  analyze: (id:number) => api.post(`/api/moderation/reports/${id}/analyze`).then(r=>r.data),
   users: (search='') => api.get('/api/moderation/users', { params: { search } }).then(r=>r.data),
   deactivate: (id:number) => api.post(`/api/moderation/users/${id}/deactivate`).then(r=>r.data),
   reactivate: (id:number) => api.post(`/api/moderation/users/${id}/reactivate`).then(r=>r.data),

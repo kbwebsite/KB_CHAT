@@ -39,7 +39,7 @@ def _channel_to_dict(db: Session, c: Channel, user_id: int):
     }
 
 
-def _post_to_dict(db: Session, p: ChannelPost):
+def _post_to_dict(db: Session, p: ChannelPost, user_id: int):
     sender = db.query(User).filter_by(id=p.sender_id).first()
     return {
         "id": p.id,
@@ -50,6 +50,9 @@ def _post_to_dict(db: Session, p: ChannelPost):
         "sender_avatar": sender.avatar_url if sender else None,
         "content": p.content,
         "message_type": p.message_type,
+        "reactions": channel_service.post_reaction_summary(
+            db, post_id=p.id, user_id=user_id
+        ),
         "created_at": p.created_at.isoformat() if p.created_at else None,
     }
 
@@ -176,7 +179,9 @@ def list_posts(
     posts = channel_service.list_posts(
         db, channel_id=channel_id, user_id=current_user.id
     )
-    return success_response([_post_to_dict(db, p) for p in reversed(posts)])
+    return success_response(
+        [_post_to_dict(db, p, current_user.id) for p in reversed(posts)]
+    )
 
 
 @router.post("/{channel_id}/posts")
@@ -194,7 +199,7 @@ def create_post(
         sender_id=current_user.id,
         content=payload.get("content"),
     )
-    return success_response(_post_to_dict(db, p), "Posted to channel")
+    return success_response(_post_to_dict(db, p, current_user.id), "Posted to channel")
 
 
 @router.delete("/{channel_id}/posts/{post_id}")
@@ -213,3 +218,23 @@ def delete_post(
         actor_id=current_user.id,
     )
     return success_response(None, "Post deleted")
+
+
+@router.post("/{channel_id}/posts/{post_id}/reactions")
+@service_route
+def toggle_post_reaction(
+    channel_id: int,
+    post_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Toggle one emoji reaction (followers + owner)."""
+    res = channel_service.toggle_post_reaction(
+        db,
+        channel_id=channel_id,
+        post_id=post_id,
+        user_id=current_user.id,
+        emoji=payload.get("emoji"),
+    )
+    return success_response(res, "Reaction updated")

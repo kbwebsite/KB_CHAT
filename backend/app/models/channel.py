@@ -64,6 +64,31 @@ class ChannelFollow(Base):
     )
 
 
+class ChannelPostReaction(Base):
+    """Follower emoji reaction on a channel post (many per post)."""
+
+    __tablename__ = "channel_post_reactions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    post_id = Column(
+        Integer,
+        ForeignKey("channel_posts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    emoji = Column(String(16), nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint(
+            "post_id", "user_id", "emoji", name="uq_channel_post_reaction"
+        ),
+    )
+
+
 class ChannelPost(Base):
     """A single owner update posted into a channel feed."""
 

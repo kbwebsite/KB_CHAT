@@ -138,3 +138,81 @@ def test_channel_lifecycle_and_gates():
     # delete; second delete 404s
     assert client.delete(f"/api/channels/{cid}", headers=ho).status_code == 200
     assert client.delete(f"/api/channels/{cid}", headers=ho).status_code == 404
+
+
+def test_channel_post_reactions_and_delete():
+    ho, hf = _users()
+    r = client.post("/api/channels", json={"name": "Reacts"}, headers=ho)
+    assert r.status_code == 200, r.text
+    cid = r.json()["data"]["id"]
+    rp = client.post(
+        f"/api/channels/{cid}/posts", json={"content": "react to me"}, headers=ho
+    )
+    assert rp.status_code == 200, rp.text
+    pid = rp.json()["data"]["id"]
+    assert rp.json()["data"]["reactions"] == []
+
+    # non-follower cannot react
+    assert (
+        client.post(
+            f"/api/channels/{cid}/posts/{pid}/reactions",
+            json={"emoji": "👍"},
+            headers=hf,
+        ).status_code
+        == 403
+    )
+    # empty emoji rejected
+    assert (
+        client.post(
+            f"/api/channels/{cid}/posts/{pid}/reactions",
+            json={"emoji": "  "},
+            headers=ho,
+        ).status_code
+        == 400
+    )
+    # follow then react on
+    assert client.post(f"/api/channels/{cid}/follow", headers=hf).status_code == 200
+    r1 = client.post(
+        f"/api/channels/{cid}/posts/{pid}/reactions",
+        json={"emoji": "👍"},
+        headers=hf,
+    )
+    assert r1.status_code == 200, r1.text
+    assert r1.json()["data"]["reacted"] is True
+    assert r1.json()["data"]["reactions"] == [{"emoji": "👍", "count": 1, "mine": True}]
+    # owner reacts too — count aggregates, mine flags are per-user
+    r2 = client.post(
+        f"/api/channels/{cid}/posts/{pid}/reactions",
+        json={"emoji": "👍"},
+        headers=ho,
+    )
+    assert r2.json()["data"]["reactions"] == [{"emoji": "👍", "count": 2, "mine": True}]
+    rl = client.get(f"/api/channels/{cid}/posts", headers=hf)
+    got = [p for p in rl.json()["data"] if p["id"] == pid][0]
+    assert got["reactions"] == [{"emoji": "👍", "count": 2, "mine": True}]
+    # toggle off
+    r3 = client.post(
+        f"/api/channels/{cid}/posts/{pid}/reactions",
+        json={"emoji": "👍"},
+        headers=hf,
+    )
+    assert r3.json()["data"]["reacted"] is False
+    assert r3.json()["data"]["reactions"] == [
+        {"emoji": "👍", "count": 1, "mine": False}
+    ]
+    # non-owner cannot delete; owner deletes (reactions go with it)
+    assert (
+        client.delete(f"/api/channels/{cid}/posts/{pid}", headers=hf).status_code == 403
+    )
+    assert (
+        client.delete(f"/api/channels/{cid}/posts/{pid}", headers=ho).status_code == 200
+    )
+    assert (
+        client.post(
+            f"/api/channels/{cid}/posts/{pid}/reactions",
+            json={"emoji": "👍"},
+            headers=ho,
+        ).status_code
+        == 404
+    )
+    assert client.delete(f"/api/channels/{cid}", headers=ho).status_code == 200

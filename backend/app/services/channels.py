@@ -9,7 +9,12 @@ Status codes and messages are byte-identical to the pre-Wave-1 handlers.
 
 from sqlalchemy.orm import Session
 
-from app.models.channel import Channel, ChannelFollow, ChannelPost
+from app.models.channel import (
+    Channel,
+    ChannelFollow,
+    ChannelPost,
+    ChannelPostReaction,
+)
 from app.services.errors import MISSING, bad_request, forbidden, not_found
 
 
@@ -183,5 +188,51 @@ def delete_post(db: Session, *, channel_id: int, post_id: int, actor_id: int) ->
     p = db.query(ChannelPost).filter_by(id=post_id, channel_id=c.id).first()
     if not p:
         raise not_found("Post not found")
+    # Explicit cleanup alongside FK cascade (SQLite ignores ON DELETE CASCADE).
+    db.query(ChannelPostReaction).filter_by(post_id=p.id).delete()
     db.delete(p)
     db.commit()
+
+
+def post_reaction_summary(db: Session, *, post_id: int, user_id: int) -> list:
+    """Aggregated reactions for one post: [{emoji, count, mine}]."""
+    rows = db.query(ChannelPostReaction).filter_by(post_id=post_id).all()
+    by_emoji: dict = {}
+    for r in rows:
+        e = by_emoji.setdefault(r.emoji, {"emoji": r.emoji, "count": 0, "mine": False})
+        e["count"] += 1
+        if r.user_id == user_id:
+            e["mine"] = True
+    return sorted(by_emoji.values(), key=lambda x: -x["count"])
+
+
+def toggle_post_reaction(
+    db: Session, *, channel_id: int, post_id: int, user_id: int, emoji: str
+) -> dict:
+    """Followers (and owner) toggle one emoji reaction per tap."""
+    c = get_channel(db, channel_id)
+    require_reader(db, c, user_id)
+    p = db.query(ChannelPost).filter_by(id=post_id, channel_id=c.id).first()
+    if not p:
+        raise not_found("Post not found")
+    clean = str(emoji or "").strip()[:16]
+    if not clean:
+        raise bad_request("Emoji required")
+    existing = (
+        db.query(ChannelPostReaction)
+        .filter_by(post_id=p.id, user_id=user_id, emoji=clean)
+        .first()
+    )
+    if existing:
+        db.delete(existing)
+        db.commit()
+        reacted = False
+    else:
+        db.add(ChannelPostReaction(post_id=p.id, user_id=user_id, emoji=clean))
+        db.commit()
+        reacted = True
+    return {
+        "post_id": p.id,
+        "reacted": reacted,
+        "reactions": post_reaction_summary(db, post_id=p.id, user_id=user_id),
+    }

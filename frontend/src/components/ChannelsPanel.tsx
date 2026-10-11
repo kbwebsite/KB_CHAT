@@ -16,9 +16,7 @@ import {
   MoreHorizontal,
   Search,
   SlidersHorizontal,
-  Smile,
   Paperclip,
-  Camera,
   Mic,
   Forward,
   ChevronRight,
@@ -149,9 +147,11 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const [uploading, setUploading] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   const [menuOpen, setMenuOpen] = useState(false)
-  const [showEmoji, setShowEmoji] = useState(false)
   const [showJump, setShowJump] = useState(false)
   const [mutedMap, setMutedMap] = useState<Record<string, boolean>>(readMuted)
+  // Open reaction picker post id (null = closed). Channels are
+  // broadcast-only: no replies, reactions only.
+  const [reactFor, setReactFor] = useState<number | null>(null)
   // Create wizard — everything customizable: name, desc, logo emoji, logo style, category, cover.
   const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string; category: string; avatar_theme: string }>(null)
   const [creating, setCreating] = useState(false)
@@ -344,7 +344,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     setOpenId(null)
     setPosts([])
     setDraft('')
-    setShowEmoji(false)
+    setReactFor(null)
   }
 
   const post = async (id: number, contentOverride?: string) => {
@@ -356,7 +356,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       if (r?.success) {
         setPosts((p) => [...p, r.data])
         setDraft('')
-        setShowEmoji(false)
+        setReactFor(null)
         refreshOne(id)
         requestAnimationFrame(() => scrollFeedToBottom(true))
       } else setMsg(r?.message || 'Failed')
@@ -367,8 +367,17 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Must match backend MAX_UPLOAD_SIZE_MB (15) so phone users get an
+  // instant answer instead of a failed upload.
+  const MAX_UPLOAD_BYTES = 15 * 1024 * 1024
+
   const handleFile = async (f: File | undefined) => {
     if (!f || !openChannel || uploading) return
+    if (f.size > MAX_UPLOAD_BYTES) {
+      setMsg(`File too large (${(f.size / 1048576).toFixed(1)}MB) — max 15MB. Trim or compress it first.`)
+      if (fileRef.current) fileRef.current.value = ''
+      return
+    }
     setUploading(true)
     try {
       const r: any = await uploadApi.upload(f)
@@ -409,6 +418,19 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       if (r?.success) {
         setPosts((list) => list.filter((x: any) => x.id !== p.id))
         refreshOne(openChannel.id)
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    }
+  }
+
+  const reactPost = async (p: any, emoji: string) => {
+    if (!openChannel) return
+    try {
+      const r = await channelApi.reactPost(openChannel.id, p.id, emoji)
+      if (r?.success && r.data) {
+        const reactions = r.data.reactions || []
+        setPosts((list) => list.map((x: any) => (x.id === p.id ? { ...x, reactions } : x)))
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
@@ -659,7 +681,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   const mediaPosts = useMemo(() => posts.filter((p: any) => hasMedia(p.content || '')), [posts])
 
-  const EMOJIS = ['😀', '😂', '😍', '👍', '🙏', '🎉', '❤️', '🔥']
+  // Reaction emojis for channel posts (broadcast has no replies — reactions only).
+  const REACT_EMOJIS = ['👍', '❤️', '😂', '😮', '😢', '🙏']
 
   const followBtn = (c: any, big = false) =>
     c.is_owner ? null : (
@@ -935,10 +958,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                   )}
                                 </div>
                                 {imgs.length > 0 && (
-                                  <div className="mt-2.5 bg-black/40">
+                                  <div className="mt-2.5 bg-black">
                                     {imgs.map((u) => (
-                                      <a key={u} href={u} target="_blank" rel="noreferrer">
-                                        <img src={u} alt="" loading="lazy" decoding="async" className="w-full max-h-80 object-cover" />
+                                      <a key={u} href={u} target="_blank" rel="noreferrer" title="Open full image">
+                                        <img src={u} alt="" loading="lazy" decoding="async" className="w-full max-h-[420px] object-contain bg-black" />
                                       </a>
                                     ))}
                                   </div>
@@ -957,7 +980,27 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                 ) : (
                                   <div className="h-1.5" />
                                 )}
-                                <div className="px-3 pb-2.5 pt-1 flex items-center gap-1">
+                                <div className="px-3 pb-2.5 pt-1 flex items-center gap-1 flex-wrap">
+                                  <button
+                                    onClick={() => setReactFor((cur) => (cur === p.id ? null : p.id))}
+                                    className={`h-8 px-2.5 rounded-full hover:bg-muted flex items-center justify-center gap-1 text-[13px] transition-all active:scale-90 touch-44 ${reactFor === p.id ? 'bg-muted text-primary' : 'text-tertiary hover:text-primary'}`}
+                                    aria-label="React to post"
+                                    title="React"
+                                  >
+                                    <span className="text-[15px] leading-none">❤️</span>
+                                  </button>
+                                  {(p.reactions || []).map((r: any) => (
+                                    <button
+                                      key={r.emoji}
+                                      onClick={() => reactPost(p, r.emoji)}
+                                      className={`h-8 px-2.5 rounded-full border flex items-center gap-1 text-[13px] transition-all active:scale-90 touch-44 ${r.mine ? 'border-primary/60 text-primary' : 'border-subtle text-secondary'}`}
+                                      style={r.mine ? { background: 'rgba(var(--accent-rgb),0.12)' } : { background: 'rgba(255,255,255,0.04)' }}
+                                      title={r.mine ? 'Remove reaction' : 'React'}
+                                    >
+                                      <span className="leading-none">{r.emoji}</span>
+                                      <span className="text-[12px] font-bold">{r.count}</span>
+                                    </button>
+                                  ))}
                                   <button
                                     onClick={() => forwardPost(p)}
                                     className="w-8 h-8 rounded-full hover:bg-muted flex items-center justify-center text-tertiary hover:text-primary transition-all active:scale-90 touch-44"
@@ -980,6 +1023,24 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                                   <span className="text-[11px] text-tertiary">{fmtPostTime(p.created_at)}</span>
                                   {openChannel.is_owner && <Check className="w-3.5 h-3.5 text-tertiary" />}
                                 </div>
+                                {reactFor === p.id && (
+                                  <div className="mx-3 mb-2.5 p-1.5 rounded-2xl border border-subtle flex items-center gap-0.5 overflow-x-auto no-scrollbar" style={{ background: 'rgba(12,12,24,0.97)' }}>
+                                    {REACT_EMOJIS.map((e) => {
+                                      const mine = (p.reactions || []).some((r: any) => r.emoji === e && r.mine)
+                                      return (
+                                        <button
+                                          key={e}
+                                          onClick={() => reactPost(p, e)}
+                                          className={`text-[22px] p-1.5 rounded-xl transition-all active:scale-90 min-w-[44px] min-h-[44px] flex items-center justify-center ${mine ? 'ring-2 ring-primary' : 'hover:bg-muted'}`}
+                                          style={mine ? { background: 'rgba(var(--accent-rgb),0.15)' } : undefined}
+                                          aria-label={`React ${e}`}
+                                        >
+                                          {e}
+                                        </button>
+                                      )
+                                    })}
+                                  </div>
+                                )}
                               </article>
                             </div>
                           )
@@ -1003,20 +1064,8 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
           {openChannel.is_owner ? (
             <div className="shrink-0 px-2.5 pt-1.5 channel-composer bg-card border-t border-border">
-              {showEmoji && (
-                <div className="flex gap-1.5 px-1 pb-2">
-                  {EMOJIS.map((e) => (
-                    <button key={e} onClick={() => { setDraft((d) => d + e); requestAnimationFrame(() => autogrow(composerRef.current)) }} className="text-xl p-1.5 rounded-lg hover:bg-muted transition-all active:scale-90">
-                      {e}
-                    </button>
-                  ))}
-                </div>
-              )}
               <div className="flex items-center gap-1.5">
                 <div className="flex-1 flex items-center gap-1 rounded-full border px-1.5 py-1 transition-shadow focus-within:border-primary/60" style={{ ...fieldStyle, boxShadow: '0 4px 20px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)' }}>
-                  <button onClick={() => setShowEmoji((v) => !v)} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44" aria-label="Emoji">
-                    <Smile className="w-5 h-5" />
-                  </button>
                   <textarea
                     ref={composerRef}
                     value={draft}
@@ -1025,15 +1074,12 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     onKeyDown={(e) => { if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') post(openChannel.id) }}
                     placeholder="Write an update…"
                     title="Enter for new line"
-                    className="flex-1 min-w-0 bg-transparent outline-none text-[15px] py-1.5 resize-none max-h-32 overflow-y-auto"
+                    className="flex-1 min-w-0 bg-transparent outline-none text-[15px] py-1.5 px-2 resize-none max-h-32 overflow-y-auto"
                     style={{ color: '#f0f0ff', caretColor: '#f0f0ff' }}
                     aria-label="Write an update"
                   />
-                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44 disabled:opacity-40" aria-label="Attach">
+                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44 disabled:opacity-40" aria-label="Attach photo or video">
                     <Paperclip className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44 disabled:opacity-40" aria-label="Photo">
-                    <Camera className="w-5 h-5" />
                   </button>
                 </div>
                 {draft.trim() || uploading ? (
