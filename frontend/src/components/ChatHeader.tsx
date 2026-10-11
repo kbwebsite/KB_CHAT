@@ -1,11 +1,11 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer, Archive, Dices, Reply } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Bell, BellOff, Info, Download, Image, Lock, Unlock, Timer, Archive, Dices, Reply, Languages } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 import { useState } from 'react'
 import { useEscapeKey } from '../hooks/useDismiss'
 
-export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock' | 'timer' | 'archive' | 'draw' | 'autoreply'
+export type ExtrasKey = 'polls' | 'events' | 'pinned' | 'schedule' | 'insights' | 'export' | 'wallpaper' | 'lock' | 'timer' | 'archive' | 'draw' | 'autoreply' | 'autotranslate'
 
 export function ChatHeader({
   conv,
@@ -22,6 +22,7 @@ export function ChatHeader({
   onTheme,
   onSettings,
   onExtras,
+  autoTranslateOn,
 }: {
   conv: Conversation | null
   currentUserId?: number
@@ -37,6 +38,7 @@ export function ChatHeader({
   onTheme?: () => void
   onSettings?: () => void
   onExtras?: (key: ExtrasKey) => void
+  autoTranslateOn?: boolean
 }) {
   const [showMenu, setShowMenu] = useState(false)
   const close = () => setShowMenu(false)
@@ -58,6 +60,7 @@ export function ChatHeader({
     { key: 'insights', label: 'Insights', icon: Lightbulb },
     { key: 'draw', label: 'Lucky draw', icon: Dices },
     { key: 'autoreply', label: 'Auto-reply', icon: Reply },
+    { key: 'autotranslate', label: autoTranslateOn ? 'Auto-translate on' : 'Auto-translate', icon: Languages },
     { key: 'export', label: 'Export chat (.txt)', icon: Download },
     { key: 'wallpaper', label: 'Chat wallpaper', icon: Image },
     { key: 'timer', label: 'Disappearing', icon: Timer },
