@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
 from app.database.connection import get_db
@@ -8,6 +9,8 @@ from app.models.sticker import StickerPack, Sticker, UserSticker
 from app.schemas.common import success_response
 
 router = APIRouter(prefix="/api", tags=["stickers"])
+
+MAX_PACK_STICKERS = 60
 
 TWEMOJI_BASE = "https://cdn.jsdelivr.net/gh/twitter/twemoji@14.0.2/assets/72x72"
 
@@ -133,7 +136,16 @@ def ensure_builtin_packs() -> None:
 def list_packs(
     db: Session = Depends(get_db), current_user: User = Depends(get_current_user)
 ):
-    packs = db.query(StickerPack).order_by(StickerPack.position).all()
+    # Builtin packs are global; user packs are owner-scoped (never leaked
+    # across accounts).
+    packs = (
+        db.query(StickerPack)
+        .filter(
+            or_(StickerPack.is_builtin == True, StickerPack.owner_id == current_user.id)
+        )  # noqa: E712
+        .order_by(StickerPack.position)
+        .all()
+    )
     result = []
     for p in packs:
         stickers = (
@@ -146,6 +158,7 @@ def list_packs(
                 "description": p.description,
                 "thumbnail_url": p.thumbnail_url,
                 "is_builtin": p.is_builtin,
+                "is_owner": p.owner_id == current_user.id,
                 "stickers": [
                     {"id": s.id, "image_url": s.image_url, "emoji": s.emoji}
                     for s in stickers
@@ -153,6 +166,85 @@ def list_packs(
             }
         )
     return success_response(result)
+
+
+def _owned_pack(db: Session, pack_id: int, user_id: int) -> StickerPack:
+    """Owner-scoped lookup; missing and foreign packs share one 404 so
+    pack existence never leaks across accounts."""
+    p = db.query(StickerPack).filter_by(id=pack_id, owner_id=user_id).first()
+    if not p:
+        raise HTTPException(status_code=404, detail="Pack not found")
+    return p
+
+
+@router.post("/sticker-packs")
+def create_pack(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    name = str(payload.get("name") or "").strip()[:100]
+    if not name:
+        raise HTTPException(status_code=400, detail="Pack name required")
+    position = db.query(StickerPack).filter_by(owner_id=current_user.id).count()
+    p = StickerPack(
+        name=name, owner_id=current_user.id, is_builtin=False, position=position
+    )
+    db.add(p)
+    db.commit()
+    db.refresh(p)
+    return success_response(
+        {
+            "id": p.id,
+            "name": p.name,
+            "is_builtin": False,
+            "is_owner": True,
+            "stickers": [],
+        },
+        "Pack created",
+    )
+
+
+@router.post("/sticker-packs/{pack_id}/stickers")
+def add_pack_sticker(
+    pack_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    p = _owned_pack(db, pack_id, current_user.id)
+    url = str(payload.get("image_url") or "").strip()
+    if not url.startswith(("http://", "https://")) or len(url) > 500:
+        raise HTTPException(status_code=400, detail="Valid image_url required")
+    if db.query(Sticker).filter_by(pack_id=p.id).count() >= MAX_PACK_STICKERS:
+        raise HTTPException(
+            status_code=400, detail=f"Pack is full ({MAX_PACK_STICKERS} stickers)"
+        )
+    emoji = payload.get("emoji")
+    s = Sticker(
+        pack_id=p.id,
+        image_url=url,
+        emoji=str(emoji)[:20] if emoji else None,
+        position=db.query(Sticker).filter_by(pack_id=p.id).count(),
+    )
+    db.add(s)
+    db.commit()
+    db.refresh(s)
+    return success_response(
+        {"id": s.id, "image_url": s.image_url, "emoji": s.emoji}, "Sticker added"
+    )
+
+
+@router.delete("/sticker-packs/{pack_id}")
+def delete_pack(
+    pack_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    p = _owned_pack(db, pack_id, current_user.id)
+    db.delete(p)
+    db.commit()
+    return success_response(None, "Pack deleted")
 
 
 @router.get("/stickers/recent")

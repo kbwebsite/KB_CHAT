@@ -116,12 +116,14 @@ export function prettyPreview(text: any): any {
   }
   if (/\[live:\d+\]/.test(clean)) return '📍 Live location'
   if (/^Video \d+:\d\d$/.test(clean)) return '🎥 Video message'
-  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:') || clean.startsWith('🎮TOD:spin:') || clean.startsWith('🎮TOD:done:') || clean.startsWith('🎮WC:word:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'
   if (clean.startsWith('🎮C4:new')) return '🔴 Connect Four'
   if (clean.startsWith('🎮EMOJI:new')) return '🎬 Emoji movie game'
   if (clean.startsWith('🎮CHESS:new')) return '♞ Chess challenge'
+  if (clean.startsWith('🎮TOD:new')) return '🎡 Truth or dare'
+  if (clean.startsWith('🎮WC:new')) return '🔗 Word chain'
   return clean
 }
 
@@ -150,9 +152,30 @@ export function isChessMove(text: unknown): boolean {
   return typeof text === 'string' && text.startsWith('🎮CHESS:move:')
 }
 
+/** True for truth-or-dare spin/done messages (hidden the same way). */
+export function isTodMove(text: unknown): boolean {
+  return (
+    typeof text === 'string' &&
+    (text.startsWith('🎮TOD:spin:') || text.startsWith('🎮TOD:done:'))
+  )
+}
+
+/** True for word-chain word messages (hidden the same way). */
+export function isWcMove(text: unknown): boolean {
+  return typeof text === 'string' && text.startsWith('🎮WC:word:')
+}
+
 /** True for any hidden game-state message (any game). */
 export function isGameMoveMsg(text: unknown): boolean {
-  return isTTTTMove(text) || isRpsMove(text) || isC4Move(text) || isEmojiMove(text) || isChessMove(text)
+  return (
+    isTTTTMove(text) ||
+    isRpsMove(text) ||
+    isC4Move(text) ||
+    isEmojiMove(text) ||
+    isChessMove(text) ||
+    isTodMove(text) ||
+    isWcMove(text)
+  )
 }
 
 const MILESTONE_KEY = 'kb_msg_milestones'

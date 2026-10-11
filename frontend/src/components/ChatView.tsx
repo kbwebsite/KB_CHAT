@@ -480,7 +480,7 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' = 'ttt') => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
@@ -491,6 +491,10 @@ export function ChatView({
       await sendMessage(currentConversationId, `🎮EMOJI:new\n${name} started an emoji movie game — guess the movie!`)
     } else if (kind === 'chess') {
       await sendMessage(currentConversationId, `🎮CHESS:new\n${name} started chess — you play Black, good luck!`)
+    } else if (kind === 'tod') {
+      await sendMessage(currentConversationId, `🎮TOD:new\n${name} started truth or dare — spin the wheel!`)
+    } else if (kind === 'wc') {
+      await sendMessage(currentConversationId, `🎮WC:new\n${name} started a word chain — drop the first word!`)
     } else {
       await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
     }
@@ -517,6 +521,23 @@ export function ChatView({
   const handleChessMove = async (challenge: any, from: number, to: number) => {
     if (!currentConversationId || !(challenge.id > 0)) return
     await sendMessage(currentConversationId, `🎮CHESS:move:${challenge.id}:${sqName(from)}${sqName(to)}`)
+  }
+
+  const handleTodSpin = async (challenge: any, kind: 'truth' | 'dare', index: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮TOD:spin:${challenge.id}:${kind}:${index}`)
+  }
+
+  const handleTodDone = async (challenge: any) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮TOD:done:${challenge.id}`)
+  }
+
+  const handleWordChain = async (challenge: any, word: string) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    const clean = word.trim().slice(0, 30)
+    if (!clean) return
+    await sendMessage(currentConversationId, `🎮WC:word:${challenge.id}:${clean}`)
   }
 
   const handleEmojiGuess = async (challenge: any, guess: string) => {
@@ -1015,6 +1036,9 @@ export function ChatView({
                       onRpsThrow={handleRpsThrow}
                       onC4Move={handleC4Move}
                       onChessMove={handleChessMove}
+                      onTodSpin={handleTodSpin}
+                      onTodDone={handleTodDone}
+                      onWordChain={handleWordChain}
                       onEmojiGuess={handleEmojiGuess}
                       onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}

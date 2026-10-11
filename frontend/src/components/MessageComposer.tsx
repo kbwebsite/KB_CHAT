@@ -52,7 +52,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setShowMore(false)
   }
 
-  const sendChallenge = (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess') => {
+  const sendChallenge = (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc') => {
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
       onSend(`🎮RPS:new\n${name} started rock-paper-scissors — tap your throw!`, undefined, 'text')
@@ -62,6 +62,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
       onSend(`🎮EMOJI:new\n${name} started an emoji movie game — guess the movie!`, undefined, 'text')
     } else if (kind === 'chess') {
       onSend(`🎮CHESS:new\n${name} started chess — you play Black, good luck!`, undefined, 'text')
+    } else if (kind === 'tod') {
+      onSend(`🎮TOD:new\n${name} started truth or dare — spin the wheel!`, undefined, 'text')
+    } else if (kind === 'wc') {
+      onSend(`🎮WC:new\n${name} started a word chain — drop the first word!`, undefined, 'text')
     } else {
       onSend(`🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`, undefined, 'text')
     }
@@ -152,6 +156,18 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
                 className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
               >
                 <span className="w-5 text-center text-base">♞</span> Chess
+              </button>
+              <button
+                onClick={() => sendChallenge('tod')}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">🎡</span> Truth or Dare
+              </button>
+              <button
+                onClick={() => sendChallenge('wc')}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">🔗</span> Word Chain
               </button>
             </div>
           )}

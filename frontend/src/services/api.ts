@@ -433,6 +433,9 @@ export const stickerApi = {
   recent: () => api.get('/api/stickers/recent').then(r=>r.data),
   use: (id:number) => api.post(`/api/stickers/${id}/use`).then(r=>r.data),
   toggleFavorite: (id:number) => api.post(`/api/stickers/${id}/favorite`).then(r=>r.data),
+  createPack: (name:string) => api.post('/api/sticker-packs', { name }).then(r=>r.data),
+  addSticker: (packId:number, data:{image_url:string, emoji?:string}) => api.post(`/api/sticker-packs/${packId}/stickers`, data).then(r=>r.data),
+  deletePack: (packId:number) => api.delete(`/api/sticker-packs/${packId}`).then(r=>r.data),
 }
 
 export const insightsApi = {
