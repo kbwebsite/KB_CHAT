@@ -95,6 +95,10 @@ def _report_to_dict(db: Session, r: Report) -> dict:
         "status": r.status,
         "action_taken": r.action_taken,
         "resolved_by": r.resolved_by,
+        "ai_score": r.ai_score,
+        "ai_label": r.ai_label,
+        "ai_summary": r.ai_summary,
+        "ai_analyzed_at": r.ai_analyzed_at.isoformat() if r.ai_analyzed_at else None,
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
     }
@@ -158,6 +162,106 @@ def list_reports(
         q = q.filter_by(status="open" if status == "open" else "resolved")
     rows = q.limit(limit).all()
     return success_response([_report_to_dict(db, r) for r in rows])
+
+
+@router.post("/reports/{report_id}/analyze")
+async def analyze_report(
+    report_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """AI triage assist: score the reported content 0-100 with a category
+    and one-line rationale, stored on the row for the admin queue.
+    Requires a live AI key (503 otherwise — never mock-judge anyone)."""
+    require_admin(current_user)
+    row = db.query(Report).filter_by(id=report_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    if not settings.AI_API_KEY:
+        raise HTTPException(status_code=503, detail="AI key not configured")
+    if row.target_type == "message":
+        msg = db.query(Message).filter_by(id=row.target_id).first()
+        if not msg or msg.is_deleted:
+            raise HTTPException(status_code=404, detail="Reported message not found")
+        if msg.is_encrypted or msg.view_once:
+            raise HTTPException(status_code=400, detail="Cannot analyze sealed content")
+        if msg.message_type != "text" or not (msg.content or "").strip():
+            raise HTTPException(
+                status_code=400, detail="Only text messages can be analyzed"
+            )
+        evidence = msg.content.strip()[:1000]
+    elif row.target_type == "user":
+        target = db.query(User).filter_by(id=row.target_id).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Reported user not found")
+        recent = (
+            db.query(Message.content)
+            .filter(
+                Message.sender_id == target.id,
+                Message.is_deleted == False,  # noqa: E712
+                Message.message_type == "text",
+                Message.is_encrypted == False,  # noqa: E712
+            )
+            .order_by(Message.id.desc())
+            .limit(5)
+            .all()
+        )
+        evidence = "\n".join(f"- {(c[0] or '')[:200]}" for c in recent if c[0])
+        if not evidence.strip():
+            raise HTTPException(
+                status_code=400, detail="No analyzable content from this user"
+            )
+    else:
+        raise HTTPException(
+            status_code=400, detail="Conversation reports need human review"
+        )
+    prompt = (
+        "You are a chat-moderation triage assistant. Rate the reported content "
+        "for policy risk. Reply with ONLY compact JSON, no other text: "
+        '{"score": 0-100, "label": "safe|suspicious|spam|abusive|explicit|scam", '
+        '"summary": "one short line"}.\n'
+        f"Report reason: {row.reason}\nContent:\n{evidence[:1500]}"
+    )
+    try:
+        from app.ai.provider import get_ai_provider
+
+        provider = get_ai_provider()
+        raw = await provider.chat([{"role": "user", "content": prompt}])
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Analysis failed: {e}")
+    import json as _json
+    import re as _re
+
+    score, label, summary = None, None, None
+    try:
+        m = _re.search(r"\{.*\}", raw or "", _re.DOTALL)
+        data = _json.loads(m.group(0)) if m else {}
+        score = int(data.get("score"))
+        label = str(data.get("label") or "").lower()
+        summary = str(data.get("summary") or "")[:300]
+    except Exception:
+        pass
+    if (
+        score is None
+        or not (0 <= score <= 100)
+        or label
+        not in (
+            "safe",
+            "suspicious",
+            "spam",
+            "abusive",
+            "explicit",
+            "scam",
+        )
+    ):
+        raise HTTPException(status_code=502, detail="Analysis returned no usable score")
+    row.ai_score = score
+    row.ai_label = label
+    row.ai_summary = summary or None
+    row.ai_analyzed_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(row)
+    return success_response(_report_to_dict(db, row), "Analysis stored")
 
 
 @router.post("/reports/{report_id}/resolve")

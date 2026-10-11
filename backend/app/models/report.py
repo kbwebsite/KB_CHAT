@@ -22,6 +22,12 @@ class Report(Base):
     status = Column(String(20), nullable=False, default="open", index=True)
     action_taken = Column(String(40), nullable=True)
     resolved_by = Column(Integer, nullable=True)
+    # AI triage (nullable so old rows migrate cleanly): 0-100 risk score,
+    # category label, one-line rationale, analysis time.
+    ai_score = Column(Integer, nullable=True)
+    ai_label = Column(String(20), nullable=True)
+    ai_summary = Column(Text, nullable=True)
+    ai_analyzed_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 

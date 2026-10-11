@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video, Pencil } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video, Pencil, Wand2, Undo2 } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { VideoNoteRecorder } from './VideoNoteRecorder'
@@ -10,7 +10,7 @@ import { useAuthStore } from '../store/auth'
 import type { EmojiClickData } from 'emoji-picker-react'
 import wsService from '../services/websocket'
 import { VoiceRecorder } from './VoiceRecorder'
-import { uploadApi, liveLocationApi } from '../services/api'
+import { uploadApi, liveLocationApi, aiApi } from '../services/api'
 import { startLiveTracking } from '../utils/liveLocation'
 import { useSettingsStore } from '../store/settings'
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
@@ -39,10 +39,64 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [showCamera, setShowCamera] = useState(false)
   const [showVideoNote, setShowVideoNote] = useState(false)
   const [showDoodle, setShowDoodle] = useState(false)
+  const [showRewrite, setShowRewrite] = useState(false)
+  const [rewriteBusy, setRewriteBusy] = useState(false)
+  const [canUndoRewrite, setCanUndoRewrite] = useState(false)
+  const lastOrigRef = useRef<string | null>(null)
+
+  const REWRITE_MODES = [
+    { id: 'polite', label: 'Make polite', emoji: '🙏', prompt: 'Rewrite the following message to sound polite and friendly' },
+    { id: 'shorten', label: 'Shorten', emoji: '✂️', prompt: 'Rewrite the following message to be shorter and punchier' },
+    { id: 'grammar', label: 'Fix grammar', emoji: '📝', prompt: 'Fix the spelling and grammar of the following message' },
+  ]
+
+  const rewriteDraft = async (modeId: string) => {
+    const mode = REWRITE_MODES.find((m) => m.id === modeId)
+    if (!mode || rewriteBusy) return
+    const original = text.trim()
+    if (!original) {
+      setUploadError('Type something first, then rewrite it.')
+      setShowRewrite(false)
+      return
+    }
+    setShowRewrite(false)
+    setRewriteBusy(true)
+    try {
+      const st: any = await aiApi.status().catch(() => null)
+      if (!st?.success || !st?.data?.live) {
+        setUploadError('Rewrite needs AI — no key configured. Ask your admin.')
+        return
+      }
+      const res: any = await aiApi.chat(
+        `${mode.prompt}. Reply with ONLY the rewritten text, no quotes, no commentary:\n\n${original.slice(0, 1000)}`,
+      )
+      let out = (res?.data?.reply || '').trim().replace(/^["'“”]+|["'“”]+$/g, '').trim()
+      if (!out) throw new Error('Empty rewrite')
+      lastOrigRef.current = original
+      setText(out)
+      writeDraft(conversationId, out)
+      requestAnimationFrame(() => autoResize())
+      setCanUndoRewrite(true)
+    } catch (err: any) {
+      setUploadError(err.response?.data?.message || err.message || 'Rewrite failed.')
+    } finally {
+      setRewriteBusy(false)
+    }
+  }
+
+  const undoRewrite = () => {
+    if (lastOrigRef.current != null) {
+      setText(lastOrigRef.current)
+      writeDraft(conversationId, lastOrigRef.current)
+      requestAnimationFrame(() => autoResize())
+    }
+    lastOrigRef.current = null
+    setCanUndoRewrite(false)
+  }
   const { user } = useAuthStore()
 
   // Sub-popups (effects/games/live) and the ＋ sheet dismiss together.
-  const closeSubPopups = () => { setShowEffects(false); setShowGames(false); setShowLive(false) }
+  const closeSubPopups = () => { setShowEffects(false); setShowGames(false); setShowLive(false); setShowRewrite(false) }
   const closeMore = () => { setShowMore(false); closeSubPopups() }
   // One unified media sheet (emoji/GIF/sticker/meme tabs).
   const openMedia = (t: MediaTab) => {
@@ -113,6 +167,35 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
                 <span className="w-5 text-center text-base">{o.emoji}</span> {o.label}
               </button>
             ))}
+          </div>
+        )}
+      </div>
+      {/* AI rewrite: polite / shorten / grammar, with one-tap undo */}
+      <div className="relative">
+        <button
+          onClick={() => { setShowRewrite(v => !v); setShowMedia(false); setShowEffects(false); setShowGames(false); setShowLive(false) }}
+          className="composer-action-btn"
+          aria-label="Rewrite with AI"
+          title="Rewrite draft with AI"
+          style={canUndoRewrite ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
+        >
+          <Wand2 className="w-5 h-5" />
+        </button>
+        {showRewrite && (
+          <div className="fixed left-1/2 -translate-x-1/2 bottom-40 z-40 w-52 max-w-[calc(100vw-24px)] rounded-2xl border bg-card p-1.5 shadow-xl">
+            {rewriteBusy ? (
+              <p className="px-3 py-2 text-sm text-muted-foreground">Rewriting…</p>
+            ) : (
+              REWRITE_MODES.map((m) => (
+                <button
+                  key={m.id}
+                  onClick={() => rewriteDraft(m.id)}
+                  className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+                >
+                  <span className="w-5 text-center text-base">{m.emoji}</span> {m.label}
+                </button>
+              ))
+            )}
           </div>
         )}
       </div>
@@ -291,6 +374,11 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 
   const handleChange = (v: string) => {
     setText(v)
+    // Manual edits diverge from any AI rewrite: drop the one-tap undo.
+    if (canUndoRewrite) {
+      lastOrigRef.current = null
+      setCanUndoRewrite(false)
+    }
     const isTyping = v.length > 0
     if (isTyping !== lastTyping.current) {
       lastTyping.current = isTyping
@@ -570,6 +658,16 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         <div className="composer-upload-error">
           <span>{uploadError}</span>
           <button onClick={() => setUploadError(null)} className="font-medium underline">Dismiss</button>
+        </div>
+      )}
+
+      {/* Rewrite undo */}
+      {canUndoRewrite && !uploading && (
+        <div className="composer-upload-error" style={{ borderColor: 'var(--accent-subtle)' }}>
+          <span>✨ Rewritten with AI</span>
+          <button onClick={undoRewrite} className="font-medium underline flex items-center gap-1">
+            <Undo2 className="w-3 h-3" /> Undo
+          </button>
         </div>
       )}
 

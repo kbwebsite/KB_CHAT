@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, UserX, UserCheck, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2 } from 'lucide-react'
 import { moderationApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 
@@ -93,8 +93,24 @@ export default function AdminPage() {
     }
   }
 
-  const setActive = async (id: number, active: boolean) => {
-    setBusy(`u${id}${active}`)
+  const analyze = async (id: number) => {
+    setBusy(`a${id}`)
+    try {
+      const res = await moderationApi.analyze(id)
+      if (res?.success) {
+        toast('AI analysis stored', 'success')
+        setReports((prev) => prev.map((r) => (r.id === id ? res.data : r)))
+      } else {
+        toast(res?.message || 'Analysis failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Analysis failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const setActive = async (id: number, active: boolean) => {    setBusy(`u${id}${active}`)
     try {
       const res = active
         ? await moderationApi.reactivate(id)
@@ -192,8 +208,35 @@ export default function AdminPage() {
                   <p className="text-sm mt-2">@{r.target.username}</p>
                 )}
                 {r.details && <p className="text-xs text-muted-foreground mt-1">{r.details}</p>}
+                {r.ai_score != null && (
+                  <div className="mt-2 px-3 py-2 rounded-lg bg-primary/5 border border-primary/20">
+                    <p className="text-xs font-semibold flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-primary" />
+                      AI triage: {r.ai_score}/100 · {r.ai_label}
+                    </p>
+                    {r.ai_summary && <p className="text-xs text-muted-foreground mt-0.5">{r.ai_summary}</p>}
+                    <p className="text-[11px] mt-1 font-medium text-primary">
+                      {r.ai_score >= 80
+                        ? 'Suggested: remove content / deactivate user'
+                        : r.ai_score >= 40
+                          ? 'Suggested: review carefully before acting'
+                          : 'Suggested: likely safe — consider dismissing'}
+                    </p>
+                  </div>
+                )}
                 {r.status === 'open' ? (
                   <div className="flex flex-wrap gap-2 mt-3">
+                    {r.ai_score == null && (
+                      <button
+                        disabled={busy !== null}
+                        onClick={() => analyze(r.id)}
+                        aria-label={`Analyze report ${r.id} with AI`}
+                        className="px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/25"
+                      >
+                        <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
+                        {busy === `a${r.id}` ? 'Analyzing…' : 'Analyze with AI'}
+                      </button>
+                    )}
                     {ACTIONS.map((a) => (
                       <button
                         key={a.id}

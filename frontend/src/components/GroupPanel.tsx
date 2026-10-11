@@ -2,9 +2,10 @@ import { useEffect, useRef, useState } from 'react'
 import { convApi, extendedApi, blockApi, groupInviteApi, uploadApi } from '../services/api'
 import { Conversation } from '../types'
 import { useAuthStore } from '../store/auth'
-import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check, Share2, Camera } from 'lucide-react'
+import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check, Share2, Camera, Sparkles } from 'lucide-react'
 import { shareText } from '../utils/share'
 import { UserSearch } from './UserSearch'
+import { AiArtDialog } from './AiArtDialog'
 
 export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:Conversation, onClose:()=>void, onUpdated:()=>void }) {
   const { user } = useAuthStore()
@@ -37,6 +38,19 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   const [announceBusy, setAnnounceBusy]=useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
+  const [showArt, setShowArt] = useState(false)
+
+  const handleArtPick = async (url: string) => {
+    if (!canManage) return
+    setShowArt(false)
+    setUploadingPhoto(true)
+    try {
+      const up = await convApi.updateGroup(conversation.id, { avatar_url: url })
+      if (up.success) { setMsg('Group icon generated'); onUpdated() }
+      else setMsg(up.message || 'Failed')
+    } catch (err: any) { setMsg(err.response?.data?.message || 'Failed') }
+    finally { setUploadingPhoto(false) }
+  }
 
   const handlePhoto=async (e:React.ChangeEvent<HTMLInputElement>)=>{
     const file = e.target.files?.[0]
@@ -226,6 +240,16 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
                 <input ref={photoRef} type="file" className="hidden" accept="image/*" onChange={handlePhoto} disabled={uploadingPhoto} />
               </label>
             )}
+            {conversation.is_group && canManage && (
+              <button
+                onClick={() => setShowArt(true)}
+                className="absolute bottom-0 left-0 w-8 h-8 rounded-full bg-card border border-border flex items-center justify-center shadow-md transition active:scale-95 hover:bg-muted"
+                aria-label="Generate group icon with AI"
+                title="Generate icon with AI"
+              >
+                <Sparkles className="w-4 h-4 text-primary" />
+              </button>
+            )}
           </div>
           <p className="font-semibold mt-2">{conversation.title}</p>
           <p className="text-xs text-muted-foreground">{members.length} members • {myRole} {myRole==='owner' && <Shield className="w-3 h-3 inline"/>}</p>
@@ -331,6 +355,9 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
           </div>
         </div>
       </div>
+      {showArt && (
+        <AiArtDialog cta="Set icon" onClose={() => setShowArt(false)} onPick={handleArtPick} />
+      )}
     </div>
   )
 }

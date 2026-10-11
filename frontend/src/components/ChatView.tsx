@@ -21,6 +21,7 @@ import { sqName } from './ChessGame'
 import { parseSlashCommand } from '../utils/slashCommands'
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
+import { AiArtDialog } from './AiArtDialog'
 import { IcebreakerSheet } from './IcebreakerSheet'
 import { LuckyDraw } from './LuckyDraw'
 import { getAutoReply, setAutoReply, DEFAULT_REPLY_TEXT } from '../utils/autoReply'
@@ -140,6 +141,7 @@ export function ChatView({
   const [showWallpaper, setShowWallpaper] = useState(false)
   const [showTimer, setShowTimer] = useState(false)
   const [convWp, setConvWp] = useState<string | null>(null)
+  const [showArt, setShowArt] = useState(false)
   const [convWpMsg, setConvWpMsg] = useState<string | null>(null)
   const [convAccent, setConvAccentState] = useState<string | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<any | null>(null)
@@ -808,6 +810,13 @@ export function ChatView({
               >
                 <span className="text-[11px] bg-card/80 px-1.5 py-0.5 rounded">Custom</span>
               </button>
+              <button
+                onClick={() => setShowArt(true)}
+                className="shrink-0 settings-wallpaper-btn h-12 min-w-[72px] p-1.5 gradient-primary"
+                title="Generate an AI wallpaper for this chat"
+              >
+                <span className="text-[11px] text-white px-1.5 py-0.5 rounded">✨ AI art</span>
+              </button>
             </div>
             <input ref={convWpFileRef} type="file" accept="image/*" className="hidden" onChange={(e) => handleConvCustomFile(e.target.files?.[0])} />
             <div className="flex items-center gap-2 mt-1.5">
@@ -1159,6 +1168,19 @@ export function ChatView({
         )}
 
         <EffectOverlay />
+
+        {showArt && currentConversationId && (
+          <AiArtDialog
+            cta="Set wallpaper"
+            onClose={() => setShowArt(false)}
+            onPick={(url) => {
+              setConvCustomUrl(currentConversationId, url)
+              setConvWallpaper(currentConversationId, 'custom')
+              setConvWp('custom')
+              setShowArt(false)
+            }}
+          />
+        )}
 
         {showIce && currentConversationId && (
           <IcebreakerSheet
