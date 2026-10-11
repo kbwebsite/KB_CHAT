@@ -20,8 +20,10 @@ Live: https://kb-chat-1.onrender.com · Android: [v1.2.0 APK](https://github.com
 - **Messaging**: Text, image/file, voice notes, reply, edit, delete (placeholder), reactions, view-once, disappearing messages, scheduled messages, pagination (cursor `before`), search
 - **Statuses**: Sending → Sent → Delivered → Read (UI indicators), with read-receipt opt-out honored end to end
 - **Conversations**: 1-to-1 auto-dedup, Groups (owner/admin/member roles), Channels, Communities, Broadcasts, unread counts, mark read/unread, pin/archive/mute/favorite
+- **Moderation**: Group slow mode (Telegram-style: 5s–1h per-member cooldown, admins exempt) + announcement-only mode
+- **Backup**: Full account backup & restore (profile + settings + every chat as one JSON download; merge-safe restore, file blobs stay as links)
 - **Calls**: Voice/video calls (WebRTC) with history
-- **Extras**: Stories + highlights, polls, events, saved messages, statuses, stickers, AI chat + in-app agent, link previews, chat export
+- **Extras**: Stories + highlights, polls, events, saved messages, statuses, stickers, AI chat + in-app agent, link previews, chat export + full backup
 - **Files**: Validated uploads (size, MIME, extension), path-traversal protection, Cloudinary persistence in production; image preview
 - **Search**: Users (username/display_name), conversations, messages (keyword, per-conversation)
 - **Settings**: Sectioned store (appearance, notifications, privacy, chat) — every toggle functional: theme/accent/wallpaper, font size, message density, Do Not Disturb, sound/vibration, desktop notifications with previews, typing indicators, link previews, media auto-download, enter-to-send
@@ -230,6 +232,7 @@ Auth: query param `token` → `decode_token` → `User`; close `1008` if invalid
 **Uploads**: `POST /api/uploads`, `GET /api/uploads/file/{filename}`, `POST /api/uploads/avatar`
 **Settings**: `GET /api/settings`, `PATCH /api/settings` (mute, previews, notifications, privacy, chat prefs)
 **Calls / Polls / Stories / Events / Extras**: see `/docs` for the full route list
+**Backup**: `GET /api/backup/export`, `POST /api/backup/restore` (full account JSON)
 **WS**: `WS /ws/chat?token=JWT`
 
 All REST responses: `{ success: bool, data: ..., message: str|null }`.
@@ -266,7 +269,7 @@ All REST responses: `{ success: bool, data: ..., message: str|null }`.
 - No end-to-end encryption on current message path (legacy sealed-message opener retained for old rows).
 - No background push on web beyond FCM when configured; native push covers the APK.
 - Single-server presence (in-memory); for multi-instance, replace with Redis.
-- No message backup/export beyond per-conversation text export.
+- No message backup beyond JSON export: `Settings → Chats → Download backup` covers profile + settings + chats (500 convs / 5000 msgs per chat; file blobs stay as links, not embedded).
 
 ---
 

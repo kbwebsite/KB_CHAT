@@ -18,6 +18,7 @@ class GroupUpdate(BaseModel):
     description: Optional[str] = Field(None, max_length=500)
     avatar_url: Optional[str] = None
     only_admins_can_send: Optional[bool] = None
+    slow_mode_seconds: Optional[int] = None
 
 
 class GroupMemberAdd(BaseModel):

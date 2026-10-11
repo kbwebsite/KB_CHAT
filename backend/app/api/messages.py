@@ -485,6 +485,43 @@ def create_message(
             raise HTTPException(
                 status_code=403, detail="Only admins can send in this group"
             )
+    # Slow mode (Telegram-style): members must wait X seconds between sends.
+    # Owners/admins are exempt, like Telegram.
+    if _conv is not None and _conv.is_group:
+        _slow = getattr(_conv, "slow_mode_seconds", None) or 0
+        if _slow and _slow > 0:
+            _my_role = (
+                db.query(ConversationMember.role)
+                .filter(
+                    ConversationMember.conversation_id == conv_id,
+                    ConversationMember.user_id == current_user.id,
+                )
+                .scalar()
+            )
+            if _my_role not in ("owner", "admin"):
+                from datetime import datetime, timezone as _tz
+
+                _last = (
+                    db.query(Message)
+                    .filter(
+                        Message.conversation_id == conv_id,
+                        Message.sender_id == current_user.id,
+                    )
+                    .order_by(desc(Message.id))
+                    .first()
+                )
+                if _last is not None and _last.created_at is not None:
+                    _created = _last.created_at
+                    if _created.tzinfo is None:
+                        _created = _created.replace(tzinfo=_tz.utc)
+                    _elapsed = (datetime.now(_tz.utc) - _created).total_seconds()
+                    if _elapsed < _slow:
+                        _retry = int(_slow - _elapsed) + 1
+                        raise HTTPException(
+                            status_code=429,
+                            detail=f"Slow mode: wait {_retry}s before sending again",
+                            headers={"Retry-After": str(_retry)},
+                        )
     if not payload.content and not payload.attachment_ids:
         raise HTTPException(
             status_code=400, detail="Message content or attachment required"

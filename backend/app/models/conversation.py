@@ -38,6 +38,10 @@ class Conversation(Base):
     # Announcement mode: when True, only owner/admin may send messages.
     # Nullable + python-side default so _ensure_missing_columns can backfill.
     only_admins_can_send = Column(Boolean, default=False, nullable=True)
+    # Slow mode (Telegram-style spam control): minimum seconds between two
+    # messages from the same non-admin member. NULL/0 = off. Nullable so the
+    # online migration adds it safely.
+    slow_mode_seconds = Column(Integer, nullable=True)
 
     members = relationship(
         "ConversationMember",

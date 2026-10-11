@@ -96,6 +96,33 @@ export function ChatView({
   const typingSet = useChatStore((s: any) => currentConversationId ? s.typingUsers[currentConversationId] : undefined)
   const myRole = (currentConv as any)?.members?.find((m: any) => m.user_id === user?.id)?.role
   const announceLocked = !!(currentConv as any)?.is_group && !!(currentConv as any)?.only_admins_can_send && myRole !== 'owner' && myRole !== 'admin'
+  const slowModeSeconds = (currentConv as any)?.slow_mode_seconds ?? null
+  const slowExempt = myRole === 'owner' || myRole === 'admin'
+  const [slowServerWait, setSlowServerWait] = useState(0)
+  const [nowTick, setNowTick] = useState(Date.now())
+  useEffect(() => {
+    if (!slowModeSeconds || slowExempt) return
+    const t = setInterval(() => setNowTick(Date.now()), 1000)
+    return () => clearInterval(t)
+  }, [slowModeSeconds, slowExempt, currentConversationId])
+  useEffect(() => {
+    if (slowServerWait > 0) {
+      const t = setTimeout(() => setSlowServerWait(v => Math.max(0, v - 1)), 1000)
+      return () => clearTimeout(t)
+    }
+  }, [slowServerWait])
+  const slowRemaining = (() => {
+    if (!slowModeSeconds || slowExempt || !(currentConv as any)?.is_group) return 0
+    let clientRemain = 0
+    try {
+      const own = [...(currentMsgs as any[])].reverse().find((m: any) => m.sender_id === user?.id && m.id > 0 && m.created_at)
+      if (own) {
+        const elapsed = (nowTick - new Date(own.created_at).getTime()) / 1000
+        clientRemain = Math.ceil(slowModeSeconds - elapsed)
+      }
+    } catch {}
+    return Math.max(clientRemain > 0 ? clientRemain : 0, slowServerWait)
+  })()
   // Auto-translate: per-conversation target language (local map).
   const [autoTrMap, setAutoTrMap] = useState<Record<number, string>>(() => {
     try {
@@ -431,9 +458,9 @@ export function ChatView({
   // in the chat itself, not only in the Extras panels. Memoized: rebuilding
   // + sorting on every render wastes frames while typing/scrolling.
   const flowItems: { kind: 'msg' | 'poll' | 'event'; key: string; created_at?: string | null; msg?: any; poll?: any; event?: any }[] = useMemo(() => [
-    ...currentMsgs.filter((m: any) => !isGameMoveMsg(m.content) && !hiddenIds(currentConversationId).has(m.id)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
-    ...convPolls.map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
-    ...convEvents.map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
+    ...currentMsgs.filter((m: any) => m && !isGameMoveMsg(m?.content) && !hiddenIds(currentConversationId).has(m.id)).map((m: any) => ({ kind: 'msg' as const, key: `m-${m.id}`, created_at: m.created_at, msg: m })),
+    ...convPolls.filter(Boolean).map((p: any) => ({ kind: 'poll' as const, key: `p-${p.id}`, created_at: p.created_at, poll: p })),
+    ...convEvents.filter(Boolean).map((e: any) => ({ kind: 'event' as const, key: `e-${e.id}`, created_at: e.created_at, event: e })),
   ].sort((a, b) => {
     const t = new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime()
     return t !== 0 ? t : (a.key < b.key ? -1 : 1)
@@ -470,7 +497,18 @@ export function ChatView({
       await sendMessage(currentConversationId, body, replyTo?.id, attachmentIds, type, extra)
       awardActivity(true)
     }
-    catch (e: any) { toast('Failed to send — tap the message to retry. ' + (e?.response?.data?.message || e?.message || 'network error'), 'error') }
+    catch (e: any) {
+      const status = e?.response?.status
+      const detail = e?.response?.data?.detail || e?.response?.data?.message || ''
+      if (status === 429 && /slow mode/i.test(String(detail))) {
+        const m = String(detail).match(/(\d+)s/)
+        const wait = m ? parseInt(m[1], 10) : (slowModeSeconds || 10)
+        setSlowServerWait(wait)
+        toast(`⏳ Slow mode: wait ${wait}s before sending again`, 'error')
+        return
+      }
+      toast('Failed to send — tap the message to retry. ' + (e?.response?.data?.message || e?.message || 'network error'), 'error')
+    }
   }
 
   // Keep the newest AI output visible as it streams/grows, without yanking
@@ -970,9 +1008,10 @@ export function ChatView({
           )}
           <div className="py-2 px-2 sm:px-4">
             {flowItems.map((item, idx) => {
+              if (!item) return null
               const prev = flowItems[idx - 1]
               const prevDate = prev?.created_at ? new Date(prev.created_at).toDateString() : null
-              const itemDate = item.created_at ? new Date(item.created_at).toDateString() : null
+              const itemDate = item?.created_at ? new Date(item.created_at).toDateString() : null
               const showDateSep = prevDate !== itemDate
               const dateSep = showDateSep && itemDate ? (
                 <div className="flex items-center gap-3 my-4">
@@ -1254,6 +1293,11 @@ export function ChatView({
 
         {announceLocked && (
           <p className="mx-3 mb-2 text-xs text-center px-3 py-2 rounded-xl bg-amber-500/10 text-amber-600">Only admins can send messages in this group</p>
+        )}
+        {!!(currentConv as any)?.is_group && !!slowModeSeconds && !slowExempt && (
+          <p className="mx-3 mb-2 text-xs text-center px-3 py-1.5 rounded-xl bg-muted text-muted-foreground">
+            {slowRemaining > 0 ? `⏳ Slow mode: wait ${slowRemaining}s before sending` : `⏳ Slow mode on: 1 message per ${slowModeSeconds >= 60 ? `${slowModeSeconds/60}m` : `${slowModeSeconds}s`}`}
+          </p>
         )}
         <MessageComposer
           onSend={handleSend}

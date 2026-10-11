@@ -29,6 +29,25 @@ from app.services.errors import MISSING, bad_request, forbidden, not_found
 
 _MANAGER_ROLES = ("owner", "admin")
 
+# Telegram-style slow-mode presets. 0/None = off.
+SLOW_MODE_CHOICES = (0, 5, 10, 30, 60, 300, 900, 3600)
+
+
+def _normalize_slow_mode(value) -> int | None:
+    if value is None:
+        return None
+    try:
+        seconds = int(value)
+    except (TypeError, ValueError):
+        raise bad_request("Invalid slow mode value")
+    if seconds == 0:
+        return None
+    if seconds not in SLOW_MODE_CHOICES:
+        raise bad_request(
+            "Slow mode must be one of: off, 5s, 10s, 30s, 1m, 5m, 15m, 1h"
+        )
+    return seconds
+
 
 def _get_group(db: Session, conv_id: int) -> Conversation:
     conv = db.query(Conversation).filter_by(id=conv_id, is_group=True).first()
@@ -209,6 +228,7 @@ def update_group_details(
     description=MISSING,
     avatar_url=MISSING,
     only_admins_can_send=MISSING,
+    slow_mode_seconds=MISSING,
 ) -> Conversation:
     conv = _get_group(db, conv_id)
     mem = _membership(db, conv_id, actor_id)
@@ -222,6 +242,8 @@ def update_group_details(
         conv.avatar_url = avatar_url
     if only_admins_can_send is not MISSING:
         conv.only_admins_can_send = bool(only_admins_can_send)
+    if slow_mode_seconds is not MISSING:
+        conv.slow_mode_seconds = _normalize_slow_mode(slow_mode_seconds)
     db.commit()
     db.refresh(conv)
     return conv

@@ -87,9 +87,9 @@ export interface TodState {
 export function collectTod(challengeId: number, msgs: any[]): TodState {
   const spins: TodState['spins'] = []
   const dones: TodState['dones'] = []
-  const sorted = [...msgs].sort((a, b) => a.id - b.id)
+  const sorted = [...msgs].filter(Boolean).sort((a, b) => a.id - b.id)
   for (const m of sorted) {
-    if (m.is_deleted) continue
+    if (!m || m.is_deleted) continue
     const s = parseTodSpin(m.content || '', challengeId)
     if (s) {
       spins.push({

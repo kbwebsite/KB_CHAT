@@ -57,6 +57,9 @@ export function TruthOrDareGame({
       return
     }
     setSpinning(true)
+    // First paint of the animation must already have a card: otherwise
+    // spinning=true + shown=null crashes on shown.kind (null access).
+    setFlash(pickRandom())
     const started = Date.now()
     timer.current = setInterval(() => {
       setFlash(pickRandom())
@@ -79,11 +82,15 @@ export function TruthOrDareGame({
         {spinning || shown ? (
           <>
             <p className="text-[10px] font-bold uppercase tracking-widest text-primary">
-              {spinning ? 'spinning…' : shown!.kind}
+              {spinning ? 'spinning…' : shown?.kind}
             </p>
             <p className="text-sm font-medium leading-snug mt-1">
               {spinning
-                ? (shown!.kind === 'truth' ? TRUTHS[shown!.index] : DARES[shown!.index])
+                ? (shown
+                    ? (shown.kind === 'truth'
+                        ? TRUTHS[shown.index % TRUTHS.length]
+                        : DARES[shown.index % DARES.length])
+                    : 'Shuffling fate…')
                 : todCardText({ kind: shown!.kind, index: shown!.index, senderId: null, senderName: '' })}
             </p>
             {!spinning && latest && (

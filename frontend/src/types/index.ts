@@ -48,6 +48,7 @@ export interface Conversation {
   is_favorite?: boolean;
   muted_until?: string | null;
   only_admins_can_send?: boolean;
+  slow_mode_seconds?: number | null;
 }
 
 export interface Attachment {

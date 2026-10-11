@@ -36,6 +36,18 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   const isOwner = myRole==='owner'
   const [announceOnly, setAnnounceOnly]=useState(!!conversation.only_admins_can_send)
   const [announceBusy, setAnnounceBusy]=useState(false)
+  const SLOW_OPTIONS = [
+    { id: 'off', label: 'Off', seconds: null as number | null },
+    { id: '5s', label: '5s', seconds: 5 },
+    { id: '10s', label: '10s', seconds: 10 },
+    { id: '30s', label: '30s', seconds: 30 },
+    { id: '1m', label: '1m', seconds: 60 },
+    { id: '5m', label: '5m', seconds: 300 },
+    { id: '15m', label: '15m', seconds: 900 },
+    { id: '1h', label: '1h', seconds: 3600 },
+  ]
+  const [slowMode, setSlowMode]=useState<number|null>((conversation as any).slow_mode_seconds ?? null)
+  const [slowBusy, setSlowBusy]=useState(false)
   const photoRef = useRef<HTMLInputElement>(null)
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [showArt, setShowArt] = useState(false)
@@ -145,6 +157,20 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
       if (res.success) { setAnnounceOnly(!announceOnly); setMsg(!announceOnly ? 'Only admins can send now' : 'All members can send now'); onUpdated() }
     } catch (e:any) { setMsg(e.response?.data?.message||'Failed') }
     finally { setAnnounceBusy(false) }
+  }
+
+  const handleSlowMode=async (seconds:number|null)=>{
+    if (!canManage) return setMsg('Only admins can change this')
+    setSlowBusy(true)
+    try {
+      const res = await convApi.updateGroup(conversation.id, { slow_mode_seconds: seconds ?? 0 })
+      if (res.success) {
+        setSlowMode(seconds)
+        setMsg(seconds ? `Slow mode: 1 message per ${seconds >= 60 ? `${seconds/60}m` : `${seconds}s`}` : 'Slow mode off')
+        onUpdated()
+      } else setMsg(res.message || 'Failed')
+    } catch (e:any) { setMsg(e.response?.data?.detail || e.response?.data?.message || 'Failed') }
+    finally { setSlowBusy(false) }
   }
 
   const handleTransfer=async (uid:number, name:string)=>{
@@ -304,6 +330,21 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
             <div className="flex items-center justify-between gap-2">
               <p className="text-xs text-muted-foreground flex-1">{announceOnly ? 'Only admins can send (announcement mode)' : 'All members can send'}</p>
               <button onClick={handleAnnounceToggle} disabled={!canManage || announceBusy} className={`px-3 py-1.5 rounded-full text-xs font-medium disabled:opacity-50 ${announceOnly ? 'bg-amber-500 text-white' : 'bg-muted'}`}>{announceBusy ? '…' : announceOnly ? 'Admins only: ON' : 'Admins only: OFF'}</button>
+            </div>
+            {!canManage && <p className="text-[11px] text-muted-foreground">Only admins can change this.</p>}
+          </div>
+        )}
+        {conversation.is_group && (
+          <div className="rounded-xl border p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">⏳ Slow mode</h3>
+            <p className="text-xs text-muted-foreground">Spam control: members wait between messages. Admins are exempt.</p>
+            <div className="flex flex-wrap gap-1.5">
+              {SLOW_OPTIONS.map(o=>(
+                <button key={o.id} onClick={()=>handleSlowMode(o.seconds)} disabled={!canManage || slowBusy}
+                  className={`px-2.5 py-1.5 rounded-full text-xs font-medium disabled:opacity-50 ${(slowMode ?? null) === o.seconds ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>
+                  {o.label}
+                </button>
+              ))}
             </div>
             {!canManage && <p className="text-[11px] text-muted-foreground">Only admins can change this.</p>}
           </div>

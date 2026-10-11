@@ -559,6 +559,11 @@ export const blockApi = {
   list: () => api.get('/api/contacts/blocked').then(r=>r.data),
 }
 
+export const backupApi = {
+  export: () => api.get('/api/backup/export').then(r=>r.data),
+  restore: (backup: any) => api.post('/api/backup/restore', backup).then(r=>r.data),
+}
+
 export const pushApi = {
   register: (data: { token: string; platform?: string; device_id?: string }) =>
     api.post('/api/push/tokens', data).then(r=>r.data),

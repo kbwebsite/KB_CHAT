@@ -395,7 +395,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isTod = !msg.is_deleted && isTodChallenge(msg.content)
   const isWc = !msg.is_deleted && isWordChainChallenge(msg.content)
   // Game cards carry their own inline play UI — row actions only disturb.
+  // Exception: deleting your OWN game card stays available (nothing else).
   const isGameCard = isGameCardMsg(msg)
+  const canManageGame = isGameCard && isOwn && !msg.is_deleted && !(msg as any).view_once
   // Photo/video messages get a slim dedicated menu (no text/AI actions).
   const isMedia = isMediaMsg(msg)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
@@ -571,7 +573,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isAi ? 'rounded-2xl rounded-bl-md ring-1 ring-violet-400/50' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isAi ? { background: 'linear-gradient(135deg, rgba(124,92,252,0.28), rgba(34,211,238,0.16))', backdropFilter: 'blur(12px)', border: '1px solid rgba(124,92,252,0.45)', boxShadow: '0 4px 20px rgba(124,92,252,0.25), inset 0 1px 0 rgba(255,255,255,0.08)', color: '#f0f0ff' } : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted && !isGameCard) onMobileMore(msg) }}>
+        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isAi ? 'rounded-2xl rounded-bl-md ring-1 ring-violet-400/50' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isAi ? { background: 'linear-gradient(135deg, rgba(124,92,252,0.28), rgba(34,211,238,0.16))', backdropFilter: 'blur(12px)', border: '1px solid rgba(124,92,252,0.45)', boxShadow: '0 4px 20px rgba(124,92,252,0.25), inset 0 1px 0 rgba(255,255,255,0.08)', color: '#f0f0ff' } : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={()=>{ if (onMobileMore && !msg.is_deleted && (!isGameCard || canManageGame)) onMobileMore(msg) }}>
           {imgAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
@@ -841,7 +843,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               </span>
             )}
           </div>
-          {!isGameCard && (
+          {!isGameCard ? (
           <div className={`absolute ${isOwn?'left-0 -translate-x-full':'right-0 translate-x-full'} top-1/2 -translate-y-1/2 hidden sm:group-hover:flex items-center gap-1 p-1 rounded-full kryzen-msg-actions z-10`}>
             {REACTIONS.slice(0,3).map(e=> (
               <button key={e} onClick={()=>onReact(msg.id,e)} className="p-1.5 hover:bg-muted rounded-full text-xs">{e}</button>
@@ -869,7 +871,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <button onClick={()=>onDelete(msg)} className="p-1.5 hover:bg-muted rounded-full text-destructive" title="Delete"><Trash2 className="w-3.5 h-3.5"/></button>
             </>}
           </div>
-          )}
+          ) : null}
           {showMenu && !isGameCard && (
             <div className={`absolute ${isOwn?'left-0' : 'right-0'} top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm`}>
               {!isMedia && (

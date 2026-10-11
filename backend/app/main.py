@@ -184,6 +184,7 @@ from app.api.moderation import router as moderation_router
 from app.api.security import router as security_router
 from app.api.passkeys import router as passkeys_router
 from app.api.memories import router as memories_router
+from app.api.backup import router as backup_router
 from app.websocket.chat import router as ws_router
 
 create_tables()
@@ -242,6 +243,7 @@ app.include_router(moderation_router)
 app.include_router(security_router)
 app.include_router(passkeys_router)
 app.include_router(memories_router)
+app.include_router(backup_router)
 app.include_router(ws_router)
 
 

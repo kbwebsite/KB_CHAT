@@ -53,9 +53,9 @@ export function collectWordChain(challengeId: number, msgs: any[]): ChainState {
   const valid: ChainWord[] = []
   const strikes: ChainStrike[] = []
   const used = new Set<string>()
-  const sorted = [...msgs].sort((a, b) => a.id - b.id)
+  const sorted = [...msgs].filter(Boolean).sort((a, b) => a.id - b.id)
   for (const m of sorted) {
-    if (m.is_deleted) continue
+    if (!m || m.is_deleted) continue
     const raw = WORD_RE.exec(m.content || '')
     if (!raw || Number(raw[1]) !== challengeId) continue
     const senderName = m.sender_display_name || m.sender_username || 'Someone'

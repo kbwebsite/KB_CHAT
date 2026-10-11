@@ -170,6 +170,7 @@ def conversation_to_dict(db: Session, conv: Conversation, current_user_id: int):
         "only_admins_can_send": bool(
             getattr(conv, "only_admins_can_send", False) or False
         ),
+        "slow_mode_seconds": getattr(conv, "slow_mode_seconds", None) or None,
     }
 
 
@@ -353,6 +354,10 @@ def list_conversations(
             "is_archived": my_membership.is_archived if my_membership else False,
             "is_favorite": my_membership.is_favorite if my_membership else False,
             "disappearing_seconds": getattr(c, "disappearing_seconds", None),
+            "only_admins_can_send": bool(
+                getattr(c, "only_admins_can_send", False) or False
+            ),
+            "slow_mode_seconds": getattr(c, "slow_mode_seconds", None) or None,
         }
 
     # Hide 1-1 chats with blocked users (either direction) from the list.
@@ -613,6 +618,9 @@ def update_group(
         avatar_url=payload.avatar_url if payload.avatar_url is not None else M,
         only_admins_can_send=payload.only_admins_can_send
         if payload.only_admins_can_send is not None
+        else M,
+        slow_mode_seconds=payload.slow_mode_seconds
+        if payload.slow_mode_seconds is not None
         else M,
     )
     return success_response(

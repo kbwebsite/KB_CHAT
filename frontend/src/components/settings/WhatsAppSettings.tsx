@@ -12,6 +12,7 @@ import {
   broadcastApi,
   communityApi,
   convApi,
+  backupApi,
 } from '../../services/api'
 import { wallpaperStyle, customWallpaperUrl } from '../../utils/wallpapers'
 import { useSettingsStore } from '../../store/settings'
@@ -356,6 +357,64 @@ function InviteSection() {
           ))
         )}
       </div>
+    </div>
+  )
+}
+
+/* ── Full account backup & restore (real API) ─────────────────── */
+function BackupManager() {
+  const [busy, setBusy] = useState<'idle' | 'export' | 'restore'>('idle')
+  const [msg, setMsg] = useState<string | null>(null)
+
+  const doExport = async () => {
+    setBusy('export'); setMsg(null)
+    try {
+      const r: any = await backupApi.export()
+      if (!r?.success) { setMsg(r?.message || 'Export failed'); return }
+      const stamp = new Date().toISOString().slice(0, 10)
+      const blob = new Blob([JSON.stringify(r.data, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url; a.download = `kryzen-backup-${stamp}.json`; a.click()
+      setTimeout(() => URL.revokeObjectURL(url), 4000)
+      const c = r.data?.counts
+      setMsg(c ? `Downloaded ${c.conversations} chats, ${c.messages} messages` : 'Backup downloaded')
+    } catch (e: any) {
+      setMsg(e.response?.data?.detail || e.response?.data?.message || 'Export failed')
+    } finally { setBusy('idle') }
+  }
+
+  const doRestore = async (f: File | undefined) => {
+    if (!f) return
+    setBusy('restore'); setMsg(null)
+    try {
+      const text = await f.text()
+      const parsed = JSON.parse(text)
+      const r: any = await backupApi.restore(parsed)
+      if (r?.success) {
+        setMsg(r.message || 'Restore complete')
+        try { await useChatStore.getState().fetchConversations() } catch {}
+      } else setMsg(r?.message || 'Restore failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.detail || e.response?.data?.message || 'Invalid backup file')
+    } finally { setBusy('idle') }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex gap-2">
+        <button onClick={doExport} disabled={busy !== 'idle'}
+          className="flex-1 py-2 rounded-xl btn-primary text-sm font-medium disabled:opacity-50">
+          {busy === 'export' ? 'Exporting…' : 'Download backup'}
+        </button>
+        <label className={`flex-1 py-2 rounded-xl bg-background border border-[var(--k-border)] text-sm text-center cursor-pointer hover:bg-muted transition-colors ${busy !== 'idle' ? 'opacity-50 pointer-events-none' : ''}`}>
+          {busy === 'restore' ? 'Restoring…' : 'Restore file'}
+          <input type="file" accept="application/json,.json" className="hidden"
+            onChange={(e) => { doRestore(e.target.files?.[0]); e.target.value = '' }} />
+        </label>
+      </div>
+      {msg && <p className="text-xs text-center text-muted-foreground">{msg}</p>}
+      <p className="text-xs text-muted-foreground">One JSON file: profile + settings + all your chats. Files stay as links — blobs aren&apos;t embedded. Restore merges, never deletes.</p>
     </div>
   )
 }
@@ -855,8 +914,10 @@ export function WhatsAppSettings({
           </div>
           <div>
             <SectionLabel>Chat backup</SectionLabel>
-            <InfoRow title="Chat backup" sub="Kryzen doesn't upload backups anywhere yet — your history stays on your devices." />
-            <InfoRow title="Transfer chats" sub="Chat transfer between devices isn't available yet." />
+            <div className="mt-1">
+              <BackupManager />
+            </div>
+            <InfoRow title="Transfer chats" sub="Move to a new device with Download backup → Restore file on the new login." />
           </div>
         </div>
       ),
