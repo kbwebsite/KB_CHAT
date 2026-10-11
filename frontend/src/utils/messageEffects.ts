@@ -178,6 +178,38 @@ export function isGameMoveMsg(text: unknown): boolean {
   )
 }
 
+const GAME_CARD_PREFIXES = [
+  '🎮TTT:new',
+  '🎮RPS:new',
+  '🎮C4:new',
+  '🎮EMOJI:new',
+  '🎮CHESS:new',
+  '🎮TOD:new',
+  '🎮WC:new',
+]
+
+/** True for a rendered game card (challenge message). Action menus stay
+ * off these — the card itself is the whole interaction. */
+export function isGameCardMsg(msg: any): boolean {
+  if (!msg || msg.is_deleted) return false
+  const text = typeof msg.content === 'string' ? msg.content : ''
+  return GAME_CARD_PREFIXES.some((p) => text.startsWith(p))
+}
+
+function attachmentMime(a: any): string {
+  return typeof a?.mime_type === 'string' ? a.mime_type : ''
+}
+
+/** True when the message carries real image/video attachments. */
+export function isMediaMsg(msg: any): boolean {
+  if (!msg || msg.is_deleted) return false
+  const atts = Array.isArray(msg.attachments) ? msg.attachments.filter(Boolean) : []
+  return atts.some((a) => {
+    const m = attachmentMime(a).toLowerCase()
+    return m.startsWith('image/') || m.startsWith('video/')
+  })
+}
+
 const MILESTONE_KEY = 'kb_msg_milestones'
 
 /** Chat milestones: every 100 messages earns one celebration.

@@ -24,6 +24,7 @@ import { MessageInfo } from '../components/MessageInfo'
 import { OnboardingPanel, isOnboarded } from '../components/OnboardingPanel'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
+import { isMediaMsg } from '../utils/messageEffects'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -807,22 +808,34 @@ export default function ChatPage() {
         {/* Mesh group call room (own modal; store-driven) */}
         <GroupCallModal />
 
-        {/* Mobile action sheet */}
+        {/* Mobile action sheet (games never open it; media gets a slim set) */}
         <BottomSheet open={mobileActionSheet.open} onClose={() => setMobileActionSheet({ open: false })} title="Message Actions">
           {mobileActionSheet.msg && (
             <>
               <BottomSheetAction icon={<span className="text-lg">👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({ open: false }) }} />
               <BottomSheetAction icon={<Reply className="w-5 h-5" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
+              {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Copy className="w-5 h-5" />} label="Copy" onClick={() => { if (mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({ open: false }) }} />
+              )}
               <BottomSheetAction icon={<Forward className="w-5 h-5" />} label="Forward" onClick={() => { if (mobileActionSheet.msg) { setForwardMsg(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
               <BottomSheetAction icon={<Bookmark className="w-5 h-5" />}
                 label={savedIds.has(mobileActionSheet.msg.id) ? 'Unsave' : 'Save'} onClick={() => { if (mobileActionSheet.msg) { handleSave(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Pin className="w-5 h-5" />}
                 label={pinnedMessages.some((p: any) => p.id === mobileActionSheet.msg?.id) ? 'Unpin' : 'Pin'} onClick={() => { if (mobileActionSheet.msg) { handlePin(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+              )}
+              {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Sparkles className="w-5 h-5" />} label="Summarize" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'summarize'); setMobileActionSheet({ open: false }) } }} />
+              )}
+              {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
+              )}
+              {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Clock className="w-5 h-5" />} label="In 1 hour" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'hour').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
+              )}
+              {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Sunrise className="w-5 h-5" />} label="At 9 AM" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'morning').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
+              )}
               {mobileActionSheet.msg && mobileActionSheet.msg.sender_id !== user?.id && !(mobileActionSheet.msg as any).is_deleted && (
                 <BottomSheetAction icon={<Flag className="w-5 h-5" />} label="Report" onClick={() => { if (mobileActionSheet.msg) { setReportTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
               )}
