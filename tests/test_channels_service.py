@@ -216,3 +216,112 @@ def test_channel_post_reactions_and_delete():
         == 404
     )
     assert client.delete(f"/api/channels/{cid}", headers=ho).status_code == 200
+
+
+def test_channel_poll_lifecycle():
+    ho, hf = _users()
+    r = client.post("/api/channels", json={"name": "Polls"}, headers=ho)
+    assert r.status_code == 200, r.text
+    cid = r.json()["data"]["id"]
+
+    # need 2+ options
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls",
+            json={"question": "Best?", "options": ["Only"]},
+            headers=ho,
+        ).status_code
+        == 400
+    )
+    # non-owner cannot create
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls",
+            json={"question": "Best?", "options": ["A", "B"]},
+            headers=hf,
+        ).status_code
+        == 403
+    )
+    rp = client.post(
+        f"/api/channels/{cid}/polls",
+        json={"question": "Best?", "options": ["A", "B", "C"]},
+        headers=ho,
+    )
+    assert rp.status_code == 200, rp.text
+    poll = rp.json()["data"]
+    assert poll["total_votes"] == 0 and len(poll["options"]) == 3
+    pid = poll["id"]
+    opt_a, opt_b = poll["options"][0]["id"], poll["options"][1]["id"]
+
+    # non-follower cannot vote
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls/{pid}/vote",
+            json={"option_ids": [opt_a]},
+            headers=hf,
+        ).status_code
+        == 403
+    )
+    assert client.post(f"/api/channels/{cid}/follow", headers=hf).status_code == 200
+    # bad option rejected
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls/{pid}/vote",
+            json={"option_ids": [999999]},
+            headers=hf,
+        ).status_code
+        == 400
+    )
+    # vote A
+    rv = client.post(
+        f"/api/channels/{cid}/polls/{pid}/vote",
+        json={"option_ids": [opt_a]},
+        headers=hf,
+    )
+    assert rv.status_code == 200, rv.text
+    assert rv.json()["data"]["total_votes"] == 1
+    # change mind to B (single choice replaces)
+    rv2 = client.post(
+        f"/api/channels/{cid}/polls/{pid}/vote",
+        json={"option_ids": [opt_b]},
+        headers=hf,
+    )
+    got = {o["id"]: o["vote_count"] for o in rv2.json()["data"]["options"]}
+    assert rv2.json()["data"]["total_votes"] == 1
+    assert got[opt_a] == 0 and got[opt_b] == 1
+    mine = [o for o in rv2.json()["data"]["options"] if o["id"] == opt_b][0]
+    assert len(mine["voter_ids"]) == 1
+    # list shows my vote
+    rl = client.get(f"/api/channels/{cid}/polls", headers=hf)
+    assert rl.status_code == 200 and len(rl.json()["data"]) == 1
+    # non-owner cannot close/delete
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls/{pid}/close", json={}, headers=hf
+        ).status_code
+        == 403
+    )
+    assert (
+        client.delete(f"/api/channels/{cid}/polls/{pid}", headers=hf).status_code == 403
+    )
+    # owner closes — votes rejected after
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls/{pid}/close", json={}, headers=ho
+        ).status_code
+        == 200
+    )
+    assert (
+        client.post(
+            f"/api/channels/{cid}/polls/{pid}/vote",
+            json={"option_ids": [opt_a]},
+            headers=hf,
+        ).status_code
+        == 400
+    )
+    # owner deletes
+    assert (
+        client.delete(f"/api/channels/{cid}/polls/{pid}", headers=ho).status_code == 200
+    )
+    assert client.get(f"/api/channels/{cid}/polls", headers=hf).json()["data"] == []
+    assert client.delete(f"/api/channels/{cid}", headers=ho).status_code == 200

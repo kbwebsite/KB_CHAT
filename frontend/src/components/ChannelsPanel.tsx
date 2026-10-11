@@ -38,8 +38,11 @@ import {
   Rocket,
   Calendar,
   MessageSquare,
+  BarChart3,
 } from 'lucide-react'
+import { PollCard } from './PollPanel'
 import { channelApi, uploadApi } from '../services/api'
+import { useAuthStore } from '../store/auth'
 import { useEscapeKey } from '../hooks/useDismiss'
 import { compact, compactPlural } from '../utils/format'
 
@@ -152,6 +155,14 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   // Open reaction picker post id (null = closed). Channels are
   // broadcast-only: no replies, reactions only.
   const [reactFor, setReactFor] = useState<number | null>(null)
+  // Channel polls (owner creates, followers vote).
+  const [polls, setPolls] = useState<any[]>([])
+  const [pollForm, setPollForm] = useState<null | { question: string; options: string[] }>(null)
+  const [creatingPoll, setCreatingPoll] = useState(false)
+  // Per-card action sheet (the 3-dot button must do something).
+  const [cardMenu, setCardMenu] = useState<any | null>(null)
+  // A–Z sort toggle for directory lists (filter button).
+  const [sortAz, setSortAz] = useState(false)
   // Create wizard — everything customizable: name, desc, logo emoji, logo style, category, cover.
   const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string; icon: string; cover_theme: string; avatar_url: string; cover_url: string; category: string; avatar_theme: string }>(null)
   const [creating, setCreating] = useState(false)
@@ -328,11 +339,15 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     setShowJump(false)
     setPostsLoading(true)
     try {
-      const r = await channelApi.posts(c.id)
-      if (r?.success) {
-        setPosts(r.data || [])
+      const [pr, pl] = await Promise.all([
+        channelApi.posts(c.id),
+        channelApi.polls(c.id).catch(() => null),
+      ])
+      if (pr?.success) {
+        setPosts(pr.data || [])
         requestAnimationFrame(() => scrollFeedToBottom(false))
-      } else setMsg(r?.message || 'Failed to load posts')
+      } else setMsg(pr?.message || 'Failed to load posts')
+      if (pl?.success) setPolls(pl.data || [])
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed to load posts')
     } finally {
@@ -340,11 +355,28 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     }
   }
 
+  // Locked cards/rows: tap follows first, then opens — never a dead tap.
+  const tapCard = async (c: any) => {
+    if (c.followed || c.is_owner) return open(c)
+    try {
+      const r = await channelApi.follow(c.id)
+      if (r?.success) {
+        setChannels((l) => l.map((x) => (x.id === c.id ? r.data : x)))
+        setMsg('Following — welcome in')
+        await open({ ...r.data })
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    }
+  }
+
   const backToList = () => {
     setOpenId(null)
     setPosts([])
+    setPolls([])
     setDraft('')
     setReactFor(null)
+    setPollForm(null)
   }
 
   const post = async (id: number, contentOverride?: string) => {
@@ -431,6 +463,80 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
       if (r?.success && r.data) {
         const reactions = r.data.reactions || []
         setPosts((list) => list.map((x: any) => (x.id === p.id ? { ...x, reactions } : x)))
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    }
+  }
+
+  const copyChannelLink = async (c: any) => {
+    if (!c) return
+    const link = `${window.location.origin}/chat#channel-${c.id}`
+    try {
+      await navigator.clipboard.writeText(link)
+      setMsg('Channel link copied')
+    } catch {
+      setMsg(link)
+    }
+    setCardMenu(null)
+  }
+
+  const createPoll = async () => {
+    if (!openChannel?.is_owner || creatingPoll) return
+    const question = (pollForm?.question || '').trim()
+    const options = (pollForm?.options || []).map((o) => o.trim()).filter(Boolean)
+    if (!question || options.length < 2) {
+      setMsg('Poll needs a question + at least 2 options')
+      return
+    }
+    setCreatingPoll(true)
+    try {
+      const r = await channelApi.createPoll(openChannel.id, { question, options })
+      if (r?.success && r.data) {
+        setPolls((l) => [r.data, ...l])
+        setPollForm(null)
+        setMsg('Poll posted')
+        requestAnimationFrame(() => scrollFeedToBottom(true))
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    } finally {
+      setCreatingPoll(false)
+    }
+  }
+
+  const votePoll = async (pollId: number, opts: number[]) => {
+    if (!openChannel) return
+    try {
+      const r = await channelApi.votePoll(openChannel.id, pollId, opts)
+      if (r?.success && r.data) {
+        setPolls((l) => l.map((x: any) => (x.id === pollId ? r.data : x)))
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    }
+  }
+
+  const closePoll = async (pollId: number) => {
+    if (!openChannel?.is_owner) return
+    if (!confirm('Close this poll? No more votes will be accepted.')) return
+    try {
+      const r = await channelApi.closePoll(openChannel.id, pollId)
+      if (r?.success && r.data) {
+        setPolls((l) => l.map((x: any) => (x.id === pollId ? r.data : x)))
+      } else setMsg(r?.message || 'Failed')
+    } catch (e: any) {
+      setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
+    }
+  }
+
+  const deletePoll = async (pollId: number) => {
+    if (!openChannel?.is_owner) return
+    if (!confirm('Delete this poll?')) return
+    try {
+      const r = await channelApi.deletePoll(openChannel.id, pollId)
+      if (r?.success) {
+        setPolls((l) => l.filter((x: any) => x.id !== pollId))
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
@@ -525,6 +631,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     if (!c?.category) return categoryOf(c) === catId
     return false
   }
+
+  const sortList = (list: any[]) =>
+    sortAz ? [...list].sort((a, b) => (a.name || '').localeCompare(b.name || '')) : list
 
   // Tint for borders/shadows derived from the id-based gradient (avatar stays gradient).
   const coverOfChannel = (c: any): [string, string] => coverOf(c?.id ?? 0)
@@ -667,15 +776,23 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
 
   const grouped = useMemo(() => {
     const groups: { key: string; label: string; items: any[] }[] = []
-    for (const p of posts) {
-      const label = fmtDatePill(p.created_at) || 'UPDATES'
+    // Posts + polls interleaved chronologically (polls are channel updates too).
+    const feed = [
+      ...posts.map((p: any) => ({ kind: 'post' as const, at: p.created_at, p })),
+      ...polls.map((pl: any) => ({ kind: 'poll' as const, at: pl.created_at, pl })),
+    ].sort(
+      (a, b) =>
+        new Date(a.at || 0).getTime() - new Date(b.at || 0).getTime()
+    )
+    for (const item of feed) {
+      const label = fmtDatePill(item.at) || 'UPDATES'
       const last = groups[groups.length - 1]
-      if (last && last.label === label) last.items.push(p)
-      else groups.push({ key: `${label}-${groups.length}`, label, items: [p] })
+      if (last && last.label === label) last.items.push(item)
+      else groups.push({ key: `${label}-${groups.length}`, label, items: [item] })
     }
     return groups
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [posts])
+  }, [posts, polls])
 
   const hasMedia = (content: string) => postImages(content).length > 0 || postVideos(content).length > 0
 
@@ -705,7 +822,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   if (openChannel) {
     const openCover = coverStyleOf(openChannel)
     const openIcon = channelIcon(openChannel)
-    const shownPosts = profileTab === 'media' ? mediaPosts : posts
+    const feedEmpty = profileTab === 'media' ? mediaPosts.length === 0 : posts.length === 0 && polls.length === 0
     return (
       <div className="h-full min-h-0 flex flex-col bg-card overflow-hidden">
         <div className="flex items-center gap-2 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
@@ -885,7 +1002,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   </div>
                 ))}
               </div>
-            ) : shownPosts.length === 0 ? (
+            ) : feedEmpty ? (
               <div className="py-12 text-center px-8">
                 <div className="w-16 h-16 rounded-full gradient-primary flex items-center justify-center text-white text-2xl font-extrabold mx-auto shadow-lg">
                   {avatarLetter(openChannel.name)}
@@ -905,7 +1022,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 {grouped
                   .map((g) => ({
                     ...g,
-                    items: profileTab === 'media' ? g.items.filter((p: any) => hasMedia(p.content || '')) : g.items,
+                    items: profileTab === 'media' ? g.items.filter((it: any) => it.kind === 'post' && hasMedia(it.p.content || '')) : g.items,
                   }))
                   .filter((g) => g.items.length > 0)
                   .map((g) => (
@@ -916,7 +1033,38 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                         </span>
                       </div>
                       <div className="space-y-4">
-                        {g.items.map((p: any, i: number) => {
+                        {g.items.map((item: any, i: number) => {
+                          if (item.kind === 'poll') {
+                            const pl = item.pl
+                            return (
+                              <div key={`poll-${pl.id}`}>
+                                <div className="rounded-[20px] border overflow-hidden" style={{ background: 'linear-gradient(180deg, rgba(28,28,56,0.95), rgba(20,20,42,0.95))', borderColor: 'rgba(255,255,255,0.07)', boxShadow: '0 4px 20px rgba(0,0,0,0.4)' }}>
+                                  <div className="flex items-center gap-2.5 px-3.5 pt-3">
+                                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-extrabold shrink-0 shadow overflow-hidden" style={avatarStyleOf(openChannel)}>
+                                      {openChannel.avatar_url ? <img src={openChannel.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(openChannel.name)}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-[13px] font-bold truncate tracking-tight flex items-center gap-1">
+                                        <span className="truncate">{openChannel.name}</span>
+                                        {openChannel.is_owner && <BadgeCheck className="w-3.5 h-3.5 text-sky-500 shrink-0" />}
+                                      </p>
+                                      <p className="text-[11px] text-tertiary">📊 Poll · {fmtPostTime(pl.created_at)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="px-3.5 py-2.5">
+                                    <PollCard
+                                      poll={pl}
+                                      userId={useAuthStore.getState().user?.id}
+                                      onVote={(id, opts) => votePoll(id, opts)}
+                                      onDelete={(id) => deletePoll(id)}
+                                      onClosePoll={openChannel.is_owner ? (id) => closePoll(id) : undefined}
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                            )
+                          }
+                          const p = item.p
                           const imgs = postImages(p.content || '')
                           const vids = postVideos(p.content || '')
                           const text = postText(p)
@@ -1080,6 +1228,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                   />
                   <button onClick={() => fileRef.current?.click()} disabled={uploading} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44 disabled:opacity-40" aria-label="Attach photo or video">
                     <Paperclip className="w-5 h-5" />
+                  </button>
+                  <button onClick={() => setPollForm({ question: '', options: ['', ''] })} className="p-2 rounded-full text-tertiary hover:text-secondary touch-44" aria-label="Create poll" title="Create poll">
+                    <BarChart3 className="w-5 h-5" />
                   </button>
                 </div>
                 {draft.trim() || uploading ? (
@@ -1278,6 +1429,64 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
             </div>
           </div>
         )}
+
+        {/* Owner poll creator */}
+        {pollForm && openChannel?.is_owner && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => !creatingPoll && setPollForm(null)}>
+            <div role="dialog" aria-label="Create poll" className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md p-5 animate-slide-up max-h-[90dvh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-bold text-[17px] tracking-tight flex items-center gap-2">
+                  <BarChart3 className="w-5 h-5 text-primary" /> New poll
+                </p>
+                <button onClick={() => !creatingPoll && setPollForm(null)} className="p-2 rounded-full hover:bg-muted touch-44" aria-label="Cancel poll">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <input
+                autoFocus
+                value={pollForm.question}
+                onChange={(e) => setPollForm({ ...pollForm, question: e.target.value })}
+                placeholder="Ask something…"
+                maxLength={200}
+                className="w-full px-4 py-2.5 rounded-xl border outline-none text-sm min-h-[44px]"
+                style={fieldStyle}
+              />
+              <div className="space-y-2 mt-3">
+                {pollForm.options.map((opt, i) => (
+                  <div key={i} className="flex items-center gap-2">
+                    <input
+                      value={opt}
+                      onChange={(e) => { const n = [...pollForm.options]; n[i] = e.target.value; setPollForm({ ...pollForm, options: n }) }}
+                      placeholder={`Option ${i + 1}`}
+                      maxLength={100}
+                      className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border outline-none text-sm min-h-[44px]"
+                      style={fieldStyle}
+                    />
+                    {pollForm.options.length > 2 && (
+                      <button onClick={() => setPollForm({ ...pollForm, options: pollForm.options.filter((_, j) => j !== i) })} className="p-2 rounded-full hover:bg-muted text-tertiary hover:text-destructive touch-44" aria-label={`Remove option ${i + 1}`}>
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+              {pollForm.options.length < 8 && (
+                <button onClick={() => setPollForm({ ...pollForm, options: [...pollForm.options, ''] })} className="mt-2 text-xs font-semibold text-primary hover:underline min-h-[44px]">
+                  + Add option
+                </button>
+              )}
+              <p className="text-[11px] text-tertiary mt-2">Single choice · followers tap to vote · you can close it anytime.</p>
+              <div className="flex gap-2 mt-3">
+                <button onClick={() => setPollForm(null)} disabled={creatingPoll} className="px-4 py-2.5 rounded-xl bg-muted text-sm font-medium disabled:opacity-50 min-h-[44px]">
+                  Cancel
+                </button>
+                <button onClick={createPoll} disabled={creatingPoll || !pollForm.question.trim() || pollForm.options.filter((o) => o.trim()).length < 2} className="flex-1 py-2.5 rounded-xl btn-primary text-sm font-semibold disabled:opacity-50 min-h-[44px]">
+                  {creatingPoll ? 'Posting…' : 'Post poll'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
@@ -1320,9 +1529,11 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <button onClick={() => { setTab('all'); setMenuOpen(false) }} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
                   <LayoutGrid className="w-4 h-4" /> All channels
                 </button>
-                <button onClick={copyInviteLink} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
-                  <Link2 className="w-4 h-4" /> Copy invite link
-                </button>
+                {openChannel && (
+                  <button onClick={copyInviteLink} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2">
+                    <Link2 className="w-4 h-4" /> Copy invite link
+                  </button>
+                )}
               </div>
             </>
           )}
@@ -1348,7 +1559,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <X className="w-4 h-4 text-slate-400" />
             </button>
           ) : (
-            <button className="p-2 rounded-full hover:bg-white/10 touch-44" aria-label="Filter">
+            <button onClick={() => { setSortAz((v) => !v); setMsg(sortAz ? 'Sorted by newest' : 'Sorted A–Z') }} className={`p-2 rounded-full hover:bg-white/10 touch-44 ${sortAz ? 'ring-2 ring-primary' : ''}`} aria-label="Toggle A to Z sort" title={sortAz ? 'Sorted A–Z (tap for newest)' : 'Sort A–Z'}>
               <SlidersHorizontal className="w-5 h-5 text-slate-300" />
             </button>
           )}
@@ -1456,7 +1667,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 </button>
               </div>
             ) : (
-              following.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)
+              sortList(following.filter((c: any) => matchesCat(c, activeCat))).map((c: any) => <ChannelRow key={c.id} c={c} />)
             )}
           </div>
         ) : tab === 'all' ? (
@@ -1467,7 +1678,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
               <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-md text-white" style={{ background: 'rgba(168,85,247,0.35)' }}>{channels.length}</span>
             </div>
             <div className="rounded-[20px] overflow-hidden" style={{ background: '#0d0d24', border: '1px solid rgba(255,255,255,0.06)' }}>
-              {channels.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)}
+              {sortList(channels.filter((c: any) => matchesCat(c, activeCat))).map((c: any) => <ChannelRow key={c.id} c={c} />)}
             </div>
           </div>
         ) : (
@@ -1527,12 +1738,12 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                     return (
                       <div
                         key={c.id}
-                        onClick={() => open(c)}
-                        role={canOpen ? 'button' : undefined}
-                        tabIndex={canOpen ? 0 : undefined}
-                        onKeyDown={(e) => { if (canOpen && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); open(c) } }}
-                        aria-label={canOpen ? `Open ${c.name}` : undefined}
-                        className="snap-start shrink-0 w-[172px] min-[380px]:w-[190px] rounded-[18px] overflow-hidden transition-all active:scale-[0.98]"
+                        onClick={() => tapCard(c)}
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); tapCard(c) } }}
+                        aria-label={canOpen ? `Open ${c.name}` : `Follow ${c.name}`}
+                        className="snap-start shrink-0 w-[172px] min-[380px]:w-[190px] rounded-[18px] overflow-hidden transition-all active:scale-[0.98] cursor-pointer"
                         style={{ background: '#0d0d24', border: `1px solid ${isFeatured ? 'rgba(168,85,247,0.4)' : 'rgba(52,211,153,0.35)'}`, boxShadow: '0 6px 22px rgba(0,0,0,0.5)' }}
                       >
                         <div className="relative h-24 overflow-hidden" style={coverStyleOf(c)}>
@@ -1543,10 +1754,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                             </span>
                           )}
                           <button
-                            onClick={(e) => { e.stopPropagation(); setMenuOpen(false) }}
+                            onClick={(e) => { e.stopPropagation(); setCardMenu(c) }}
                             className="absolute top-2 right-2 w-7 h-7 rounded-full flex items-center justify-center text-white"
                             style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(10px)' }}
-                            aria-label="More options"
+                            aria-label={`Options for ${c.name}`}
                           >
                             <MoreVertical className="w-3.5 h-3.5" />
                           </button>
@@ -1656,13 +1867,54 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All channels</p>
               </div>
               <div className="px-3">
-                {restChannels.filter((c: any) => matchesCat(c, activeCat)).map((c: any) => <ChannelRow key={c.id} c={c} />)}
+                {sortList(restChannels.filter((c: any) => matchesCat(c, activeCat))).map((c: any) => <ChannelRow key={c.id} c={c} />)}
               </div>
             </section>
             )}
           </div>
         )}
       </div>
+
+      {/* Per-card action sheet (3-dot on trending cards) */}
+      {cardMenu && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-end sm:items-center justify-center sm:p-4" onClick={() => setCardMenu(null)}>
+          <div role="dialog" aria-label={`Options for ${cardMenu.name}`} className="bg-card border border-border rounded-t-3xl sm:rounded-3xl w-full sm:max-w-sm p-3 animate-slide-up" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-3 px-2 py-2">
+              <div className="w-11 h-11 rounded-full flex items-center justify-center text-white font-extrabold shrink-0 overflow-hidden" style={avatarStyleOf(cardMenu)}>
+                {cardMenu.avatar_url ? <img src={cardMenu.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(cardMenu.name)}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="font-bold truncate text-[15px]">{cardMenu.name}</p>
+                <p className="text-xs text-muted-foreground truncate">{compactPlural(cardMenu.follower_count ?? 0, 'follower')} · {compactPlural(cardMenu.post_count ?? 0, 'post')}</p>
+              </div>
+              <button onClick={() => setCardMenu(null)} className="p-2 rounded-full hover:bg-muted touch-44" aria-label="Close options">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            {!cardMenu.is_owner && (
+              <button onClick={() => { const c = cardMenu; setCardMenu(null); follow(c.id, !c.followed) }} className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-muted flex items-center gap-2.5 text-sm min-h-[44px]">
+                {cardMenu.followed ? <Check className="w-4 h-4" /> : <Plus className="w-4 h-4" />}
+                {cardMenu.followed ? 'Unfollow' : 'Follow'}
+              </button>
+            )}
+            <button onClick={() => { const c = cardMenu; setCardMenu(null); tapCard(c) }} className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-muted flex items-center gap-2.5 text-sm min-h-[44px]">
+              <ChevronRight className="w-4 h-4" /> {cardMenu.followed || cardMenu.is_owner ? 'Open channel' : 'Follow & open'}
+            </button>
+            <button onClick={() => { toggleMute(cardMenu.id); setCardMenu(null) }} className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-muted flex items-center gap-2.5 text-sm min-h-[44px]">
+              {mutedMap[cardMenu.id] ? <BellOff className="w-4 h-4" /> : <Bell className="w-4 h-4" />}
+              {mutedMap[cardMenu.id] ? 'Unmute' : 'Mute'}
+            </button>
+            <button onClick={() => copyChannelLink(cardMenu)} className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-muted flex items-center gap-2.5 text-sm min-h-[44px]">
+              <Link2 className="w-4 h-4" /> Copy invite link
+            </button>
+            {cardMenu.is_owner && (
+              <button onClick={() => { const id = cardMenu.id; setCardMenu(null); remove(id) }} className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-muted text-destructive flex items-center gap-2.5 text-sm min-h-[44px]">
+                <Trash2 className="w-4 h-4" /> Delete channel
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Create wizard */}
       {wizard && (
@@ -1859,12 +2111,20 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   function ChannelRow({ c }: { c: any }) {
     const canOpen = c.followed || c.is_owner
     const cIcon = channelIcon(c)
+    const cCat = CATEGORIES.find((k) => k.id === categoryOf(c))
     return (
       <div className="flex items-center gap-3 px-1 py-2.5 border-b border-[var(--k-border)]/60 last:border-0">
-        <button onClick={() => open(c)} disabled={!canOpen} className="w-12 h-12 rounded-full gradient-primary flex items-center justify-center text-white text-lg font-extrabold shrink-0 disabled:cursor-default shadow ring-2 ring-[var(--k-border)] transition-transform active:scale-95 overflow-hidden">
-          {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : cIcon ? <span className="text-xl">{cIcon}</span> : avatarLetter(c.name)}
-        </button>
-        <button onClick={() => open(c)} disabled={!canOpen} className="flex-1 min-w-0 text-left disabled:cursor-default">
+        <span className="relative shrink-0">
+          <button onClick={() => tapCard(c)} className="w-12 h-12 rounded-full flex items-center justify-center text-white text-lg font-extrabold shadow ring-2 ring-[var(--k-border)] transition-transform active:scale-95 overflow-hidden" style={avatarStyleOf(c)} aria-label={canOpen ? `Open ${c.name}` : `Follow ${c.name}`}>
+            {c.avatar_url ? <img src={c.avatar_url} alt="" className="w-full h-full object-cover" /> : avatarLetter(c.name)}
+          </button>
+          {cIcon && (
+            <span className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full flex items-center justify-center text-[12px] pointer-events-none" style={{ background: '#0d0d24', border: '1.5px solid rgba(255,255,255,0.3)' }}>
+              {cIcon}
+            </span>
+          )}
+        </span>
+        <button onClick={() => tapCard(c)} className="flex-1 min-w-0 text-left">
           <p className="text-[15px] font-semibold flex items-center gap-1 truncate tracking-tight">
             <span className="truncate">{c.name}</span>
             {c.is_owner && <BadgeCheck className="w-4 h-4 text-sky-500 shrink-0" />}
@@ -1872,9 +2132,10 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           <p className="text-[13px] text-muted-foreground truncate mt-px">
             {c.description || compactPlural(c.follower_count ?? 0, 'follower')}
           </p>
-          {c.description && (
-            <p className="text-xs text-tertiary mt-px">{compactPlural(c.follower_count ?? 0, 'follower')} · {compactPlural(c.post_count ?? 0, 'post')}</p>
-          )}
+          <p className="text-xs text-tertiary mt-px flex items-center gap-1.5">
+            <span>{compactPlural(c.follower_count ?? 0, 'follower')} · {compactPlural(c.post_count ?? 0, 'post')}</span>
+            {cCat && <span className="px-1.5 py-0.5 rounded-full font-bold" style={{ background: 'rgba(255,255,255,0.06)', border: '1px solid rgba(255,255,255,0.1)' }}>{cCat.emoji} {cCat.label}</span>}
+          </p>
         </button>
         {!c.is_owner ? (
           <div className="flex items-center gap-0.5 shrink-0">

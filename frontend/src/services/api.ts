@@ -477,6 +477,20 @@ export const memoriesApi = {
   list: (limit=20, signal?:AbortSignal) => api.get(`/api/memories?limit=${limit}`, { signal }).then(r=>r.data),
 }
 
+export const santaApi = {
+  draw: (gid:number, budget?:string) => api.post(`/api/groups/${gid}/secret-santa/draw`, { budget }).then(r=>r.data),
+  status: (gid:number) => api.get(`/api/groups/${gid}/secret-santa`).then(r=>r.data),
+  reveal: (gid:number) => api.post(`/api/groups/${gid}/secret-santa/reveal`).then(r=>r.data),
+}
+
+export const predictionsApi = {
+  create: (data:{conversation_id:number, question:string, options:string[], closes_at?:string|null}) => api.post('/api/predictions', data).then(r=>r.data),
+  list: (cid:number) => api.get(`/api/predictions/by-conversation/${cid}`).then(r=>r.data),
+  vote: (id:number, option_index:number) => api.post(`/api/predictions/${id}/vote`, { option_index }).then(r=>r.data),
+  resolve: (id:number, result_index:number) => api.post(`/api/predictions/${id}/resolve`, { result_index }).then(r=>r.data),
+  standings: (cid:number) => api.get(`/api/predictions/by-conversation/${cid}/standings`).then(r=>r.data),
+}
+
 export const recentlyContactedApi = {
   list: () => api.get('/api/recently-contacted').then(r=>r.data),
 }

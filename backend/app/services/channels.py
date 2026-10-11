@@ -14,6 +14,9 @@ from app.models.channel import (
     ChannelFollow,
     ChannelPost,
     ChannelPostReaction,
+    ChannelPoll,
+    ChannelPollOption,
+    ChannelPollVote,
 )
 from app.services.errors import MISSING, bad_request, forbidden, not_found
 
@@ -236,3 +239,107 @@ def toggle_post_reaction(
         "reacted": reacted,
         "reactions": post_reaction_summary(db, post_id=p.id, user_id=user_id),
     }
+
+
+def _get_channel_poll(db: Session, channel_id: int, poll_id: int) -> ChannelPoll:
+    poll = db.query(ChannelPoll).filter_by(id=poll_id, channel_id=channel_id).first()
+    if not poll:
+        raise not_found("Poll not found")
+    return poll
+
+
+def create_channel_poll(
+    db: Session, *, channel_id: int, owner_id: int, question: str, options: list
+) -> ChannelPoll:
+    """Only the channel owner creates polls."""
+    c = get_channel(db, channel_id)
+    _require_owner(c, owner_id, "create polls in")
+    clean_q = str(question or "").strip()
+    if not clean_q:
+        raise bad_request("Question required")
+    clean_opts = [str(o or "").strip()[:200] for o in (options or [])]
+    clean_opts = [o for o in clean_opts if o][:8]
+    if len(clean_opts) < 2:
+        raise bad_request("At least 2 options required")
+    poll = ChannelPoll(channel_id=c.id, creator_id=owner_id, question=clean_q[:500])
+    db.add(poll)
+    db.flush()
+    for i, text_val in enumerate(clean_opts):
+        db.add(ChannelPollOption(poll_id=poll.id, text=text_val, position=i))
+    db.commit()
+    db.refresh(poll)
+    return poll
+
+
+def list_channel_polls(db: Session, *, channel_id: int, user_id: int) -> list:
+    c = get_channel(db, channel_id)
+    require_reader(db, c, user_id)
+    return (
+        db.query(ChannelPoll)
+        .filter_by(channel_id=c.id)
+        .order_by(ChannelPoll.id.desc())
+        .limit(50)
+        .all()
+    )
+
+
+def vote_channel_poll(
+    db: Session, *, channel_id: int, poll_id: int, user_id: int, option_ids: list
+) -> ChannelPoll:
+    """Single-choice: voting replaces the voter's previous choice."""
+    c = get_channel(db, channel_id)
+    require_reader(db, c, user_id)
+    poll = _get_channel_poll(db, c.id, poll_id)
+    if poll.closes_at is not None:
+        raise bad_request("Poll is closed")
+    opts = (
+        db.query(ChannelPollOption)
+        .filter_by(poll_id=poll.id)
+        .order_by(ChannelPollOption.position)
+        .all()
+    )
+    want = [o for o in opts if o.id in set(option_ids or [])]
+    if not want:
+        raise bad_request("Option required")
+    # Single choice — clear previous votes first.
+    for o in opts:
+        db.query(ChannelPollVote).filter_by(
+            poll_option_id=o.id, user_id=user_id
+        ).delete()
+    chosen = want[0]
+    db.add(ChannelPollVote(poll_option_id=chosen.id, user_id=user_id))
+    db.commit()
+    db.refresh(poll)
+    return poll
+
+
+def close_channel_poll(
+    db: Session, *, channel_id: int, poll_id: int, actor_id: int
+) -> ChannelPoll:
+    from datetime import datetime, timezone
+
+    c = get_channel(db, channel_id)
+    _require_owner(c, actor_id, "close polls in")
+    poll = _get_channel_poll(db, c.id, poll_id)
+    poll.closes_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(poll)
+    return poll
+
+
+def delete_channel_poll(
+    db: Session, *, channel_id: int, poll_id: int, actor_id: int
+) -> None:
+    c = get_channel(db, channel_id)
+    _require_owner(c, actor_id, "delete polls in")
+    poll = _get_channel_poll(db, c.id, poll_id)
+    opt_ids = [
+        o.id for o in db.query(ChannelPollOption).filter_by(poll_id=poll.id).all()
+    ]
+    if opt_ids:
+        db.query(ChannelPollVote).filter(
+            ChannelPollVote.poll_option_id.in_(opt_ids)
+        ).delete(synchronize_session=False)
+        db.query(ChannelPollOption).filter_by(poll_id=poll.id).delete()
+    db.delete(poll)
+    db.commit()

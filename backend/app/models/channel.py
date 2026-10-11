@@ -107,3 +107,57 @@ class ChannelPost(Base):
     content = Column(Text, nullable=False)
     message_type = Column(String(20), nullable=False, default="text")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChannelPoll(Base):
+    """Owner-created votable poll inside a channel feed (single choice)."""
+
+    __tablename__ = "channel_polls"
+
+    id = Column(Integer, primary_key=True, index=True)
+    channel_id = Column(
+        Integer,
+        ForeignKey("channels.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    creator_id = Column(
+        Integer, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
+    question = Column(Text, nullable=False)
+    closes_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+
+class ChannelPollOption(Base):
+    __tablename__ = "channel_poll_options"
+
+    id = Column(Integer, primary_key=True, index=True)
+    poll_id = Column(
+        Integer,
+        ForeignKey("channel_polls.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    text = Column(String(500), nullable=False)
+    position = Column(Integer, default=0)
+
+
+class ChannelPollVote(Base):
+    __tablename__ = "channel_poll_votes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    poll_option_id = Column(
+        Integer,
+        ForeignKey("channel_poll_options.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    user_id = Column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        UniqueConstraint("poll_option_id", "user_id", name="uq_channel_poll_vote"),
+    )
