@@ -3,6 +3,8 @@
  * or backend change needed. Incoming messages auto-trigger via keywords.
  */
 
+import { stripFormatting } from './formattedText'
+
 export type EffectKind = 'confetti' | 'hearts' | 'fireworks' | 'slam'
 
 /** A fixed celebration, or a custom emoji burst (e.g. the reacted emoji). */
@@ -116,7 +118,7 @@ export function prettyPreview(text: any): any {
   }
   if (/\[live:\d+\]/.test(clean)) return '📍 Live location'
   if (/^Video \d+:\d\d$/.test(clean)) return '🎥 Video message'
-  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:') || clean.startsWith('🎮TOD:spin:') || clean.startsWith('🎮TOD:done:') || clean.startsWith('🎮WC:word:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:') || clean.startsWith('🎮TOD:spin:') || clean.startsWith('🎮TOD:done:') || clean.startsWith('🎮WC:word:') || clean.startsWith('🎮WT:move:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'
   if (clean.startsWith('🎮C4:new')) return '🔴 Connect Four'
@@ -124,7 +126,8 @@ export function prettyPreview(text: any): any {
   if (clean.startsWith('🎮CHESS:new')) return '♞ Chess challenge'
   if (clean.startsWith('🎮TOD:new')) return '🎡 Truth or dare'
   if (clean.startsWith('🎮WC:new')) return '🔗 Word chain'
-  return clean
+  if (clean.startsWith('🎮WT:new')) return '📺 Watch together'
+  return stripFormatting(clean)
 }
 
 /** True for tic-tac-toe move messages (hidden from history, live on the board). */
@@ -174,7 +177,8 @@ export function isGameMoveMsg(text: unknown): boolean {
     isEmojiMove(text) ||
     isChessMove(text) ||
     isTodMove(text) ||
-    isWcMove(text)
+    isWcMove(text) ||
+    (typeof text === 'string' && text.startsWith('🎮WT:move:'))
   )
 }
 
@@ -186,6 +190,7 @@ const GAME_CARD_PREFIXES = [
   '🎮CHESS:new',
   '🎮TOD:new',
   '🎮WC:new',
+  '🎮WT:new',
 ]
 
 /** True for a rendered game card (challenge message). Action menus stay

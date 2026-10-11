@@ -15,6 +15,7 @@ import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { speakText, stopSpeak, speechSupported } from '../utils/speech'
 import { useToastStore } from '../store/toast'
 import { parseContactCard } from '../utils/messageEffects'
+import { renderFormattedText } from '../utils/formattedText'
 import { parseLiveSessionId } from '../utils/liveLocation'
 import { LiveLocationCard } from './LiveLocationCard'
 import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
@@ -24,6 +25,8 @@ import { EmojiMovieGame, isEmojiChallenge } from './EmojiMovieGame'
 import { ChessGame, isChessChallenge } from './ChessGame'
 import { TruthOrDareGame, isTodChallenge } from './TruthOrDareGame'
 import { WordChainGame, isWordChainChallenge } from './WordChainGame'
+import { WatchTogether } from './WatchTogether'
+import { isWTChallenge } from '../utils/watchTogether'
 
 // Heavy picker loads on first open, never with the chat bundle.
 const EmojiPicker = lazy(() => import('emoji-picker-react'))
@@ -362,7 +365,7 @@ function VideoNotePlayer({ src, duration }: { src: string; duration?: number | n
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onChessMove, onTodSpin, onTodDone, onWordChain, onEmojiGuess, onContactChat, convTitle, autoTranslateLang }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, onPassportJourney, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onChessMove, onTodSpin, onTodDone, onWordChain, onWTState, onEmojiGuess, onContactChat, convTitle, autoTranslateLang }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean, onReport?:(m:Message)=>void,
@@ -372,12 +375,14 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void,
   onRetry?:(msg:Message)=>void,
+  onPassportJourney?:(msg:Message)=>void,
   gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' | 'tod' | 'wc')=>void,
   onRpsThrow?:(challenge:any, choice:RpsChoice)=>void, onC4Move?:(challenge:any, col:number)=>void,
   onChessMove?:(challenge:any, from:number, to:number)=>void,
   onTodSpin?:(challenge:any, kind:'truth'|'dare', index:number)=>void,
   onTodDone?:(challenge:any)=>void,
   onWordChain?:(challenge:any, word:string)=>void,
+  onWTState?:(challenge:any, action:'play'|'pause'|'seek', pos:number)=>void,
   onEmojiGuess?:(challenge:any, guess:string)=>void,
   onContactChat?:(u:{id?:number, username?:string, display_name?:string, avatar_url?:string|null})=>void,
   convTitle?:string,
@@ -394,6 +399,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isChess = !msg.is_deleted && isChessChallenge(msg.content)
   const isTod = !msg.is_deleted && isTodChallenge(msg.content)
   const isWc = !msg.is_deleted && isWordChainChallenge(msg.content)
+  const isWt = !msg.is_deleted && isWTChallenge(msg.content)
   // Game cards carry their own inline play UI — row actions only disturb.
   // Exception: deleting your OWN game card stays available (nothing else).
   const isGameCard = isGameCardMsg(msg)
@@ -738,6 +744,13 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               onWord={(c, word) => onWordChain?.(c, word)}
               onRematch={() => onGameRematch?.('wc')}
             />
+          ) : isWt ? (
+            <WatchTogether
+              challenge={msg}
+              msgs={gameMsgs || []}
+              meId={meId}
+              onState={(c, action, pos) => onWTState?.(c, action, pos)}
+            />
           ) : contact ? (
             <div className="flex items-center gap-3 min-w-[210px] max-w-[260px]">
               <div className="w-11 h-11 rounded-full kryzen-accent-gradient text-white flex items-center justify-center text-sm font-bold overflow-hidden shrink-0">
@@ -773,7 +786,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               onClick={() => safeImageClick(loneImageUrl, 'sticker', [{ url: loneImageUrl, name: 'sticker' }], 0)}
             />
           ) : (
-            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{translated && !showOrig ? translated : content}</p>
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{renderFormattedText(translated && !showOrig ? translated : content)}</p>
+          )}
+          {(msg as any).is_passport && !msg.is_deleted && (
+            <button
+              onClick={(e) => { e.stopPropagation(); onPassportJourney?.(msg) }}
+              className="mt-1.5 flex items-center gap-1 px-2 py-1 rounded-lg bg-sky-500/15 text-sky-300 text-[11px] font-semibold hover:bg-sky-500/25 transition"
+              title="See every hand this message passed through"
+            >
+              ✈️ Passport — tap to see journey
+            </button>
           )}
           {canManageGame && (
             <div className="mt-1.5 flex gap-1.5" onClick={(e)=>e.stopPropagation()}>

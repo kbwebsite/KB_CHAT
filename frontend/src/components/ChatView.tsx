@@ -17,6 +17,9 @@ import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
+import { computeWeather } from '../utils/chatWeather'
+import { petMood } from '../utils/pet'
+import { PassportModal } from './PassportModal'
 import { sqName } from './ChessGame'
 import { parseSlashCommand } from '../utils/slashCommands'
 import { EffectOverlay } from './EffectOverlay'
@@ -100,6 +103,13 @@ export function ChatView({
   const slowExempt = myRole === 'owner' || myRole === 'admin'
   const [slowServerWait, setSlowServerWait] = useState(0)
   const [nowTick, setNowTick] = useState(Date.now())
+  const [passportMid, setPassportMid] = useState<number | null>(null)
+  const weather = useMemo(() => computeWeather(currentMsgs, nowTick), [currentMsgs, nowTick])
+  const petMoodNow = useMemo(() => {
+    const dayAgo = nowTick - 24 * 3600 * 1000
+    const n = (currentMsgs as any[]).filter((m: any) => m?.created_at && new Date(m.created_at).getTime() >= dayAgo).length
+    return petMood(n)
+  }, [currentMsgs, nowTick])
   useEffect(() => {
     if (!slowModeSeconds || slowExempt) return
     const t = setInterval(() => setNowTick(Date.now()), 1000)
@@ -476,7 +486,7 @@ export function ChatView({
     } catch {}
   }
 
-  const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => {
+  const handleSend = async (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean, passport?: boolean }) => {
     if (!currentConversationId) return
     if (editTarget) {
       if ((editTarget as any).view_once) { setEditTarget(null); setEditText(''); return }
@@ -491,9 +501,10 @@ export function ChatView({
       if (slash?.kind === 'send') body = slash.text
     }
     try {
-      const extra: { voice_duration?: number; view_once?: boolean } =
+      const extra: { voice_duration?: number; view_once?: boolean; passport?: boolean } =
         voiceDuration != null ? { voice_duration: voiceDuration } : {}
       if (opts?.view_once) extra.view_once = true
+      if (opts?.passport) extra.passport = true
       await sendMessage(currentConversationId, body, replyTo?.id, attachmentIds, type, extra)
       awardActivity(true)
     }
@@ -586,6 +597,13 @@ export function ChatView({
     if (!clean) return
     // Marker only — guesses stay out of history (filtered below).
     await sendMessage(currentConversationId, `🎮EMOJI:move:${challenge.id}:${clean}`)
+  }
+
+  const handleWTState = async (challenge: any, action: 'play' | 'pause' | 'seek', pos: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    const p = Math.max(0, Math.floor(Number(pos) || 0))
+    if (action !== 'play' && action !== 'pause' && action !== 'seek') return
+    await sendMessage(currentConversationId, `🎮WT:move:${challenge.id}:${action}:${p}`)
   }
 
   const handleConvCustomFile = async (f: File | undefined) => {
@@ -1076,6 +1094,7 @@ export function ChatView({
                       onPin={onPin}
                       onAIAction={onAIAction}
                       onRetry={(m: any) => retryMessage(m.id)}
+                      onPassportJourney={(m: any) => setPassportMid(m.id)}
                       onTranslateAction={handleTranslateClick}
                       onMobileMore={(m: any) => onMobileMore(m)}
                       gameMsgs={currentMsgs}
@@ -1087,6 +1106,7 @@ export function ChatView({
                       onTodSpin={handleTodSpin}
                       onTodDone={handleTodDone}
                       onWordChain={handleWordChain}
+                      onWTState={handleWTState}
                       onEmojiGuess={handleEmojiGuess}
                       onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}
@@ -1277,6 +1297,13 @@ export function ChatView({
           />
         )}
 
+        {passportMid != null && (
+          <PassportModal
+            messageId={passportMid}
+            onClose={() => setPassportMid(null)}
+          />
+        )}
+
         {deleteTarget && (          <DeleteDialog
             onForMe={() => {
               if (currentConversationId != null) {
@@ -1297,6 +1324,11 @@ export function ChatView({
         {!!(currentConv as any)?.is_group && !!slowModeSeconds && !slowExempt && (
           <p className="mx-3 mb-2 text-xs text-center px-3 py-1.5 rounded-xl bg-muted text-muted-foreground">
             {slowRemaining > 0 ? `⏳ Slow mode: wait ${slowRemaining}s before sending` : `⏳ Slow mode on: 1 message per ${slowModeSeconds >= 60 ? `${slowModeSeconds/60}m` : `${slowModeSeconds}s`}`}
+          </p>
+        )}
+        {!!(currentConv as any)?.is_group && (currentConv as any)?.pet && (
+          <p className="mx-3 mb-2 text-xs text-center px-3 py-1.5 rounded-xl bg-muted text-muted-foreground">
+            {(currentConv as any).pet.emoji} {(currentConv as any).pet.name} · {petMoodNow.emoji} {petMoodNow.label} · {weather.emoji} {weather.label}
           </p>
         )}
         <MessageComposer

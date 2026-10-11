@@ -20,8 +20,8 @@ import { isGameCardMsg, isMediaMsg } from '../../utils/messageEffects'
 import { useAuthStore } from '../../store/auth'
 
 describe('action-scope helpers', () => {
-  it('detects all seven game cards, rejects the rest', () => {
-    for (const p of ['TTT', 'RPS', 'C4', 'EMOJI', 'CHESS', 'TOD', 'WC']) {
+  it('detects all eight game cards, rejects the rest', () => {
+    for (const p of ['TTT', 'RPS', 'C4', 'EMOJI', 'CHESS', 'TOD', 'WC', 'WT']) {
       expect(isGameCardMsg({ content: `🎮${p}:new\nhello`, is_deleted: false })).toBe(true)
     }
     expect(isGameCardMsg({ content: '🎮TTT:move:1:5', is_deleted: false })).toBe(false)
@@ -153,8 +153,7 @@ describe('MessageBubble action scoping', () => {
     expect(onMobileMore).toHaveBeenCalledTimes(1)
   })
 
-  it('own word-chain card shows Share + Delete, and typing never opens the sheet', () => {
-    const onMobileMore = vi.fn()
+  it('own word-chain card shows Share + Delete, and typing never opens the sheet', () => {    const onMobileMore = vi.fn()
     const onDelete = vi.fn()
     renderBubble(
       baseMsg({ id: 52, content: '🎮WC:new\nplay!' }),
@@ -170,6 +169,31 @@ describe('MessageBubble action scoping', () => {
     })
     expect(onMobileMore).not.toHaveBeenCalled()
     expect(onDelete).not.toHaveBeenCalled()
+  })
+
+  it('watch-together cards get no row actions; own cards keep Delete + tap sheet', () => {
+    const onMobileMore = vi.fn()
+    renderBubble(
+      baseMsg({ id: 60, content: '🎮WT:new\nhttps://youtu.be/dQw4w9WgXcQ' }),
+      { onMobileMore },
+    )
+    expect(host.querySelector('button[title="More"]')).toBeNull()
+    expect(host.querySelector('button[title="Delete"]')).toBeNull()
+    expect(host.textContent).toContain('Watch together')
+
+    const ownDelete = vi.fn()
+    const ownSheet = vi.fn()
+    renderBubble(
+      baseMsg({ id: 61, content: '🎮WT:new\nhttps://youtu.be/dQw4w9WgXcQ' }),
+      { isOwn: true, onMobileMore: ownSheet, onDelete: ownDelete },
+    )
+    const del = host.querySelector('button[title="Delete"]') as HTMLElement
+    expect(del).not.toBeNull()
+    act(() => {
+      del.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(ownDelete).toHaveBeenCalledTimes(1)
+    expect(ownSheet).not.toHaveBeenCalled()
   })
 
   it('media messages get a slim menu without text-only actions', () => {

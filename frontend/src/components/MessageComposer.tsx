@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video, Pencil, Wand2, Undo2 } from 'lucide-react'
+import { Send, Smile, Paperclip, X, Eye, Sparkles, Gamepad2, Plus, Camera, Navigation, Video, Pencil, Wand2, Undo2, Plane } from 'lucide-react'
 import { MemeMaker } from './MemeMaker'
 import { CameraModal } from './CameraModal'
 import { VideoNoteRecorder } from './VideoNoteRecorder'
@@ -14,7 +14,7 @@ import { uploadApi, liveLocationApi, aiApi } from '../services/api'
 import { startLiveTracking } from '../utils/liveLocation'
 import { useSettingsStore } from '../store/settings'
 export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onCancelReply, disabled }: {
-  onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean }) => void,
+  onSend: (content: string, attachmentIds?: number[], type?: string, voiceDuration?: number, opts?: { view_once?: boolean, passport?: boolean }) => void,
   onTyping: (isTyping: boolean) => void,
   conversationId: number,
   replyTo?: { id: number; content: string; sender: string } | null,
@@ -23,6 +23,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
 }) {
   const [text, setText] = useState('')
   const [viewOnce, setViewOnce] = useState(false)
+  const [passport, setPassport] = useState(false)
   const [effect, setEffect] = useState<EffectKind | null>(null)
   const [showEffects, setShowEffects] = useState(false)
   const [showMedia, setShowMedia] = useState(false)
@@ -33,6 +34,8 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
   const [sending, setSending] = useState(false)
   const [showMore, setShowMore] = useState(false)
   const [showGames, setShowGames] = useState(false)
+  const [showWatchInput, setShowWatchInput] = useState(false)
+  const [watchUrl, setWatchUrl] = useState('')
   const [showLive, setShowLive] = useState(false)
   const [sharingLive, setSharingLive] = useState(false)
   const [memeFile, setMemeFile] = useState<File | null>(null)
@@ -126,6 +129,19 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setShowGames(false)
   }
 
+  const sendWatchRoom = () => {
+    const url = watchUrl.trim()
+    if (!/^https?:\/\/\S+/i.test(url)) {
+      setUploadError('Paste a YouTube or mp4 link first.')
+      return
+    }
+    const name = user?.display_name || user?.username || 'Someone'
+    onSend(`🎮WT:new\n${url}\n${name} started a watch party — press play together!`, undefined, 'text')
+    setWatchUrl('')
+    setShowWatchInput(false)
+    setShowGames(false)
+  }
+
   // Extra actions: inline on desktop, behind ＋ on mobile.
   const renderExtras = () => (
     <>
@@ -138,6 +154,16 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
         style={viewOnce ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
       >
         <Eye className="w-5 h-5" />
+      </button>
+      {/* Passport: forward-once chain with a visible journey */}
+      <button
+        onClick={() => setPassport(v => !v)}
+        className="composer-action-btn"
+        aria-label="Passport message"
+        title={passport ? 'Passport ON: each hand forwards it exactly once' : 'Send as passport (forward-once chain)'}
+        style={passport ? { color: 'var(--accent-secondary)', background: 'var(--accent-subtle)' } : undefined}
+      >
+        <Plane className="w-5 h-5" />
       </button>
       {/* Send-with-effect picker */}
       <div className="relative">
@@ -252,6 +278,30 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
               >
                 <span className="w-5 text-center text-base">🔗</span> Word Chain
               </button>
+              <button
+                onClick={() => setShowWatchInput(v => !v)}
+                className="w-full text-left px-3 py-2 rounded-xl text-sm hover:bg-muted flex items-center gap-2"
+              >
+                <span className="w-5 text-center text-base">📺</span> Watch Together
+              </button>
+              {showWatchInput && (
+                <div className="p-1.5 flex gap-1.5" onClick={(e) => e.stopPropagation()}>
+                  <input
+                    value={watchUrl}
+                    onChange={(e) => setWatchUrl(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); sendWatchRoom() } }}
+                    placeholder="YouTube / mp4 link…"
+                    inputMode="url"
+                    className="flex-1 min-w-0 px-2.5 py-2 rounded-xl bg-muted text-sm outline-none"
+                  />
+                  <button
+                    onClick={sendWatchRoom}
+                    className="px-3 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-bold shrink-0"
+                  >
+                    Start
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -399,8 +449,10 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     setSending(true)
     const body = text.trim()
     const vo = viewOnce
+    const pp = passport
     const fx = effect
     setViewOnce(false)
+    setPassport(false)
     setEffect(null)
     setText('')
     writeDraft(conversationId, '')
@@ -412,7 +464,7 @@ export function MessageComposer({ onSend, onTyping, conversationId, replyTo, onC
     // Call onSend and reset sending state after a delay (onSend is void, not async).
     // A chosen effect rides along as a marker tag so the RECEIVER celebrates
     // too; it still plays locally for the sender right away.
-    onSend(fx ? withFxMarker(body, fx) : body, undefined, 'text', undefined, vo ? { view_once: true } : undefined)
+    onSend(fx ? withFxMarker(body, fx) : body, undefined, 'text', undefined, (vo || pp) ? { ...(vo ? { view_once: true } : {}), ...(pp ? { passport: true } : {}) } : undefined)
     if (fx) setTimeout(() => fireEffect(fx), 250)
     setTimeout(() => { sendingRef.current = false; setSending(false) }, 1500)
   }
