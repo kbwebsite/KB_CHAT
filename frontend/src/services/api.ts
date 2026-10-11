@@ -239,6 +239,7 @@ export const communityApi = {
   addGroup: (id:number, conversation_id:number) => api.post(`/api/communities/${id}/groups`, {conversation_id}).then(r=>r.data),
   removeGroup: (id:number, convId:number) => api.delete(`/api/communities/${id}/groups/${convId}`).then(r=>r.data),
   announce: (id:number, content:string) => api.post(`/api/communities/${id}/announce`, {content}).then(r=>r.data),
+  announcements: (id:number, limit:number = 50) => api.get(`/api/communities/${id}/announcements`, { params: { limit } }).then(r=>r.data),
 }
 
 export const channelApi = {
@@ -252,6 +253,11 @@ export const channelApi = {
   post: (id:number, content:string) => api.post(`/api/channels/${id}/posts`, {content}).then(r=>r.data),
   deletePost: (id:number, postId:number) => api.delete(`/api/channels/${id}/posts/${postId}`).then(r=>r.data),
   reactPost: (id:number, postId:number, emoji:string) => api.post(`/api/channels/${id}/posts/${postId}/reactions`, {emoji}).then(r=>r.data),
+  polls: (id:number) => api.get(`/api/channels/${id}/polls`).then(r=>r.data),
+  createPoll: (id:number, data:{question:string, options:string[]}) => api.post(`/api/channels/${id}/polls`, data).then(r=>r.data),
+  votePoll: (id:number, pollId:number, optionIds:number[]) => api.post(`/api/channels/${id}/polls/${pollId}/vote`, {option_ids: optionIds}).then(r=>r.data),
+  closePoll: (id:number, pollId:number) => api.post(`/api/channels/${id}/polls/${pollId}/close`, {}).then(r=>r.data),
+  deletePoll: (id:number, pollId:number) => api.delete(`/api/channels/${id}/polls/${pollId}`).then(r=>r.data),
 }
 
 export const liveLocationApi = {

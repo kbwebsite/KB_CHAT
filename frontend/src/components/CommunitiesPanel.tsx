@@ -56,6 +56,9 @@ export function CommunitiesPanel({
   const [menuOpen, setMenuOpen] = useState(false)
   const [drafts, setDrafts] = useState<Record<number, string>>({})
   const [sendingId, setSendingId] = useState<number | null>(null)
+  // Announcement thread per community (WhatsApp-group style, newest last).
+  const [threads, setThreads] = useState<Record<number, any[]>>({})
+  const [threadLoading, setThreadLoading] = useState<Record<number, boolean>>({})
   const announceRefs = useRef<Record<number, HTMLTextAreaElement | null>>({})
   const [addingTo, setAddingTo] = useState<number | null>(null)
   const [announceOpen, setAnnounceOpen] = useState(false)
@@ -198,6 +201,7 @@ export function CommunitiesPanel({
         })
         setAnnounceOpen(false)
         setMsg(`Announced to ${plural(r.data?.reached?.length ?? 0, 'group')}`)
+        loadThread(id)
       } else setMsg(r?.message || 'Failed')
     } catch (e: any) {
       setMsg(e.response?.data?.message || e.response?.data?.detail || 'Failed')
@@ -235,6 +239,18 @@ export function CommunitiesPanel({
     setMenuOpen(false)
     setAnnounceOpen(false)
     setAddingTo(null)
+    loadThread(c.id)
+  }
+
+  const loadThread = (id: number) => {
+    setThreadLoading((t) => ({ ...t, [id]: true }))
+    communityApi
+      .announcements(id)
+      .then((r: any) => {
+        if (r?.success) setThreads((t) => ({ ...t, [id]: r.data || [] }))
+      })
+      .catch(() => {})
+      .finally(() => setThreadLoading((t) => ({ ...t, [id]: false })))
   }
 
   /* ── Derived discovery (real data only) ── */
@@ -365,11 +381,42 @@ export function CommunitiesPanel({
 
           {detailTab === 'home' && (
             <div className="px-3 space-y-4 pt-1">
-              {/* Announcements */}
+              {/* Announcements — WhatsApp announcement-group style thread */}
               <section>
                 <div className="flex items-center gap-1.5 px-1 pb-2">
                   <Megaphone className="w-3.5 h-3.5 text-emerald-400" />
                   <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Announcements</p>
+                  {(threads[c.id]?.length ?? 0) > 0 && (
+                    <span className="ml-auto text-[11px] font-bold text-emerald-300">{threads[c.id].length}</span>
+                  )}
+                </div>
+                <div
+                  className="rounded-2xl border border-subtle overflow-y-auto px-3 py-2.5 space-y-2 max-h-80 min-h-[76px]"
+                  style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(16,185,129,0.10) 0%, transparent 55%), rgba(10,18,26,0.9)' }}
+                  aria-label="Announcement thread"
+                  aria-live="polite"
+                >
+                  {threadLoading[c.id] ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">Loading announcements…</p>
+                  ) : (threads[c.id] || []).length === 0 ? (
+                    <p className="text-xs text-muted-foreground text-center py-4">No announcements yet — owner posts land here and in every group.</p>
+                  ) : (
+                    (threads[c.id] || []).map((a: any) => {
+                      const mine = user && a.sender_id === user.id
+                      const meta = [(a.groups?.length ?? 0) > 1 ? `${a.groups.length} groups` : '', fmtDay(a.created_at)].filter(Boolean).join(' · ')
+                      return (
+                        <div key={a.id} className={`flex ${mine ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[85%] rounded-2xl px-3 py-2 ${mine ? 'rounded-br-md bg-emerald-500/15 border border-emerald-500/30' : 'rounded-bl-md bg-elevated border border-subtle'}`}>
+                            {!mine && (a.sender_display_name || a.sender_username) && (
+                              <p className="text-[11px] font-bold text-emerald-300 truncate">{a.sender_display_name || a.sender_username}</p>
+                            )}
+                            <p className="text-[13px] leading-relaxed whitespace-pre-wrap break-words">{a.text}</p>
+                            {meta ? <p className="text-[10px] text-tertiary text-right mt-1">{meta}</p> : null}
+                          </div>
+                        </div>
+                      )
+                    })
+                  )}
                 </div>
                 {isOwner ? (
                   announceOpen ? (
@@ -420,7 +467,7 @@ export function CommunitiesPanel({
                     </button>
                   )
                 ) : (
-                  <p className="text-xs text-muted-foreground px-1">Owner announcements land in every group at once.</p>
+                  <p className="text-xs text-muted-foreground px-1 pt-2">Only admins can send messages here.</p>
                 )}
               </section>
 
@@ -577,6 +624,7 @@ export function CommunitiesPanel({
       const conv = groupConv(g.id)
       const avatar = g.avatar_url || conv?.avatar_url
       const online = onlineCount(g.id)
+      const last = conv?.last_message
       return (
         <div className="flex items-center gap-0.5">
           <button
@@ -595,7 +643,11 @@ export function CommunitiesPanel({
                 <span className="text-[15px] font-semibold truncate">{g.title || 'Group'}</span>
                 <span className="text-xs text-tertiary shrink-0">{fmtDay(conv?.last_message?.created_at)}</span>
               </span>
-              <span className="block text-[13px] text-muted-foreground truncate mt-px">{groupPreview(g)}</span>
+              {/* Last-message preview (member counts live on the line below,
+                  so no preview means no line — never "3 members" twice). */}
+              {last?.content ? (
+                <span className="block text-[13px] text-muted-foreground truncate mt-px">{groupPreview(g)}</span>
+              ) : null}
               <span className="block text-[11px] text-tertiary mt-px">
                 {compactPlural(g.member_count ?? 0, 'member')}{online > 0 && <span className="text-emerald-400 font-semibold"> · {compactPlural(online, 'member')} online</span>}
               </span>

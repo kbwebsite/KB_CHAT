@@ -209,6 +209,82 @@ def remove_community_group(
     return success_response(_community_to_dict(db, c), "Group removed")
 
 
+@router.get("/{community_id}/announcements")
+def community_announcements(
+    community_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Announcement thread: recent owner broadcasts, WhatsApp-group style.
+
+    Announcements fan out as one 📢 message per linked group; this collapses
+    those copies into a single chronological thread (newest last) so the
+    community page reads like an announcement group instead of an inbox.
+    """
+    c = _get_visible(db, community_id, current_user.id)
+    links = db.query(CommunityGroup).filter_by(community_id=c.id).all()
+    conv_ids = [g.conversation_id for g in links]
+    if not conv_ids:
+        return success_response([])
+    titles = {
+        conv.id: conv.title or "Group"
+        for conv in db.query(Conversation).filter(Conversation.id.in_(conv_ids)).all()
+    }
+    rows = (
+        db.query(Message)
+        .filter(
+            Message.conversation_id.in_(conv_ids),
+            Message.content.like("📢 %"),
+            Message.is_deleted.is_(False),
+        )
+        .order_by(Message.created_at.desc(), Message.id.desc())
+        .limit(limit)
+        .all()
+    )
+    senders = {
+        u.id: u
+        for u in db.query(User)
+        .filter(User.id.in_({m.sender_id for m in rows if m.sender_id}))
+        .all()
+    }
+    # One fan-out copy per group — keep the newest copy of each
+    # (sender, text) pair and note which groups it reached.
+    seen: dict = {}
+    for m in rows:
+        key = (m.sender_id, m.content)
+        entry = seen.get(key)
+        if entry is None:
+            seen[key] = {"msg": m, "groups": []}
+            entry = seen[key]
+        title = titles.get(m.conversation_id)
+        if title and title not in entry["groups"]:
+            entry["groups"].append(title)
+    thread = []
+    for entry in seen.values():
+        m = entry["msg"]
+        u = senders.get(m.sender_id) if m.sender_id else None
+        text = (
+            (m.content or "")[2:].strip()
+            if (m.content or "").startswith("📢 ")
+            else (m.content or "")
+        )
+        thread.append(
+            {
+                "id": m.id,
+                "text": text,
+                "sender_id": m.sender_id,
+                "sender_username": u.username if u else None,
+                "sender_display_name": u.display_name if u else None,
+                "sender_avatar": u.avatar_url if u else None,
+                "groups": entry["groups"],
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+            }
+        )
+    thread.sort(key=lambda t: (t["created_at"] or "", t["id"]))
+    return success_response(thread)
+
+
 @router.post("/{community_id}/announce")
 def announce_to_community(
     community_id: int,
