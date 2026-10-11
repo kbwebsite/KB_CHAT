@@ -843,7 +843,11 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               </span>
             )}
           </div>
-          {!isGameCard ? (
+          {canManageGame ? (
+          <div className={`absolute ${isOwn?'left-0 -translate-x-full':'right-0 translate-x-full'} top-1/2 -translate-y-1/2 hidden sm:group-hover:flex items-center gap-1 p-1 rounded-full kryzen-msg-actions z-10`}>
+              <button onClick={(e)=>{ e.stopPropagation(); onDelete(msg) }} className="p-1.5 hover:bg-muted rounded-full text-destructive" title="Delete"><Trash2 className="w-3.5 h-3.5"/></button>
+          </div>
+          ) : !isGameCard ? (
           <div className={`absolute ${isOwn?'left-0 -translate-x-full':'right-0 translate-x-full'} top-1/2 -translate-y-1/2 hidden sm:group-hover:flex items-center gap-1 p-1 rounded-full kryzen-msg-actions z-10`}>
             {REACTIONS.slice(0,3).map(e=> (
               <button key={e} onClick={()=>onReact(msg.id,e)} className="p-1.5 hover:bg-muted rounded-full text-xs">{e}</button>

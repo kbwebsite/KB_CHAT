@@ -115,7 +115,7 @@ afterEach(() => {
 })
 
 describe('MessageBubble action scoping', () => {
-  it('game cards expose no row actions and ignore taps', () => {
+  it("others' game cards expose no row actions and ignore taps", () => {
     const onMobileMore = vi.fn()
     renderBubble(
       baseMsg({ id: 50, content: '🎮EMOJI:new\nAmy started an emoji movie game' }),
@@ -123,11 +123,34 @@ describe('MessageBubble action scoping', () => {
     )
     expect(host.querySelector('button[title="More"]')).toBeNull()
     expect(host.querySelector('button[title="Reply"]')).toBeNull()
+    expect(host.querySelector('button[title="Delete"]')).toBeNull()
     const body = host.querySelector('.msg-text') as HTMLElement
     act(() => {
       body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     })
     expect(onMobileMore).not.toHaveBeenCalled()
+  })
+
+  it('own game cards expose Delete only and open the sheet', () => {
+    const onMobileMore = vi.fn()
+    const onDelete = vi.fn()
+    renderBubble(
+      baseMsg({ id: 51, content: '🎮TTT:new\nchallenge' }),
+      { isOwn: true, onMobileMore, onDelete },
+    )
+    expect(host.querySelector('button[title="More"]')).toBeNull()
+    expect(host.querySelector('button[title="Reply"]')).toBeNull()
+    const del = host.querySelector('button[title="Delete"]') as HTMLElement
+    expect(del).not.toBeNull()
+    act(() => {
+      del.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onDelete).toHaveBeenCalledTimes(1)
+    const body = host.querySelector('.msg-text') as HTMLElement
+    act(() => {
+      body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onMobileMore).toHaveBeenCalledTimes(1)
   })
 
   it('media messages get a slim menu without text-only actions', () => {

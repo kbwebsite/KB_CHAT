@@ -24,7 +24,7 @@ import { MessageInfo } from '../components/MessageInfo'
 import { OnboardingPanel, isOnboarded } from '../components/OnboardingPanel'
 import { GlobalSearch } from '../components/GlobalSearch'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
-import { isMediaMsg } from '../utils/messageEffects'
+import { isGameCardMsg, isMediaMsg } from '../utils/messageEffects'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
 
@@ -808,10 +808,21 @@ export default function ChatPage() {
         {/* Mesh group call room (own modal; store-driven) */}
         <GroupCallModal />
 
-        {/* Mobile action sheet (games never open it; media gets a slim set) */}
+        {/* Mobile action sheet (own game cards: Delete only; media slim; text full) */}
         <BottomSheet open={mobileActionSheet.open} onClose={() => setMobileActionSheet({ open: false })} title="Message Actions">
           {mobileActionSheet.msg && (
             <>
+              {isGameCardMsg(mobileActionSheet.msg) ? (
+              <>
+                {mobileActionSheet.msg.sender_id === user?.id && !(mobileActionSheet.msg as any).is_deleted && (
+                <>
+                  <BottomSheetAction icon={<Info className="w-5 h-5" />} label="Info" onClick={() => { if (mobileActionSheet.msg) { setInfoMsgId(mobileActionSheet.msg.id); setMobileActionSheet({ open: false }) } }} />
+                  <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg) { setDeleteTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
+                </>
+                )}
+              </>
+              ) : (
+              <>
               <BottomSheetAction icon={<span className="text-lg">👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({ open: false }) }} />
               <BottomSheetAction icon={<Reply className="w-5 h-5" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
               {!isMediaMsg(mobileActionSheet.msg) && (
@@ -845,6 +856,8 @@ export default function ChatPage() {
                   <BottomSheetAction icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={() => { if (mobileActionSheet.msg && !(mobileActionSheet.msg as any).is_encrypted && !(mobileActionSheet.msg as any).view_once) { setEditTarget(mobileActionSheet.msg); setEditText(mobileActionSheet.msg.content || ''); setMobileActionSheet({ open: false }) } }} />
                   <BottomSheetAction icon={<Trash2 className="w-5 h-5" />} label="Delete" destructive onClick={() => { if (mobileActionSheet.msg) { setDeleteTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
                 </>
+              )}
+              </>
               )}
             </>
           )}
