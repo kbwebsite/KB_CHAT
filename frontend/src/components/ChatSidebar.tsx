@@ -13,8 +13,9 @@ import { CommunitiesPanel } from './CommunitiesPanel'
 import { ChannelsPanel } from './ChannelsPanel'
 import { MemoriesPanel } from './MemoriesPanel'
 import { CatchUpPanel } from './CatchUpPanel'
+import { PredictionsPanel } from './PredictionsPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Star, Moon, Sun, Lock, Megaphone, Network, Radio, History, Sunrise } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Star, Moon, Sun, Lock, Megaphone, Network, Radio, History, Sunrise, Dices } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -71,6 +72,7 @@ export function ChatSidebar({
   const [showChannels, setShowChannels] = useState(false)
   const [showMemories, setShowMemories] = useState(false)
   const [showCatchUp, setShowCatchUp] = useState(false)
+  const [showPredictions, setShowPredictions] = useState(false)
   const [shareContact, setShareContact] = useState<any | null>(null)
   const [showNewGroup, setShowNewGroup] = useState(false)
   const [groupTitle, setGroupTitle] = useState('')
@@ -268,6 +270,10 @@ export function ChatSidebar({
                   <Sunrise className="w-4 h-4 text-primary" />
                   Catch up
                 </button>
+                <button role="menuitem" onClick={menuFire(() => setShowPredictions(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
+                  <Dices className="w-4 h-4 text-primary" />
+                  Predictions
+                </button>
                 {lockEnabled && (
                   <button role="menuitem" onClick={menuFire(lockNow)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Lock className="w-4 h-4 text-primary" />
@@ -370,6 +376,8 @@ export function ChatSidebar({
           <MemoriesPanel onClose={() => setShowMemories(false)} onJump={(cid: number, mid: number) => { useChatStore.getState().jumpToMessageId(cid, mid); setShowMemories(false); onMobileViewChange('chat') }} />
         ) : showCatchUp ? (
           <CatchUpPanel onClose={() => setShowCatchUp(false)} onMobileChat={() => { setShowCatchUp(false); onMobileViewChange('chat') }} />
+        ) : showPredictions ? (
+          <PredictionsPanel onClose={() => setShowPredictions(false)} />
         ) : (
           <>
             {showUserSearch && (

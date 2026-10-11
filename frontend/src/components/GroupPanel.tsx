@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { convApi, extendedApi, blockApi, groupInviteApi, uploadApi } from '../services/api'
+import { convApi, extendedApi, blockApi, groupInviteApi, uploadApi, santaApi } from '../services/api'
 import { Conversation } from '../types'
 import { useAuthStore } from '../store/auth'
 import { X, Users, UserPlus, Trash2, LogOut, Bell, BellOff, FileDown, Eraser, Shield, Ban, Link2, Copy, RefreshCw, Check, Share2, Camera, Sparkles } from 'lucide-react'
@@ -56,6 +56,48 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
   const [uploadingPhoto, setUploadingPhoto] = useState(false)
   const [showArt, setShowArt] = useState(false)
   const [nick, setNick] = useState(() => useNicknameStore.getState().get(conversation.id) || '')
+  const [santa, setSanta] = useState<any | null>(null)
+  const [santaBusy, setSantaBusy] = useState(false)
+  const [budget, setBudget] = useState('')
+
+  const loadSanta = async () => {
+    if (!conversation.is_group) return
+    try {
+      const r = await santaApi.status(conversation.id)
+      if (r?.success) setSanta(r.data)
+    } catch {}
+  }
+  useEffect(() => { void loadSanta() }, [conversation.id])
+
+  const handleDraw = async () => {
+    if (!canManage) return
+    if (!confirm('Shuffle Secret Santa for everyone? Each person gets a secret DM.')) return
+    setSantaBusy(true)
+    try {
+      const r = await santaApi.draw(conversation.id, budget.trim() || undefined)
+      if (r?.success) {
+        setSanta(r.data)
+        setMsg(r.message || 'Draw complete — matches sent')
+        onUpdated()
+      } else setMsg(r?.message || 'Draw failed')
+    } catch (e: any) { setMsg(e.response?.data?.detail || 'Draw failed') }
+    finally { setSantaBusy(false) }
+  }
+
+  const handleReveal = async () => {
+    if (!canManage) return
+    if (!confirm('Reveal all matches to the group?')) return
+    setSantaBusy(true)
+    try {
+      const r = await santaApi.reveal(conversation.id)
+      if (r?.success) {
+        setSanta(null)
+        setMsg('Matches revealed 🎅')
+        onUpdated()
+      } else setMsg(r?.message || 'Reveal failed')
+    } catch (e: any) { setMsg(e.response?.data?.detail || 'Reveal failed') }
+    finally { setSantaBusy(false) }
+  }
   useEffect(() => {
     setNick(useNicknameStore.getState().get(conversation.id) || '')
   }, [conversation.id])
@@ -410,6 +452,47 @@ export function GroupPanel({ conversation, onClose, onUpdated }: { conversation:
                   className="flex-1 min-w-0 px-3 py-1.5 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm" />
                 <button onClick={handlePetRename} disabled={petBusy} className="px-3 py-1.5 rounded-xl bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50">Name</button>
               </div>
+            )}
+          </div>
+        )}
+
+        {conversation.is_group && (
+          <div className="rounded-xl border p-3 space-y-2">
+            <h3 className="text-sm font-semibold flex items-center gap-1.5">🎅 Secret Santa</h3>
+            {santa ? (
+              <>
+                <p className="text-xs px-2 py-1.5 rounded-lg bg-muted">
+                  {santa.player_count} players
+                  {santa.budget ? ` • Budget: ${santa.budget}` : ''}
+                  {santa.my_receiver_name ? (
+                    <> • <span className="font-semibold">You gift {santa.my_receiver_name}</span> 🤫</>
+                  ) : null}
+                </p>
+                {canManage && (
+                  <button onClick={handleReveal} disabled={santaBusy} className="w-full py-2 rounded-xl bg-amber-500 text-white text-xs font-medium disabled:opacity-50">
+                    {santaBusy ? 'Working…' : 'Reveal all matches'}
+                  </button>
+                )}
+                {!canManage && !santa.my_receiver_name && (
+                  <p className="text-[11px] text-muted-foreground">Check your DMs for your match.</p>
+                )}
+              </>
+            ) : canManage ? (
+              <>
+                <input
+                  value={budget}
+                  onChange={e=>setBudget(e.target.value)}
+                  placeholder="Budget (optional, e.g. ₹500)"
+                  maxLength={200}
+                  className="w-full px-3 py-2 rounded-xl bg-muted border border-transparent focus:bg-background focus:border-primary outline-none text-sm"
+                />
+                <button onClick={handleDraw} disabled={santaBusy} className="w-full py-2 rounded-xl bg-primary text-primary-foreground text-xs font-medium disabled:opacity-50">
+                  {santaBusy ? 'Shuffling…' : 'Start draw'}
+                </button>
+                <p className="text-[11px] text-muted-foreground">Everyone gets a secret DM. Needs 3+ players.</p>
+              </>
+            ) : (
+              <p className="text-xs text-muted-foreground">No active draw — admins start it here.</p>
             )}
           </div>
         )}
