@@ -116,11 +116,12 @@ export function prettyPreview(text: any): any {
   }
   if (/\[live:\d+\]/.test(clean)) return '📍 Live location'
   if (/^Video \d+:\d\d$/.test(clean)) return '🎥 Video message'
-  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:')) return '🎮 Game move'
+  if (clean.startsWith('🎮TTT:move:') || clean.startsWith('🎮RPS:move:') || clean.startsWith('🎮C4:move:') || clean.startsWith('🎮EMOJI:move:') || clean.startsWith('🎮CHESS:move:')) return '🎮 Game move'
   if (clean.startsWith('🎮TTT:new')) return '🎮 Tic-tac-toe challenge'
   if (clean.startsWith('🎮RPS:new')) return '✊ Rock-paper-scissors'
   if (clean.startsWith('🎮C4:new')) return '🔴 Connect Four'
   if (clean.startsWith('🎮EMOJI:new')) return '🎬 Emoji movie game'
+  if (clean.startsWith('🎮CHESS:new')) return '♞ Chess challenge'
   return clean
 }
 
@@ -144,9 +145,14 @@ export function isEmojiMove(text: unknown): boolean {
   return typeof text === 'string' && text.startsWith('🎮EMOJI:move:')
 }
 
+/** True for chess move messages (hidden the same way). */
+export function isChessMove(text: unknown): boolean {
+  return typeof text === 'string' && text.startsWith('🎮CHESS:move:')
+}
+
 /** True for any hidden game-state message (any game). */
 export function isGameMoveMsg(text: unknown): boolean {
-  return isTTTTMove(text) || isRpsMove(text) || isC4Move(text) || isEmojiMove(text)
+  return isTTTTMove(text) || isRpsMove(text) || isC4Move(text) || isEmojiMove(text) || isChessMove(text)
 }
 
 const MILESTONE_KEY = 'kb_msg_milestones'

@@ -17,6 +17,7 @@ import wsService from '../services/websocket'
 import { formatTime } from '../utils/format'
 import { WALLPAPERS, getConvWallpaper, setConvWallpaper, getConvCustomUrl, setConvCustomUrl, convWallpaperView, imageFileToWallpaper, isSlideshowOn, nextSlideshowId } from '../utils/wallpapers'
 import { fireEffect, effectForText, parseFxMarker, prettyPreview, isGameMoveMsg } from '../utils/messageEffects'
+import { sqName } from './ChessGame'
 import { parseSlashCommand } from '../utils/slashCommands'
 import { EffectOverlay } from './EffectOverlay'
 import { DeleteDialog } from './DeleteDialog'
@@ -94,6 +95,36 @@ export function ChatView({
   const typingSet = useChatStore((s: any) => currentConversationId ? s.typingUsers[currentConversationId] : undefined)
   const myRole = (currentConv as any)?.members?.find((m: any) => m.user_id === user?.id)?.role
   const announceLocked = !!(currentConv as any)?.is_group && !!(currentConv as any)?.only_admins_can_send && myRole !== 'owner' && myRole !== 'admin'
+  // Auto-translate: per-conversation target language (local map).
+  const [autoTrMap, setAutoTrMap] = useState<Record<number, string>>(() => {
+    try {
+      const raw = localStorage.getItem('kb_autotranslate')
+      const m = raw ? JSON.parse(raw) : {}
+      return m && typeof m === 'object' ? m : {}
+    } catch {
+      return {}
+    }
+  })
+  const autoTrLang = currentConversationId != null ? (autoTrMap[currentConversationId] ?? null) : null
+  const toggleAutoTr = () => {
+    if (currentConversationId == null) return
+    const next = { ...autoTrMap }
+    if (next[currentConversationId]) {
+      delete next[currentConversationId]
+      toast('Auto-translate off', 'info')
+    } else {
+      const code = (settings as any)?.app_language || 'en'
+      const hit = (languages || []).find((l: any) => l.code === code)
+      const fallback: Record<string, string> = { en: 'English', ta: 'Tamil', hi: 'Hindi', es: 'Spanish', fr: 'French', de: 'German', ar: 'Arabic', zh: 'Chinese (Simplified)', ja: 'Japanese', ko: 'Korean', pt: 'Portuguese', ru: 'Russian' }
+      const lang = hit?.name || fallback[code] || 'English'
+      next[currentConversationId] = lang
+      toast(`Auto-translating incoming messages to ${lang}`, 'success')
+    }
+    try {
+      localStorage.setItem('kb_autotranslate', JSON.stringify(next))
+    } catch {}
+    setAutoTrMap(next)
+  }
   // Group call room banner (store-driven; invite/end arrive over WS).
   const groupRoom = useGroupCallStore((s) =>
     currentConversationId != null ? (s.activeByConv[currentConversationId] ?? null) : null,
@@ -449,7 +480,7 @@ export function ChatView({
     if (nearBottom) el.scrollTo({ top: el.scrollHeight })
   }, [aiResult?.text])
 
-  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' = 'ttt') => {
+  const sendChallenge = async (kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess' = 'ttt') => {
     if (!currentConversationId) return
     const name = user?.display_name || user?.username || 'Someone'
     if (kind === 'rps') {
@@ -458,6 +489,8 @@ export function ChatView({
       await sendMessage(currentConversationId, `🎮C4:new\n${name} started Connect Four — tap a column to drop!`)
     } else if (kind === 'emoji') {
       await sendMessage(currentConversationId, `🎮EMOJI:new\n${name} started an emoji movie game — guess the movie!`)
+    } else if (kind === 'chess') {
+      await sendMessage(currentConversationId, `🎮CHESS:new\n${name} started chess — you play Black, good luck!`)
     } else {
       await sendMessage(currentConversationId, `🎮TTT:new\n${name} started tic-tac-toe — tap a square to join as O!`)
     }
@@ -479,6 +512,11 @@ export function ChatView({
     if (!currentConversationId || !(challenge.id > 0)) return
     // Marker only — move messages stay out of history (filtered below).
     await sendMessage(currentConversationId, `🎮TTT:move:${challenge.id}:${pos}`)
+  }
+
+  const handleChessMove = async (challenge: any, from: number, to: number) => {
+    if (!currentConversationId || !(challenge.id > 0)) return
+    await sendMessage(currentConversationId, `🎮CHESS:move:${challenge.id}:${sqName(from)}${sqName(to)}`)
   }
 
   const handleEmojiGuess = async (challenge: any, guess: string) => {
@@ -691,6 +729,7 @@ export function ChatView({
           onAgent={onAgent}
           onTheme={onTheme}
           onSettings={onSettings}
+          autoTranslateOn={!!autoTrLang}
           onExtras={(key: string) => {
             if (key === 'polls') setShowPolls(true)
             else if (key === 'events') setShowEvents(true)
@@ -699,6 +738,7 @@ export function ChatView({
             else if (key === 'insights') setShowInsights(true)
             else if (key === 'draw') setShowDraw(true)
             else if (key === 'autoreply') setShowAutoReply((v) => !v)
+            else if (key === 'autotranslate') toggleAutoTr()
             else if (key === 'export') exportChat()
             else if (key === 'wallpaper') setShowWallpaper((v) => !v)
             else if (key === 'lock') toggleChatLock()
@@ -974,9 +1014,11 @@ export function ChatView({
                       onGameRematch={(kind) => sendChallenge(kind)}
                       onRpsThrow={handleRpsThrow}
                       onC4Move={handleC4Move}
+                      onChessMove={handleChessMove}
                       onEmojiGuess={handleEmojiGuess}
                       onContactChat={(u: any) => onNewChat?.({ id: u.user_id, username: u.username, display_name: u.display_name, avatar_url: u.avatar_url })}
                       convTitle={(currentConv as any)?.title || 'Chat'}
+                      autoTranslateLang={autoTrLang}
                     />
                   </div>
                 </div>

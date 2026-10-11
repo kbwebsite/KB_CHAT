@@ -12,6 +12,7 @@ import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
 import { prettyPreview } from '../utils/messageEffects'
 import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
+import { speakText, stopSpeak, speechSupported } from '../utils/speech'
 import { useToastStore } from '../store/toast'
 import { parseContactCard } from '../utils/messageEffects'
 import { parseLiveSessionId } from '../utils/liveLocation'
@@ -20,6 +21,7 @@ import { TicTacToeGame, isTTTChallenge } from './TicTacToeGame'
 import { RpsGame, isRpsChallenge, type RpsChoice } from './RockPaperScissors'
 import { ConnectFourGame, isC4Challenge } from './ConnectFour'
 import { EmojiMovieGame, isEmojiChallenge } from './EmojiMovieGame'
+import { ChessGame, isChessChallenge } from './ChessGame'
 
 // Heavy picker loads on first open, never with the chat bundle.
 const EmojiPicker = lazy(() => import('emoji-picker-react'))
@@ -35,6 +37,9 @@ function pickEmojiTheme(): EmojiTheme {
 }
 
 const REACTIONS = ['👍','❤️','😂','😮','😢','😡']
+
+/** Auto-translation cache: message id -> translated text. */
+const transCache = new Map<number, string>()
 
 /** Shared location links (MessageComposer "Share location") arrive as plain
  * text with an openstreetmap mlat/mlon URL. Render them as a rich map card
@@ -355,7 +360,7 @@ function VideoNotePlayer({ src, duration }: { src: string; duration?: number | n
   )
 }
 
-export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onEmojiGuess, onContactChat, convTitle }: {
+export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit, onDelete, onReact, onCopy, onForward, onSave, onSelect, isSelected, onReport, onImageClick, savedIds, onPin, onAIAction, onTranslateAction, onMobileMore, onRetry, gameMsgs, onGameMove, onGameRematch, onRpsThrow, onC4Move, onChessMove, onEmojiGuess, onContactChat, convTitle, autoTranslateLang }: {
   msg: Message, isOwn:boolean, isGroup:boolean, showAvatar:boolean,
   onReply:(m:Message)=>void, onEdit:(m:Message)=>void, onDelete:(m:Message)=>void, onReact:(id:number, e:string)=>void,
   onCopy?:(t:string)=>void, onForward?:(m:Message)=>void, onSave?:(m:Message)=>void, onSelect?:(m:Message)=>void, isSelected?:boolean, onReport?:(m:Message)=>void,
@@ -365,11 +370,13 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   onTranslateAction?:(msg:Message)=>void,
   onMobileMore?:(msg:Message)=>void,
   onRetry?:(msg:Message)=>void,
-  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4' | 'emoji')=>void,
+  gameMsgs?:any[], onGameMove?:(challenge:any, pos:number)=>void, onGameRematch?:(kind: 'ttt' | 'rps' | 'c4' | 'emoji' | 'chess')=>void,
   onRpsThrow?:(challenge:any, choice:RpsChoice)=>void, onC4Move?:(challenge:any, col:number)=>void,
+  onChessMove?:(challenge:any, from:number, to:number)=>void,
   onEmojiGuess?:(challenge:any, guess:string)=>void,
   onContactChat?:(u:{id?:number, username?:string, display_name?:string, avatar_url?:string|null})=>void,
-  convTitle?:string
+  convTitle?:string,
+  autoTranslateLang?: string | null
 }) {
   const content = msg.is_deleted ? 'Message deleted' : prettyPreview(msg.content)
   const contact = (msg as any).message_type === 'contact' && !msg.is_deleted ? parseContactCard(msg.content) : null
@@ -379,6 +386,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isRps = !msg.is_deleted && isRpsChallenge(msg.content)
   const isC4 = !msg.is_deleted && isC4Challenge(msg.content)
   const isEmoji = !msg.is_deleted && isEmojiChallenge(msg.content)
+  const isChess = !msg.is_deleted && isChessChallenge(msg.content)
   // Legacy sealed rows (pre-E2EE-removal): try opening with this device's
   // stored key; otherwise show a placeholder instead of base64.
   const legacySealed = !!msg.is_encrypted && msg.message_type === 'text' && !msg.is_deleted
@@ -458,6 +466,58 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const isVoice = msg.message_type === 'voice'
   const isAi = (msg as any).message_type === 'ai' && !msg.is_deleted
   const isVideoNote = (msg as any).message_type === 'video_note' && !msg.is_deleted
+  const [speaking, setSpeaking] = useState(false)
+  const [translated, setTranslated] = useState<string | null>(null)
+  const [translating, setTranslating] = useState(false)
+  const [showOrig, setShowOrig] = useState(false)
+
+  // Auto-translate: per-chat target language (ChatView prop). Cached per
+  // message; own/secret/non-text messages are never sent anywhere.
+  useEffect(() => {
+    setTranslated(null)
+    setShowOrig(false)
+    if (!autoTranslateLang || isOwn || msg.is_deleted || msg.is_encrypted || (msg as any).view_once) return
+    if (msg.message_type !== 'text') return
+    const body = (content || '').trim()
+    if (!body) return
+    const hit = transCache.get(msg.id)
+    if (hit) {
+      setTranslated(hit)
+      return
+    }
+    let cancelled = false
+    setTranslating(true)
+    aiApi
+      .translate(body.slice(0, 1000), autoTranslateLang)
+      .then((r: any) => {
+        const t = r?.data?.translation || r?.data?.result || r?.data?.reply || null
+        if (!cancelled && t) {
+          transCache.set(msg.id, t)
+          setTranslated(t)
+        }
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setTranslating(false)
+      })
+    return () => {
+      cancelled = true
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [msg.id, autoTranslateLang])
+
+  const listen = () => {
+    if (speaking) {
+      stopSpeak()
+      setSpeaking(false)
+      setShowMenu(false)
+      return
+    }
+    const said = speakText(content || '', () => setSpeaking(false))
+    if (said) setSpeaking(true)
+    else toast('Read-aloud is not supported in this browser', 'error')
+    setShowMenu(false)
+  }
   const [transcription, setTranscription] = useState<string|null>(null)
   const [transcribing, setTranscribing] = useState(false)
 
@@ -642,6 +702,14 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               onGuess={(c, guess) => onEmojiGuess?.(c, guess)}
               onRematch={() => onGameRematch?.('emoji')}
             />
+          ) : isChess ? (
+            <ChessGame
+              challenge={msg}
+              msgs={gameMsgs || []}
+              meId={meId}
+              onMove={(c, from, to) => onChessMove?.(c, from, to)}
+              onRematch={() => onGameRematch?.('chess')}
+            />
           ) : contact ? (
             <div className="flex items-center gap-3 min-w-[210px] max-w-[260px]">
               <div className="w-11 h-11 rounded-full kryzen-accent-gradient text-white flex items-center justify-center text-sm font-bold overflow-hidden shrink-0">
@@ -677,7 +745,18 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               onClick={() => safeImageClick(loneImageUrl, 'sticker', [{ url: loneImageUrl, name: 'sticker' }], 0)}
             />
           ) : (
-            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{content}</p>
+            <p className="whitespace-pre-wrap break-words [overflow-wrap:anywhere] selectable">{translated && !showOrig ? translated : content}</p>
+          )}
+          {translated && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setShowOrig((v) => !v) }}
+              className="mt-1 text-[11px] opacity-70 hover:opacity-100 underline underline-offset-2"
+            >
+              🌐 {showOrig ? 'Show translation' : 'Translated — show original'}
+            </button>
+          )}
+          {!translated && translating && !!autoTranslateLang && (
+            <p className="mt-1 text-[11px] opacity-50 animate-pulse">Translating…</p>
           )}
           {isVoice && !transcription && (
             <button onClick={async ()=>{
@@ -766,6 +845,9 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           {showMenu && (
             <div className={`absolute ${isOwn?'left-0' : 'right-0'} top-full mt-2 w-44 rounded-xl kryzen-dropdown-glass py-1 z-20 text-sm`}>
               <button onClick={()=>{ safeCopy(content || ''); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Copy className="w-3.5 h-3.5"/> Copy</button>
+              {speechSupported() && !msg.is_deleted && !!content?.trim() && (
+                <button onClick={listen} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Volume2 className="w-3.5 h-3.5"/> {speaking ? 'Stop' : 'Listen'}</button>
+              )}
               <button onClick={()=>{ safeForward(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Forward className="w-3.5 h-3.5"/> Forward</button>
               <button onClick={()=>{ safeSave(msg); setShowMenu(false)}} className={`w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 ${isSaved? 'text-primary' : ''}`}><Bookmark className="w-3.5 h-3.5"/> {isSaved? 'Unsave':'Save'}</button>
               {onPin && <button onClick={()=>{ onPin(msg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Pin className="w-3.5 h-3.5"/> {(msg as any).is_pinned ? 'Unpin' : 'Pin'}</button>}
