@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, UserX, UserCheck, Trash2 } from 'lucide-react'
 import { moderationApi } from '../services/api'
@@ -21,13 +21,14 @@ function timeOf(iso: string | null) {
 
 /** Platform moderation console (admins only; route-guarded in App). */
 export default function AdminPage() {
-  const [tab, setTab] = useState<'reports' | 'users'>('reports')
+  const [tab, setTab] = useState<'reports' | 'users' | 'stats'>('reports')
   const [status, setStatus] = useState('open')
   const [reports, setReports] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<any[]>([])
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [stats, setStats] = useState<any | null>(null)
   const toast = useToastStore((s) => s.push)
 
   const loadReports = async (st = status) => {
@@ -54,9 +55,22 @@ export default function AdminPage() {
     }
   }
 
+  const loadStats = async () => {
+    setLoading(true)
+    try {
+      const res = await moderationApi.stats()
+      if (res?.success) setStats(res.data)
+    } catch {
+      toast('Could not load stats', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   useEffect(() => {
     if (tab === 'reports') void loadReports()
-    else void loadUsers()
+    else if (tab === 'users') void loadUsers()
+    else void loadStats()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
@@ -114,7 +128,7 @@ export default function AdminPage() {
       </header>
 
       <div className="flex gap-2 mt-5" role="tablist" aria-label="Moderation views">
-        {(['reports', 'users'] as const).map((t) => (
+        {(['reports', 'users', 'stats'] as const).map((t) => (
           <button
             key={t}
             role="tab"
@@ -122,7 +136,7 @@ export default function AdminPage() {
             onClick={() => setTab(t)}
             className={`px-4 h-11 rounded-full text-sm font-semibold min-h-[44px] ${tab === t ? 'chip-active' : 'bg-muted'}`}
           >
-            {t === 'reports' ? 'Reports' : 'Users'}
+            {t === 'reports' ? 'Reports' : t === 'users' ? 'Users' : 'Stats'}
           </button>
         ))}
         {tab === 'reports' && (
@@ -214,7 +228,7 @@ export default function AdminPage() {
             ))
           )}
         </div>
-      ) : (
+      ) : tab === 'users' ? (
         <div className="mt-4 space-y-3">
           <form
             className="flex gap-2"
@@ -285,7 +299,87 @@ export default function AdminPage() {
             ))
           )}
         </div>
+      ) : (
+        <StatsPanel stats={stats} loading={loading} />
       )}
+    </div>
+  )
+}
+
+function StatCard({ label, value, sub }: { label: string; value: ReactNode; sub?: string }) {
+  return (
+    <div className="premium-card">
+      <p className="text-2xl font-extrabold tabular-nums">{value}</p>
+      <p className="text-xs font-semibold mt-0.5">{label}</p>
+      {sub && <p className="text-[11px] text-muted-foreground">{sub}</p>}
+    </div>
+  )
+}
+
+/** Platform overview: dep-free SVG bars + proportion rows (no chart lib). */
+function StatsPanel({ stats, loading }: { stats: any | null; loading: boolean }) {
+  if (loading && !stats) {
+    return <p className="text-sm text-muted-foreground mt-4" aria-busy="true">Loading stats…</p>
+  }
+  if (!stats) {
+    return <p className="text-sm text-muted-foreground mt-4">No stats yet.</p>
+  }
+  const perDay: Array<{ date: string; count: number }> = stats.messages?.per_day ?? []
+  const max = Math.max(1, ...perDay.map((d) => d.count))
+  const totalReports =
+    (stats.reports?.open ?? 0) + (stats.reports?.resolved ?? 0)
+  const reasons: Array<{ reason: string; count: number }> =
+    stats.reports?.by_reason ?? []
+  const reasonMax = Math.max(1, ...reasons.map((r) => r.count))
+  return (
+    <div className="mt-4 space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <StatCard label="Users" value={stats.users?.total ?? 0} sub={`${stats.users?.active ?? 0} active · ${stats.users?.new_7d ?? 0} new this week`} />
+        <StatCard label="Messages" value={stats.messages?.total ?? 0} sub="all time" />
+        <StatCard label="Chats" value={stats.conversations?.total ?? 0} sub={`${stats.conversations?.groups ?? 0} groups`} />
+        <StatCard label="Open reports" value={stats.reports?.open ?? 0} sub={`${stats.reports?.resolved ?? 0} resolved`} />
+      </div>
+      <div className="premium-card">
+        <p className="text-sm font-semibold">Messages per day</p>
+        <p className="text-[11px] text-muted-foreground">Last {perDay.length} days</p>
+        <div
+          className="mt-3 flex items-end gap-1 h-28"
+          role="img"
+          aria-label={`Messages per day, peak ${max} in one day, ${stats.messages?.total ?? 0} total`}
+        >
+          {perDay.map((d) => (
+            <div
+              key={d.date}
+              title={`${d.date}: ${d.count}`}
+              className="flex-1 rounded-t bg-primary/70 min-h-[2px]"
+              style={{ height: `${Math.max(2, Math.round((d.count / max) * 100))}%` }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="premium-card">
+        <p className="text-sm font-semibold">Reports by reason</p>
+        <p className="text-[11px] text-muted-foreground">{totalReports} total</p>
+        <div className="mt-3 space-y-2">
+          {reasons.length === 0 && (
+            <p className="text-xs text-muted-foreground">No reports filed yet.</p>
+          )}
+          {reasons.map((r) => (
+            <div key={r.reason}>
+              <div className="flex justify-between text-xs">
+                <span className="font-medium capitalize">{r.reason}</span>
+                <span className="text-muted-foreground tabular-nums">{r.count}</span>
+              </div>
+              <div className="mt-1 h-2 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary/70"
+                  style={{ width: `${Math.round((r.count / reasonMax) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   )
 }

@@ -67,5 +67,10 @@ test.describe('moderation console', () => {
     const row = ((await queue.json()).data as Array<any>).find((r) => r.id === reportId);
     expect(row?.status).toBe('resolved');
     expect(row?.action_taken).toBe('message_deleted');
+
+    // Stats tab reflects the platform numbers.
+    await page.getByRole('tab', { name: 'Stats' }).click();
+    await expect(page.getByText('Messages per day')).toBeVisible();
+    await expect(page.getByText('Reports by reason')).toBeVisible();
   });
 });
