@@ -105,6 +105,51 @@ afterEach(() => {
   host.remove()
 })
 
+describe('Communities discover view', () => {
+  function bigList() {
+    const mk = (id: number, name: string, members: number) => ({
+      id,
+      name,
+      description: `${name} desc`,
+      owner_id: id === 1 ? 7 : 99,
+      created_at: new Date().toISOString(),
+      groups: [{ id: 100 + id, title: `${name} group`, avatar_url: null, member_count: members }],
+    })
+    return [mk(1, 'Alpha', 10), mk(2, 'Beta', 8), mk(3, 'Gamma', 5), mk(4, 'Delta', 1)]
+  }
+
+  it('renders hero, gradient tabs and rank-badged trending cards', async () => {
+    cList.mockResolvedValue({ success: true, data: bigList() })
+    renderPanel()
+    await act(async () => {})
+    expect(host.textContent).toContain('Join. Share. Grow Together.')
+    expect(host.textContent).toContain('Trending Communities')
+    // Rank badges follow member order: Alpha > Beta > Gamma.
+    expect(host.textContent).toContain('Trending')
+    expect(host.textContent).toContain('Rising')
+    expect(host.textContent).toContain('Popular')
+    // Real numbers, compacted.
+    expect(host.textContent).toContain('10 members')
+    // Directory below the fold for the rest.
+    expect(host.querySelector('#all-communities')).not.toBeNull()
+    expect(host.querySelector('[aria-label="Open Delta"]')).not.toBeNull()
+  })
+
+  it('Create pill opens the community wizard', async () => {
+    cList.mockResolvedValue({ success: true, data: bigList() })
+    renderPanel()
+    await act(async () => {})
+    const createBtn = Array.from(host.querySelectorAll('button')).find((b) =>
+      b.textContent!.includes('Create your own community'),
+    )
+    expect(createBtn).not.toBeUndefined()
+    act(() => {
+      createBtn!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(host.querySelector('input[placeholder^="Community name"]')).not.toBeNull()
+  })
+})
+
 describe('Community announcement thread', () => {
   it('loads the thread on open and renders chat bubbles', async () => {
     await openCommunity()
@@ -129,12 +174,9 @@ describe('Community announcement thread', () => {
     expect(cThread).toHaveBeenCalledTimes(1)
     cAnnounce.mockResolvedValue({ success: true, data: { reached: [9] } })
     cThread.mockResolvedValue({ success: true, data: [threadItem(), threadItem({ id: 6, text: 'Second' })] })
-    act(() => {
-      Array.from(host.querySelectorAll('button')).find(
-        (b) => b.textContent!.includes('Announce to'),
-      )!.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
+    // Composer bar is always visible, WhatsApp-style — no open step.
     const ta = host.querySelector('textarea[aria-label="Write an announcement"]') as HTMLTextAreaElement
+    expect(ta).not.toBeNull()
     act(() => {
       ta.focus()
       const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
@@ -148,5 +190,21 @@ describe('Community announcement thread', () => {
     expect(cAnnounce).toHaveBeenCalledWith(1, 'Second')
     expect(cThread).toHaveBeenCalledTimes(2)
     expect(host.querySelector('[aria-label="Announcement thread"]')!.textContent).toContain('Second')
+  })
+
+  it('Enter sends, Shift+Enter keeps a newline', async () => {
+    await openCommunity()
+    cAnnounce.mockResolvedValue({ success: true, data: { reached: [9] } })
+    const ta = host.querySelector('textarea[aria-label="Write an announcement"]') as HTMLTextAreaElement
+    act(() => {
+      ta.focus()
+      const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')!.set!
+      setter.call(ta, 'Hi')
+      ta.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    await act(async () => {
+      ta.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', shiftKey: false, bubbles: true, cancelable: true }))
+    })
+    expect(cAnnounce).toHaveBeenCalledWith(1, 'Hi')
   })
 })

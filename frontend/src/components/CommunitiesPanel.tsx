@@ -4,6 +4,7 @@ import {
   X,
   Trash2,
   Users,
+  User,
   Megaphone,
   UserPlus,
   Minus,
@@ -12,13 +13,18 @@ import {
   Search,
   Network,
   Flame,
+  TrendingUp,
+  Star,
   Sparkles,
+  Compass,
   Send,
   ArrowLeft,
 } from 'lucide-react'
 import { communityApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
-import { formatTime, compactPlural, plural } from '../utils/format'
+import { useSettingsStore } from '../store/settings'
+import { wallpaperStyle, wallpaperClass } from '../utils/wallpapers'
+import { formatTime, compact, compactPlural, plural } from '../utils/format'
 import { prettyPreview } from '../utils/messageEffects'
 
 /**
@@ -36,6 +42,14 @@ const COVERS = [
   ['#16a34a', '#a3e635'],
 ]
 
+// Rank badges for the top-3 communities by member count
+// (deterministic order, real numbers only).
+const RANK_META = [
+  { label: 'Trending', Icon: Flame, color: '#2dd4bf', border: 'rgba(45,212,191,0.4)' },
+  { label: 'Rising', Icon: TrendingUp, color: '#22d3ee', border: 'rgba(34,211,238,0.4)' },
+  { label: 'Popular', Icon: Star, color: '#fbbf24', border: 'rgba(251,191,36,0.4)' },
+]
+
 export function CommunitiesPanel({
   onClose,
   conversations,
@@ -46,6 +60,7 @@ export function CommunitiesPanel({
   onOpenChat: (id: number) => void
 }) {
   const { user } = useAuthStore()
+  const chatWallpaper = useSettingsStore(s => s.chat_wallpaper)
   const [lists, setLists] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState(false)
@@ -61,7 +76,6 @@ export function CommunitiesPanel({
   const [threadLoading, setThreadLoading] = useState<Record<number, boolean>>({})
   const announceRefs = useRef<Record<number, HTMLTextAreaElement | null>>({})
   const [addingTo, setAddingTo] = useState<number | null>(null)
-  const [announceOpen, setAnnounceOpen] = useState(false)
   const [msg, setMsg] = useState<string | null>(null)
   // Create wizard
   const [wizard, setWizard] = useState<null | { step: number; name: string; desc: string }>(null)
@@ -199,7 +213,6 @@ export function CommunitiesPanel({
           const ta = announceRefs.current[id]
           if (ta) ta.style.height = 'auto'
         })
-        setAnnounceOpen(false)
         setMsg(`Announced to ${plural(r.data?.reached?.length ?? 0, 'group')}`)
         loadThread(id)
       } else setMsg(r?.message || 'Failed')
@@ -237,7 +250,6 @@ export function CommunitiesPanel({
     setOpenId(c.id)
     setDetailTab('home')
     setMenuOpen(false)
-    setAnnounceOpen(false)
     setAddingTo(null)
     loadThread(c.id)
   }
@@ -391,8 +403,8 @@ export function CommunitiesPanel({
                   )}
                 </div>
                 <div
-                  className="rounded-2xl border overflow-y-auto px-3 py-2.5 space-y-2 max-h-80 min-h-[76px]"
-                  style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(16,185,129,0.10) 0%, transparent 55%), rgba(10,18,26,0.9)', borderColor: 'rgba(16,185,129,0.30)', boxShadow: '0 0 24px rgba(16,185,129,0.10)' }}
+                  className={`rounded-2xl border overflow-y-auto px-3 py-2.5 space-y-2 min-h-[280px] max-h-[60dvh] ${wallpaperClass(chatWallpaper)}`}
+                  style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(16,185,129,0.10) 0%, transparent 55%), rgba(10,18,26,0.9)', borderColor: 'rgba(16,185,129,0.30)', boxShadow: '0 0 24px rgba(16,185,129,0.10)', ...wallpaperStyle(chatWallpaper) }}
                   aria-label="Announcement thread"
                   aria-live="polite"
                 >
@@ -419,57 +431,48 @@ export function CommunitiesPanel({
                   )}
                 </div>
                 {isOwner ? (
-                  announceOpen ? (
-                    <div className="rounded-2xl bg-elevated border border-subtle p-2.5">
-                      <div className="flex gap-2">
-                        <textarea
-                          autoFocus
-                          ref={(el) => { announceRefs.current[c.id] = el }}
-                          value={drafts[c.id] || ''}
-                          rows={1}
-                          onChange={(e) => {
-                            setDrafts((d) => ({ ...d, [c.id]: e.target.value }))
-                            const el = e.target
-                            el.style.height = 'auto'
-                            el.style.height = Math.min(el.scrollHeight, 128) + 'px'
-                          }}
-                          onKeyDown={(e) => {
-                            if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') {
-                              e.preventDefault()
-                              announce(c.id)
-                            }
-                          }}
-                          placeholder={`Announce to ${c.name}… (Enter for new line)`}
-                          maxLength={2000}
-                          className="flex-1 min-w-0 px-3.5 py-2 rounded-2xl border outline-none text-sm resize-none max-h-32 overflow-y-auto"
-                          style={fieldStyle}
-                          aria-label="Write an announcement"
-                        />
-                        <button
-                          onClick={() => announce(c.id)}
-                          disabled={sendingId === c.id || !(drafts[c.id] || '').trim()}
-                          className="w-10 h-10 rounded-full text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95 touch-44"
-                          style={{ background: 'linear-gradient(135deg,#10b981,#22d3ee)', boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}
-                          aria-label="Send announcement"
-                        >
-                          <Send className="w-4 h-4" />
-                        </button>
-                      </div>
-                      <button onClick={() => setAnnounceOpen(false)} className="w-full text-center text-xs text-muted-foreground py-1.5">
-                        Cancel
-                      </button>
-                    </div>
-                  ) : (
+                  <div className="flex items-end gap-2 pt-2">
+                    <textarea
+                      ref={(el) => { announceRefs.current[c.id] = el }}
+                      value={drafts[c.id] || ''}
+                      rows={1}
+                      onChange={(e) => {
+                        setDrafts((d) => ({ ...d, [c.id]: e.target.value }))
+                        const el = e.target
+                        el.style.height = 'auto'
+                        el.style.height = Math.min(el.scrollHeight, 128) + 'px'
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && !e.shiftKey) {
+                          e.preventDefault()
+                          announce(c.id)
+                        }
+                      }}
+                      placeholder={`Message ${c.name}…`}
+                      maxLength={2000}
+                      className="flex-1 min-w-0 px-4 py-2.5 rounded-[24px] border outline-none text-sm resize-none max-h-32 overflow-y-auto min-h-[44px]"
+                      style={fieldStyle}
+                      aria-label="Write an announcement"
+                    />
                     <button
-                      onClick={() => setAnnounceOpen(true)}
-                      className="w-full rounded-full p-3.5 text-sm font-bold text-white transition-all active:scale-[0.99] flex items-center justify-center gap-2"
-                      style={{ background: 'linear-gradient(90deg,#10b981,#22d3ee)', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' }}
+                      onClick={() => announce(c.id)}
+                      disabled={sendingId === c.id || !(drafts[c.id] || '').trim()}
+                      className="w-11 h-11 rounded-full text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95 touch-44"
+                      style={{ background: 'linear-gradient(135deg,#10b981,#22d3ee)', boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}
+                      aria-label="Send announcement"
                     >
-                      <Megaphone className="w-4 h-4 text-white" /> Announce to {compactPlural(st.groups, 'group')}
+                      <Send className="w-5 h-5" />
                     </button>
-                  )
+                  </div>
                 ) : (
-                  <p className="mx-auto mt-2 w-fit max-w-full px-4 py-1.5 rounded-full bg-elevated border border-subtle text-[11px] text-muted-foreground text-center">Only admins can send messages here.</p>
+                  <div className="flex items-center gap-2 pt-2 opacity-70" aria-disabled="true">
+                    <div className="flex-1 min-w-0 px-4 py-2.5 rounded-[24px] border border-subtle bg-elevated text-[13px] text-muted-foreground truncate">
+                      Only admins can send messages here.
+                    </div>
+                    <span className="w-11 h-11 rounded-full bg-muted flex items-center justify-center shrink-0">
+                      <Megaphone className="w-4 h-4 text-tertiary" />
+                    </span>
+                  </div>
                 )}
               </section>
 
@@ -696,52 +699,70 @@ export function CommunitiesPanel({
 
   /* ═══════════ LIST VIEW ═══════════ */
   return (
-    <div className="h-full flex flex-col bg-card">
-      <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-[var(--k-border)] shrink-0">
-        <p className="font-bold text-[17px] flex-1 px-2 tracking-tight flex items-center gap-1.5">
-          <Network className="w-4 h-4 text-emerald-400" /> Communities
-          {lists.length > 0 && (
-            <span className="text-xs font-semibold text-tertiary align-middle">{lists.length}</span>
-          )}
-        </p>
-        <button onClick={() => setWizard(wizard ? null : { step: 1, name: '', desc: '' })} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="New community">
-          <Plus className="w-5 h-5" />
-        </button>
-        <button onClick={onClose} className="p-2 rounded-full hover:bg-muted transition-colors touch-44" aria-label="Close">
-          <X className="w-5 h-5" />
-        </button>
+    <div className="h-full min-h-0 flex flex-col overflow-hidden" style={{ background: '#08081a' }}>
+      {/* Hero header — screenshot style */}
+      <div
+        className="px-4 pt-4 pb-3 shrink-0 relative overflow-hidden"
+        style={{ background: 'radial-gradient(ellipse 80% 120% at 85% 0%, rgba(59,130,246,0.25) 0%, transparent 60%), radial-gradient(ellipse 70% 100% at 100% 100%, rgba(16,185,129,0.18) 0%, transparent 55%), #0b0b22' }}
+      >
+        <div className="flex items-start justify-between gap-3 relative">
+          <div className="flex items-start gap-3 min-w-0">
+            <div className="w-12 h-12 rounded-full shrink-0 flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#0ea5e9,#a855f7,#ec4899)', padding: 2, boxShadow: '0 0 24px rgba(34,211,238,0.5)' }}>
+              <div className="w-full h-full rounded-full flex items-center justify-center" style={{ background: '#0b0b22' }}>
+                <Users className="w-6 h-6 text-emerald-300" />
+              </div>
+            </div>
+            <div className="min-w-0">
+              <p className="font-extrabold text-[22px] tracking-tight flex items-center gap-2 text-white">
+                Communities
+                {lists.length > 0 && (
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full text-white" style={{ background: 'rgba(168,85,247,0.35)' }}>{lists.length}</span>
+                )}
+              </p>
+              <p className="text-[13px] mt-0.5" style={{ color: '#9ca3af' }}>Join. Share. Grow Together.</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <button onClick={() => setWizard(wizard ? null : { step: 1, name: '', desc: '' })} className="w-11 h-11 rounded-2xl flex items-center justify-center text-emerald-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(16,185,129,0.12)', border: '1px solid rgba(16,185,129,0.3)' }} aria-label="New community">
+              <Plus className="w-5 h-5" />
+            </button>
+            <button onClick={onClose} className="w-11 h-11 rounded-2xl flex items-center justify-center text-slate-300 transition-all active:scale-95 touch-44" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)' }} aria-label="Close">
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
       </div>
 
-      <div className="px-3 pt-2.5 shrink-0">
-        <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-full bg-elevated border border-subtle focus-within:border-emerald-500/50 transition-colors">
-          <Search className="w-4 h-4 text-tertiary shrink-0" />
+      <div className="px-4 pt-2.5 shrink-0">
+        <div className="flex items-center gap-2 pl-4 pr-2 py-2 rounded-full transition-colors" style={{ background: '#12122e', border: '1px solid rgba(34,211,238,0.25)' }}>
+          <Search className="w-5 h-5 shrink-0" style={{ color: '#9ca3af' }} />
           <input
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            placeholder="Search communities…"
-            className="flex-1 min-w-0 bg-transparent outline-none text-sm"
+            placeholder="Search communities..."
+            className="flex-1 min-w-0 bg-transparent outline-none text-[15px]"
             style={{ color: '#f0f0ff' }}
             aria-label="Search communities"
           />
           {query && (
-            <button onClick={() => setQuery('')} className="p-0.5 rounded-full hover:bg-muted touch-44" aria-label="Clear search">
-              <X className="w-3.5 h-3.5 text-tertiary" />
+            <button onClick={() => setQuery('')} className="p-2 rounded-full hover:bg-white/10 touch-44" aria-label="Clear search">
+              <X className="w-4 h-4 text-slate-400" />
             </button>
           )}
         </div>
         {!q && (
-          <div className="flex rounded-full bg-elevated border border-subtle p-1 mt-2.5">
+          <div className="flex rounded-full p-1.5 mt-3" style={{ background: '#12122e', border: '1px solid rgba(255,255,255,0.06)' }}>
             {(['discover', 'mine'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
-                  tab === t ? 'bg-emerald-500/20 text-emerald-300 shadow' : 'text-tertiary'
-                }`}
+                className="flex-1 py-2.5 min-h-[48px] rounded-full text-[15px] font-bold capitalize flex items-center justify-center gap-2 transition-all text-white"
+                style={tab === t ? { background: 'linear-gradient(90deg,#10b981,#22d3ee)', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' } : { color: '#9ca3af' }}
               >
+                {t === 'discover' ? <Compass className="w-5 h-5" /> : <User className="w-5 h-5" />}
                 {t}
                 {t === 'mine' && mine.length > 0 && (
-                  <span className="ml-1.5 text-[11px] opacity-80">{mine.length}</span>
+                  <span className="text-[11px] font-bold px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(168,85,247,0.3)', color: '#fff' }}>{mine.length}</span>
                 )}
               </button>
             ))}
@@ -822,36 +843,48 @@ export function CommunitiesPanel({
           <div className="pt-3 space-y-5">
             <button
               onClick={() => setWizard({ step: 1, name: '', desc: '' })}
-              className="mx-3 w-[calc(100%-24px)] flex items-center gap-3.5 rounded-2xl border border-dashed border-subtle p-3 text-left transition-all hover:border-emerald-500/40 active:scale-[0.99]"
+              className="mx-4 w-[calc(100%-32px)] flex items-center gap-3.5 rounded-[20px] p-3.5 text-left transition-all active:scale-[0.99]"
+              style={{ background: 'rgba(16,185,129,0.06)', border: '1.5px dashed rgba(16,185,129,0.45)' }}
             >
               <span className="relative shrink-0">
-                <span className="w-12 h-12 rounded-2xl bg-muted flex items-center justify-center block">
-                  <Users className="w-6 h-6 text-secondary" />
+                <span className="w-12 h-12 rounded-2xl flex items-center justify-center" style={{ background: 'linear-gradient(135deg,#0ea5e9,#10b981)' }}>
+                  <Users className="w-6 h-6 text-white" />
                 </span>
-                <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center ring-2 ring-[var(--bg-card)]">
+                <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 flex items-center justify-center" style={{ boxShadow: '0 0 0 2px #08081a' }}>
                   <Plus className="w-4 h-4 text-white" />
                 </span>
               </span>
-              <span className="text-[15px] font-semibold">New community</span>
+              <span className="flex-1 min-w-0">
+                <span className="block text-[16px] font-extrabold text-white tracking-tight">New community</span>
+                <span className="block text-[13px] mt-0.5" style={{ color: '#9ca3af' }}>Create your own community</span>
+              </span>
+              <span className="shrink-0 px-4 py-2 rounded-full text-[14px] font-bold text-white flex items-center gap-1" style={{ background: 'linear-gradient(90deg,#10b981,#34d399)', boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}>
+                <Plus className="w-4 h-4" /> Create
+              </span>
             </button>
             {trending.length > 0 && (
               <section>
-                <div className="flex items-center gap-1.5 px-4 pb-2">
-                  <Flame className="w-3.5 h-3.5 text-emerald-400" />
-                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">Trending</p>
+                <div className="flex items-center justify-between px-4 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <Flame className="w-4 h-4" style={{ color: '#fb923c' }} />
+                    <p className="text-[13px] font-extrabold uppercase tracking-[0.12em] text-slate-300">Trending Communities</p>
+                  </div>
+                  <button onClick={() => document.getElementById('all-communities')?.scrollIntoView({ behavior: 'smooth' })} className="text-[14px] font-semibold text-emerald-400 flex items-center gap-1">
+                    View all <span>→</span>
+                  </button>
                 </div>
-                <div className="px-3 space-y-3">
-                  {trending.map((c: any) => <CommunityCard key={c.id} c={c} />)}
+                <div className="px-4 space-y-4">
+                  {trending.map((c: any, i: number) => <FeaturedCard key={c.id} c={c} rank={i} />)}
                 </div>
               </section>
             )}
             {restLists.length > 0 && (
-            <section>
+            <section id="all-communities">
               <div className="flex items-center gap-1.5 px-4 pb-2">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-tertiary">All communities</p>
               </div>
-              <div className="px-3 space-y-3">
+              <div className="px-4 space-y-3">
                 {restLists.map((c: any) => <CommunityCard key={c.id} c={c} />)}
               </div>
             </section>
@@ -941,6 +974,56 @@ export function CommunitiesPanel({
   )
 
   /* ── Shared community card ── */
+  function FeaturedCard({ c, rank }: { c: any; rank: number }) {
+    const st = communityStats(c)
+    const members = communityMembers(c)
+    const [c1, c2] = coverOf(c.id)
+    const meta = RANK_META[Math.min(rank, RANK_META.length - 1)]
+    const BadgeIcon = meta.Icon
+    return (
+      <div
+        onClick={() => openCommunity(c)}
+        role="button"
+        tabIndex={0}
+        onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCommunity(c) } }}
+        aria-label={`Open ${c.name}`}
+        className="rounded-[24px] overflow-hidden cursor-pointer transition-all active:scale-[0.98]"
+        style={{ background: '#0d0d24', border: `1px solid ${meta.border}`, boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}
+      >
+        <div className="relative h-28 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+          <Users className="absolute -right-2 -bottom-6 w-28 h-28 text-white/10" />
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25) 0%, transparent 50%)' }} />
+          <span className="absolute top-3 right-3 px-3 py-1.5 rounded-full text-[12px] font-bold flex items-center gap-1.5 text-white" style={{ background: 'rgba(0,0,0,0.45)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.15)' }}>
+            <BadgeIcon className="w-3.5 h-3.5" style={{ color: meta.color }} /> {meta.label}
+          </span>
+        </div>
+        <div className="px-4 pb-4">
+          <div className="flex items-end gap-3 -mt-8 mb-1">
+            <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-xl shrink-0" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})`, boxShadow: '0 4px 20px rgba(16,185,129,0.5)', border: '3px solid #0d0d24' }}>
+              <Users className="w-8 h-8 text-white" />
+            </div>
+            <div className="flex-1 min-w-0 pb-1">
+              <p className="text-[19px] font-extrabold truncate tracking-tight text-white">{c.name}</p>
+            </div>
+          </div>
+          <p className="text-[14px] font-medium truncate" style={{ color: '#c4b5fd' }}>{(c.description || '').split('\n')[0] || `${compactPlural(st.groups, 'group')} · ${compactPlural(st.members, 'member')}`}</p>
+          <div className="flex items-center justify-between gap-2 mt-2.5">
+            <div className="flex items-center gap-2 min-w-0">
+              {members.length > 0 && memberCluster(members)}
+              <p className="text-[12px] truncate" style={{ color: '#9ca3af' }}>
+                {compact(st.members)} members
+                {st.online > 0 && <span className="font-semibold" style={{ color: '#6ee7b7' }}> · {compact(st.online)} online</span>}
+              </p>
+            </div>
+            <p className="text-[12px] shrink-0 flex items-center gap-1" style={{ color: '#9ca3af' }}>
+              <Users className="w-3.5 h-3.5" /> {compact(st.groups)} groups
+            </p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   function CommunityCard({ c }: { c: any }) {
     const st = communityStats(c)
     const members = communityMembers(c)
@@ -952,8 +1035,8 @@ export function CommunitiesPanel({
         tabIndex={0}
         onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openCommunity(c) } }}
         aria-label={`Open ${c.name}`}
-        className="rounded-[22px] overflow-hidden border border-subtle cursor-pointer transition-all hover:border-emerald-500/30 active:scale-[0.99]"
-        style={{ background: 'linear-gradient(180deg, rgba(20,38,36,0.98), rgba(12,20,28,0.98))', boxShadow: '0 8px 28px rgba(0,0,0,0.45)' }}
+        className="rounded-[22px] overflow-hidden cursor-pointer transition-all hover:border-emerald-500/30 active:scale-[0.99]"
+        style={{ background: 'linear-gradient(180deg, rgba(20,38,36,0.98), rgba(12,20,28,0.98))', border: '1px solid rgba(255,255,255,0.08)', boxShadow: '0 8px 28px rgba(0,0,0,0.45)' }}
       >
         <div className="relative h-20 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
           <Users className="absolute -right-2 -bottom-5 w-24 h-24 text-white/10" />
