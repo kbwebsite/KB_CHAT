@@ -334,21 +334,22 @@ export function CommunitiesPanel({
         </div>
 
         <div className="flex-1 overflow-y-auto min-h-0 pb-4">
-          {/* Clubhouse header */}
-          <div className="m-3 rounded-[24px] overflow-hidden border border-subtle" style={{ background: 'linear-gradient(180deg, rgba(16,40,38,0.98), rgba(10,18,26,0.98))', boxShadow: '0 8px 32px rgba(0,0,0,0.5)' }}>
-            <div className="relative h-20 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
+          {/* Clubhouse header — discover-style hero card with glow */}
+          <div className="m-3 rounded-[24px] overflow-hidden border" style={{ background: 'linear-gradient(180deg, rgba(16,40,38,0.98), rgba(10,18,26,0.98))', borderColor: 'rgba(16,185,129,0.35)', boxShadow: '0 8px 32px rgba(0,0,0,0.5), 0 0 28px rgba(16,185,129,0.15)' }}>
+            <div className="relative h-24 overflow-hidden" style={{ background: `linear-gradient(120deg, ${c1}, ${c2})` }}>
               <span className="absolute -right-1 -bottom-6 text-[80px] leading-none font-extrabold text-white/10 select-none">
                 <Users className="w-16 h-16" />
               </span>
               <div className="absolute w-36 h-36 rounded-full bg-white/10 blur-2xl -left-8 -top-14" />
+              <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse at 30% 20%, rgba(255,255,255,0.25) 0%, transparent 50%)' }} />
             </div>
             <div className="px-4 pt-2.5 pb-3.5">
               <div className="flex items-center gap-3">
-                <div className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/10" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})` }}>
-                  <Users className="w-7 h-7 text-white" />
+                <div className="w-16 h-16 rounded-2xl flex items-center justify-center shadow-lg shrink-0 ring-2 ring-white/10" style={{ background: `linear-gradient(135deg, ${c1}, ${c2})`, boxShadow: '0 4px 20px rgba(16,185,129,0.4)' }}>
+                  <Users className="w-8 h-8 text-white" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-bold text-[17px] tracking-tight truncate">{c.name}</p>
+                  <p className="font-extrabold text-[19px] tracking-tight truncate">{c.name}</p>
                   <p className="text-[13px] text-secondary mt-0.5 truncate">{c.description || 'No description yet'}</p>
                 </div>
               </div>
@@ -362,15 +363,14 @@ export function CommunitiesPanel({
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="mx-3 mb-2 flex rounded-full bg-elevated border border-subtle p-1">
+          {/* Tabs — discover-style gradient pills */}
+          <div className="mx-3 mb-2 flex rounded-full bg-elevated border border-subtle p-1.5 gap-1">
             {(['home', 'groups', 'members', 'about'] as const).map((t) => (
               <button
                 key={t}
                 onClick={() => setDetailTab(t)}
-                className={`flex-1 py-1.5 min-h-[44px] rounded-full text-[13px] font-semibold capitalize transition-all ${
-                  detailTab === t ? 'bg-emerald-500/20 text-emerald-300 shadow' : 'text-tertiary'
-                }`}
+                className={`flex-1 py-2.5 min-h-[48px] rounded-full text-[14px] font-bold capitalize transition-all ${detailTab === t ? 'text-white' : 'text-tertiary'}`}
+                style={detailTab === t ? { background: 'linear-gradient(90deg,#10b981,#22d3ee)', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' } : undefined}
               >
                 {t}
               </button>
@@ -391,8 +391,8 @@ export function CommunitiesPanel({
                   )}
                 </div>
                 <div
-                  className="rounded-2xl border border-subtle overflow-y-auto px-3 py-2.5 space-y-2 max-h-80 min-h-[76px]"
-                  style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(16,185,129,0.10) 0%, transparent 55%), rgba(10,18,26,0.9)' }}
+                  className="rounded-2xl border overflow-y-auto px-3 py-2.5 space-y-2 max-h-80 min-h-[76px]"
+                  style={{ background: 'radial-gradient(ellipse at 20% 0%, rgba(16,185,129,0.10) 0%, transparent 55%), rgba(10,18,26,0.9)', borderColor: 'rgba(16,185,129,0.30)', boxShadow: '0 0 24px rgba(16,185,129,0.10)' }}
                   aria-label="Announcement thread"
                   aria-live="polite"
                 >
@@ -448,7 +448,8 @@ export function CommunitiesPanel({
                         <button
                           onClick={() => announce(c.id)}
                           disabled={sendingId === c.id || !(drafts[c.id] || '').trim()}
-                          className="w-10 h-10 rounded-full bg-emerald-500 text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95 touch-44"
+                          className="w-10 h-10 rounded-full text-white disabled:opacity-40 shrink-0 flex items-center justify-center transition-all active:scale-95 touch-44"
+                          style={{ background: 'linear-gradient(135deg,#10b981,#22d3ee)', boxShadow: '0 4px 16px rgba(16,185,129,0.4)' }}
                           aria-label="Send announcement"
                         >
                           <Send className="w-4 h-4" />
@@ -461,13 +462,14 @@ export function CommunitiesPanel({
                   ) : (
                     <button
                       onClick={() => setAnnounceOpen(true)}
-                      className="w-full rounded-2xl bg-elevated border border-dashed border-subtle p-3.5 text-sm text-secondary hover:border-emerald-500/40 transition-colors flex items-center justify-center gap-2"
+                      className="w-full rounded-full p-3.5 text-sm font-bold text-white transition-all active:scale-[0.99] flex items-center justify-center gap-2"
+                      style={{ background: 'linear-gradient(90deg,#10b981,#22d3ee)', boxShadow: '0 4px 20px rgba(16,185,129,0.35)' }}
                     >
-                      <Megaphone className="w-4 h-4 text-emerald-400" /> Announce to {compactPlural(st.groups, 'group')}
+                      <Megaphone className="w-4 h-4 text-white" /> Announce to {compactPlural(st.groups, 'group')}
                     </button>
                   )
                 ) : (
-                  <p className="text-xs text-muted-foreground px-1 pt-2">Only admins can send messages here.</p>
+                  <p className="mx-auto mt-2 w-fit max-w-full px-4 py-1.5 rounded-full bg-elevated border border-subtle text-[11px] text-muted-foreground text-center">Only admins can send messages here.</p>
                 )}
               </section>
 
