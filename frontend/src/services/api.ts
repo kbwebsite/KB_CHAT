@@ -477,6 +477,12 @@ export const memoriesApi = {
   list: (limit=20, signal?:AbortSignal) => api.get(`/api/memories?limit=${limit}`, { signal }).then(r=>r.data),
 }
 
+export const feedbackApi = {
+  send: (data:{category:string, message:string, app_version?:string}) => api.post('/api/feedback', data).then(r=>r.data),
+  list: (status='new') => api.get('/api/feedback', { params: { status } }).then(r=>r.data),
+  markReviewed: (id:number, reviewed=true) => api.post(`/api/feedback/${id}/reviewed`, { reviewed }).then(r=>r.data),
+}
+
 export const santaApi = {
   draw: (gid:number, budget?:string) => api.post(`/api/groups/${gid}/secret-santa/draw`, { budget }).then(r=>r.data),
   status: (gid:number) => api.get(`/api/groups/${gid}/secret-santa`).then(r=>r.data),

@@ -52,6 +52,7 @@ import {
 import PrivacyCenter from '../PrivacyCenter'
 import { PwaInstallSection } from '../PwaInstallSection'
 import { SecurityAlerts } from './SecurityAlerts'
+import { FeedbackForm } from './FeedbackForm'
 import { PasskeySettings } from './PasskeySettings'
 import {
   AppearanceSettings,
@@ -1081,7 +1082,11 @@ export function WhatsAppSettings({
           </div>
           <div>
             <SectionLabel>Send feedback</SectionLabel>
-            <p className="text-xs text-muted-foreground mt-1">Copy the template above and send it to us wherever you reach the Kryzen team.</p>
+            <div className="mt-1.5">
+              <FeedbackForm
+                appVersion={[buildInfo.version, buildInfo.commit].filter(Boolean).join(' ') || undefined}
+              />
+            </div>
           </div>
           <div>
             <SectionLabel>Terms and privacy policy</SectionLabel>

@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2 } from 'lucide-react'
-import { moderationApi } from '../services/api'
+import { moderationApi, feedbackApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 
 const ACTIONS = [
@@ -21,9 +21,10 @@ function timeOf(iso: string | null) {
 
 /** Platform moderation console (admins only; route-guarded in App). */
 export default function AdminPage() {
-  const [tab, setTab] = useState<'reports' | 'users' | 'stats'>('reports')
+  const [tab, setTab] = useState<'reports' | 'users' | 'stats' | 'feedback'>('reports')
   const [status, setStatus] = useState('open')
   const [reports, setReports] = useState<any[]>([])
+  const [feedback, setFeedback] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [users, setUsers] = useState<any[]>([])
   const [query, setQuery] = useState('')
@@ -67,9 +68,38 @@ export default function AdminPage() {
     }
   }
 
+  const loadFeedback = async () => {
+    setLoading(true)
+    try {
+      const res = await feedbackApi.list('all')
+      if (res?.success) setFeedback(res.data)
+    } catch {
+      toast('Could not load feedback', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const toggleReviewed = async (id: number, reviewed: boolean) => {
+    setBusy(`f${id}`)
+    try {
+      const res = await feedbackApi.markReviewed(id, reviewed)
+      if (res?.success) {
+        setFeedback((prev) => prev.map((f) => (f.id === id ? res.data : f)))
+      } else {
+        toast(res?.message || 'Update failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Update failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   useEffect(() => {
     if (tab === 'reports') void loadReports()
     else if (tab === 'users') void loadUsers()
+    else if (tab === 'feedback') void loadFeedback()
     else void loadStats()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
@@ -144,7 +174,7 @@ export default function AdminPage() {
       </header>
 
       <div className="flex gap-2 mt-5" role="tablist" aria-label="Moderation views">
-        {(['reports', 'users', 'stats'] as const).map((t) => (
+        {(['reports', 'users', 'stats', 'feedback'] as const).map((t) => (
           <button
             key={t}
             role="tab"
@@ -152,7 +182,7 @@ export default function AdminPage() {
             onClick={() => setTab(t)}
             className={`px-4 h-11 rounded-full text-sm font-semibold min-h-[44px] ${tab === t ? 'chip-active' : 'bg-muted'}`}
           >
-            {t === 'reports' ? 'Reports' : t === 'users' ? 'Users' : 'Stats'}
+            {t === 'reports' ? 'Reports' : t === 'users' ? 'Users' : t === 'stats' ? 'Stats' : 'Feedback'}
           </button>
         ))}
         {tab === 'reports' && (
@@ -339,6 +369,42 @@ export default function AdminPage() {
                   </button>
                 )}
               </div>
+            ))
+          )}
+        </div>
+      ) : tab === 'feedback' ? (
+        <div className="mt-4 space-y-3">
+          {loading ? (
+            <p className="text-sm text-muted-foreground" aria-busy="true">Loading feedback…</p>
+          ) : feedback.length === 0 ? (
+            <div className="empty-state">
+              <p className="empty-state-title">No feedback yet</p>
+              <p className="empty-state-text">User submissions from Settings appear here.</p>
+            </div>
+          ) : (
+            feedback.map((f) => (
+              <article key={f.id} className={`premium-card ${f.status !== 'new' ? 'opacity-70' : ''}`}>
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-sm font-semibold">
+                    #{f.id} · {f.category}
+                  </p>
+                  <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
+                    {f.status}
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-1">
+                  @{f.username ?? f.user_id} · {timeOf(f.created_at)}
+                  {f.app_version ? ` · v${f.app_version}` : ''}
+                </p>
+                <p className="text-sm mt-2 break-words whitespace-pre-wrap">{f.message}</p>
+                <button
+                  disabled={busy !== null}
+                  onClick={() => toggleReviewed(f.id, f.status === 'new')}
+                  className="mt-2 px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 bg-muted"
+                >
+                  {busy === `f${f.id}` ? 'Working…' : f.status === 'new' ? 'Mark reviewed' : 'Reopen'}
+                </button>
+              </article>
             ))
           )}
         </div>

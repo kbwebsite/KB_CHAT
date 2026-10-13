@@ -150,6 +150,7 @@ from app.models.security_alert import SecurityAlert  # noqa: F401 (register tabl
 from app.models.passkey import PasskeyCredential, WebauthnChallenge  # noqa: F401 (register table)
 from app.models.secret_santa import SecretSantaDraw  # noqa: F401 (register table)
 from app.models.prediction import Prediction, PredictionVote  # noqa: F401 (register table)
+from app.models.feedback import Feedback  # noqa: F401 (register table)
 
 
 from app.api.auth import router as auth_router
@@ -188,6 +189,7 @@ from app.api.passkeys import router as passkeys_router
 from app.api.secret_santa import router as secret_santa_router
 from app.api.predictions import router as predictions_router
 from app.api.memories import router as memories_router
+from app.api.feedback import router as feedback_router
 from app.api.backup import router as backup_router
 from app.websocket.chat import router as ws_router
 
@@ -249,6 +251,7 @@ app.include_router(passkeys_router)
 app.include_router(secret_santa_router)
 app.include_router(predictions_router)
 app.include_router(memories_router)
+app.include_router(feedback_router)
 app.include_router(backup_router)
 app.include_router(ws_router)
 
