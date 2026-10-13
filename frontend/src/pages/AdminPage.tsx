@@ -397,6 +397,11 @@ export default function AdminPage() {
                   {f.app_version ? ` · v${f.app_version}` : ''}
                 </p>
                 <p className="text-sm mt-2 break-words whitespace-pre-wrap">{f.message}</p>
+                {f.image_url && (
+                  <a href={f.image_url} target="_blank" rel="noreferrer" className="block mt-2">
+                    <img src={f.image_url} alt="Attached screenshot" loading="lazy" className="max-h-48 rounded-xl border border-[var(--k-border)] object-contain" />
+                  </a>
+                )}
                 <button
                   disabled={busy !== null}
                   onClick={() => toggleReviewed(f.id, f.status === 'new')}

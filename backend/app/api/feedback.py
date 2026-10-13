@@ -28,6 +28,7 @@ def _to_dict(db: Session, f: Feedback):
         "category": f.category,
         "message": f.message,
         "app_version": f.app_version,
+        "image_url": f.image_url,
         "status": f.status,
         "created_at": f.created_at.isoformat() if f.created_at else None,
     }
@@ -50,11 +51,15 @@ def submit_feedback(
     if len(message) > 2000:
         raise HTTPException(status_code=400, detail="Keep it under 2000 characters")
     app_version = (payload.get("app_version") or "").strip()[:50] or None
+    image_url = (payload.get("image_url") or "").strip()[:1000] or None
+    if image_url and not image_url.startswith(("http://", "https://", "/api/")):
+        raise HTTPException(status_code=400, detail="Invalid image URL")
     row = Feedback(
         user_id=current_user.id,
         category=category,
         message=message,
         app_version=app_version,
+        image_url=image_url,
         status="new",
     )
     db.add(row)

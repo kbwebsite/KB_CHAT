@@ -20,6 +20,8 @@ class Feedback(Base):
     category = Column(String(20), default="bug", nullable=False)  # bug, idea, other
     message = Column(Text, nullable=False)
     app_version = Column(String(50), nullable=True)
+    # Optional screenshot (uploaded first via /api/uploads, URL attached).
+    image_url = Column(Text, nullable=True)
     status = Column(
         String(20), default="new", nullable=False, index=True
     )  # new, reviewed

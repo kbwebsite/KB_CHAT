@@ -328,6 +328,9 @@ export const moderationApi = {
   users: (search='') => api.get('/api/moderation/users', { params: { search } }).then(r=>r.data),
   deactivate: (id:number) => api.post(`/api/moderation/users/${id}/deactivate`).then(r=>r.data),
   reactivate: (id:number) => api.post(`/api/moderation/users/${id}/reactivate`).then(r=>r.data),
+  deleteUser: (id:number) => api.post(`/api/moderation/users/${id}/delete`).then(r=>r.data),
+  appeal: (email:string, message:string) => api.post('/api/moderation/appeals', { email, message }).then(r=>r.data),
+  appealInfo: () => api.get('/api/moderation/appeal-info').then(r=>r.data),
   stats: () => api.get('/api/moderation/stats').then(r=>r.data),
 }
 
@@ -478,7 +481,7 @@ export const memoriesApi = {
 }
 
 export const feedbackApi = {
-  send: (data:{category:string, message:string, app_version?:string}) => api.post('/api/feedback', data).then(r=>r.data),
+  send: (data:{category:string, message:string, app_version?:string, image_url?:string}) => api.post('/api/feedback', data).then(r=>r.data),
   list: (status='new') => api.get('/api/feedback', { params: { status } }).then(r=>r.data),
   markReviewed: (id:number, reviewed=true) => api.post(`/api/feedback/${id}/reviewed`, { reviewed }).then(r=>r.data),
 }
