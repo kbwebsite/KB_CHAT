@@ -511,6 +511,8 @@ def firebase_auth(
         )
     else:
         raise HTTPException(status_code=400, detail="Token has neither email nor phone")
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="Account disabled")
     return _session_response(user, "Login successful", db, request, response)
 
 
@@ -591,6 +593,8 @@ def google_auth(
             provider="google",
             about="Signed in with Google",
         )
+        if not user.is_active:
+            raise HTTPException(status_code=403, detail="Account disabled")
         return _session_response(user, "Google login successful", db, request, response)
     except HTTPException:
         raise

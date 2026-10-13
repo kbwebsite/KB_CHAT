@@ -4,6 +4,7 @@ import { useAuthStore } from '../store/auth'
 import { authApi } from '../services/api'
 import { navPostAuth } from '../utils/invite'
 import { FirebaseAuth } from '../components/FirebaseAuth'
+import { DeactivatedAppeal } from '../components/DeactivatedAppeal'
 import {
   Eye, EyeOff, Lock, User, Loader2, ArrowRight, Send,
   ShieldCheck, Zap, MessageCircle, Sparkles, Check, Heart, AlertTriangle,
@@ -142,6 +143,7 @@ export default function LoginPage() {
   const [code, setCode] = useState('')
   const [verifyBusy, setVerifyBusy] = useState(false)
   const [verifyMsg, setVerifyMsg] = useState<string | null>(null)
+  const [deactivated, setDeactivated] = useState<string | null>(null)
   const [glow, setGlow] = useState({ x: 50, y: 28 })
   const [tilt, setTilt] = useState({ rx: 0, ry: 0, active: false })
   const [mag, setMag] = useState({ x: 0, y: 0 })
@@ -183,6 +185,8 @@ export default function LoginPage() {
     []
   )
 
+  const isDeactivatedErr = (err: any) => err?.response?.status === 403
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -200,6 +204,7 @@ export default function LoginPage() {
       }
       navPostAuth(nav)
     } catch (err: any) {
+      if (isDeactivatedErr(err)) { setDeactivated(email); return }
       setError(err.response?.data?.detail || err.message || 'Login failed')
     }
   }
@@ -220,6 +225,7 @@ export default function LoginPage() {
         setError(res.message || 'Verification failed')
       }
     } catch (err: any) {
+      if (isDeactivatedErr(err)) { setDeactivated(identifier.trim()); return }
       setError(err.response?.data?.detail || 'Invalid or expired code')
     } finally {
       setVerifyBusy(false)
@@ -235,6 +241,7 @@ export default function LoginPage() {
       await login(identifier.trim(), password)
       setVerifyMsg('New code sent — check your inbox (and spam).')
     } catch (err: any) {
+      if (isDeactivatedErr(err)) { setDeactivated(identifier.trim()); return }
       setError(err.response?.data?.detail || 'Could not resend the code yet — wait a minute and retry')
     } finally {
       setVerifyBusy(false)
@@ -260,6 +267,7 @@ export default function LoginPage() {
       } else throw new Error(res?.message || 'Sign-in rejected.')
     } catch (e: any) {
       if (e?.name === 'NotAllowedError') setError('Cancelled — no sign-in happened.')
+      else if (e?.response?.status === 403) setDeactivated(identifier.trim())
       else setError(e?.response?.data?.detail || e?.message || 'Passkey sign-in failed.')
     } finally {
       setPkBusy(false)
@@ -348,6 +356,19 @@ export default function LoginPage() {
               className={`auth-card auth-tilt rounded-3xl p-6 sm:p-7 min-w-0 max-w-full overflow-hidden ${tilt.active ? '' : 'auth-tilt-reset'}`}
               style={{ ['--rx' as any]: `${tilt.rx}deg`, ['--ry' as any]: `${tilt.ry}deg` } as React.CSSProperties}
             >
+              {deactivated ? (
+                <>
+                  <DeactivatedAppeal email={deactivated} />
+                  <button
+                    type="button"
+                    onClick={() => { setDeactivated(null); setError(null) }}
+                    className="mt-3 w-full py-3 rounded-2xl border border-white/15 bg-white/5 hover:bg-white/10 text-sm font-semibold transition-colors"
+                  >
+                    Use a different account
+                  </button>
+                </>
+              ) : (
+              <>
               <form onSubmit={handleSubmit} className="space-y-4">
                 {error && (
                   <div key={error} className="auth-error-shake p-3 rounded-xl bg-destructive/10 border border-destructive/25 text-destructive text-sm" role="alert">
@@ -465,6 +486,8 @@ export default function LoginPage() {
                   {pkBusy ? 'Follow the browser prompt…' : 'Sign in with passkey'}
                 </button>
               </div>
+              </>
+              )}
             </div>
           </div>
 

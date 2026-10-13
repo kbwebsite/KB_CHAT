@@ -297,6 +297,11 @@ def public_config():
             "vapidKey": settings.FIREBASE_VAPID_KEY or None,
             "giphyApiKey": settings.GIPHY_API_KEY or None,
             "firebase": firebase,
+            "supportEmail": (
+                settings.ADMIN_EMAILS.split(",")[0].strip()
+                if (settings.ADMIN_EMAILS or "").strip()
+                else None
+            ),
         },
         "message": None,
     }

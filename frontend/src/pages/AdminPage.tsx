@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2 } from 'lucide-react'
+import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2, UserMinus } from 'lucide-react'
 import { moderationApi, feedbackApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 
@@ -8,6 +8,7 @@ const ACTIONS = [
   { id: 'dismissed', label: 'Dismiss' },
   { id: 'message_deleted', label: 'Delete message' },
   { id: 'user_deactivated', label: 'Deactivate user' },
+  { id: 'user_deleted', label: 'Delete account' },
 ]
 
 function timeOf(iso: string | null) {
@@ -29,6 +30,7 @@ export default function AdminPage() {
   const [users, setUsers] = useState<any[]>([])
   const [query, setQuery] = useState('')
   const [busy, setBusy] = useState<string | null>(null)
+  const [confirmKey, setConfirmKey] = useState<string | null>(null)
   const [stats, setStats] = useState<any | null>(null)
   const toast = useToastStore((s) => s.push)
 
@@ -158,6 +160,23 @@ export default function AdminPage() {
     }
   }
 
+  const removeUser = async (id: number) => {
+    setBusy(`udel${id}`)
+    try {
+      const res = await moderationApi.deleteUser(id)
+      if (res?.success) {
+        toast('User deleted', 'success')
+        setUsers((prev) => prev.map((u) => (u.id === id ? res.data : u)))
+      } else {
+        toast(res?.message || 'Delete failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Delete failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   return (
     <div className="min-h-screen flex flex-col max-w-3xl mx-auto w-full px-4 sm:px-6 py-6">
       <header className="flex items-center gap-3">
@@ -173,14 +192,14 @@ export default function AdminPage() {
         </div>
       </header>
 
-      <div className="flex gap-2 mt-5" role="tablist" aria-label="Moderation views">
+      <div className="flex flex-wrap gap-2 mt-5" role="tablist" aria-label="Moderation views">
         {(['reports', 'users', 'stats', 'feedback'] as const).map((t) => (
           <button
             key={t}
             role="tab"
             aria-selected={tab === t}
             onClick={() => setTab(t)}
-            className={`px-4 h-11 rounded-full text-sm font-semibold min-h-[44px] ${tab === t ? 'chip-active' : 'bg-muted'}`}
+            className={`px-3 sm:px-4 h-11 rounded-full text-sm font-semibold min-h-[44px] ${tab === t ? 'chip-active' : 'bg-muted'}`}
           >
             {t === 'reports' ? 'Reports' : t === 'users' ? 'Users' : t === 'stats' ? 'Stats' : 'Feedback'}
           </button>
@@ -193,7 +212,7 @@ export default function AdminPage() {
               setStatus(e.target.value)
               void loadReports(e.target.value)
             }}
-            className="input ml-auto max-w-[140px] min-h-[44px]"
+            className="input ml-auto max-w-[120px] sm:max-w-[140px] min-h-[44px]"
           >
             <option value="open">Open</option>
             <option value="resolved">Resolved</option>
@@ -214,9 +233,9 @@ export default function AdminPage() {
             </div>
           ) : (
             reports.map((r) => (
-              <article key={r.id} className="premium-card" aria-label={`Report ${r.id}`}>
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-sm font-semibold">
+              <article key={r.id} className="premium-card min-w-0" aria-label={`Report ${r.id}`}>
+                <div className="flex items-center justify-between gap-2 min-w-0">
+                  <p className="text-sm font-semibold truncate min-w-0">
                     #{r.id} · {r.target_type} · {r.reason}
                   </p>
                   <span className="text-[11px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground shrink-0">
@@ -255,42 +274,56 @@ export default function AdminPage() {
                   </div>
                 )}
                 {r.status === 'open' ? (
-                  <div className="flex flex-wrap gap-2 mt-3">
+                  <div className="grid grid-cols-1 min-[480px]:flex min-[480px]:flex-wrap gap-2 mt-3">
                     {r.ai_score == null && (
                       <button
                         disabled={busy !== null}
                         onClick={() => analyze(r.id)}
                         aria-label={`Analyze report ${r.id} with AI`}
-                        className="px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/25"
+                        className="px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5 bg-primary/10 text-primary border border-primary/25"
                       >
                         <Sparkles className="w-3.5 h-3.5" aria-hidden="true" />
                         {busy === `a${r.id}` ? 'Analyzing…' : 'Analyze with AI'}
                       </button>
                     )}
-                    {ACTIONS.map((a) => (
+                    {ACTIONS.map((a) => {
+                      const armed = confirmKey === `r${r.id}${a.id}`
+                      return (
                       <button
                         key={a.id}
                         disabled={busy !== null}
-                        onClick={() => resolve(r.id, a.id)}
-                        aria-label={`${a.label} report ${r.id}`}
-                        className={`px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center gap-1.5 ${
+                        onClick={() => {
+                          if (a.id === 'user_deleted' && !armed) { setConfirmKey(`r${r.id}${a.id}`); return }
+                          setConfirmKey(null)
+                          resolve(r.id, a.id)
+                        }}
+                        onBlur={() => { if (armed) setConfirmKey(null) }}
+                        aria-label={`${armed ? 'Confirm' : a.label} report ${r.id}`}
+                        className={`px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5 ${
                           a.id === 'dismissed'
                             ? 'bg-muted'
                             : a.id === 'message_deleted'
                               ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
-                              : 'bg-destructive/10 text-destructive border border-destructive/25'
+                              : a.id === 'user_deactivated'
+                                ? 'bg-destructive/10 text-destructive border border-destructive/25'
+                                : armed
+                                  ? 'bg-destructive text-destructive-foreground'
+                                  : 'bg-destructive/10 text-destructive border border-destructive/25'
                         }`}
                       >
                         {a.id === 'dismissed' ? (
                           <CheckCheck className="w-3.5 h-3.5" aria-hidden="true" />
                         ) : a.id === 'message_deleted' ? (
                           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
-                        ) : (
+                        ) : a.id === 'user_deactivated' ? (
                           <UserX className="w-3.5 h-3.5" aria-hidden="true" />
+                        ) : (
+                          <UserMinus className="w-3.5 h-3.5" aria-hidden="true" />
                         )}
-                        {busy === `r${r.id}${a.id}` ? 'Working…' : a.label}
+                        {busy === `r${r.id}${a.id}` ? 'Working…' : armed ? 'Tap again to confirm' : a.label}
                       </button>
-                    ))}
+                      )
+                    })}
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-2">
@@ -332,7 +365,7 @@ export default function AdminPage() {
             <p className="text-sm text-muted-foreground" aria-busy="true">Loading users…</p>
           ) : (
             users.map((u) => (
-              <div key={u.id} className="premium-card flex items-center gap-3">
+              <div key={u.id} className="premium-card flex flex-wrap items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">
                     @{u.username}
@@ -350,6 +383,7 @@ export default function AdminPage() {
                   <p className="text-xs text-muted-foreground truncate">{u.email}</p>
                 </div>
                 {!u.is_admin && (
+                  <div className="flex items-center gap-2 shrink-0">
                   <button
                     disabled={busy !== null}
                     onClick={() => setActive(u.id, !u.is_active)}
@@ -367,6 +401,29 @@ export default function AdminPage() {
                     )}
                     {u.is_active ? 'Deactivate' : 'Reactivate'}
                   </button>
+                  <button
+                    disabled={busy !== null}
+                    onClick={() => {
+                      if (confirmKey !== `udel${u.id}`) { setConfirmKey(`udel${u.id}`); return }
+                      setConfirmKey(null)
+                      removeUser(u.id)
+                    }}
+                    onBlur={() => { if (confirmKey === `udel${u.id}`) setConfirmKey(null) }}
+                    aria-label={`Delete ${u.username}`}
+                    title="Permanently delete this account"
+                    className={`w-10 h-10 rounded-xl min-h-[44px] min-w-[44px] disabled:opacity-50 flex items-center justify-center shrink-0 ${
+                      confirmKey === `udel${u.id}`
+                        ? 'bg-destructive text-destructive-foreground'
+                        : 'bg-destructive/10 text-destructive border border-destructive/25'
+                    }`}
+                  >
+                    {busy === `udel${u.id}` ? (
+                      <span className="text-[10px] font-bold">…</span>
+                    ) : (
+                      <UserMinus className="w-3.5 h-3.5" aria-hidden="true" />
+                    )}
+                  </button>
+                  </div>
                 )}
               </div>
             ))

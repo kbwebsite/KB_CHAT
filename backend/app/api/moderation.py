@@ -7,6 +7,8 @@ old databases never 500) OR membership in the `ADMIN_EMAILS` env allowlist
 the report row (audit trail); reports are never deleted.
 """
 
+import secrets
+import time
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -16,13 +18,23 @@ from sqlalchemy.orm import Session
 from app.auth.dependencies import get_current_user
 from app.database.config import settings
 from app.database.connection import get_db
+from app.models.auth_session import AuthSession
 from app.models.conversation import Conversation
 from app.models.message import Message
+from app.models.passkey import PasskeyCredential, WebauthnChallenge
+from app.models.push_token import DeviceToken
 from app.models.report import REPORT_ACTIONS, REPORT_REASONS, Report
+from app.models.session import UserSession
 from app.models.user import User
+from app.models.verification import VerificationCode
 from app.schemas.common import success_response
 
 router = APIRouter(prefix="/api/moderation", tags=["moderation"])
+
+# Deactivated users file reactivation requests as ordinary user-reports so
+# they land in the same admin queue. This prefix marks them (and suppresses
+# duplicates while one is still open).
+APPEAL_PREFIX = "🔓 Reactivation appeal: "
 
 
 def is_admin_user(user: User) -> bool:
@@ -112,6 +124,50 @@ def _reported_user_id(db: Session, row: Report) -> int | None:
         msg = db.query(Message).filter_by(id=row.target_id).first()
         return msg.sender_id if msg else None
     return None
+
+
+def _guard_account_action(target: User, current_user: User, verb: str) -> None:
+    """Refuse self-harm and actions against fellow admins."""
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.id == current_user.id or is_admin_user(target):
+        raise HTTPException(status_code=400, detail=f"Cannot {verb} this account")
+
+
+def _remove_user(db: Session, target: User) -> dict:
+    """Delete an account: scrub identity, kill sessions/credentials.
+
+    The row stays (history + audit integrity) but PII is wiped and the
+    login identifiers are freed, so the address can register afresh.
+    Messages keep their text with sender nulled by the DB where supported.
+    """
+    stamp = int(time.time())
+    target.username = f"deleted_user_{target.id}"
+    target.email = f"deleted_{target.id}_{stamp}@deleted.local"
+    target.display_name = "Deleted user"
+    target.hashed_password = secrets.token_hex(32)
+    target.avatar_url = None
+    target.about = None
+    target.status_message = None
+    target.identity_pubkey = None
+    target.email_verified = False
+    target.is_admin = False
+    target.is_active = False
+    db.query(PasskeyCredential).filter_by(user_id=target.id).delete(
+        synchronize_session=False
+    )
+    db.query(WebauthnChallenge).filter_by(user_id=target.id).delete(
+        synchronize_session=False
+    )
+    db.query(AuthSession).filter_by(user_id=target.id).delete(synchronize_session=False)
+    db.query(UserSession).filter_by(user_id=target.id).delete(synchronize_session=False)
+    db.query(DeviceToken).filter_by(user_id=target.id).delete(synchronize_session=False)
+    db.query(VerificationCode).filter_by(user_id=target.id).delete(
+        synchronize_session=False
+    )
+    db.commit()
+    db.refresh(target)
+    return _user_admin_view(target)
 
 
 @router.post("/reports")
@@ -295,13 +351,13 @@ def resolve_report(
     elif action == "user_deactivated":
         uid = _reported_user_id(db, row)
         target = db.query(User).filter_by(id=uid).first() if uid else None
-        if not target:
-            raise HTTPException(status_code=404, detail="Reported user not found")
-        if target.id == current_user.id or is_admin_user(target):
-            raise HTTPException(
-                status_code=400, detail="Cannot deactivate this account"
-            )
+        _guard_account_action(target, current_user, "deactivate")
         target.is_active = False
+    elif action == "user_deleted":
+        uid = _reported_user_id(db, row)
+        target = db.query(User).filter_by(id=uid).first() if uid else None
+        _guard_account_action(target, current_user, "delete")
+        _remove_user(db, target)
     row.status = "resolved"
     row.action_taken = action
     row.resolved_by = current_user.id
@@ -352,13 +408,26 @@ def deactivate_user(
 ):
     require_admin(current_user)
     target = db.query(User).filter_by(id=user_id).first()
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-    if target.id == current_user.id or is_admin_user(target):
-        raise HTTPException(status_code=400, detail="Cannot deactivate this account")
+    _guard_account_action(target, current_user, "deactivate")
     target.is_active = False
     db.commit()
     return success_response(_user_admin_view(target), "User deactivated")
+
+
+@router.post("/users/{user_id}/delete")
+def delete_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Permanently remove an account (identity scrubbed, history kept).
+
+    Same guards as deactivation: never yourself, never a fellow admin.
+    """
+    require_admin(current_user)
+    target = db.query(User).filter_by(id=user_id).first()
+    _guard_account_action(target, current_user, "delete")
+    return success_response(_remove_user(db, target), "User deleted")
 
 
 @router.post("/users/{user_id}/reactivate")
@@ -374,6 +443,61 @@ def reactivate_user(
     target.is_active = True
     db.commit()
     return success_response(_user_admin_view(target), "User reactivated")
+
+
+def _admin_contact_email() -> str | None:
+    try:
+        emails = [
+            e.strip() for e in (settings.ADMIN_EMAILS or "").split(",") if e.strip()
+        ]
+        return emails[0] if emails else None
+    except Exception:
+        return None
+
+
+@router.get("/appeal-info")
+def appeal_info():
+    """Public: where a deactivated user can reach a human (shown on login)."""
+    return success_response({"contact_email": _admin_contact_email()})
+
+
+@router.post("/appeals")
+def file_appeal(payload: dict, db: Session = Depends(get_db)):
+    """Public: a deactivated user asks for reactivation.
+
+    No login possible, so this is unauthenticated by design. Always answers
+    success (no account enumeration); a real match files one open appeal
+    report — duplicates suppressed while one is still open.
+    """
+    email = str((payload or {}).get("email") or "").lower().strip()
+    message = str((payload or {}).get("message") or "").strip()[:1000]
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    user = db.query(User).filter_by(email=email).first()
+    if user is not None and not user.is_active:
+        existing = (
+            db.query(Report)
+            .filter_by(target_type="user", target_id=user.id, status="open")
+            .order_by(Report.id.desc())
+            .limit(20)
+            .all()
+        )
+        if not any((r.details or "").startswith(APPEAL_PREFIX) for r in existing):
+            db.add(
+                Report(
+                    reporter_id=user.id,
+                    target_type="user",
+                    target_id=user.id,
+                    reason="other",
+                    details=f"{APPEAL_PREFIX}{message or 'Please review my account.'}",
+                    status="open",
+                )
+            )
+            db.commit()
+    return success_response(
+        {"received": True},
+        "Request received — an admin will review your account.",
+    )
 
 
 @router.get("/stats")
