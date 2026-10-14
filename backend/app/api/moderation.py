@@ -455,6 +455,66 @@ def _admin_contact_email() -> str | None:
         return None
 
 
+@router.post("/users/{user_id}/set-admin")
+def set_admin(
+    user_id: int,
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Grant or revoke the admin flag. Never your own (no lockouts)."""
+    require_admin(current_user)
+    target = db.query(User).filter_by(id=user_id).first()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.id == current_user.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own admin flag")
+    make_admin = bool((payload or {}).get("is_admin", True))
+    target.is_admin = make_admin
+    db.commit()
+    return success_response(
+        _user_admin_view(target),
+        "Admin granted" if make_admin else "Admin revoked",
+    )
+
+
+@router.get("/audit")
+def audit_log(
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Who did what: resolved reports newest-first with actor names."""
+    require_admin(current_user)
+    limit = max(1, min(int(limit or 50), 200))
+    rows = (
+        db.query(Report)
+        .filter(Report.status != "open")
+        .order_by(Report.id.desc())
+        .limit(limit)
+        .all()
+    )
+    out = []
+    for r in rows:
+        actor = (
+            db.query(User).filter_by(id=r.resolved_by).first()
+            if r.resolved_by
+            else None
+        )
+        out.append(
+            {
+                "id": r.id,
+                "action_taken": r.action_taken,
+                "target_type": r.target_type,
+                "target_id": r.target_id,
+                "target": _target_summary(db, r.target_type, r.target_id),
+                "actor_username": actor.username if actor else None,
+                "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
+            }
+        )
+    return success_response(out)
+
+
 @router.get("/appeal-info")
 def appeal_info():
     """Public: where a deactivated user can reach a human (shown on login)."""
@@ -538,6 +598,13 @@ def platform_stats(
     reasons = (
         db.query(Report.reason, func.count().label("n")).group_by(Report.reason).all()
     )
+    open_rows = (
+        db.query(Report)
+        .filter_by(status="open")
+        .order_by(Report.id.desc())
+        .limit(200)
+        .all()
+    )
     return success_response(
         {
             "users": {
@@ -546,10 +613,15 @@ def platform_stats(
                 .filter(User.is_active.is_(True))
                 .scalar()
                 or 0,
+                "deactivated": db.query(func.count(User.id))
+                .filter(User.is_active.is_(False))
+                .scalar()
+                or 0,
                 "new_7d": db.query(func.count(User.id))
                 .filter(User.created_at >= now - timedelta(days=7))
                 .scalar()
                 or 0,
+                "per_day": day_series(User.created_at),
             },
             "messages": {
                 "total": db.query(func.count(Message.id)).scalar() or 0,
@@ -571,6 +643,12 @@ def platform_stats(
                 .filter(Report.status != "open")
                 .scalar()
                 or 0,
+                "appeals_open": sum(
+                    1
+                    for r in open_rows
+                    if r.target_type == "user"
+                    and (r.details or "").startswith(APPEAL_PREFIX)
+                ),
                 "by_reason": [{"reason": r, "count": n} for r, n in reasons],
             },
         }

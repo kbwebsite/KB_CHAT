@@ -261,3 +261,104 @@ def test_appeal_info_exposes_contact(monkeypatch):
     r = client.get("/api/moderation/appeal-info")
     assert r.status_code == 200
     assert r.json()["data"]["contact_email"] == admin_email
+
+
+def test_stats_extended_shape(monkeypatch):
+    _signup()
+    _, tok2, _, mail2 = _signup()
+    monkeypatch.setattr(settings, "ADMIN_EMAILS", mail2)
+    r = client.get("/api/moderation/stats", headers=_auth(tok2))
+    assert r.status_code == 200, r.text
+    users = r.json()["data"]["users"]
+    assert users["total"] >= 2
+    assert "deactivated" in users and "per_day" in users
+    assert len(users["per_day"]) == 14
+    assert all(set(d) == {"date", "count"} for d in users["per_day"])
+    assert "appeals_open" in r.json()["data"]["reports"]
+    assert r.json()["data"]["reports"]["appeals_open"] >= 0
+
+
+def test_set_admin_guards_and_flow(monkeypatch):
+    plain_uid, plain_token, _, _ = _signup()
+    admin_token, admin_email = _admin()
+    monkeypatch.setattr(settings, "ADMIN_EMAILS", admin_email)
+
+    # Non-admin refused, missing user 404.
+    assert (
+        client.post(
+            f"/api/moderation/users/{plain_uid}/set-admin",
+            headers=_auth(plain_token),
+            json={"is_admin": True},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            "/api/moderation/users/999999999/set-admin",
+            headers=_auth(admin_token),
+            json={"is_admin": True},
+        ).status_code
+        == 404
+    )
+    # Grant then revoke.
+    g = client.post(
+        f"/api/moderation/users/{plain_uid}/set-admin",
+        headers=_auth(admin_token),
+        json={"is_admin": True},
+    )
+    assert g.status_code == 200, g.text
+    assert g.json()["data"]["is_admin"] is True
+    me = client.get("/api/auth/me", headers=_auth(plain_token))
+    assert me.json()["data"]["is_admin"] is True
+    rv = client.post(
+        f"/api/moderation/users/{plain_uid}/set-admin",
+        headers=_auth(admin_token),
+        json={"is_admin": False},
+    )
+    assert rv.status_code == 200
+    assert rv.json()["data"]["is_admin"] is False
+    # Own flag untouchable (no lockouts).
+    from app.database.connection import SessionLocal as _SL
+
+    db = _SL()
+    try:
+        admin_uid = db.query(User).filter_by(email=admin_email.lower()).first().id
+    finally:
+        db.close()
+    assert (
+        client.post(
+            f"/api/moderation/users/{admin_uid}/set-admin",
+            headers=_auth(admin_token),
+            json={"is_admin": False},
+        ).status_code
+        == 400
+    )
+
+
+def test_audit_log_lists_resolutions(monkeypatch):
+    uid_v, _, _, _ = _signup()
+    reporter = _signup()[1]
+    admin_token, admin_email = _admin()
+    monkeypatch.setattr(settings, "ADMIN_EMAILS", admin_email)
+    assert (
+        client.get("/api/moderation/audit", headers=_auth(reporter)).status_code == 403
+    )
+    r = client.post(
+        "/api/moderation/reports",
+        headers=_auth(reporter),
+        json={"target_type": "user", "target_id": uid_v, "reason": "spam"},
+    )
+    rid = r.json()["data"]["id"]
+    ok = client.post(
+        f"/api/moderation/reports/{rid}/resolve",
+        headers=_auth(admin_token),
+        json={"action": "dismissed"},
+    )
+    assert ok.status_code == 200
+    log = client.get("/api/moderation/audit", headers=_auth(admin_token))
+    assert log.status_code == 200
+    entry = next((e for e in log.json()["data"] if e["id"] == rid), None)
+    assert entry is not None
+    assert entry["action_taken"] == "dismissed"
+    assert entry["actor_username"] is not None
+    assert "resolved_at" in entry

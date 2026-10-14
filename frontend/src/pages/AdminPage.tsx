@@ -3,6 +3,22 @@ import { Link } from 'react-router-dom'
 import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2, UserMinus } from 'lucide-react'
 import { moderationApi, feedbackApi } from '../services/api'
 import { useToastStore } from '../store/toast'
+import { OverviewTab } from '../components/admin/OverviewTab'
+import { UserDrawer } from '../components/admin/UserDrawer'
+import { AuditTab } from '../components/admin/AuditTab'
+
+type AdminTab = 'overview' | 'reports' | 'users' | 'audit' | 'stats' | 'feedback'
+
+const TAB_LABELS: Record<AdminTab, string> = {
+  overview: 'Overview',
+  reports: 'Reports',
+  users: 'Users',
+  audit: 'Audit',
+  stats: 'Stats',
+  feedback: 'Feedback',
+}
+
+const TAB_ORDER: AdminTab[] = ['overview', 'reports', 'users', 'audit', 'stats', 'feedback']
 
 const ACTIONS = [
   { id: 'dismissed', label: 'Dismiss' },
@@ -20,10 +36,14 @@ function timeOf(iso: string | null) {
   }
 }
 
-/** Platform moderation console (admins only; route-guarded in App). */
+/** Platform admin console (admins only; route-guarded in App). */
 export default function AdminPage() {
-  const [tab, setTab] = useState<'reports' | 'users' | 'stats' | 'feedback'>('reports')
+  const [tab, setTab] = useState<AdminTab>('overview')
   const [status, setStatus] = useState('open')
+  const [reasonFilter, setReasonFilter] = useState('all')
+  const [userFilter, setUserFilter] = useState<'all' | 'active' | 'deactivated' | 'admins'>('all')
+  const [selectedUser, setSelectedUser] = useState<any | null>(null)
+  const [audit, setAudit] = useState<any[]>([])
   const [reports, setReports] = useState<any[]>([])
   const [feedback, setFeedback] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -82,6 +102,36 @@ export default function AdminPage() {
     }
   }
 
+  const loadAudit = async () => {
+    setLoading(true)
+    try {
+      const res = await moderationApi.audit(50)
+      if (res?.success) setAudit(res.data)
+    } catch {
+      toast('Could not load audit log', 'error')
+    } finally {
+      setLoading(false)
+    }
+  };
+
+  const setAdminFlag = async (id: number, isAdmin: boolean) => {
+    setBusy(`adm${id}${isAdmin}`)
+    try {
+      const res = await moderationApi.setAdmin(id, isAdmin)
+      if (res?.success) {
+        toast(isAdmin ? 'Admin granted' : 'Admin revoked', 'success')
+        setUsers((prev) => prev.map((u) => (u.id === id ? res.data : u)))
+        setSelectedUser((prev: any) => (prev && prev.id === id ? res.data : prev))
+      } else {
+        toast(res?.message || 'Update failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Update failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
   const toggleReviewed = async (id: number, reviewed: boolean) => {
     setBusy(`f${id}`)
     try {
@@ -99,10 +149,11 @@ export default function AdminPage() {
   }
 
   useEffect(() => {
-    if (tab === 'reports') void loadReports()
+    if (tab === 'overview' || tab === 'stats') void loadStats()
+    else if (tab === 'reports') void loadReports()
     else if (tab === 'users') void loadUsers()
-    else if (tab === 'feedback') void loadFeedback()
-    else void loadStats()
+    else if (tab === 'audit') void loadAudit()
+    else void loadFeedback()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab])
 
@@ -186,14 +237,14 @@ export default function AdminPage() {
         <div>
           <h1 className="text-xl font-bold tracking-tight flex items-center gap-2">
             <ShieldAlert className="w-5 h-5 text-primary" aria-hidden="true" />
-            Moderation
+            Admin
           </h1>
-          <p className="text-xs text-muted-foreground">Reports queue and user safety actions</p>
+          <p className="text-xs text-muted-foreground">Command center · safety, users & platform health</p>
         </div>
       </header>
 
-      <div className="flex flex-wrap gap-2 mt-5" role="tablist" aria-label="Moderation views">
-        {(['reports', 'users', 'stats', 'feedback'] as const).map((t) => (
+      <div className="flex flex-wrap gap-2 mt-5" role="tablist" aria-label="Admin views">
+        {TAB_ORDER.map((t) => (
           <button
             key={t}
             role="tab"
@@ -201,7 +252,7 @@ export default function AdminPage() {
             onClick={() => setTab(t)}
             className={`px-3 sm:px-4 h-11 rounded-full text-sm font-semibold min-h-[44px] ${tab === t ? 'chip-active' : 'bg-muted'}`}
           >
-            {t === 'reports' ? 'Reports' : t === 'users' ? 'Users' : t === 'stats' ? 'Stats' : 'Feedback'}
+            {TAB_LABELS[t]}
           </button>
         ))}
         {tab === 'reports' && (
@@ -219,9 +270,28 @@ export default function AdminPage() {
             <option value="all">All</option>
           </select>
         )}
+        {tab === 'reports' && (
+          <select
+            aria-label="Report reason filter"
+            value={reasonFilter}
+            onChange={(e) => setReasonFilter(e.target.value)}
+            className="input max-w-[130px] sm:max-w-[150px] min-h-[44px]"
+          >
+            <option value="all">All reasons</option>
+            <option value="spam">Spam</option>
+            <option value="harassment">Harassment</option>
+            <option value="hate">Hate</option>
+            <option value="explicit">Explicit</option>
+            <option value="scam">Scam</option>
+            <option value="violence">Violence</option>
+            <option value="other">Other</option>
+          </select>
+        )}
       </div>
 
-      {tab === 'reports' ? (
+      {tab === 'overview' ? (
+        <OverviewTab stats={stats} loading={loading} onGoto={(t) => setTab(t)} />
+      ) : tab === 'reports' ? (
         <div className="mt-4 space-y-3">
           {loading ? (
             <p className="text-sm text-muted-foreground" aria-busy="true">Loading reports…</p>
@@ -232,7 +302,7 @@ export default function AdminPage() {
               <p className="empty-state-text">No {status} reports right now.</p>
             </div>
           ) : (
-            reports.map((r) => (
+            reports.filter((r) => reasonFilter === 'all' || r.reason === reasonFilter).map((r) => (
               <article key={r.id} className="premium-card min-w-0" aria-label={`Report ${r.id}`}>
                 <div className="flex items-center justify-between gap-2 min-w-0">
                   <p className="text-sm font-semibold truncate min-w-0">
@@ -244,6 +314,11 @@ export default function AdminPage() {
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   by @{r.reporter_username ?? r.reporter_id} · {timeOf(r.created_at)}
+                  {(r.details || '').startsWith('🔓') && (
+                    <span className="ml-2 text-[11px] px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-semibold">
+                      🔓 appeal
+                    </span>
+                  )}
                 </p>
                 {r.target?.snippet && (
                   <p className="text-sm mt-2 px-3 py-2 rounded-lg bg-muted break-words">
@@ -361,12 +436,33 @@ export default function AdminPage() {
               <Search className="w-4 h-4" />
             </button>
           </form>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="User filters">
+            {(['all', 'active', 'deactivated', 'admins'] as const).map((f) => (
+              <button
+                key={f}
+                onClick={() => setUserFilter(f)}
+                aria-pressed={userFilter === f}
+                className={`px-3 h-9 rounded-full text-xs font-semibold min-h-[36px] capitalize ${userFilter === f ? 'chip-active' : 'bg-muted'}`}
+              >
+                {f}
+              </button>
+            ))}
+          </div>
           {loading ? (
             <p className="text-sm text-muted-foreground" aria-busy="true">Loading users…</p>
           ) : (
-            users.map((u) => (
+            users.filter((u) =>
+              userFilter === 'all' ? true
+              : userFilter === 'active' ? !!u.is_active
+              : userFilter === 'deactivated' ? !u.is_active
+              : !!u.is_admin,
+            ).map((u) => (
               <div key={u.id} className="premium-card flex flex-wrap items-center gap-3">
-                <div className="flex-1 min-w-0">
+                <button
+                  onClick={() => setSelectedUser(u)}
+                  aria-label={`Open details for ${u.username}`}
+                  className="flex-1 min-w-0 text-left rounded-lg"
+                >
                   <p className="text-sm font-semibold truncate">
                     @{u.username}
                     {!u.is_active && (
@@ -381,7 +477,7 @@ export default function AdminPage() {
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">{u.email}</p>
-                </div>
+                </button>
                 {!u.is_admin && (
                   <div className="flex items-center gap-2 shrink-0">
                   <button
@@ -470,8 +566,28 @@ export default function AdminPage() {
             ))
           )}
         </div>
+      ) : tab === 'audit' ? (
+        <AuditTab entries={audit} loading={loading} onReload={() => loadAudit()} />
       ) : (
         <StatsPanel stats={stats} loading={loading} />
+      )}
+      {selectedUser && (
+        <UserDrawer
+          user={selectedUser}
+          busy={busy !== null}
+          armed={confirmKey}
+          onArm={setConfirmKey}
+          onClose={() => { setSelectedUser(null); setConfirmKey(null) }}
+          onToggleActive={(id, active) => {
+            setActive(id, active)
+            setSelectedUser((prev: any) => (prev && prev.id === id ? { ...prev, is_active: active } : prev))
+          }}
+          onDelete={(id) => {
+            removeUser(id)
+            setSelectedUser(null)
+          }}
+          onSetAdmin={(id, isAdmin) => setAdminFlag(id, isAdmin)}
+        />
       )}
     </div>
   )

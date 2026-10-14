@@ -329,6 +329,8 @@ export const moderationApi = {
   deactivate: (id:number) => api.post(`/api/moderation/users/${id}/deactivate`).then(r=>r.data),
   reactivate: (id:number) => api.post(`/api/moderation/users/${id}/reactivate`).then(r=>r.data),
   deleteUser: (id:number) => api.post(`/api/moderation/users/${id}/delete`).then(r=>r.data),
+  setAdmin: (id:number, is_admin:boolean) => api.post(`/api/moderation/users/${id}/set-admin`, { is_admin }).then(r=>r.data),
+  audit: (limit=50) => api.get('/api/moderation/audit', { params: { limit } }).then(r=>r.data),
   appeal: (email:string, message:string) => api.post('/api/moderation/appeals', { email, message }).then(r=>r.data),
   appealInfo: () => api.get('/api/moderation/appeal-info').then(r=>r.data),
   stats: () => api.get('/api/moderation/stats').then(r=>r.data),
