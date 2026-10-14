@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useAuthStore } from '../store/auth'
 import { useChatStore } from '../store/chat'
-import { useSettingsStore } from '../store/settings'
 import { ConversationList } from './ConversationList'
 import { UserSearch } from './UserSearch'
 import { StatusPanel } from './StatusPanel'
@@ -15,7 +14,7 @@ import { MemoriesPanel } from './MemoriesPanel'
 import { CatchUpPanel } from './CatchUpPanel'
 import { PredictionsPanel } from './PredictionsPanel'
 import { convApi } from '../services/api'
-import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, BellRing, Bookmark, Star, Moon, Sun, Lock, Megaphone, Network, Radio, History, Sunrise, Dices } from 'lucide-react'
+import { Plus, Search, Settings, UserPlus, Users, Trophy, MoreVertical, Bell, Bookmark, Star, Lock, Megaphone } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 
 type SidebarTab = 'chats' | 'groups' | 'calls' | 'contacts' | 'saved'
@@ -78,7 +77,6 @@ export function ChatSidebar({
   const [groupTitle, setGroupTitle] = useState('')
   const [groupMembers, setGroupMembers] = useState<any[]>([])
   const [showMenu, setShowMenu] = useState(false)
-  const settings = useSettingsStore()
   const lockEnabled = useLockStore((s) => s.enabled)
   const lockNow = useLockStore((s) => s.lock)
   const closeMenu = () => setShowMenu(false)
@@ -216,10 +214,6 @@ export function ChatSidebar({
                   <Users className="w-4 h-4 text-primary" />
                   New group
                 </button>
-                <button role="menuitem" onClick={menuFire(() => settings.update({ theme: settings.theme === 'dark' ? 'light' : 'dark' }))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                  {settings.theme === 'dark' ? <Sun className="w-4 h-4 text-primary" /> : <Moon className="w-4 h-4 text-primary" />}
-                  {settings.theme === 'dark' ? 'Light mode' : 'Dark mode'}
-                </button>
                 {onNotifications && (
                   <button role="menuitem" onClick={menuFire(onNotifications)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Bell className="w-4 h-4 text-primary" />
@@ -230,12 +224,6 @@ export function ChatSidebar({
                   <button role="menuitem" onClick={menuFire(onSaved)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                     <Bookmark className="w-4 h-4 text-primary" />
                     Saved messages
-                  </button>
-                )}
-                {onReminders && (
-                  <button role="menuitem" onClick={menuFire(onReminders)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                    <BellRing className="w-4 h-4 text-primary" />
-                    Reminders
                   </button>
                 )}
                 {onHighlights && (
@@ -253,26 +241,6 @@ export function ChatSidebar({
                 <button role="menuitem" onClick={menuFire(() => setShowBroadcasts(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
                   <Megaphone className="w-4 h-4 text-primary" />
                   Broadcast lists
-                </button>
-                <button role="menuitem" onClick={menuFire(() => setShowCommunities(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                  <Network className="w-4 h-4 text-primary" />
-                  Communities
-                </button>
-                <button role="menuitem" onClick={menuFire(() => setShowChannels(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                  <Radio className="w-4 h-4 text-primary" />
-                  Channels
-                </button>
-                <button role="menuitem" onClick={menuFire(() => setShowMemories(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                  <History className="w-4 h-4 text-primary" />
-                  Memories
-                </button>
-                <button role="menuitem" onClick={menuFire(() => setShowCatchUp(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                  <Sunrise className="w-4 h-4 text-primary" />
-                  Catch up
-                </button>
-                <button role="menuitem" onClick={menuFire(() => setShowPredictions(true))} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
-                  <Dices className="w-4 h-4 text-primary" />
-                  Predictions
                 </button>
                 {lockEnabled && (
                   <button role="menuitem" onClick={menuFire(lockNow)} className="w-full text-left px-3 py-2 hover:bg-muted flex items-center gap-2.5">
