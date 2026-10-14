@@ -1364,9 +1364,21 @@ export function ChatView({
           </p>
         )}
         {!!(currentConv as any)?.is_group && (currentConv as any)?.pet && (
-          <p className="mx-3 mb-2 text-xs text-center px-3 py-1.5 rounded-xl bg-muted text-muted-foreground">
-            {(currentConv as any).pet.emoji} {(currentConv as any).pet.name} · {petMoodNow.emoji} {petMoodNow.label} · {weather.emoji} {weather.label}
-          </p>
+          <div className="mx-3 mb-2 flex flex-wrap items-center justify-center gap-1.5 text-xs text-muted-foreground">
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted min-w-0 max-w-full">
+              <span aria-hidden="true">{(currentConv as any).pet.emoji}</span>
+              <span className="font-semibold text-foreground truncate max-w-[110px]">{(currentConv as any).pet.name}</span>
+              <span className="opacity-70 shrink-0">· {(currentConv as any).pet.stage}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted shrink-0">
+              <span aria-hidden="true">{petMoodNow.emoji}</span>
+              <span>{petMoodNow.label}</span>
+            </span>
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-muted min-w-0 max-w-full shrink-0">
+              <span aria-hidden="true">{weather.emoji}</span>
+              <span className="truncate">{weather.label}</span>
+            </span>
+          </div>
         )}
         <MessageComposer
           onSend={handleSend}

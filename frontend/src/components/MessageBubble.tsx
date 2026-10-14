@@ -1,6 +1,6 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, SmilePlus, Info, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
+import { Check, CheckCheck, Clock, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Smile, SmilePlus, Info, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
 import type { Theme as EmojiTheme } from 'emoji-picker-react'
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
@@ -944,49 +944,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               ))}
             </div>
           )}
-          {!isGameCard && !msg.is_deleted && (
-            <button
-              aria-label="React to message"
-              title="React"
-              onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(v=>!v) }}
-              className="absolute -bottom-2.5 right-1.5 z-10 w-6 h-6 rounded-full bg-background border shadow flex items-center justify-center transition-opacity sm:opacity-0 sm:group-hover:opacity-100 hover:bg-muted"
-            >
-              <SmilePlus className="w-3.5 h-3.5 text-muted-foreground" />
-            </button>
-          )}
-          {showReactPicker && !isGameCard && !msg.is_deleted && (
-            <>
-              <button
-                aria-label="Close reactions"
-                onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(false); setShowCustomEmoji(false) }}
-                className="fixed inset-0 z-20 bg-transparent border-0 p-0 cursor-default"
-              />
-              <div role="dialog" aria-label="Choose a reaction" className="absolute z-30 bottom-full mb-1 right-0 shadow-xl" onClick={(e)=> e.stopPropagation()}>
-                <div className="flex items-center gap-0.5 p-1.5 rounded-2xl border bg-card">
-                  {REACTIONS.map(e=> (
-                    <button key={e} aria-label={`React ${e}`} onClick={()=>{ onReact(msg.id, e); setShowReactPicker(false) }} className="p-1.5 rounded-full text-lg hover:bg-muted transition-transform active:scale-90">{e}</button>
-                  ))}
-                  <button aria-label="More reactions" title="More reactions" onClick={()=> setShowCustomEmoji(v=>!v)} className="p-1.5 rounded-full hover:bg-muted">
-                    <SmilePlus className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </div>
-                {showCustomEmoji && (
-                  <div className="mt-1 rounded-2xl overflow-hidden border bg-card shadow-xl">
-                    <Suspense fallback={<div className="h-[320px] w-[300px] skeleton" aria-label="Loading emoji" />}>
-                      <EmojiPicker
-                        onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowReactPicker(false); setShowCustomEmoji(false) }}
-                        height={320}
-                        width={300}
-                        skinTonesDisabled
-                        searchDisabled
-                        theme={pickEmojiTheme()}
-                      />
-                    </Suspense>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
           <div className={`flex items-center gap-1 mt-1 text-[11px] ${isOwn?'text-primary-foreground/70 justify-end':'text-muted-foreground'}`}>
             <span>{formatTime(msg.created_at)}</span>
             {msg.is_edited && !msg.is_deleted && <span className="italic">• edited</span>}
@@ -1004,6 +961,16 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               <span className="ml-1" title={msg.status === 'sending' ? 'Sending…' : msg.status}>
                 {msg.status==='read' ? <CheckCheck className="w-3.5 h-3.5 text-sky-300" style={{ filter: 'drop-shadow(0 0 3px rgba(125,211,252,0.8))' }}/> : msg.status==='delivered' ? <CheckCheck className="w-3.5 h-3.5 opacity-70"/> : msg.status==='sending' ? <Clock className="w-3.5 h-3.5 opacity-70 animate-pulse"/> : <Check className="w-3.5 h-3.5 opacity-70"/>}
               </span>
+            )}
+            {!isGameCard && !msg.is_deleted && (
+              <button
+                aria-label="React to message"
+                title="React"
+                onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(v=>!v) }}
+                className="ml-auto p-1 rounded-full opacity-60 hover:opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
+              >
+                <Smile className="w-3.5 h-3.5" />
+              </button>
             )}
           </div>
           {!isGameCard ? (
@@ -1044,6 +1011,39 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             </div>
           )}
         </div>
+        {showReactPicker && !isGameCard && !msg.is_deleted && (
+          <>
+            <button
+              aria-label="Close reactions"
+              onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(false); setShowCustomEmoji(false) }}
+              className="fixed inset-0 z-20 bg-transparent border-0 p-0 cursor-default"
+            />
+            <div role="dialog" aria-label="Choose a reaction" className="absolute z-30 bottom-full right-0 mb-1 shadow-xl" onClick={(e)=> e.stopPropagation()}>
+              <div className="flex items-center gap-0.5 p-1.5 rounded-2xl border bg-card">
+                {REACTIONS.map(e=> (
+                  <button key={e} aria-label={`React ${e}`} onClick={()=>{ onReact(msg.id, e); setShowReactPicker(false) }} className="p-1.5 rounded-full text-lg hover:bg-muted transition-transform active:scale-90">{e}</button>
+                ))}
+                <button aria-label="More reactions" title="More reactions" onClick={()=> setShowCustomEmoji(v=>!v)} className="p-1.5 rounded-full hover:bg-muted">
+                  <SmilePlus className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+              {showCustomEmoji && (
+                <div className="mt-1 rounded-2xl overflow-hidden border bg-card shadow-xl">
+                  <Suspense fallback={<div className="h-[320px] w-[300px] skeleton" aria-label="Loading emoji" />}>
+                    <EmojiPicker
+                      onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowReactPicker(false); setShowCustomEmoji(false) }}
+                      height={320}
+                      width={300}
+                      skinTonesDisabled
+                      searchDisabled
+                      theme={pickEmojiTheme()}
+                    />
+                  </Suspense>
+                </div>
+              )}
+            </div>
+          </>
+        )}
       </div>
       {showInfo && isOwn && !msg.is_deleted && (
         <MessageInfo msgId={msg.id} onClose={() => setShowInfo(false)} />

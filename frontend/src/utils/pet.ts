@@ -30,6 +30,6 @@ export function stageForXp(xp: number) {
 export function petMood(recentCount: number): { emoji: string; label: string } {
   if (recentCount >= 20) return { emoji: '😋', label: 'playful' }
   if (recentCount >= 5) return { emoji: '😊', label: 'happy' }
-  if (recentCount >= 1) return { emoji: '🙂', label: 'content' }
+  if (recentCount >= 1) return { emoji: '🙂', label: 'relaxed' }
   return { emoji: '😴', label: 'sleepy' }
 }

@@ -20,7 +20,7 @@ describe('group pet stages', () => {
   })
   it('moods follow recent chatter', () => {
     expect(petMood(0).label).toBe('sleepy')
-    expect(petMood(3).label).toBe('content')
+    expect(petMood(3).label).toBe('relaxed')
     expect(petMood(25).label).toBe('playful')
   })
 })
