@@ -17,10 +17,11 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
 from app.database.config import settings
-from app.database.connection import get_db
+from app.database.connection import Base, get_db
 from app.models.auth_session import AuthSession
+from app.models.ban import EmailBan
 from app.models.conversation import Conversation
-from app.models.message import Message
+from app.models.message import Attachment, Message, MessageReaction
 from app.models.passkey import PasskeyCredential, WebauthnChallenge
 from app.models.push_token import DeviceToken
 from app.models.report import REPORT_ACTIONS, REPORT_REASONS, Report
@@ -134,14 +135,26 @@ def _guard_account_action(target: User, current_user: User, verb: str) -> None:
         raise HTTPException(status_code=400, detail=f"Cannot {verb} this account")
 
 
-def _remove_user(db: Session, target: User) -> dict:
+def _ban_email(db: Session, email: str, reason: str, created_by: int | None) -> None:
+    """Block an address from (re-)registering. Idempotent."""
+    email = (email or "").lower().strip()
+    if not email or "@" not in email:
+        return
+    if not db.query(EmailBan).filter_by(email=email).first():
+        db.add(EmailBan(email=email, reason=reason, created_by=created_by))
+
+
+def _remove_user(db: Session, target: User, deleter_id: int | None = None) -> dict:
     """Delete an account: scrub identity, kill sessions/credentials.
 
-    The row stays (history + audit integrity) but PII is wiped and the
-    login identifiers are freed, so the address can register afresh.
+    The row stays (history + audit integrity) but PII is wiped. The
+    original address is blocked from re-registering (see email_bans), so
+    a deleted user cannot simply open a fresh account on the same email.
     Messages keep their text with sender nulled by the DB where supported.
     """
+    original_email = (target.email or "").lower()
     stamp = int(time.time())
+    _ban_email(db, original_email, "account_deleted", deleter_id)
     target.username = f"deleted_user_{target.id}"
     target.email = f"deleted_{target.id}_{stamp}@deleted.local"
     target.display_name = "Deleted user"
@@ -168,6 +181,53 @@ def _remove_user(db: Session, target: User) -> dict:
     db.commit()
     db.refresh(target)
     return _user_admin_view(target)
+
+
+def _erase_user(db: Session, target: User, eraser_id: int | None = None) -> None:
+    """Remove an account everywhere: no row may reference them afterwards.
+
+    - Their messages + uploaded file records are deleted outright.
+    - Every other table with a FK to users.id is swept: nullable columns
+      are nulled (shared entities like groups/channels survive), non-null
+      columns lose their rows (memberships, votes, sessions, settings…).
+    - Plain-integer references (reports) are deleted / nulled explicitly.
+    - Their address is blocked from re-registering.
+    Uploaded blobs on disk/CDN are orphaned (limitation, noted in docs).
+    """
+    uid = target.id
+    email = (target.email or "").lower()
+    _ban_email(db, email, "account_removed", eraser_id)
+    msg_ids = [m for (m,) in db.query(Message.id).filter_by(sender_id=uid).all()]
+    if msg_ids:
+        db.query(Attachment).filter(Attachment.message_id.in_(msg_ids)).delete(
+            synchronize_session=False
+        )
+        db.query(MessageReaction).filter(
+            MessageReaction.message_id.in_(msg_ids)
+        ).delete(synchronize_session=False)
+    db.query(Attachment).filter_by(uploader_id=uid).delete(synchronize_session=False)
+    db.query(Message).filter_by(sender_id=uid).delete(synchronize_session=False)
+    for table in Base.metadata.tables.values():
+        if table.name in ("users", "email_bans", "messages", "attachments"):
+            continue
+        for fk in table.foreign_keys:
+            if fk.column.table.name != "users" or fk.column.name != "id":
+                continue
+            col = fk.parent
+            if col.nullable:
+                db.execute(table.update().where(col == uid).values({col.name: None}))
+            else:
+                db.execute(table.delete().where(col == uid))
+    # Reports carry plain-integer user references (no FK): drop rows about
+    # them, null the resolver slot on the rest.
+    db.query(Report).filter_by(reporter_id=uid).delete(synchronize_session=False)
+    db.query(Report).filter_by(target_type="user", target_id=uid).delete(
+        synchronize_session=False
+    )
+    for r in db.query(Report).filter_by(resolved_by=uid).all():
+        r.resolved_by = None
+    db.query(User).filter_by(id=uid).delete(synchronize_session=False)
+    db.commit()
 
 
 @router.post("/reports")
@@ -357,7 +417,23 @@ def resolve_report(
         uid = _reported_user_id(db, row)
         target = db.query(User).filter_by(id=uid).first() if uid else None
         _guard_account_action(target, current_user, "delete")
-        _remove_user(db, target)
+        _remove_user(db, target, current_user.id)
+    elif action == "appeal_approved":
+        if row.target_type != "user" or not (row.details or "").startswith(
+            APPEAL_PREFIX
+        ):
+            raise HTTPException(
+                status_code=400, detail="appeal_approved needs an appeal report"
+            )
+        target = db.query(User).filter_by(id=row.target_id).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="Reported user not found")
+        target.is_active = True
+        unbanned = (
+            db.query(EmailBan).filter_by(email=(target.email or "").lower()).first()
+        )
+        if unbanned:
+            db.delete(unbanned)
     row.status = "resolved"
     row.action_taken = action
     row.resolved_by = current_user.id
@@ -379,6 +455,19 @@ def _user_admin_view(u: User) -> dict:
     }
 
 
+def _user_admin_view_db(db: Session, u: User) -> dict:
+    """Admin view plus whether the login email is currently blocked."""
+    view = _user_admin_view(u)
+    try:
+        view["email_banned"] = (
+            db.query(EmailBan).filter_by(email=(u.email or "").lower()).first()
+            is not None
+        )
+    except Exception:
+        view["email_banned"] = False
+    return view
+
+
 @router.get("/users")
 def list_users(
     search: str = "",
@@ -397,7 +486,7 @@ def list_users(
             | (User.email.ilike(like))
             | (User.display_name.ilike(like))
         )
-    return success_response([_user_admin_view(u) for u in q.limit(limit).all()])
+    return success_response([_user_admin_view_db(db, u) for u in q.limit(limit).all()])
 
 
 @router.post("/users/{user_id}/deactivate")
@@ -427,7 +516,7 @@ def delete_user(
     require_admin(current_user)
     target = db.query(User).filter_by(id=user_id).first()
     _guard_account_action(target, current_user, "delete")
-    return success_response(_remove_user(db, target), "User deleted")
+    return success_response(_remove_user(db, target, current_user.id), "User deleted")
 
 
 @router.post("/users/{user_id}/reactivate")
@@ -513,6 +602,88 @@ def audit_log(
             }
         )
     return success_response(out)
+
+
+@router.post("/users/{user_id}/erase")
+def erase_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Remove an account everywhere: user row plus every row referencing it.
+
+    Stronger than delete (which scrubs but keeps history). Same guards:
+    never yourself, never a fellow admin.
+    """
+    require_admin(current_user)
+    target = db.query(User).filter_by(id=user_id).first()
+    _guard_account_action(target, current_user, "remove")
+    _erase_user(db, target, current_user.id)
+    return success_response({"id": user_id}, "User removed everywhere")
+
+
+@router.get("/bans")
+def list_bans(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    require_admin(current_user)
+    rows = db.query(EmailBan).order_by(EmailBan.id.desc()).limit(200).all()
+    return success_response(
+        [
+            {
+                "id": b.id,
+                "email": b.email,
+                "reason": b.reason,
+                "created_by": b.created_by,
+                "created_at": b.created_at.isoformat() if b.created_at else None,
+            }
+            for b in rows
+        ]
+    )
+
+
+@router.post("/bans")
+def create_ban(
+    payload: dict,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Ban an address: block (re-)registration, deactivate a live account.
+
+    Refuses addresses belonging to yourself or a fellow admin.
+    """
+    require_admin(current_user)
+    email = str((payload or {}).get("email") or "").lower().strip()
+    reason = str((payload or {}).get("reason") or "banned").strip().lower()[:40]
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Valid email required")
+    target = db.query(User).filter_by(email=email).first()
+    if target and (target.id == current_user.id or is_admin_user(target)):
+        raise HTTPException(status_code=400, detail="Cannot ban this account")
+    if target:
+        target.is_active = False
+    _ban_email(db, email, reason or "banned", current_user.id)
+    db.commit()
+    return success_response(
+        {"email": email, "deactivated": target is not None}, "Email banned"
+    )
+
+
+@router.delete("/bans/{ban_id}")
+def remove_ban(
+    ban_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Unban: the address may register / be reactivated again."""
+    require_admin(current_user)
+    row = db.query(EmailBan).filter_by(id=ban_id).first()
+    if not row:
+        raise HTTPException(status_code=404, detail="Ban not found")
+    db.delete(row)
+    db.commit()
+    return success_response({"email": row.email}, "Ban lifted")
 
 
 @router.get("/appeal-info")

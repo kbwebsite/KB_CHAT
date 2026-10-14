@@ -41,6 +41,10 @@ def signup(
             )
             .first()
         )
+        from app.models.ban import EmailBan
+
+        if db.query(EmailBan).filter_by(email=payload.email.lower()).first():
+            raise HTTPException(status_code=400, detail="This email address is blocked")
         if existing:
             if existing.username == username:
                 raise HTTPException(status_code=400, detail="Username already taken")
@@ -341,6 +345,10 @@ def _get_or_create_oauth_user(
     Never duplicates by email and never overwrites an existing user's
     identity fields (only backfills blanks).
     """
+    from app.models.ban import EmailBan
+
+    if db.query(EmailBan).filter_by(email=email.lower()).first():
+        raise HTTPException(status_code=403, detail="This email address is blocked")
     user = db.query(User).filter_by(email=email.lower()).first()
     if user:
         if not user.avatar_url and picture:

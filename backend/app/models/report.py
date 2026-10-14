@@ -49,4 +49,5 @@ REPORT_ACTIONS = (
     "message_deleted",
     "user_deactivated",
     "user_deleted",
+    "appeal_approved",
 )

@@ -12,6 +12,7 @@ vi.mock('../../../services/api', () => ({
 import { OverviewTab } from '../OverviewTab'
 import { UserDrawer } from '../UserDrawer'
 import { AuditTab } from '../AuditTab'
+import { BansTab } from '../BansTab'
 import { aiApi, configApi } from '../../../services/api'
 
 let host: HTMLDivElement
@@ -124,5 +125,83 @@ describe('AuditTab', () => {
     expect(host.textContent).toContain('Deactivated user')
     expect(host.textContent).toContain('@bo')
     expect(host.textContent).toContain('@owner')
+  })
+})
+
+describe('BansTab', () => {
+  it('bans an email and unbans rows', () => {
+    const onBan = vi.fn()
+    const onUnban = vi.fn()
+    const onReload = vi.fn()
+    act(() => {
+      root.render(
+        React.createElement(BansTab, {
+          bans: [{ id: 4, email: 'spammer@example.com', reason: 'spam' }],
+          loading: false, busy: false, onBan, onUnban, onReload,
+        }),
+      )
+    })
+    expect(host.textContent).toContain('spammer@example.com')
+    const input = host.querySelector('#ban-email') as HTMLInputElement
+    act(() => {
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!
+      setter.call(input, 'troll@example.com')
+      input.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    const form = host.querySelector('form') as HTMLElement
+    act(() => {
+      form.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }))
+    })
+    expect(onBan).toHaveBeenCalledWith('troll@example.com')
+    const unban = host.querySelector('button[aria-label="Unban spammer@example.com"]') as HTMLElement
+    act(() => {
+      unban.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onUnban).toHaveBeenCalledWith(4)
+  })
+})
+
+describe('UserDrawer extras', () => {
+  const user = { id: 9, username: 'bo', email: 'bo@example.com', display_name: 'Bo', is_active: false, is_admin: false, email_banned: false }
+  it('offers ban and remove-everywhere with two-tap confirm', () => {
+    const onBan = vi.fn()
+    const onErase = vi.fn()
+    let armed: string | null = null
+    const render = () => {
+      act(() => {
+        root.render(
+          React.createElement(UserDrawer, {
+            user, busy: false, armed,
+            onArm: (k: string | null) => { armed = k; render() },
+            onClose: () => {}, onToggleActive: () => {}, onDelete: () => {}, onSetAdmin: () => {},
+            onBan, onErase,
+          }),
+        )
+      })
+    }
+    render()
+    const ban = Array.from(host.querySelectorAll('button')).find((b) =>
+      (b.textContent || '').includes('Ban email'),
+    ) as HTMLElement
+    expect(ban).not.toBeUndefined()
+    act(() => {
+      ban.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onBan).not.toHaveBeenCalled()
+    act(() => {
+      ban.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onBan).toHaveBeenCalledWith('bo@example.com')
+    const erase = Array.from(host.querySelectorAll('button')).find((b) =>
+      (b.textContent || '').includes('Remove everywhere'),
+    ) as HTMLElement
+    act(() => {
+      erase.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onErase).not.toHaveBeenCalled()
+    act(() => {
+      erase.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onErase).toHaveBeenCalledWith(9)
   })
 })

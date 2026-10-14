@@ -1,4 +1,4 @@
-import { ShieldCheck, UserCheck, UserMinus, UserX, X } from 'lucide-react'
+import { Ban, ShieldCheck, Trash2, UserCheck, UserMinus, UserX, X } from 'lucide-react'
 
 /** Slide-over with everything about one account + every admin action. */
 export function UserDrawer({
@@ -10,6 +10,8 @@ export function UserDrawer({
   onToggleActive,
   onDelete,
   onSetAdmin,
+  onBan,
+  onErase,
 }: {
   user: any
   busy: boolean
@@ -19,6 +21,8 @@ export function UserDrawer({
   onToggleActive: (id: number, active: boolean) => void
   onDelete: (id: number) => void
   onSetAdmin: (id: number, isAdmin: boolean) => void
+  onBan?: (email: string) => void
+  onErase?: (id: number) => void
 }) {
   const arm = (key: string, fn: () => void) => {
     if (armed !== key) {
@@ -59,6 +63,9 @@ export function UserDrawer({
           {user.is_admin && (
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-primary/15 text-primary">admin</span>
           )}
+          {user.email_banned && (
+            <span className="text-[11px] px-2 py-0.5 rounded-full bg-destructive/15 text-destructive">email blocked</span>
+          )}
           {user.is_active && !user.is_admin && (
             <span className="text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500">active</span>
           )}
@@ -97,6 +104,34 @@ export function UserDrawer({
               <UserMinus className="w-3.5 h-3.5" />
               {armed === `del${user.id}` ? 'Tap again to delete forever' : 'Delete account'}
             </button>
+            {onErase && (
+              <button
+                disabled={busy}
+                onClick={() => arm(`erase${user.id}`, () => onErase(user.id))}
+                className={`w-full py-2.5 rounded-xl text-xs font-bold min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                  armed === `erase${user.id}`
+                    ? 'bg-destructive text-destructive-foreground'
+                    : 'bg-black/40 text-destructive border border-destructive/40'
+                }`}
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                {armed === `erase${user.id}` ? 'Tap again: wipe everywhere' : 'Remove everywhere'}
+              </button>
+            )}
+            {onBan && !user.email_banned && (
+              <button
+                disabled={busy}
+                onClick={() => arm(`ban${user.id}`, () => onBan(user.email))}
+                className={`w-full py-2.5 rounded-xl text-xs font-bold min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                  armed === `ban${user.id}`
+                    ? 'bg-destructive text-destructive-foreground'
+                    : 'bg-destructive/10 text-destructive border border-destructive/25'
+                }`}
+              >
+                <Ban className="w-3.5 h-3.5" />
+                {armed === `ban${user.id}` ? 'Tap again to ban email' : 'Ban email'}
+              </button>
+            )}
           </div>
         )}
       </div>

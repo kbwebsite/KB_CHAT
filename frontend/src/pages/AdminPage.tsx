@@ -6,26 +6,31 @@ import { useToastStore } from '../store/toast'
 import { OverviewTab } from '../components/admin/OverviewTab'
 import { UserDrawer } from '../components/admin/UserDrawer'
 import { AuditTab } from '../components/admin/AuditTab'
+import { BansTab } from '../components/admin/BansTab'
 
-type AdminTab = 'overview' | 'reports' | 'users' | 'audit' | 'stats' | 'feedback'
+type AdminTab = 'overview' | 'reports' | 'users' | 'bans' | 'audit' | 'stats' | 'feedback'
 
 const TAB_LABELS: Record<AdminTab, string> = {
   overview: 'Overview',
   reports: 'Reports',
   users: 'Users',
+  bans: 'Bans',
   audit: 'Audit',
   stats: 'Stats',
   feedback: 'Feedback',
 }
 
-const TAB_ORDER: AdminTab[] = ['overview', 'reports', 'users', 'audit', 'stats', 'feedback']
+const TAB_ORDER: AdminTab[] = ['overview', 'reports', 'users', 'bans', 'audit', 'stats', 'feedback']
 
 const ACTIONS = [
   { id: 'dismissed', label: 'Dismiss' },
   { id: 'message_deleted', label: 'Delete message' },
   { id: 'user_deactivated', label: 'Deactivate user' },
   { id: 'user_deleted', label: 'Delete account' },
+  { id: 'appeal_approved', label: 'Approve & reactivate' },
 ]
+
+const isAppealReport = (r: any) => (r.details || '').startsWith('🔓')
 
 function timeOf(iso: string | null) {
   if (!iso) return ''
@@ -44,6 +49,7 @@ export default function AdminPage() {
   const [userFilter, setUserFilter] = useState<'all' | 'active' | 'deactivated' | 'admins'>('all')
   const [selectedUser, setSelectedUser] = useState<any | null>(null)
   const [audit, setAudit] = useState<any[]>([])
+  const [bans, setBans] = useState<any[]>([])
   const [reports, setReports] = useState<any[]>([])
   const [feedback, setFeedback] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
@@ -152,6 +158,7 @@ export default function AdminPage() {
     if (tab === 'overview' || tab === 'stats') void loadStats()
     else if (tab === 'reports') void loadReports()
     else if (tab === 'users') void loadUsers()
+    else if (tab === 'bans') void loadBans()
     else if (tab === 'audit') void loadAudit()
     else void loadFeedback()
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -223,6 +230,71 @@ export default function AdminPage() {
       }
     } catch (e: any) {
       toast(e.response?.data?.detail || 'Delete failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const eraseUser = async (id: number) => {
+    setBusy(`uerase${id}`)
+    try {
+      const res = await moderationApi.eraseUser(id)
+      if (res?.success) {
+        toast('User removed everywhere', 'success')
+        setUsers((prev) => prev.filter((u) => u.id !== id))
+        setSelectedUser(null)
+      } else {
+        toast(res?.message || 'Remove failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Remove failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const loadBans = async () => {
+    setLoading(true)
+    try {
+      const res = await moderationApi.bans()
+      if (res?.success) setBans(res.data)
+    } catch {
+      toast('Could not load bans', 'error')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const doBan = async (email: string) => {
+    setBusy('banform')
+    try {
+      const res = await moderationApi.ban(email)
+      if (res?.success) {
+        toast(res.data?.deactivated ? 'Email banned, account deactivated' : 'Email banned', 'success')
+        void loadBans()
+        void loadUsers()
+      } else {
+        toast(res?.message || 'Ban failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Ban failed', 'error')
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const doUnban = async (id: number) => {
+    setBusy(`unban${id}`)
+    try {
+      const res = await moderationApi.unban(id)
+      if (res?.success) {
+        toast('Ban lifted', 'success')
+        setBans((prev) => prev.filter((b) => b.id !== id))
+      } else {
+        toast(res?.message || 'Unban failed', 'error')
+      }
+    } catch (e: any) {
+      toast(e.response?.data?.detail || 'Unban failed', 'error')
     } finally {
       setBusy(null)
     }
@@ -361,7 +433,11 @@ export default function AdminPage() {
                         {busy === `a${r.id}` ? 'Analyzing…' : 'Analyze with AI'}
                       </button>
                     )}
-                    {ACTIONS.map((a) => {
+                    {ACTIONS.filter((a) =>
+                      isAppealReport(r)
+                        ? a.id === 'appeal_approved' || a.id === 'dismissed'
+                        : a.id !== 'appeal_approved',
+                    ).map((a) => {
                       const armed = confirmKey === `r${r.id}${a.id}`
                       return (
                       <button
@@ -381,9 +457,11 @@ export default function AdminPage() {
                               ? 'bg-amber-500/15 text-amber-500 border border-amber-500/30'
                               : a.id === 'user_deactivated'
                                 ? 'bg-destructive/10 text-destructive border border-destructive/25'
-                                : armed
-                                  ? 'bg-destructive text-destructive-foreground'
-                                  : 'bg-destructive/10 text-destructive border border-destructive/25'
+                                : a.id === 'appeal_approved'
+                                  ? 'bg-emerald-500/10 text-emerald-500 border border-emerald-500/25'
+                                  : armed
+                                    ? 'bg-destructive text-destructive-foreground'
+                                    : 'bg-destructive/10 text-destructive border border-destructive/25'
                         }`}
                       >
                         {a.id === 'dismissed' ? (
@@ -392,6 +470,8 @@ export default function AdminPage() {
                           <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
                         ) : a.id === 'user_deactivated' ? (
                           <UserX className="w-3.5 h-3.5" aria-hidden="true" />
+                        ) : a.id === 'appeal_approved' ? (
+                          <UserCheck className="w-3.5 h-3.5" aria-hidden="true" />
                         ) : (
                           <UserMinus className="w-3.5 h-3.5" aria-hidden="true" />
                         )}
@@ -566,6 +646,8 @@ export default function AdminPage() {
             ))
           )}
         </div>
+      ) : tab === 'bans' ? (
+        <BansTab bans={bans} loading={loading} busy={busy !== null} onBan={doBan} onUnban={doUnban} onReload={() => loadBans()} />
       ) : tab === 'audit' ? (
         <AuditTab entries={audit} loading={loading} onReload={() => loadAudit()} />
       ) : (
@@ -587,6 +669,8 @@ export default function AdminPage() {
             setSelectedUser(null)
           }}
           onSetAdmin={(id, isAdmin) => setAdminFlag(id, isAdmin)}
+          onBan={(email) => doBan(email)}
+          onErase={(id) => eraseUser(id)}
         />
       )}
     </div>
