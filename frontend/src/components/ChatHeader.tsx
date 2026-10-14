@@ -1,6 +1,6 @@
 import { Conversation } from '../types'
 import { formatLastSeen, initials } from '../utils/format'
-import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Info, Image, Lock, Unlock, Archive, Dices, Languages } from 'lucide-react'
+import { Users, ArrowLeft, Phone, Video, Search, Sparkles, MoreVertical, Bot, Palette, Settings, BarChart3, CalendarDays, Pin, Clock3, Lightbulb, Info, Image, Lock, Unlock, Dices, Languages } from 'lucide-react'
 import { useLockStore } from '../store/lock'
 import { useDisplayTitle } from '../utils/nicknames'
 import { useState } from 'react'
@@ -61,7 +61,6 @@ export function ChatHeader({
     { key: 'draw', label: 'Lucky draw', icon: Dices },
     { key: 'autotranslate', label: autoTranslateOn ? 'Auto-translate on' : 'Auto-translate', icon: Languages },
     { key: 'wallpaper', label: 'Chat wallpaper', icon: Image },
-    { key: 'archive', label: (conv as any)?.is_archived ? 'Unarchive chat' : 'Archive chat', icon: Archive },
     { key: 'lock', label: chatLocked ? 'Unlock chat' : 'Lock chat', icon: chatLocked ? Unlock : Lock },
   ] : []
   const title = useDisplayTitle(conv?.id, conv?.title)
