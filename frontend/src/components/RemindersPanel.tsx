@@ -94,7 +94,7 @@ export function RemindersPanel({
             <BellRing className="w-8 h-8 mx-auto mb-2 opacity-30" aria-hidden="true" />
             <p className="text-sm font-semibold">No reminders yet</p>
             <p className="text-xs text-muted-foreground mt-1">
-              Open a message menu, then choose In 1 hour or At 9 AM to set one.
+              Saved message reminders will appear here.
             </p>
           </div>
         ) : (

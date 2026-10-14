@@ -1,6 +1,6 @@
 import { Message } from '../types'
 import { formatTime } from '../utils/format'
-import { Check, CheckCheck, Clock, Reply, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, Sunrise, SmilePlus, Info, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
+import { Check, CheckCheck, Clock, Trash2, Edit3, Copy, Forward, Bookmark, MoreHorizontal, Flag, Pin, Sparkles, Languages, FileText, Mic, Play, Pause, RotateCcw, AlertTriangle, Download, SmilePlus, Info, MapPin, Navigation, Volume2, VolumeX } from 'lucide-react'
 import { MessageInfo } from './MessageInfo'
 import type { Theme as EmojiTheme } from 'emoji-picker-react'
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
@@ -11,7 +11,6 @@ import { useSettingsStore } from '../store/settings'
 import api from '../services/api'
 import { useLegacyDecrypted, loadStoredPrivateKey, openSealed } from '../utils/legacyE2ee'
 import { prettyPreview, isGameCardMsg, isMediaMsg } from '../utils/messageEffects'
-import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { speakText, stopSpeak, speechSupported } from '../utils/speech'
 import { useToastStore } from '../store/toast'
 import { parseContactCard } from '../utils/messageEffects'
@@ -476,23 +475,82 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     a?.cloudinary_url || (a as any)?.url || ((typeof a?.file_path === 'string' && a.file_path.startsWith('/api')) ? a.file_path : `/api/uploads/file/${a?.filename || ''}`)
   const isSaved = savedIds?.has(msg.id)
   const [showMenu, setShowMenu]=useState(false)
-  const [showCustomReact, setShowCustomReact]=useState(false)
   const [showInfo, setShowInfo]=useState(false)
+  // WhatsApp-style interactions: single tap opens the sheet, double-tap
+  // opens reactions, right-swipe replies. The tap timer lets a second tap
+  // pre-empt the sheet.
+  const [showReactPicker, setShowReactPicker]=useState(false)
+  const [showCustomEmoji, setShowCustomEmoji]=useState(false)
+  const tapTimer = useRef<any>(null)
+  const lastTap = useRef(0)
+  const swipeStart = useRef<{x:number,y:number}|null>(null)
+  useEffect(() => () => { if (tapTimer.current) clearTimeout(tapTimer.current) }, [])
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))
   const toast = useToastStore((s) => s.push)
-  const remind = (when: 'hour' | 'morning') => {
-    scheduleMessageReminder(
-      { convId: (msg as any).conversation_id ?? null, convTitle: convTitle || 'Chat', msg },
-      when,
-    )
-      .then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success'))
-      .catch(() => toast('Could not set reminder', 'error'))
-  }
   const safeForward = onForward || (()=>{})
   const safeSave = onSave || (()=>{})
   const safeSelect = onSelect || (()=>{})
   const safeReport = onReport || (()=>{})
   const safeImageClick = onImageClick || ((url:string, name:string)=> window.open(url, '_blank'))
+  const sheetAllowed = !!onMobileMore && !msg.is_deleted && (!isGameCard || canManageGame)
+
+  const inInteractive = (t: HTMLElement | null) =>
+    !!t && typeof t.closest === 'function' && !!t.closest('input,textarea,select,button,a,video,audio,iframe,[role="slider"]')
+
+  // Single tap opens the sheet (slightly delayed); a second tap within
+  // 300ms cancels it and opens the reaction picker instead (WhatsApp-style).
+  const handleTap = (e: React.SyntheticEvent) => {
+    const t = e.target as HTMLElement | null
+    if (inInteractive(t)) return
+    if (!sheetAllowed) return
+    const now = Date.now()
+    if (lastTap.current && now - lastTap.current < 300) {
+      lastTap.current = 0
+      if (tapTimer.current) { clearTimeout(tapTimer.current); tapTimer.current = null }
+      if (!msg.is_deleted && !isGameCard) setShowReactPicker(true)
+      return
+    }
+    lastTap.current = now
+    if (tapTimer.current) clearTimeout(tapTimer.current)
+    tapTimer.current = setTimeout(() => {
+      tapTimer.current = null
+      if (sheetAllowed) onMobileMore!(msg)
+    }, 300)
+  }
+
+  // WhatsApp-style swipe-right to reply. Touch + mouse drag; text selection
+  // and interactive children never trigger it.
+  const swipeOkTarget = (e: { target: unknown }) => !inInteractive(e.target as HTMLElement | null)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    const t = e.touches[0]
+    if (t) swipeStart.current = { x: t.clientX, y: t.clientY }
+  }
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    const s = swipeStart.current
+    swipeStart.current = null
+    if (!s || msg.is_deleted || isGameCard || !swipeOkTarget(e)) return
+    const t = e.changedTouches[0]
+    if (!t) return
+    const dx = t.clientX - s.x
+    const dy = t.clientY - s.y
+    if (dx > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onReply(msg)
+  }
+  const handleMouseDown = (e: React.MouseEvent) => {
+    if (e.button !== 0) return
+    swipeStart.current = { x: e.clientX, y: e.clientY }
+  }
+  const handleMouseUp = (e: React.MouseEvent) => {
+    const s = swipeStart.current
+    swipeStart.current = null
+    if (!s || msg.is_deleted || isGameCard || !swipeOkTarget(e)) return
+    try {
+      const sel = window.getSelection()
+      if (sel && !sel.isCollapsed) return
+    } catch {}
+    const dx = e.clientX - s.x
+    const dy = e.clientY - s.y
+    if (dx > 60 && Math.abs(dx) > Math.abs(dy) * 1.5) onReply(msg)
+  }
   const isVoice = msg.message_type === 'voice'
   const isAi = (msg as any).message_type === 'ai' && !msg.is_deleted
   const isVideoNote = (msg as any).message_type === 'video_note' && !msg.is_deleted
@@ -574,7 +632,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     && (imgAtts.length > 0 || videoAtts.length > 0 || !!loneImageUrl)
 
   return (
-    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 min-w-0 max-w-full overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`}>
+    <div className={`flex ${isOwn?'justify-end':'justify-start'} group px-2 sm:px-4 py-1 min-w-0 max-w-full overflow-hidden ${isSelected ? 'bg-primary/5' : ''} msg-enter`} onTouchStart={handleTouchStart} onTouchEnd={handleTouchEnd} onMouseDown={handleMouseDown} onMouseUp={handleMouseUp}>
       <div className="flex items-center mr-1 shrink-0">
         {onSelect && <input type="checkbox" checked={!!isSelected} onChange={()=> safeSelect(msg)} className={`w-4 h-4 rounded border ${isSelected ? 'block' : 'hidden sm:group-hover:block'}`} />}
       </div>
@@ -590,7 +648,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             <span className="line-clamp-1 italic">↳ {msg.reply_to_content}</span>
           </div>
         )}
-        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isAi ? 'rounded-2xl rounded-bl-md ring-1 ring-violet-400/50' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isAi ? { background: 'linear-gradient(135deg, rgba(124,92,252,0.28), rgba(34,211,238,0.16))', backdropFilter: 'blur(12px)', border: '1px solid rgba(124,92,252,0.45)', boxShadow: '0 4px 20px rgba(124,92,252,0.25), inset 0 1px 0 rgba(255,255,255,0.08)', color: '#f0f0ff' } : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={(e)=>{ const t=e.target as HTMLElement | null; if (t && typeof t.closest==='function' && t.closest('input,textarea,select,button,a')) return; if (onMobileMore && !msg.is_deleted && (!isGameCard || canManageGame)) onMobileMore(msg) }}>
+        <div className={`msg-text relative px-3.5 py-2.5 text-sm leading-relaxed break-words break-all sm:break-words min-w-0 max-w-full overflow-hidden ${msg.is_deleted ? 'bg-muted text-muted-foreground italic border border-dashed rounded-2xl' : isAi ? 'rounded-2xl rounded-bl-md ring-1 ring-violet-400/50' : isOwn ? 'rounded-2xl rounded-br-md' : 'rounded-2xl rounded-bl-md'}`} style={msg.is_deleted ? undefined : isAi ? { background: 'linear-gradient(135deg, rgba(124,92,252,0.28), rgba(34,211,238,0.16))', backdropFilter: 'blur(12px)', border: '1px solid rgba(124,92,252,0.45)', boxShadow: '0 4px 20px rgba(124,92,252,0.25), inset 0 1px 0 rgba(255,255,255,0.08)', color: '#f0f0ff' } : isOwn ? { background: 'linear-gradient(135deg, var(--accent-primary), var(--accent-secondary))', color: 'var(--accent-contrast)', boxShadow: '0 4px 20px var(--accent-glow), 0 1px 3px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.15)' } : { background: 'rgba(20,20,42,0.92)', backdropFilter: 'blur(12px)', border: '1px solid rgba(255,255,255,0.06)', boxShadow: '0 4px 16px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.04)', color: '#f0f0ff' }} onClick={handleTap}>
           {imgAtts.length>0 && !msg.is_deleted && !mediaGated && (
             <div className={`grid gap-1 mb-2 -mx-1 min-w-0 max-w-full overflow-hidden ${imgAtts.length>1 ? 'grid-cols-2' : 'grid-cols-1'}`}>
                 {imgAtts.map((img,i)=> {
@@ -886,6 +944,49 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               ))}
             </div>
           )}
+          {!isGameCard && !msg.is_deleted && (
+            <button
+              aria-label="React to message"
+              title="React"
+              onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(v=>!v) }}
+              className="absolute -bottom-2.5 right-1.5 z-10 w-6 h-6 rounded-full bg-background border shadow flex items-center justify-center transition-opacity sm:opacity-0 sm:group-hover:opacity-100 hover:bg-muted"
+            >
+              <SmilePlus className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+          )}
+          {showReactPicker && !isGameCard && !msg.is_deleted && (
+            <>
+              <button
+                aria-label="Close reactions"
+                onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(false); setShowCustomEmoji(false) }}
+                className="fixed inset-0 z-20 bg-transparent border-0 p-0 cursor-default"
+              />
+              <div role="dialog" aria-label="Choose a reaction" className="absolute z-30 bottom-full mb-1 right-0 shadow-xl" onClick={(e)=> e.stopPropagation()}>
+                <div className="flex items-center gap-0.5 p-1.5 rounded-2xl border bg-card">
+                  {REACTIONS.map(e=> (
+                    <button key={e} aria-label={`React ${e}`} onClick={()=>{ onReact(msg.id, e); setShowReactPicker(false) }} className="p-1.5 rounded-full text-lg hover:bg-muted transition-transform active:scale-90">{e}</button>
+                  ))}
+                  <button aria-label="More reactions" title="More reactions" onClick={()=> setShowCustomEmoji(v=>!v)} className="p-1.5 rounded-full hover:bg-muted">
+                    <SmilePlus className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </div>
+                {showCustomEmoji && (
+                  <div className="mt-1 rounded-2xl overflow-hidden border bg-card shadow-xl">
+                    <Suspense fallback={<div className="h-[320px] w-[300px] skeleton" aria-label="Loading emoji" />}>
+                      <EmojiPicker
+                        onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowReactPicker(false); setShowCustomEmoji(false) }}
+                        height={320}
+                        width={300}
+                        skinTonesDisabled
+                        searchDisabled
+                        theme={pickEmojiTheme()}
+                      />
+                    </Suspense>
+                  </div>
+                )}
+              </div>
+            </>
+          )}
           <div className={`flex items-center gap-1 mt-1 text-[11px] ${isOwn?'text-primary-foreground/70 justify-end':'text-muted-foreground'}`}>
             <span>{formatTime(msg.created_at)}</span>
             {msg.is_edited && !msg.is_deleted && <span className="italic">• edited</span>}
@@ -907,26 +1008,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
           </div>
           {!isGameCard ? (
           <div className={`absolute ${isOwn?'left-0 -translate-x-full':'right-0 translate-x-full'} top-1/2 -translate-y-1/2 hidden sm:group-hover:flex items-center gap-1 p-1 rounded-full kryzen-msg-actions z-10`}>
-            {REACTIONS.slice(0,3).map(e=> (
-              <button key={e} onClick={()=>onReact(msg.id,e)} className="p-1.5 hover:bg-muted rounded-full text-xs">{e}</button>
-            ))}
-            <button onClick={()=>setShowCustomReact(v=>!v)} className="p-1.5 hover:bg-muted rounded-full" title="Custom reaction"><SmilePlus className="w-3.5 h-3.5"/></button>
-            {showCustomReact && (
-              <div className="absolute bottom-full mb-2 right-0 z-30 shadow-xl rounded-2xl overflow-hidden" onClick={(e)=> e.stopPropagation()}>
-                <Suspense fallback={<div className="h-[320px] w-[300px] skeleton" aria-label="Loading emoji" />}>
-                  <EmojiPicker
-                    onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowCustomReact(false) }}
-                    height={320}
-                    width={300}
-                    skinTonesDisabled
-                    searchDisabled
-                    theme={pickEmojiTheme()}
-                  />
-                </Suspense>
-              </div>
-            )}
-            <div className="w-px h-5 bg-border mx-1"/>
-            <button onClick={()=>onReply(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Reply"><Reply className="w-3.5 h-3.5"/></button>
             <button onClick={()=>setShowMenu(!showMenu)} className="p-1.5 hover:bg-muted rounded-full" title="More"><MoreHorizontal className="w-3.5 h-3.5"/></button>
             {isOwn && !msg.is_deleted && !(msg as any).view_once && <>
               <button onClick={()=>onEdit(msg)} className="p-1.5 hover:bg-muted rounded-full" title="Edit"><Edit3 className="w-3.5 h-3.5"/></button>
@@ -952,12 +1033,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
               {isOwn && !msg.is_deleted && (
                 <button onClick={()=>{ setShowInfo(true); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Info className="w-3.5 h-3.5"/> Info</button>
               )}
-              {!isMedia && (
-              <button onClick={()=>{ remind('hour'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Clock className="w-3.5 h-3.5"/> In 1 hour</button>
-              )}
-              {!isMedia && (
-              <button onClick={()=>{ remind('morning'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2"><Sunrise className="w-3.5 h-3.5"/> At 9 AM</button>
-              )}
               {onAIAction && actionMsg && content && !msg.is_deleted && !isMedia && (
                 <>
                   <div className="border-t my-1"/>
@@ -965,14 +1040,6 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                   <button onClick={()=>{ onTranslateAction?.(actionMsg); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-primary"><Languages className="w-3.5 h-3.5"/> Translate</button>
                   <button onClick={()=>{ onAIAction(actionMsg, 'explain'); setShowMenu(false)}} className="w-full text-left px-3 py-1.5 hover:bg-muted flex items-center gap-2 text-primary"><FileText className="w-3.5 h-3.5"/> Explain</button>
                 </>
-              )}
-              {!isMedia && (
-              <>
-              <div className="border-t my-1"/>
-              <div className="px-3 py-1 flex gap-1">
-                {REACTIONS.map(e=> <button key={e} onClick={()=>{onReact(msg.id,e); setShowMenu(false)}} className="flex-1 p-1 hover:bg-muted rounded text-xs">{e}</button>)}
-              </div>
-              </>
               )}
             </div>
           )}

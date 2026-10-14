@@ -134,25 +134,34 @@ describe('MessageBubble action scoping', () => {
   })
 
   it('own game cards expose Delete only and open the sheet', () => {
-    const onMobileMore = vi.fn()
-    const onDelete = vi.fn()
-    renderBubble(
-      baseMsg({ id: 51, content: '🎮TTT:new\nchallenge' }),
-      { isOwn: true, onMobileMore, onDelete },
-    )
-    expect(host.querySelector('button[title="More"]')).toBeNull()
-    expect(host.querySelector('button[title="Reply"]')).toBeNull()
-    const del = host.querySelector('button[title="Delete"]') as HTMLElement
-    expect(del).not.toBeNull()
-    act(() => {
-      del.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    expect(onDelete).toHaveBeenCalledTimes(1)
-    const body = host.querySelector('.msg-text') as HTMLElement
-    act(() => {
-      body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    expect(onMobileMore).toHaveBeenCalledTimes(1)
+    vi.useFakeTimers()
+    try {
+      const onMobileMore = vi.fn()
+      const onDelete = vi.fn()
+      renderBubble(
+        baseMsg({ id: 51, content: '🎮TTT:new\nchallenge' }),
+        { isOwn: true, onMobileMore, onDelete },
+      )
+      expect(host.querySelector('button[title="More"]')).toBeNull()
+      expect(host.querySelector('button[title="Reply"]')).toBeNull()
+      const del = host.querySelector('button[title="Delete"]') as HTMLElement
+      expect(del).not.toBeNull()
+      act(() => {
+        del.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+      expect(onDelete).toHaveBeenCalledTimes(1)
+      const body = host.querySelector('.msg-text') as HTMLElement
+      act(() => {
+        body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+      expect(onMobileMore).not.toHaveBeenCalled()
+      act(() => {
+        vi.advanceTimersByTime(350)
+      })
+      expect(onMobileMore).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('own word-chain card shows Share + Delete, and typing never opens the sheet', () => {    const onMobileMore = vi.fn()
@@ -231,35 +240,118 @@ describe('MessageBubble action scoping', () => {
   })
 
   it('media messages get a slim menu without text-only actions', () => {
-    const onMobileMore = vi.fn()
-    renderBubble(
-      baseMsg({
-        attachments: [{ id: 5, mime_type: 'image/jpeg', filename: 'pic.jpg', file_path: '/api/x.jpg' }],
-      }),
-      { onMobileMore },
-    )
-    const body = host.querySelector('.msg-text') as HTMLElement
-    act(() => {
-      body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-    })
-    expect(onMobileMore).toHaveBeenCalledTimes(1)
-    openMore()
-    const labels = Array.from(host.querySelectorAll('button')).map((b) => (b.textContent || '').trim())
-    expect(labels).toContain('Forward')
-    expect(labels).toContain('Save')
-    expect(labels).not.toContain('Copy')
-    expect(labels).not.toContain('Summarize')
-    expect(labels).not.toContain('Translate')
-    expect(labels).not.toContain('In 1 hour')
-    expect(labels).not.toContain('Pin')
+    vi.useFakeTimers()
+    try {
+      const onMobileMore = vi.fn()
+      renderBubble(
+        baseMsg({
+          attachments: [{ id: 5, mime_type: 'image/jpeg', filename: 'pic.jpg', file_path: '/api/x.jpg' }],
+        }),
+        { onMobileMore },
+      )
+      const body = host.querySelector('.msg-text') as HTMLElement
+      act(() => {
+        body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+      expect(onMobileMore).not.toHaveBeenCalled()
+      act(() => {
+        vi.advanceTimersByTime(350)
+      })
+      expect(onMobileMore).toHaveBeenCalledTimes(1)
+      openMore()
+      const labels = Array.from(host.querySelectorAll('button')).map((b) => (b.textContent || '').trim())
+      expect(labels).toContain('Forward')
+      expect(labels).toContain('Save')
+      expect(labels).not.toContain('Copy')
+      expect(labels).not.toContain('Summarize')
+      expect(labels).not.toContain('Translate')
+      expect(labels).not.toContain('In 1 hour')
+      expect(labels).not.toContain('Pin')
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
-  it('text messages keep the full menu', () => {
+  it('text messages keep the menu without reply, react or reminders', () => {
     renderBubble(baseMsg({ content: 'hello world' }))
     openMore()
     const labels = Array.from(host.querySelectorAll('button')).map((b) => (b.textContent || '').trim())
-    for (const want of ['Copy', 'Forward', 'Save', 'Pin', 'Summarize', 'Translate', 'In 1 hour', 'Report']) {
+    for (const want of ['Copy', 'Forward', 'Save', 'Pin', 'Summarize', 'Translate', 'Report']) {
       expect(labels).toContain(want)
     }
+    for (const gone of ['In 1 hour', 'At 9 AM']) {
+      expect(labels).not.toContain(gone)
+    }
+    expect(host.querySelector('button[title="Reply"]')).toBeNull()
+    expect(host.querySelector('button[aria-label="React to message"]')).not.toBeNull()
+  })
+
+  it('double-tap opens reactions instead of the sheet', () => {
+    vi.useFakeTimers()
+    try {
+      const onMobileMore = vi.fn()
+      const onReact = vi.fn()
+      renderBubble(baseMsg({ content: 'hello double' }), { onMobileMore, onReact })
+      const body = host.querySelector('.msg-text') as HTMLElement
+      act(() => {
+        body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+        body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+      })
+      act(() => {
+        vi.advanceTimersByTime(500)
+      })
+      expect(onMobileMore).not.toHaveBeenCalled()
+      expect(host.querySelector('[aria-label="Choose a reaction"]')).not.toBeNull()
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('swipe right on a message starts a reply', () => {
+    const onReply = vi.fn()
+    const onMobileMore = vi.fn()
+    renderBubble(baseMsg({ content: 'hello swipe' }), { onReply, onMobileMore })
+    const row = host.querySelector('.msg-enter') as HTMLElement
+    const ts = new Event('touchstart', { bubbles: true }) as any
+    ts.touches = [{ clientX: 40, clientY: 200 }]
+    const te = new Event('touchend', { bubbles: true }) as any
+    te.changedTouches = [{ clientX: 140, clientY: 205 }]
+    act(() => {
+      row.dispatchEvent(ts)
+      row.dispatchEvent(te)
+    })
+    expect(onReply).toHaveBeenCalledTimes(1)
+    expect(onMobileMore).not.toHaveBeenCalled()
+  })
+
+  it('short taps and game cards never swipe-reply', () => {
+    const onReply = vi.fn()
+    renderBubble(baseMsg({ content: 'hello short' }), { onReply, onMobileMore: () => {} })
+    const row = host.querySelector('.msg-enter') as HTMLElement
+    const ts = new Event('touchstart', { bubbles: true }) as any
+    ts.touches = [{ clientX: 40, clientY: 200 }]
+    const te = new Event('touchend', { bubbles: true }) as any
+    te.changedTouches = [{ clientX: 70, clientY: 202 }]
+    act(() => {
+      row.dispatchEvent(ts)
+      row.dispatchEvent(te)
+    })
+    expect(onReply).not.toHaveBeenCalled()
+
+    renderBubble(
+      baseMsg({ id: 90, content: '🎮TTT:new\nchallenge' }),
+      { onReply, onMobileMore: () => {} },
+    )
+    const grows = host.querySelectorAll('.msg-enter')
+    const grow = grows[grows.length - 1] as HTMLElement
+    const gs = new Event('touchstart', { bubbles: true }) as any
+    gs.touches = [{ clientX: 40, clientY: 200 }]
+    const ge = new Event('touchend', { bubbles: true }) as any
+    ge.changedTouches = [{ clientX: 200, clientY: 200 }]
+    act(() => {
+      grow.dispatchEvent(gs)
+      grow.dispatchEvent(ge)
+    })
+    expect(onReply).not.toHaveBeenCalled()
   })
 })

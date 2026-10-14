@@ -113,7 +113,7 @@ describe('RemindersPanel', () => {
     seed([])
     renderPanel()
     expect(host.textContent).toContain('No reminders yet')
-    expect(host.textContent).toContain('In 1 hour')
+    expect(host.textContent).toContain('appear here')
   })
 
   it('delete removes the row immediately and persists the deletion', () => {

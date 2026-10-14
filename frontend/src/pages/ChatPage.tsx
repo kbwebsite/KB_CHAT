@@ -19,11 +19,10 @@ import { GroupCallModal } from '../components/GroupCallModal'
 import { useToastStore } from '../store/toast'
 import { ErrorBoundary } from '../components/ErrorBoundary'
 import { Message } from '../types'
-import { Reply, Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Clock, Sunrise, Info, Flag } from 'lucide-react'
+import { Copy, Forward, Bookmark, Sparkles, Languages, Edit3, Trash2, Bot, Pin, Info, Flag } from 'lucide-react'
 import { MessageInfo } from '../components/MessageInfo'
 import { OnboardingPanel, isOnboarded } from '../components/OnboardingPanel'
 import { GlobalSearch } from '../components/GlobalSearch'
-import { scheduleMessageReminder, formatFireAt } from '../utils/reminders'
 import { isGameCardMsg, isMediaMsg } from '../utils/messageEffects'
 import { useNavigate } from 'react-router-dom'
 import wsService from '../services/websocket'
@@ -823,8 +822,6 @@ export default function ChatPage() {
               </>
               ) : (
               <>
-              <BottomSheetAction icon={<span className="text-lg">👍</span>} label="React" onClick={() => { if (mobileActionSheet.msg) handleReact(mobileActionSheet.msg.id, '👍'); setMobileActionSheet({ open: false }) }} />
-              <BottomSheetAction icon={<Reply className="w-5 h-5" />} label="Reply" onClick={() => { if (mobileActionSheet.msg) { setReplyTo({ id: mobileActionSheet.msg.id, content: mobileActionSheet.msg.content || '', sender: mobileActionSheet.msg.sender_display_name || 'Unknown' }); setMobileActionSheet({ open: false }) } }} />
               {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Copy className="w-5 h-5" />} label="Copy" onClick={() => { if (mobileActionSheet.msg?.content) { navigator.clipboard.writeText(mobileActionSheet.msg.content); toast('Copied', 'success') }; setMobileActionSheet({ open: false }) }} />
               )}
@@ -840,12 +837,6 @@ export default function ChatPage() {
               )}
               {!isMediaMsg(mobileActionSheet.msg) && (
               <BottomSheetAction icon={<Languages className="w-5 h-5" />} label="Translate" onClick={() => { if (mobileActionSheet.msg) { handleAIAction(mobileActionSheet.msg, 'translate'); setMobileActionSheet({ open: false }) } }} />
-              )}
-              {!isMediaMsg(mobileActionSheet.msg) && (
-              <BottomSheetAction icon={<Clock className="w-5 h-5" />} label="In 1 hour" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'hour').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
-              )}
-              {!isMediaMsg(mobileActionSheet.msg) && (
-              <BottomSheetAction icon={<Sunrise className="w-5 h-5" />} label="At 9 AM" onClick={() => { const m = mobileActionSheet.msg; if (m) { const t = useChatStore.getState().conversations.find((c: any) => c.id === m.conversation_id)?.title || 'Chat'; scheduleMessageReminder({ convId: m.conversation_id ?? null, convTitle: t, msg: m }, 'morning').then((r) => toast(`Remind set for ${formatFireAt(r.fireAt)}`, 'success')) } setMobileActionSheet({ open: false }) }} />
               )}
               {mobileActionSheet.msg && mobileActionSheet.msg.sender_id !== user?.id && !(mobileActionSheet.msg as any).is_deleted && (
                 <BottomSheetAction icon={<Flag className="w-5 h-5" />} label="Report" onClick={() => { if (mobileActionSheet.msg) { setReportTarget(mobileActionSheet.msg); setMobileActionSheet({ open: false }) } }} />
