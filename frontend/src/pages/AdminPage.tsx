@@ -411,6 +411,11 @@ export default function AdminPage() {
                       AI triage: {r.ai_score}/100 · {r.ai_label}
                     </p>
                     {r.ai_summary && <p className="text-xs text-muted-foreground mt-0.5">{r.ai_summary}</p>}
+                    {r.ai_description && (
+                      <p className="text-[11px] text-muted-foreground mt-1 break-words">
+                        <span className="font-semibold">👁 Saw:</span> {r.ai_description}
+                      </p>
+                    )}
                     <p className="text-[11px] mt-1 font-medium text-primary">
                       {r.ai_score >= 80
                         ? 'Suggested: remove content / deactivate user'

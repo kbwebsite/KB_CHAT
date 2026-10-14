@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.ai.provider import ServiceProvider, get_ai_provider
 from app.auth.dependencies import get_current_user
 from app.database.config import settings
 from app.database.connection import Base, get_db
@@ -111,6 +112,7 @@ def _report_to_dict(db: Session, r: Report) -> dict:
         "ai_score": r.ai_score,
         "ai_label": r.ai_label,
         "ai_summary": r.ai_summary,
+        "ai_description": r.ai_description,
         "ai_analyzed_at": r.ai_analyzed_at.isoformat() if r.ai_analyzed_at else None,
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "resolved_at": r.resolved_at.isoformat() if r.resolved_at else None,
@@ -286,44 +288,120 @@ async def analyze_report(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """AI triage assist: score the reported content 0-100 with a category
-    and one-line rationale, stored on the row for the admin queue.
-    Requires a live AI key (503 otherwise — never mock-judge anyone)."""
+    """Agentic triage: look at the images first, then judge.
+
+    Step 1 (OBSERVE) shows every attached/linked image to a vision model
+    for a factual description; step 2 (JUDGE) scores reason + text +
+    descriptions. Requires a live AI key (503 otherwise — never
+    mock-judge anyone)."""
     require_admin(current_user)
     row = db.query(Report).filter_by(id=report_id).first()
     if not row:
         raise HTTPException(status_code=404, detail="Report not found")
     if not settings.AI_API_KEY:
         raise HTTPException(status_code=503, detail="AI key not configured")
+    from app.ai.triage import (
+        MAX_IMAGES,
+        describe_images,
+        extract_image_urls,
+        fetch_image,
+        judge,
+    )
+
+    provider = get_ai_provider()
+    if isinstance(provider, ServiceProvider):
+        raise HTTPException(status_code=503, detail="AI key not configured")
+
+    images: list = []
+    notes: list = []
+
+    def _take_attachment(att) -> None:
+        if len(images) >= MAX_IMAGES:
+            return
+        mime = str(getattr(att, "mime_type", "") or "").lower()
+        name = (
+            getattr(att, "original_filename", None)
+            or getattr(att, "filename", None)
+            or "file"
+        )
+        if mime.startswith("image/"):
+            url = getattr(att, "cloudinary_url", None)
+            if url:
+                images.append({"url": url, "ref": name})
+                return
+            stored = getattr(att, "file_path", None)
+            if stored:
+                try:
+                    import os as _os
+
+                    base = _os.path.abspath(settings.upload_dir_abs)
+                    path = _os.path.abspath(_os.path.join(base, stored))
+                    if not path.startswith(base):
+                        raise ValueError("outside upload dir")
+                    with open(path, "rb") as f:
+                        data = f.read(6 * 1024 * 1024)
+                    images.append(
+                        {"mime": mime or "image/jpeg", "data": data, "ref": name}
+                    )
+                except Exception as e:
+                    notes.append(f"{name}: (unreadable attachment — {str(e)[:80]})")
+            else:
+                notes.append(f"{name}: (no retrievable copy)")
+        elif mime.startswith("video/"):
+            notes.append(f"{name}: (video attached — frames not reviewed)")
+
     if row.target_type == "message":
         msg = db.query(Message).filter_by(id=row.target_id).first()
         if not msg or msg.is_deleted:
             raise HTTPException(status_code=404, detail="Reported message not found")
         if msg.is_encrypted or msg.view_once:
             raise HTTPException(status_code=400, detail="Cannot analyze sealed content")
-        if msg.message_type != "text" or not (msg.content or "").strip():
+        for att in db.query(Attachment).filter_by(message_id=msg.id).all():
+            _take_attachment(att)
+        text = (msg.content or "").strip()
+        for url in extract_image_urls(text):
+            if len(images) >= MAX_IMAGES:
+                break
+            mime, data = await fetch_image(url)
+            if mime and data:
+                images.append(
+                    {"mime": mime, "data": data, "ref": url.split("?")[0][-60:]}
+                )
+            else:
+                notes.append(
+                    f"{url.split('?')[0][-60:]}: (link unreachable or not an image)"
+                )
+        evidence = text[:1000]
+        if not evidence and not images and not notes:
             raise HTTPException(
-                status_code=400, detail="Only text messages can be analyzed"
+                status_code=400, detail="Nothing analyzable on this message"
             )
-        evidence = msg.content.strip()[:1000]
     elif row.target_type == "user":
         target = db.query(User).filter_by(id=row.target_id).first()
         if not target:
             raise HTTPException(status_code=404, detail="Reported user not found")
         recent = (
-            db.query(Message.content)
+            db.query(Message)
             .filter(
                 Message.sender_id == target.id,
                 Message.is_deleted == False,  # noqa: E712
-                Message.message_type == "text",
                 Message.is_encrypted == False,  # noqa: E712
             )
             .order_by(Message.id.desc())
             .limit(5)
             .all()
         )
-        evidence = "\n".join(f"- {(c[0] or '')[:200]}" for c in recent if c[0])
-        if not evidence.strip():
+        for m in recent:
+            for att in db.query(Attachment).filter_by(message_id=m.id).all():
+                _take_attachment(att)
+                if len(images) >= MAX_IMAGES:
+                    break
+            if len(images) >= MAX_IMAGES:
+                break
+        evidence = "\n".join(
+            f"- {(m.content or '')[:200]}" for m in recent if m.content
+        )
+        if not evidence.strip() and not images and not notes:
             raise HTTPException(
                 status_code=400, detail="No analyzable content from this user"
             )
@@ -331,49 +409,19 @@ async def analyze_report(
         raise HTTPException(
             status_code=400, detail="Conversation reports need human review"
         )
-    prompt = (
-        "You are a chat-moderation triage assistant. Rate the reported content "
-        "for policy risk. Reply with ONLY compact JSON, no other text: "
-        '{"score": 0-100, "label": "safe|suspicious|spam|abusive|explicit|scam", '
-        '"summary": "one short line"}.\n'
-        f"Report reason: {row.reason}\nContent:\n{evidence[:1500]}"
-    )
     try:
-        from app.ai.provider import get_ai_provider
-
-        provider = get_ai_provider()
-        raw = await provider.chat([{"role": "user", "content": prompt}])
+        descriptions = notes + await describe_images(provider, images)
+        verdict = await judge(
+            provider, reason=row.reason, text=evidence, descriptions=descriptions
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Analysis failed: {e}")
-    import json as _json
-    import re as _re
-
-    score, label, summary = None, None, None
-    try:
-        m = _re.search(r"\{.*\}", raw or "", _re.DOTALL)
-        data = _json.loads(m.group(0)) if m else {}
-        score = int(data.get("score"))
-        label = str(data.get("label") or "").lower()
-        summary = str(data.get("summary") or "")[:300]
-    except Exception:
-        pass
-    if (
-        score is None
-        or not (0 <= score <= 100)
-        or label
-        not in (
-            "safe",
-            "suspicious",
-            "spam",
-            "abusive",
-            "explicit",
-            "scam",
-        )
-    ):
-        raise HTTPException(status_code=502, detail="Analysis returned no usable score")
-    row.ai_score = score
-    row.ai_label = label
-    row.ai_summary = summary or None
+    row.ai_score = verdict["score"]
+    row.ai_label = verdict["label"]
+    row.ai_summary = verdict["summary"]
+    row.ai_description = "\n".join(descriptions)[:1000] or None
     row.ai_analyzed_at = datetime.now(timezone.utc)
     db.commit()
     db.refresh(row)

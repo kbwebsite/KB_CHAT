@@ -28,6 +28,10 @@ class Report(Base):
     ai_label = Column(String(20), nullable=True)
     ai_summary = Column(Text, nullable=True)
     ai_analyzed_at = Column(DateTime(timezone=True), nullable=True)
+    # What the vision step saw (nullable, same migration story). Shown in
+    # the admin queue so a human can audit the agent's eyes, not just its
+    # verdict.
+    ai_description = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     resolved_at = Column(DateTime(timezone=True), nullable=True)
 
