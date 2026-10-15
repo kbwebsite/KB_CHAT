@@ -12,6 +12,10 @@ export const IMAGE_MODELS = [
   { id: 'qwen-image', label: '🌊 Qwen-Image — powerful', group: 'HuggingFace' },
   { id: 'hyper-sd', label: '🚀 Hyper-SD — fast', group: 'HuggingFace' },
   { id: 'flux-schnell', label: '☁️ FLUX schnell — Cloudflare', group: 'Cloudflare' },
+  { id: 'flux-2-klein', label: '⚡ FLUX.2-klein — fastest SOTA', group: 'Cloudflare' },
+  { id: 'sdxl-lightning', label: '🌩️ SDXL-Lightning — fast 1024px', group: 'Cloudflare' },
+  { id: 'dreamshaper', label: '📸 DreamShaper — photoreal', group: 'Cloudflare' },
+  { id: 'sdxl-base', label: '🎭 SDXL Base — classic quality', group: 'Cloudflare' },
 ] as const
 
 export type ImageModelId = (typeof IMAGE_MODELS)[number]['id']

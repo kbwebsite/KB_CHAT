@@ -32,11 +32,6 @@ from app.database.config import settings
 
 log = logging.getLogger(__name__)
 
-CF_RUN_TMPL = (
-    "https://api.cloudflare.com/client/v4/accounts/{account}"
-    "/ai/run/@cf/black-forest-labs/flux-1-schnell"
-)
-
 # id -> {label, provider, hf_model?, needs_key}
 IMAGE_MODELS: dict[str, dict] = {
     "flux": {
@@ -70,6 +65,39 @@ IMAGE_MODELS: dict[str, dict] = {
     "flux-schnell": {
         "label": "FLUX.1-schnell — Cloudflare",
         "provider": "cloudflare",
+        "cf_model": "@cf/black-forest-labs/flux-1-schnell",
+        # schnell REST schema: {prompt, steps} only (seed is rejected).
+        "cf_kind": "bfl-steps",
+        "needs_key": True,
+    },
+    # Extra free Cloudflare text-to-image models (same keys, same free tier).
+    "flux-2-klein": {
+        "label": "FLUX.2-klein — fastest SOTA",
+        "provider": "cloudflare",
+        "cf_model": "@cf/black-forest-labs/flux-2-klein-4b",
+        # Partner model; minimal {prompt} so unknown extras can't 5006.
+        "cf_kind": "prompt-only",
+        "needs_key": True,
+    },
+    "sdxl-lightning": {
+        "label": "SDXL-Lightning — fast 1024px",
+        "provider": "cloudflare",
+        "cf_model": "@cf/bytedance/stable-diffusion-xl-lightning",
+        "cf_kind": "sd",
+        "needs_key": True,
+    },
+    "dreamshaper": {
+        "label": "DreamShaper — photoreal",
+        "provider": "cloudflare",
+        "cf_model": "@cf/lykon/dreamshaper-8-lcm",
+        "cf_kind": "sd",
+        "needs_key": True,
+    },
+    "sdxl-base": {
+        "label": "SDXL Base — classic quality",
+        "provider": "cloudflare",
+        "cf_model": "@cf/stabilityai/stable-diffusion-xl-base-1.0",
+        "cf_kind": "sd",
         "needs_key": True,
     },
 }
@@ -139,13 +167,37 @@ async def generate_hf(hf_model: str, prompt: str) -> str:
     return _data_uri(buf.getvalue(), "image/png")
 
 
-async def generate_cloudflare(prompt: str) -> str:
-    """Call Cloudflare Workers AI flux-1-schnell, return data URI."""
+async def generate_cloudflare(
+    cf_model: str, cf_kind: str, prompt: str, width: int, height: int, seed: int
+) -> str:
+    """Call Cloudflare Workers AI text-to-image, return data URI.
+
+    Payloads are per-family: BFL schnell takes {prompt, steps} (seed is
+    rejected with 5006); klein takes minimal {prompt}; SD-family takes the
+    classic {prompt, negative_prompt, height, width, num_steps, guidance,
+    seed}.
+    """
     account = settings.CLOUDFLARE_ACCOUNT_ID
     token = settings.CLOUDFLARE_API_TOKEN
     if not (account and token):
         raise RuntimeError("Cloudflare Workers AI is not configured")
-    url = CF_RUN_TMPL.format(account=account)
+    url = f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/run/{cf_model}"
+    if cf_kind == "sd":
+        payload: dict = {
+            "prompt": prompt,
+            "negative_prompt": "blurry, low quality, distorted",
+            "height": height,
+            "width": width,
+            "num_steps": 8 if "lightning" in cf_model else 20,
+            "guidance": 7.5,
+            "seed": seed,
+        }
+    elif cf_kind == "bfl-steps":
+        # NOTE: the schnell REST schema rejects `seed`
+        # (5006: unevaluated property not allowed) — prompt+steps only.
+        payload = {"prompt": prompt, "steps": 4}
+    else:  # prompt-only (e.g. FLUX.2-klein partner model)
+        payload = {"prompt": prompt}
     timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
     async with httpx.AsyncClient(timeout=timeout) as client:
         r = await client.post(
@@ -154,9 +206,7 @@ async def generate_cloudflare(prompt: str) -> str:
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
-            # NOTE: the REST schema rejects `seed`
-            # (5006: unevaluated property not allowed) — prompt only.
-            json={"prompt": prompt, "steps": 4},
+            json=payload,
         )
     if r.status_code != 200:
         raise RuntimeError(f"Cloudflare AI failed ({r.status_code}): {r.text[:300]}")
@@ -198,7 +248,14 @@ async def generate_image(
             return _pollinations(prompt, width, height, seed), "flux", True, err
     elif meta["provider"] == "cloudflare":
         try:
-            uri = await generate_cloudflare(prompt)
+            uri = await generate_cloudflare(
+                meta["cf_model"],
+                meta.get("cf_kind", "prompt-only"),
+                prompt,
+                width,
+                height,
+                seed,
+            )
             return uri, m, False, None
         except Exception as e:
             err = f"Cloudflare: {e}"[:300]
