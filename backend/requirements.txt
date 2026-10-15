@@ -21,7 +21,9 @@ huggingface_hub>=0.30
 pillow==11.1.0
 pytest==8.0.1
 pytest-asyncio==0.23.5
-anyio==4.3.0
+# NOTE: must stay >=4.4 — huggingface_hub's HTTP stack passes
+# fast_acquire to anyio.Lock (4.3.0 raises TypeError, breaks HF images).
+anyio==4.9.0
 cloudinary==1.36.0
 firebase-admin
 # Passkeys (WebAuthn): registration + authentication ceremonies
