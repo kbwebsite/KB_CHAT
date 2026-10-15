@@ -4,6 +4,7 @@ import { Check, CheckCheck, Clock, Trash2, Edit3, Copy, Forward, Bookmark, MoreH
 import { MessageInfo } from './MessageInfo'
 import type { Theme as EmojiTheme } from 'emoji-picker-react'
 import { useState, useRef, useEffect, lazy, Suspense } from 'react'
+import { createPortal } from 'react-dom'
 import { LinkPreview, hasUrl, extractUrls } from './LinkPreview'
 import { aiApi, msgApi } from '../services/api'
 import { useAuthStore } from '../store/auth'
@@ -484,7 +485,31 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
   const tapTimer = useRef<any>(null)
   const lastTap = useRef(0)
   const swipeStart = useRef<{x:number,y:number}|null>(null)
+  const reactBtnRef = useRef<HTMLButtonElement | null>(null)
+  const [pickerPos, setPickerPos] = useState<{ bottom: number; left: number } | null>(null)
   useEffect(() => () => { if (tapTimer.current) clearTimeout(tapTimer.current) }, [])
+
+  // Reaction picker floats in a portal: ancestor overflow-hidden (bubble
+  // row) and backdrop-filter (tinted bubbles) would clip or trap it.
+  const openPicker = () => {
+    let pos: { bottom: number; left: number } | null = null
+    try {
+      const r = reactBtnRef.current?.getBoundingClientRect()
+      if (r && typeof window !== 'undefined') {
+        pos = {
+          bottom: Math.max(8, window.innerHeight - r.top + 8),
+          left: Math.max(8, Math.min(r.left, window.innerWidth - 316)),
+        }
+      }
+    } catch {}
+    setPickerPos(pos)
+    setShowCustomEmoji(false)
+    setShowReactPicker(true)
+  }
+  const closePicker = () => {
+    setShowReactPicker(false)
+    setShowCustomEmoji(false)
+  }
   const safeCopy = onCopy || ((t:string)=> navigator.clipboard.writeText(t))
   const toast = useToastStore((s) => s.push)
   const safeForward = onForward || (()=>{})
@@ -507,7 +532,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
     if (lastTap.current && now - lastTap.current < 300) {
       lastTap.current = 0
       if (tapTimer.current) { clearTimeout(tapTimer.current); tapTimer.current = null }
-      if (!msg.is_deleted && !isGameCard) setShowReactPicker(true)
+      if (!msg.is_deleted && !isGameCard) openPicker()
       return
     }
     lastTap.current = now
@@ -964,9 +989,10 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             )}
             {!isGameCard && !msg.is_deleted && (
               <button
+                ref={reactBtnRef}
                 aria-label="React to message"
                 title="React"
-                onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(v=>!v) }}
+                onClick={(e)=>{ e.stopPropagation(); if (showReactPicker) closePicker(); else openPicker() }}
                 className="ml-auto p-1 rounded-full opacity-60 hover:opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100"
               >
                 <Smile className="w-3.5 h-3.5" />
@@ -1011,17 +1037,17 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
             </div>
           )}
         </div>
-        {showReactPicker && !isGameCard && !msg.is_deleted && (
+        {showReactPicker && !isGameCard && !msg.is_deleted && createPortal(
           <>
             <button
               aria-label="Close reactions"
-              onClick={(e)=>{ e.stopPropagation(); setShowReactPicker(false); setShowCustomEmoji(false) }}
-              className="fixed inset-0 z-20 bg-transparent border-0 p-0 cursor-default"
+              onClick={(e)=>{ e.stopPropagation(); closePicker() }}
+              className="fixed inset-0 z-[70] bg-transparent border-0 p-0 cursor-default"
             />
-            <div role="dialog" aria-label="Choose a reaction" className="absolute z-30 bottom-full right-0 mb-1 shadow-xl" onClick={(e)=> e.stopPropagation()}>
+            <div role="dialog" aria-label="Choose a reaction" className="fixed z-[71] shadow-xl" style={pickerPos ?? { bottom: 96, left: 16 }} onClick={(e)=> e.stopPropagation()}>
               <div className="flex items-center gap-0.5 p-1.5 rounded-2xl border bg-card">
                 {REACTIONS.map(e=> (
-                  <button key={e} aria-label={`React ${e}`} onClick={()=>{ onReact(msg.id, e); setShowReactPicker(false) }} className="p-1.5 rounded-full text-lg hover:bg-muted transition-transform active:scale-90">{e}</button>
+                  <button key={e} aria-label={`React ${e}`} onClick={()=>{ onReact(msg.id, e); closePicker() }} className="p-1.5 rounded-full text-lg hover:bg-muted transition-transform active:scale-90">{e}</button>
                 ))}
                 <button aria-label="More reactions" title="More reactions" onClick={()=> setShowCustomEmoji(v=>!v)} className="p-1.5 rounded-full hover:bg-muted">
                   <SmilePlus className="w-4 h-4 text-muted-foreground" />
@@ -1031,7 +1057,7 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                 <div className="mt-1 rounded-2xl overflow-hidden border bg-card shadow-xl">
                   <Suspense fallback={<div className="h-[320px] w-[300px] skeleton" aria-label="Loading emoji" />}>
                     <EmojiPicker
-                      onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); setShowReactPicker(false); setShowCustomEmoji(false) }}
+                      onEmojiClick={(e)=>{ onReact(msg.id, e.emoji); closePicker() }}
                       height={320}
                       width={300}
                       skinTonesDisabled
@@ -1042,7 +1068,8 @@ export function MessageBubble({ msg, isOwn, isGroup, showAvatar, onReply, onEdit
                 </div>
               )}
             </div>
-          </>
+          </>,
+          document.body,
         )}
       </div>
       {showInfo && isOwn && !msg.is_deleted && (

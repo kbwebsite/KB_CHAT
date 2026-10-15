@@ -301,10 +301,28 @@ describe('MessageBubble action scoping', () => {
         vi.advanceTimersByTime(500)
       })
       expect(onMobileMore).not.toHaveBeenCalled()
-      expect(host.querySelector('[aria-label="Choose a reaction"]')).not.toBeNull()
+      // Picker floats in a body portal (escapes bubble clipping).
+      expect(document.querySelector('[aria-label="Choose a reaction"]')).not.toBeNull()
     } finally {
       vi.useRealTimers()
     }
+  })
+
+  it('smile button opens the reaction picker', () => {
+    const onReact = vi.fn()
+    renderBubble(baseMsg({ content: 'hello smile' }), { onReact, onMobileMore: () => {} })
+    const btn = host.querySelector('button[aria-label="React to message"]') as HTMLElement
+    expect(btn).not.toBeNull()
+    act(() => {
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(document.querySelector('[aria-label="Choose a reaction"]')).not.toBeNull()
+    const pick = document.querySelector('button[aria-label="React ❤️"]') as HTMLElement
+    act(() => {
+      pick.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    })
+    expect(onReact).toHaveBeenCalledWith(1, '❤️')
+    expect(document.querySelector('[aria-label="Choose a reaction"]')).toBeNull()
   })
 
   it('swipe right on a message starts a reply', () => {
