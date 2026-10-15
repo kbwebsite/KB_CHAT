@@ -717,19 +717,28 @@ class ServiceProvider(AIProvider):
 class OpenAICompatibleProvider(AIProvider):
     """Calls any OpenAI-compatible /v1/chat/completions endpoint for service agent."""
 
-    def __init__(self):
-        self.base_url = settings.AI_BASE_URL.rstrip("/")
-        self.api_key = settings.AI_API_KEY
-        self.model = settings.AI_MODEL
+    def __init__(
+        self,
+        base_url: Optional[str] = None,
+        api_key: Optional[str] = None,
+        model: Optional[str] = None,
+        extra_headers: Optional[Dict[str, str]] = None,
+    ):
+        self.base_url = (base_url or settings.AI_BASE_URL).rstrip("/")
+        self.api_key = api_key if api_key is not None else settings.AI_API_KEY
+        self.model = model or settings.AI_MODEL
+        self.extra_headers = extra_headers or {}
         # Remember which candidate URL actually served, so later calls skip
         # the wasted 404 probe against the other shape.
         self._working_url: Optional[str] = None
 
     def _headers(self):
-        return {
+        headers = {
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json",
         }
+        headers.update(self.extra_headers)
+        return headers
 
     def _candidate_urls(self) -> List[str]:
         # Providers disagree on where the OpenAI-compatible route lives
@@ -890,6 +899,75 @@ class OpenAICompatibleProvider(AIProvider):
             else:
                 print(f"[ai] provider error, falling back to mock provider: {e}")
             return await ServiceProvider().chat(messages, context)
+
+
+# Named third-party backends for the in-app model picker. Keys come from
+# dashboard-managed env only — the client picks a *name*, never a key.
+PROVIDER_PRESETS: Dict[str, Dict[str, Any]] = {
+    "groq": {
+        "label": "Groq",
+        "base_url": "https://api.groq.com/openai/v1",
+        "key": lambda: settings.GROQ_API_KEY,
+        "default_model": "openai/gpt-oss-120b",
+    },
+    "openrouter": {
+        "label": "OpenRouter",
+        "base_url": "https://openrouter.ai/api/v1",
+        "key": lambda: settings.OPENROUTER_API_KEY,
+        "default_model": "liquid/lfm-2.5-2.6b:free",
+    },
+    "ollama": {
+        "label": "Ollama",
+        "base_url": lambda: settings.OLLAMA_BASE_URL,
+        "key": lambda: settings.OLLAMA_API_KEY,
+        "default_model": "gemma4:31b-cloud",
+    },
+}
+
+
+def configured_providers() -> List[Dict[str, Any]]:
+    """Names + defaults for backends with a key set. No secrets included."""
+    out = []
+    for name, preset in PROVIDER_PRESETS.items():
+        base = preset["base_url"]
+        base = base() if callable(base) else base
+        if preset["key"]():
+            out.append(
+                {
+                    "name": name,
+                    "label": preset["label"],
+                    "default_model": preset["default_model"],
+                }
+            )
+    return out
+
+
+def resolve_provider(
+    name: Optional[str] = None, model: Optional[str] = None
+) -> AIProvider:
+    """Provider for a picker selection. Unknown/empty name = server default.
+    Raises ValueError when the named backend has no key configured."""
+    if not name:
+        return get_ai_provider()
+    preset = PROVIDER_PRESETS.get(name.strip().lower())
+    if not preset:
+        raise ValueError(f"Unknown provider: {name}")
+    key = preset["key"]()
+    if not key:
+        raise ValueError(f"Provider '{name}' is not configured on this server")
+    base = preset["base_url"]
+    base = base() if callable(base) else base
+    extra = (
+        {"HTTP-Referer": settings.FRONTEND_URL}
+        if name.strip().lower() == "openrouter"
+        else None
+    )
+    return OpenAICompatibleProvider(
+        base_url=base,
+        api_key=key,
+        model=(model or "").strip() or preset["default_model"],
+        extra_headers=extra,
+    )
 
 
 def get_ai_provider() -> AIProvider:

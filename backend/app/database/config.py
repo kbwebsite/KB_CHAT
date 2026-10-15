@@ -45,6 +45,19 @@ class Settings(BaseSettings):
     AI_MODEL: str = "gpt-4o-mini"
     AI_BASE_URL: str = "https://api.openai.com/v1"
     AI_PROVIDER: str = "mock"
+    # Per-provider keys for the in-app model picker (dashboard-managed
+    # secrets — never commit values). Each enables one named backend.
+    GROQ_API_KEY: str = ""
+    OPENROUTER_API_KEY: str = ""
+    OLLAMA_API_KEY: str = ""
+    OLLAMA_BASE_URL: str = "https://ollama.com"
+    # Text-to-image backends (dashboard-managed secrets — never commit values).
+    # HuggingFace Inference Providers (FLUX.1-Krea-dev, Qwen-Image, Hyper-SD).
+    HF_TOKEN: str = ""
+    # Cloudflare Workers AI (FLUX.1-schnell). Account ID + API token with
+    # Workers AI permission. Separate from the TURN credentials below.
+    CLOUDFLARE_ACCOUNT_ID: str = ""
+    CLOUDFLARE_API_TOKEN: str = ""
     GOOGLE_CLIENT_ID: str = ""
     # Outbound email via Resend (verification codes, password resets).
     # Unset locally/tests: sends are skipped with a log line (fail-soft).

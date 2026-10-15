@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, UploadFile, File
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional, List
@@ -105,11 +105,16 @@ class AIChatRequest(BaseModel):
     message: str
     conversation_id: Optional[int] = None
     history: Optional[List[dict]] = None
+    # Optional picker override: named backend from GET /ai/providers.
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 
 class AITranslateRequest(BaseModel):
     message: str
     target_language: str = "English"
+    provider: Optional[str] = None
+    model: Optional[str] = None
 
 
 class CodeActionRequest(BaseModel):
@@ -124,7 +129,36 @@ class AIImageRequest(BaseModel):
     width: int = 1024
     height: int = 1024
     seed: Optional[int] = None
-    model: str = "turbo"
+    # flux | turbo (keyless pollinations) | flux-krea | qwen-image |
+    # hyper-sd (HuggingFace, needs HF_TOKEN) | flux-schnell
+    # (Cloudflare Workers AI, needs CLOUDFLARE_ACCOUNT_ID + _API_TOKEN).
+    # Unknown values normalize to flux; keyed models fall back to keyless
+    # flux when keys are missing or the provider errors.
+    model: str = "flux"
+
+
+def _resolve_provider(body) -> tuple:
+    """Picker override (name from GET /ai/providers) or server default."""
+    from app.ai.provider import resolve_provider
+
+    try:
+        provider = resolve_provider(
+            getattr(body, "provider", None), getattr(body, "model", None)
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    name = (
+        getattr(body, "provider", None) or settings.AI_PROVIDER or "mock"
+    ).strip().lower() or "mock"
+    return provider, name, getattr(provider, "model", None)
+
+
+@router.get("/providers")
+async def ai_providers():
+    """Backends with keys configured (names + defaults only, never secrets)."""
+    from app.ai.provider import configured_providers
+
+    return success_response(configured_providers())
 
 
 @router.post("/chat")
@@ -133,13 +167,13 @@ async def ai_chat(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    provider = get_ai_provider()
+    provider, pname, pmodel = _resolve_provider(body)
     messages = []
     if body.history:
         messages.extend(body.history[-10:])
     messages.append({"role": "user", "content": body.message})
     reply = await provider.chat(messages)
-    return success_response({"reply": reply, "provider": settings.AI_PROVIDER})
+    return success_response({"reply": reply, "provider": pname, "model": pmodel})
 
 
 @router.post("/chat/stream")
@@ -157,7 +191,7 @@ async def ai_chat_stream(
     from fastapi.responses import StreamingResponse
     import json
 
-    provider = get_ai_provider()
+    provider, pname, _pmodel = _resolve_provider(body)
     messages = []
     if body.history:
         messages.extend(body.history[-10:])
@@ -174,10 +208,18 @@ async def ai_chat_stream(
             if not full:
                 full = await ServiceProvider().chat(messages)
                 yield f"data: {json.dumps({'type': 'token', 'content': full})}\n\n"
-        yield f"data: {json.dumps({'type': 'final', 'content': full, 'provider': settings.AI_PROVIDER})}\n\n"
+        yield f"data: {json.dumps({'type': 'final', 'content': full, 'provider': pname})}\n\n"
         yield "data: [DONE]\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+
+@router.get("/image/models")
+async def ai_image_models():
+    """Text-to-image models: ids, labels, provider, key + availability."""
+    from app.ai.images import available_models
+
+    return success_response({"models": available_models()})
 
 
 @router.post("/image")
@@ -186,37 +228,40 @@ async def ai_generate_image(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """Keyless image generation (free image backend, no API key needed).
+    """Image generation across keyless + keyed backends.
 
-    Returns a render URL immediately — the frontend <img> loads it
-    directly, so slow generations never block a backend worker.
+    Keyless pollinations (flux/turbo) always works. HF models
+    (flux-krea, qwen-image, hyper-sd) need HF_TOKEN; Cloudflare
+    flux-schnell needs CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN.
+    Keyed failures fall back to keyless flux so the UI never hard-breaks
+    (response flags ``fallback: true`` when that happens).
     """
     import random
-    from urllib.parse import quote
+
+    from app.ai.images import generate_image, normalize_model
 
     prompt = (body.prompt or "").strip()
     if not prompt:
         from fastapi import HTTPException
 
         raise HTTPException(status_code=422, detail="Prompt must not be empty")
-    if len(prompt) > 500:
+    if len(prompt) > 2000:
         from fastapi import HTTPException
 
-        raise HTTPException(status_code=400, detail="Prompt too long (max 500 chars)")
+        raise HTTPException(status_code=400, detail="Prompt too long (max 2000 chars)")
     w = min(max(body.width or 1024, 256), 1024)
     h = min(max(body.height or 1024, 256), 1024)
     seed = body.seed if isinstance(body.seed, int) else random.randint(0, 999999)
-    model = body.model if body.model in ("flux", "turbo") else "turbo"
-    url = (
-        f"https://image.pollinations.ai/prompt/{quote(prompt)}"
-        f"?width={w}&height={h}&seed={seed}&model={model}&nologo=true"
-    )
+    model = normalize_model(body.model)
+    url, used_model, fell_back = await generate_image(model, prompt, w, h, seed)
     return success_response(
         {
             "image_url": url,
             "prompt": prompt,
             "seed": seed,
-            "model": model,
+            "model": used_model,
+            "requested_model": model,
+            "fallback": fell_back,
             "width": w,
             "height": h,
         }
@@ -244,7 +289,7 @@ async def ai_summarize(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    provider = get_ai_provider()
+    provider, pname, pmodel = _resolve_provider(body)
     messages = [
         {
             "role": "user",
@@ -252,7 +297,7 @@ async def ai_summarize(
         }
     ]
     reply = await provider.chat(messages)
-    return success_response({"summary": reply, "provider": settings.AI_PROVIDER})
+    return success_response({"summary": reply, "provider": pname, "model": pmodel})
 
 
 @router.post("/translate")
@@ -261,7 +306,7 @@ async def ai_translate(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    provider = get_ai_provider()
+    provider, pname, pmodel = _resolve_provider(body)
     messages = [
         {
             "role": "user",
@@ -273,7 +318,8 @@ async def ai_translate(
         {
             "translation": reply,
             "target_language": body.target_language,
-            "provider": settings.AI_PROVIDER,
+            "provider": pname,
+            "model": pmodel,
         }
     )
 

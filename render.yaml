@@ -28,6 +28,16 @@ services:
         sync: false
       - key: AI_BASE_URL
         sync: false
+      # Per-provider keys for the in-app model picker (dashboard-managed
+      # secrets — values are never committed). Set the ones you use.
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
+        sync: false
+      - key: OLLAMA_API_KEY
+        sync: false
+      - key: OLLAMA_BASE_URL
+        sync: false
       - key: GOOGLE_CLIENT_ID
         value: 947604684664-sbjfl0jmj332b81fmqeu7dd3tsct94l2.apps.googleusercontent.com
       - key: VITE_GOOGLE_CLIENT_ID

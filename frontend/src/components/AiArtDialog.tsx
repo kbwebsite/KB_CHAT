@@ -2,7 +2,21 @@ import { useState } from 'react'
 import { X, Sparkles, RefreshCw, Check } from 'lucide-react'
 import { aiApi } from '../services/api'
 
-/** AI art from a text prompt (keyless image backend): preview, regenerate,
+/** Image model ids accepted by POST /api/ai/image (see backend/app/ai/images.py).
+ * flux/turbo are keyless; the rest need HF_TOKEN / Cloudflare keys and fall
+ * back to flux when unavailable. */
+export const IMAGE_MODELS = [
+  { id: 'flux', label: '✨ Flux — better', group: 'Keyless' },
+  { id: 'turbo', label: '⚡ Turbo — faster', group: 'Keyless' },
+  { id: 'flux-krea', label: '🎨 FLUX Krea — realistic', group: 'HuggingFace' },
+  { id: 'qwen-image', label: '🌊 Qwen-Image — powerful', group: 'HuggingFace' },
+  { id: 'hyper-sd', label: '🚀 Hyper-SD — fast', group: 'HuggingFace' },
+  { id: 'flux-schnell', label: '☁️ FLUX schnell — Cloudflare', group: 'Cloudflare' },
+] as const
+
+export type ImageModelId = (typeof IMAGE_MODELS)[number]['id']
+
+/** AI art from a text prompt: preview, regenerate,
  * then hand the URL to the caller (chat wallpaper, group icon, …). */
 export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
   onClose: () => void
@@ -13,17 +27,22 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
   const [url, setUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [fallbackNote, setFallbackNote] = useState(false)
+  const [model, setModel] = useState<ImageModelId>('flux')
 
   const generate = async () => {
     const p = prompt.trim()
     if (!p || busy) return
     setBusy(true)
     setError(null)
+    setFallbackNote(false)
     try {
-      const r: any = await aiApi.generateImage(p.slice(0, 500))
+      const r: any = await aiApi.generateImage(p.slice(0, 2000), model)
       const u = r?.data?.image_url
-      if (r?.success && u) setUrl(u)
-      else throw new Error(r?.message || 'Generation failed')
+      if (r?.success && u) {
+        setUrl(u)
+        if (r?.data?.fallback) setFallbackNote(true)
+      } else throw new Error(r?.message || 'Generation failed')
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || 'Generation failed.')
     } finally {
@@ -58,7 +77,7 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
               if (e.key === 'Enter') void generate()
             }}
             placeholder="A sunset over mountains, pastel…"
-            maxLength={500}
+            maxLength={2000}
             autoFocus
             className="flex-1 min-w-0 px-4 py-2.5 rounded-xl border bg-muted outline-none text-sm min-h-[44px]"
           />
@@ -70,7 +89,34 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
             {busy ? '…' : 'Create'}
           </button>
         </div>
+        <div className="mt-2" role="group" aria-label="Image model">
+          <select
+            value={model}
+            onChange={(e) => setModel(e.target.value as ImageModelId)}
+            disabled={busy}
+            className="w-full px-3 py-2 rounded-xl border bg-muted text-xs font-medium outline-none min-h-[40px] disabled:opacity-50"
+            aria-label="Image model"
+          >
+            {(['Keyless', 'HuggingFace', 'Cloudflare'] as const).map((g) => (
+              <optgroup key={g} label={g}>
+                {IMAGE_MODELS.filter((m) => m.group === g).map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </optgroup>
+            ))}
+          </select>
+          <p className="text-[11px] text-muted-foreground mt-1">
+            HuggingFace / Cloudflare models need server keys — otherwise Flux is used.
+          </p>
+        </div>
         {error && <p className="text-xs text-destructive mt-2">{error}</p>}
+        {fallbackNote && (
+          <p className="text-[11px] text-amber-500 mt-2">
+            Keyed model unavailable — showing Flux fallback instead.
+          </p>
+        )}
         {url ? (
           <div className="mt-3">
             <img src={url} alt={prompt} className="w-full rounded-2xl border border-subtle" loading="lazy" />

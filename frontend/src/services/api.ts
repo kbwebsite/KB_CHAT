@@ -511,9 +511,24 @@ export const recentlyContactedApi = {
   list: () => api.get('/api/recently-contacted').then(r=>r.data),
 }
 
+/** In-app AI model picker selection (local-only). Null = server default. */
+export function getAiSelection(): { provider?: string; model?: string } {
+  try {
+    const raw = localStorage.getItem('kb_ai_model')
+    if (!raw) return {}
+    const o = JSON.parse(raw)
+    const out: { provider?: string; model?: string } = {}
+    if (typeof o?.provider === 'string' && o.provider) out.provider = o.provider
+    if (typeof o?.model === 'string' && o.model) out.model = o.model
+    return out
+  } catch {
+    return {}
+  }
+}
+
 export const aiApi = {
   chat: (message: string, history?: {role:string;content:string}[]) =>
-    api.post('/api/ai/chat', { message, history }).then(r=>r.data),
+    api.post('/api/ai/chat', { message, history, ...getAiSelection() }).then(r=>r.data),
   // Token-streaming chat: resolves with the full reply, calling onToken as
   // each delta arrives so the UI renders word-by-word.
   chatStream: async (
@@ -565,15 +580,19 @@ export const aiApi = {
   action: (code: string, language: string, action: string, instruction?: string) =>
     api.post('/api/ai/action', { code, language, action, instruction }).then(r=>r.data),
   summarize: (text: string) =>
-    api.post('/api/ai/summarize', { message: text }).then(r=>r.data),
+    api.post('/api/ai/summarize', { message: text, ...getAiSelection() }).then(r=>r.data),
   translate: (text: string, targetLanguage?: string) =>
-    api.post('/api/ai/translate', { message: text, target_language: targetLanguage || 'English' }).then(r=>r.data),
+    api.post('/api/ai/translate', { message: text, target_language: targetLanguage || 'English', ...getAiSelection() }).then(r=>r.data),
+  providers: () =>
+    api.get('/api/ai/providers').then(r=>r.data),
   getLanguages: () =>
     api.get('/api/ai/languages').then(r=>r.data),
   status: () =>
     api.get('/api/ai/status').then(r=>r.data),
-  generateImage: (prompt: string) =>
-    api.post('/api/ai/image', { prompt }).then(r=>r.data),
+  generateImage: (prompt: string, model?: string) =>
+    api.post('/api/ai/image', model ? { prompt, model } : { prompt }).then(r=>r.data),
+  imageModels: () =>
+    api.get('/api/ai/image/models').then(r=>r.data),
   analyzeFile: (file: File, question?: string) => {
     const fd = new FormData()
     fd.append('file', file)

@@ -54,6 +54,7 @@ import { PwaInstallSection } from '../PwaInstallSection'
 import { SecurityAlerts } from './SecurityAlerts'
 import { FeedbackForm } from './FeedbackForm'
 import { PasskeySettings } from './PasskeySettings'
+import { AiModelPicker } from './AiModelPicker'
 import {
   AppearanceSettings,
   NotificationSettings,
@@ -946,6 +947,10 @@ export function WhatsAppSettings({
           </div>
           <AppearanceSettings />
           <InfoRow title="App icon" sub="Custom app icons aren't available on web yet." />
+          <div>
+            <SectionLabel>AI model</SectionLabel>
+            <AiModelPicker />
+          </div>
         </div>
       ),
     },
