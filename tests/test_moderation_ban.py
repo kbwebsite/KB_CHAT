@@ -310,3 +310,34 @@ def test_appeal_approved_reactivates(monkeypatch):
         json={"identifier": victim_email, "password": "BanPass123"},
     )
     assert retry.status_code == 200
+
+
+def test_ban_by_user_id_from_report_card(monkeypatch):
+    victim_uid, _, _, victim_email = _signup()
+    admin_token, admin_email = _admin()
+    monkeypatch.setattr(settings, "ADMIN_EMAILS", admin_email)
+    assert (
+        client.post(
+            "/api/moderation/bans",
+            headers=_auth(admin_token),
+            json={"user_id": 999999999},
+        ).status_code
+        == 404
+    )
+    r = client.post(
+        "/api/moderation/bans",
+        headers=_auth(admin_token),
+        json={"user_id": victim_uid, "reason": "spam"},
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"]["email"] == victim_email.lower()
+    assert r.json()["data"]["deactivated"] is True
+    db = SessionLocal()
+    try:
+        assert db.query(User).filter_by(id=victim_uid).first().is_active is False
+        assert (
+            db.query(EmailBan).filter_by(email=victim_email.lower()).first()
+            is not None
+        )
+    finally:
+        db.close()

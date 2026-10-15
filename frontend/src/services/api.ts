@@ -334,6 +334,7 @@ export const moderationApi = {
   audit: (limit=50) => api.get('/api/moderation/audit', { params: { limit } }).then(r=>r.data),
   bans: () => api.get('/api/moderation/bans').then(r=>r.data),
   ban: (email:string, reason?:string) => api.post('/api/moderation/bans', { email, reason }).then(r=>r.data),
+  banUser: (user_id:number, reason?:string) => api.post('/api/moderation/bans', { user_id, reason }).then(r=>r.data),
   unban: (id:number) => api.delete(`/api/moderation/bans/${id}`).then(r=>r.data),
   appeal: (email:string, message:string) => api.post('/api/moderation/appeals', { email, message }).then(r=>r.data),
   appealInfo: () => api.get('/api/moderation/appeal-info').then(r=>r.data),

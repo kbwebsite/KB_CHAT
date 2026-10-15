@@ -1,6 +1,6 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, CheckCheck, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2, UserMinus } from 'lucide-react'
+import { ArrowLeft, Ban, CheckCheck, ChevronRight, Gavel, Search, ShieldAlert, Sparkles, UserX, UserCheck, Trash2, UserMinus } from 'lucide-react'
 import { moderationApi, feedbackApi } from '../services/api'
 import { useToastStore } from '../store/toast'
 import { OverviewTab } from '../components/admin/OverviewTab'
@@ -484,6 +484,72 @@ export default function AdminPage() {
                       </button>
                       )
                     })}
+                    {!isAppealReport(r) && (() => {
+                      const authorId = r.target_type === 'user'
+                        ? r.target?.user_id
+                        : r.target_type === 'message'
+                          ? r.target?.sender_id
+                          : undefined
+                      if (authorId == null) return null
+                      const eraseArmed = confirmKey === `rer${r.id}`
+                      return (<>
+                        <button
+                          disabled={busy !== null}
+                          onClick={async () => {
+                            setBusy(`r${r.id}ban`)
+                            try {
+                              const res = await moderationApi.banUser(authorId, r.reason)
+                              if (res?.success) {
+                                toast('Author banned', 'success')
+                                resolve(r.id, 'user_deactivated')
+                              } else {
+                                toast(res?.message || 'Ban failed', 'error')
+                              }
+                            } catch (e: any) {
+                              toast(e.response?.data?.detail || 'Ban failed', 'error')
+                            } finally {
+                              setBusy(null)
+                            }
+                          }}
+                          aria-label={`Ban author of report ${r.id}`}
+                          className="px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5 bg-destructive/10 text-destructive border border-destructive/25"
+                        >
+                          <Ban className="w-3.5 h-3.5" aria-hidden="true" />
+                          {busy === `r${r.id}ban` ? 'Working…' : 'Ban'}
+                        </button>
+                        <button
+                          disabled={busy !== null}
+                          onClick={async () => {
+                            if (!eraseArmed) { setConfirmKey(`rer${r.id}`); return }
+                            setConfirmKey(null)
+                            setBusy(`r${r.id}erase`)
+                            try {
+                              const res = await moderationApi.eraseUser(authorId)
+                              if (res?.success) {
+                                toast('Author removed everywhere', 'success')
+                                void loadReports(status)
+                              } else {
+                                toast(res?.message || 'Remove failed', 'error')
+                              }
+                            } catch (e: any) {
+                              toast(e.response?.data?.detail || 'Remove failed', 'error')
+                            } finally {
+                              setBusy(null)
+                            }
+                          }}
+                          onBlur={() => { if (eraseArmed) setConfirmKey(null) }}
+                          aria-label={`${eraseArmed ? 'Confirm remove' : 'Remove'} author of report ${r.id}`}
+                          className={`px-3 h-10 rounded-xl text-xs font-semibold min-h-[44px] disabled:opacity-50 flex items-center justify-center gap-1.5 ${
+                            eraseArmed
+                              ? 'bg-destructive text-destructive-foreground'
+                              : 'bg-black/40 text-destructive border border-destructive/40'
+                          }`}
+                        >
+                          <Trash2 className="w-3.5 h-3.5" aria-hidden="true" />
+                          {busy === `r${r.id}erase` ? 'Working…' : eraseArmed ? 'Tap again: wipe' : 'Remove'}
+                        </button>
+                      </>)
+                    })()}
                   </div>
                 ) : (
                   <p className="text-xs text-muted-foreground mt-2">
@@ -546,8 +612,9 @@ export default function AdminPage() {
                 <button
                   onClick={() => setSelectedUser(u)}
                   aria-label={`Open details for ${u.username}`}
-                  className="flex-1 min-w-0 text-left rounded-lg"
+                  className="flex-1 min-w-0 text-left rounded-lg flex items-center gap-1"
                 >
+                  <span className="flex-1 min-w-0">
                   <p className="text-sm font-semibold truncate">
                     @{u.username}
                     {!u.is_active && (
@@ -562,6 +629,8 @@ export default function AdminPage() {
                     )}
                   </p>
                   <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                  </span>
+                  <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0" aria-hidden="true" />
                 </button>
                 {!u.is_admin && (
                   <div className="flex items-center gap-2 shrink-0">

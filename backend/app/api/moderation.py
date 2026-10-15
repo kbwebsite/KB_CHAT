@@ -699,14 +699,27 @@ def create_ban(
 ):
     """Ban an address: block (re-)registration, deactivate a live account.
 
+    Accepts an email or a user_id (report cards ban the reported author).
     Refuses addresses belonging to yourself or a fellow admin.
     """
     require_admin(current_user)
     email = str((payload or {}).get("email") or "").lower().strip()
+    target = None
+    user_id = (payload or {}).get("user_id")
+    if user_id is not None:
+        try:
+            user_id = int(user_id)
+        except (TypeError, ValueError):
+            raise HTTPException(status_code=400, detail="Invalid user id")
+        target = db.query(User).filter_by(id=user_id).first()
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+        email = (target.email or "").lower()
     reason = str((payload or {}).get("reason") or "banned").strip().lower()[:40]
     if not email or "@" not in email:
         raise HTTPException(status_code=400, detail="Valid email required")
-    target = db.query(User).filter_by(email=email).first()
+    if not target:
+        target = db.query(User).filter_by(email=email).first()
     if target and (target.id == current_user.id or is_admin_user(target)):
         raise HTTPException(status_code=400, detail="Cannot ban this account")
     if target:
