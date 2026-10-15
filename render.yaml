@@ -38,6 +38,15 @@ services:
         sync: false
       - key: OLLAMA_BASE_URL
         sync: false
+      # Text-to-image backends (dashboard-managed secrets).
+      # HF Inference Providers: FLUX.1-Krea-dev, Qwen-Image, Hyper-SD.
+      - key: HF_TOKEN
+        sync: false
+      # Cloudflare Workers AI: FLUX.1-schnell.
+      - key: CLOUDFLARE_ACCOUNT_ID
+        sync: false
+      - key: CLOUDFLARE_API_TOKEN
+        sync: false
       - key: GOOGLE_CLIENT_ID
         value: 947604684664-sbjfl0jmj332b81fmqeu7dd3tsct94l2.apps.googleusercontent.com
       - key: VITE_GOOGLE_CLIENT_ID

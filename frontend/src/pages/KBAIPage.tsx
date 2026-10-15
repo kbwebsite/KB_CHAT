@@ -2,6 +2,7 @@ import { useState, useRef, useEffect, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Send, Sparkles, Trash2, Copy, Check, Square, Image as ImageIcon, Download, Paperclip, X, Search, MessageCircle } from 'lucide-react'
 import { aiApi, agentApi } from '../services/api'
+import { IMAGE_MODELS, type ImageModelId } from '../components/AiArtDialog'
 import { useAuthStore } from '../store/auth'
 
 // Split the markdown renderer out of the route chunk; plain text shows first.
@@ -99,6 +100,7 @@ export default function KBAIPage() {
   const [copiedIdx, setCopiedIdx] = useState<number | null>(null)
   const [aiStatus, setAiStatus] = useState<{ live: boolean; provider?: string; model?: string } | null>(null)
   const [imageMode, setImageMode] = useState(false)
+  const [imageModel, setImageModel] = useState<ImageModelId>('flux')
   const [searchMode, setSearchMode] = useState(false)
   const [imgLoading, setImgLoading] = useState(false)
   const [anaLoading, setAnaLoading] = useState(false)
@@ -193,7 +195,7 @@ export default function KBAIPage() {
       return next
     })
     try {
-      const r: any = await aiApi.generateImage(prompt)
+      const r: any = await aiApi.generateImage(prompt, imageModel)
       const url = r?.data?.image_url ?? r?.image_url
       if (!url) throw new Error('no image url')
       setMessages(prev => {
@@ -501,6 +503,30 @@ export default function KBAIPage() {
 
       {/* Input */}
       <div className="shrink-0 relative p-4 pb-[max(16px,env(safe-area-inset-bottom))]">
+        {imageMode && (
+          <div className="mb-2 flex items-center gap-2">
+            <label htmlFor="kbai-image-model" className="text-[11px] text-muted-foreground shrink-0">
+              Model
+            </label>
+            <select
+              id="kbai-image-model"
+              value={imageModel}
+              onChange={(e) => setImageModel(e.target.value as ImageModelId)}
+              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-xs outline-none"
+              aria-label="Image model"
+            >
+              {(['Keyless', 'HuggingFace', 'Cloudflare'] as const).map((g) => (
+                <optgroup key={g} label={g}>
+                  {IMAGE_MODELS.filter((m) => m.group === g).map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.label}
+                    </option>
+                  ))}
+                </optgroup>
+              ))}
+            </select>
+          </div>
+        )}
         {attachFile && (
           <div className="ai-msg-in mb-2 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.06] border border-white/10 text-xs">
             <Paperclip className="w-3.5 h-3.5 text-primary" />
