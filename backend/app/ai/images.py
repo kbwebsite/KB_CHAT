@@ -7,11 +7,13 @@ Backends:
   ``flux-krea`` (black-forest-labs/FLUX.1-Krea-dev),
   ``qwen-image`` (Qwen/Qwen-Image),
   ``hyper-sd`` (ByteDance/Hyper-SD).
-  POST https://router.huggingface.co/hf-inference/models/{id}
-  with {"inputs": prompt, "parameters": {...}} -> raw image bytes.
+  Routed via the official ``huggingface_hub`` client (provider="auto"),
+  which picks a serving provider per model — plain HTTP against the
+  default hf-inference route 400s for models it doesn't serve.
 - Cloudflare Workers AI (needs CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN):
   ``flux-schnell`` (@cf/black-forest-labs/flux-1-schnell).
   POST /client/v4/accounts/{id}/ai/run/<model> -> {"result": {"image": b64}}.
+  Note: the REST schema rejects ``seed`` — only prompt (+steps) is sent.
 
 All keyed helpers return a ``data:image/...;base64,...`` URI so the
 frontend <img> renders without extra proxying.
@@ -20,6 +22,7 @@ frontend <img> renders without extra proxying.
 from __future__ import annotations
 
 import base64
+import io
 import logging
 from typing import Optional
 
@@ -29,7 +32,6 @@ from app.database.config import settings
 
 log = logging.getLogger(__name__)
 
-HF_ROUTER = "https://router.huggingface.co/hf-inference/models"
 CF_RUN_TMPL = (
     "https://api.cloudflare.com/client/v4/accounts/{account}"
     "/ai/run/@cf/black-forest-labs/flux-1-schnell"
@@ -116,41 +118,28 @@ def _data_uri(img_bytes: bytes, content_type: str = "") -> str:
     return f"data:{ct};base64," + base64.b64encode(img_bytes).decode("ascii")
 
 
-async def generate_hf(
-    hf_model: str, prompt: str, width: int, height: int, seed: int
-) -> str:
-    """Call HF Inference Providers router, return data URI. Raises on error."""
+async def generate_hf(hf_model: str, prompt: str) -> str:
+    """Generate via HF Inference Providers, return data URI. Raises on error.
+
+    Uses the official client with provider="auto" so each model is routed
+    to a provider that actually serves it (raw HTTP against the default
+    hf-inference route 400s with "Model not supported by provider").
+    No extra parameters are sent — provider schemas differ (fal-ai wants
+    image_size, diffusers want width/height), defaults are safest.
+    """
+    from huggingface_hub import AsyncInferenceClient
+
     token = settings.HF_TOKEN
     if not token:
         raise RuntimeError("HF_TOKEN is not configured")
-    url = f"{HF_ROUTER}/{hf_model}"
-    payload = {
-        "inputs": prompt,
-        "parameters": {
-            "width": width,
-            "height": height,
-            "seed": seed,
-            "num_inference_steps": 4 if "Hyper-SD" in hf_model else 20,
-        },
-    }
-    timeout = httpx.Timeout(connect=10.0, read=120.0, write=10.0, pool=10.0)
-    async with httpx.AsyncClient(timeout=timeout) as client:
-        r = await client.post(
-            url,
-            headers={
-                "Authorization": f"Bearer {token}",
-                "Content-Type": "application/json",
-            },
-            json=payload,
-        )
-    ctype = r.headers.get("content-type", "")
-    if r.status_code != 200 or ctype.startswith("application/json"):
-        detail = r.text[:300]
-        raise RuntimeError(f"HF {hf_model} failed ({r.status_code}): {detail}")
-    return _data_uri(r.content, ctype)
+    client = AsyncInferenceClient(api_key=token, timeout=120)
+    image = await client.text_to_image(prompt, model=hf_model)
+    buf = io.BytesIO()
+    image.save(buf, format="PNG")
+    return _data_uri(buf.getvalue(), "image/png")
 
 
-async def generate_cloudflare(prompt: str, seed: int) -> str:
+async def generate_cloudflare(prompt: str) -> str:
     """Call Cloudflare Workers AI flux-1-schnell, return data URI."""
     account = settings.CLOUDFLARE_ACCOUNT_ID
     token = settings.CLOUDFLARE_API_TOKEN
@@ -165,7 +154,9 @@ async def generate_cloudflare(prompt: str, seed: int) -> str:
                 "Authorization": f"Bearer {token}",
                 "Content-Type": "application/json",
             },
-            json={"prompt": prompt, "steps": 4, "seed": seed},
+            # NOTE: the REST schema rejects `seed`
+            # (5006: unevaluated property not allowed) — prompt only.
+            json={"prompt": prompt, "steps": 4},
         )
     if r.status_code != 200:
         raise RuntimeError(f"Cloudflare AI failed ({r.status_code}): {r.text[:300]}")
@@ -185,11 +176,12 @@ async def generate_cloudflare(prompt: str, seed: int) -> str:
 
 async def generate_image(
     model: str, prompt: str, width: int, height: int, seed: int
-) -> tuple[str, str, bool]:
-    """Generate an image. Returns (image_url, used_model, fell_back).
+) -> tuple[str, str, bool, Optional[str]]:
+    """Generate an image. Returns (image_url, used_model, fell_back, error).
 
     Keyed backends fall back to keyless pollinations ``flux`` on missing
-    keys or provider errors so the UI never hard-breaks.
+    keys or provider errors so the UI never hard-breaks; ``error`` carries
+    the provider failure reason (None when the requested backend served).
     """
     from urllib.parse import quote
 
@@ -198,20 +190,31 @@ async def generate_image(
 
     if meta["provider"] == "huggingface":
         try:
-            uri = await generate_hf(meta["hf_model"], prompt, width, height, seed)
-            return uri, m, False
+            uri = await generate_hf(meta["hf_model"], prompt)
+            return uri, m, False, None
         except Exception as e:
-            log.warning("[images] HF %s failed, falling back to flux: %s", m, e)
+            err = f"HF {m}: {e}"[:300]
+            log.warning("[images] %s, falling back to flux", err)
+            return _pollinations(prompt, width, height, seed), "flux", True, err
     elif meta["provider"] == "cloudflare":
         try:
-            uri = await generate_cloudflare(prompt, seed)
-            return uri, m, False
+            uri = await generate_cloudflare(prompt)
+            return uri, m, False, None
         except Exception as e:
-            log.warning("[images] Cloudflare failed, falling back to flux: %s", e)
+            err = f"Cloudflare: {e}"[:300]
+            log.warning("[images] %s, falling back to flux", err)
+            return _pollinations(prompt, width, height, seed), "flux", True, err
 
-    base = m if m in ("flux", "turbo") else "flux"
-    url = (
+    return _pollinations(prompt, width, height, seed, model=m), m, False, None
+
+
+def _pollinations(
+    prompt: str, width: int, height: int, seed: int, model: str = "flux"
+) -> str:
+    from urllib.parse import quote
+
+    base = model if model in ("flux", "turbo") else "flux"
+    return (
         f"https://image.pollinations.ai/prompt/{quote(prompt)}"
         f"?width={width}&height={height}&seed={seed}&model={base}&nologo=true"
     )
-    return url, base, (m not in ("flux", "turbo"))

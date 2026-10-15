@@ -253,7 +253,7 @@ async def ai_generate_image(
     h = min(max(body.height or 1024, 256), 1024)
     seed = body.seed if isinstance(body.seed, int) else random.randint(0, 999999)
     model = normalize_model(body.model)
-    url, used_model, fell_back = await generate_image(model, prompt, w, h, seed)
+    url, used_model, fell_back, error = await generate_image(model, prompt, w, h, seed)
     return success_response(
         {
             "image_url": url,
@@ -262,6 +262,7 @@ async def ai_generate_image(
             "model": used_model,
             "requested_model": model,
             "fallback": fell_back,
+            "error": error,
             "width": w,
             "height": h,
         }

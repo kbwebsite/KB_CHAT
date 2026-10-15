@@ -10,7 +10,7 @@ const AiMarkdown = lazy(() => import('../components/AiMarkdown'))
 import { AiFace } from '../components/AiFace'
 
 interface SmartHit { id: number; content: string; sender: string; conversation: string; conversation_id: number; created_at: string | null }
-interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date; imageUrl?: string; fileName?: string; hits?: SmartHit[] }
+interface Message { role: 'user' | 'assistant'; content: string; timestamp: Date; imageUrl?: string; fileName?: string; note?: string; hits?: SmartHit[] }
 
 const HISTORY_CAP = 50
 
@@ -198,10 +198,13 @@ export default function KBAIPage() {
       const r: any = await aiApi.generateImage(prompt, imageModel)
       const url = r?.data?.image_url ?? r?.image_url
       if (!url) throw new Error('no image url')
+      const note = r?.data?.fallback
+        ? (r?.data?.error ? `Flux fallback — ${r.data.error}` : 'Flux fallback — keyed model unavailable.')
+        : undefined
       setMessages(prev => {
         const next = [...prev]
         if (next[slot.i] && next[slot.i].role === 'assistant') {
-          next[slot.i] = { ...next[slot.i], imageUrl: url }
+          next[slot.i] = { ...next[slot.i], imageUrl: url, ...(note ? { note } : {}) }
         }
         return next
       })
@@ -446,7 +449,12 @@ export default function KBAIPage() {
                     <span className="text-xs text-muted-foreground">Dreaming…</span>
                   </div>
                 ) : (
-                  <GeneratedImage url={m.imageUrl} prompt={m.content} />
+                  <>
+                    <GeneratedImage url={m.imageUrl} prompt={m.content} />
+                    {m.note && (
+                      <p className="text-[11px] text-amber-500/90 mt-1.5 break-words">{m.note}</p>
+                    )}
+                  </>
                 )
               ) : m.role === 'user' ? (
                 <>

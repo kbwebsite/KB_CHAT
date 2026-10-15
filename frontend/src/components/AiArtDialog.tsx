@@ -27,7 +27,7 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
   const [url, setUrl] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [fallbackNote, setFallbackNote] = useState(false)
+  const [fallbackNote, setFallbackNote] = useState<string | null>(null)
   const [model, setModel] = useState<ImageModelId>('flux')
 
   const generate = async () => {
@@ -35,13 +35,19 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
     if (!p || busy) return
     setBusy(true)
     setError(null)
-    setFallbackNote(false)
+    setFallbackNote(null)
     try {
       const r: any = await aiApi.generateImage(p.slice(0, 2000), model)
       const u = r?.data?.image_url
       if (r?.success && u) {
         setUrl(u)
-        if (r?.data?.fallback) setFallbackNote(true)
+        if (r?.data?.fallback) {
+          setFallbackNote(
+            r?.data?.error
+              ? `Keyed model failed — Flux fallback. Reason: ${r.data.error}`
+              : 'Keyed model unavailable — showing Flux fallback instead.',
+          )
+        }
       } else throw new Error(r?.message || 'Generation failed')
     } catch (e: any) {
       setError(e?.response?.data?.detail || e?.message || 'Generation failed.')
@@ -113,8 +119,8 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
         </div>
         {error && <p className="text-xs text-destructive mt-2">{error}</p>}
         {fallbackNote && (
-          <p className="text-[11px] text-amber-500 mt-2">
-            Keyed model unavailable — showing Flux fallback instead.
+          <p className="text-[11px] text-amber-500 mt-2 break-words">
+            {fallbackNote}
           </p>
         )}
         {url ? (
