@@ -520,10 +520,10 @@ export default function KBAIPage() {
               id="kbai-image-model"
               value={imageModel}
               onChange={(e) => setImageModel(e.target.value as ImageModelId)}
-              className="flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-xs outline-none"
+              className="image-model-select flex-1 min-w-0 px-2.5 py-1.5 rounded-xl border border-white/10 bg-white/[0.04] text-xs outline-none"
               aria-label="Image model"
             >
-              {(['Keyless', 'HuggingFace', 'Cloudflare'] as const).map((g) => (
+              {(['Keyless', 'Cloudflare'] as const).map((g) => (
                 <optgroup key={g} label={g}>
                   {IMAGE_MODELS.filter((m) => m.group === g).map((m) => (
                     <option key={m.id} value={m.id}>

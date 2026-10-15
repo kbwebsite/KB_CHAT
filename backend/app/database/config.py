@@ -52,10 +52,8 @@ class Settings(BaseSettings):
     OLLAMA_API_KEY: str = ""
     OLLAMA_BASE_URL: str = "https://ollama.com"
     # Text-to-image backends (dashboard-managed secrets — never commit values).
-    # HuggingFace Inference Providers (FLUX.1-Krea-dev, Qwen-Image, Hyper-SD).
-    HF_TOKEN: str = ""
-    # Cloudflare Workers AI (FLUX.1-schnell). Account ID + API token with
-    # Workers AI permission. Separate from the TURN credentials below.
+    # Cloudflare Workers AI (free 10k neurons/day). Account ID + API token
+    # with Workers AI permission. Separate from the TURN credentials below.
     CLOUDFLARE_ACCOUNT_ID: str = ""
     CLOUDFLARE_API_TOKEN: str = ""
     GOOGLE_CLIENT_ID: str = ""

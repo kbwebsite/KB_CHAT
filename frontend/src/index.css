@@ -3230,3 +3230,11 @@ body {
   .lp-orb, .lp-particle, .lp-typing-dot { animation: none !important; }
   .lp-orb { opacity: 0.2; }
 }
+
+/* Native image-model dropdown: force dark text on white in the popup list
+   (options inherit the app light text otherwise, unreadable on white). */
+.image-model-select option,
+.image-model-select optgroup {
+  color: #14142b;
+  background-color: #ffffff;
+}

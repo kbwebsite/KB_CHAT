@@ -3,14 +3,11 @@ import { X, Sparkles, RefreshCw, Check } from 'lucide-react'
 import { aiApi } from '../services/api'
 
 /** Image model ids accepted by POST /api/ai/image (see backend/app/ai/images.py).
- * flux/turbo are keyless; the rest need HF_TOKEN / Cloudflare keys and fall
+ * flux/turbo are keyless; Cloudflare models need server keys and fall
  * back to flux when unavailable. */
 export const IMAGE_MODELS = [
   { id: 'flux', label: '✨ Flux — better', group: 'Keyless' },
   { id: 'turbo', label: '⚡ Turbo — faster', group: 'Keyless' },
-  { id: 'flux-krea', label: '🎨 FLUX Krea — realistic', group: 'HuggingFace' },
-  { id: 'qwen-image', label: '🌊 Qwen-Image — powerful', group: 'HuggingFace' },
-  { id: 'hyper-sd', label: '🚀 Hyper-SD — fast', group: 'HuggingFace' },
   { id: 'flux-schnell', label: '☁️ FLUX schnell — Cloudflare', group: 'Cloudflare' },
   { id: 'flux-2-klein', label: '⚡ FLUX.2-klein — fastest SOTA', group: 'Cloudflare' },
   { id: 'sdxl-lightning', label: '🌩️ SDXL-Lightning — fast 1024px', group: 'Cloudflare' },
@@ -104,10 +101,10 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
             value={model}
             onChange={(e) => setModel(e.target.value as ImageModelId)}
             disabled={busy}
-            className="w-full px-3 py-2 rounded-xl border bg-muted text-xs font-medium outline-none min-h-[40px] disabled:opacity-50"
+            className="image-model-select w-full px-3 py-2 rounded-xl border bg-muted text-xs font-medium outline-none min-h-[40px] disabled:opacity-50"
             aria-label="Image model"
           >
-            {(['Keyless', 'HuggingFace', 'Cloudflare'] as const).map((g) => (
+            {(['Keyless', 'Cloudflare'] as const).map((g) => (
               <optgroup key={g} label={g}>
                 {IMAGE_MODELS.filter((m) => m.group === g).map((m) => (
                   <option key={m.id} value={m.id}>
@@ -118,7 +115,7 @@ export function AiArtDialog({ onClose, onPick, cta = 'Use this' }: {
             ))}
           </select>
           <p className="text-[11px] text-muted-foreground mt-1">
-            HuggingFace / Cloudflare models need server keys — otherwise Flux is used.
+            Cloudflare models need server keys — otherwise Flux is used.
           </p>
         </div>
         {error && <p className="text-xs text-destructive mt-2">{error}</p>}

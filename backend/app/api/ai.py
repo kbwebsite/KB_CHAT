@@ -129,11 +129,11 @@ class AIImageRequest(BaseModel):
     width: int = 1024
     height: int = 1024
     seed: Optional[int] = None
-    # flux | turbo (keyless pollinations) | flux-krea | qwen-image |
-    # hyper-sd (HuggingFace, needs HF_TOKEN) | flux-schnell
-    # (Cloudflare Workers AI, needs CLOUDFLARE_ACCOUNT_ID + _API_TOKEN).
-    # Unknown values normalize to flux; keyed models fall back to keyless
-    # flux when keys are missing or the provider errors.
+    # flux | turbo (keyless pollinations) | flux-schnell | flux-2-klein |
+    # sdxl-lightning | dreamshaper | sdxl-base (Cloudflare Workers AI, needs
+    # CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN). Unknown values normalize
+    # to flux; keyed models fall back to keyless flux when keys are missing
+    # or the provider errors.
     model: str = "flux"
 
 
@@ -230,11 +230,11 @@ async def ai_generate_image(
 ):
     """Image generation across keyless + keyed backends.
 
-    Keyless pollinations (flux/turbo) always works. HF models
-    (flux-krea, qwen-image, hyper-sd) need HF_TOKEN; Cloudflare
-    flux-schnell needs CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN.
-    Keyed failures fall back to keyless flux so the UI never hard-breaks
-    (response flags ``fallback: true`` when that happens).
+    Keyless pollinations (flux/turbo) always works. Cloudflare models
+    (flux-schnell, flux-2-klein, sdxl-lightning, dreamshaper, sdxl-base)
+    need CLOUDFLARE_ACCOUNT_ID + CLOUDFLARE_API_TOKEN. Keyed failures fall
+    back to keyless flux so the UI never hard-breaks (response flags
+    ``fallback: true`` with the ``error`` reason when that happens).
     """
     import random
 
