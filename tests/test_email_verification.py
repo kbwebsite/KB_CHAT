@@ -468,16 +468,83 @@ def test_otp_flow_with_working_sender(monkeypatch):
     finally:
         db.close()
 
-    # ...and login now stops at the code step (fresh signup code is inside
-    # its 60s cooldown, so no second send is attempted).
+    # ...and login now stops at the code step, reusing the fresh signup
+    # code already sitting in the inbox (the 60s cooldown no longer
+    # swallows the login's send attempt).
     r = client.post(
         "/api/auth/login", json={"identifier": email, "password": "pass123"}
     )
     assert r.status_code == 200, r.text
     assert r.json()["data"].get("login_step") == "verify_code"
 
-    # Redeeming the seeded code completes the sign-in.
+    # The signup code is STILL the newest unused row (login did not replace
+    # or invalidate it) — the same email serves both steps.
+    db = SessionLocal()
+    try:
+        rows_after = db.query(VerificationCode).filter_by(email=email).count()
+    finally:
+        db.close()
+    assert rows_after == 1, rows_after
+
+    # Redeeming the seeded newest code completes the sign-in.
     _seed_code(email)
     r2 = client.post("/api/auth/verify-login", json={"email": email, "code": "123456"})
     assert r2.status_code == 200, r2.text
     assert r2.json()["data"]["access_token"]
+
+
+def test_signup_then_immediate_login_gets_fresh_code(monkeypatch):
+    """Verify the signup code, then log in right away: the login step must
+    not strand the user with the already-redeemed email — under the 60s
+    cooldown it now issues a fresh code instead of pointing at a dead one."""
+    from app.models.verification import VerificationCode
+    from app.utils import email as email_module
+
+    roughly_sends = []
+
+    class FakeResp:
+        status_code = 201
+        text = ""
+
+        def json(self):
+            return {"messageId": "x"}
+
+    def fake_post(url, **kw):
+        roughly_sends.append((kw.get("json") or {}).get("to"))
+        return FakeResp()
+
+    monkeypatch.setattr(email_module.httpx, "post", fake_post)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-test", raising=False)
+    monkeypatch.setattr(settings, "BREVO_FROM", "Kryzen <me@gmail.com>", raising=False)
+
+    suffix = str(int(time.time() * 1000))[-6:]
+    email = f"sl{suffix}@ex.com"
+    _signup(f"sl{suffix}", email)
+    assert len(roughly_sends) == 1  # signup code went out
+
+    _seed_code(email)
+    r = client.post("/api/auth/verify-email", json={"email": email, "code": "123456"})
+    assert r.status_code == 200, r.text
+
+    # Everything is <60s old here: before the fix the login attempt hit the
+    # 429 branch and pointed at the redeemed (unusable) inbox code.
+    r = client.post(
+        "/api/auth/login", json={"identifier": email, "password": "pass123"}
+    )
+    assert r.status_code == 200, r.text
+    data = r.json()["data"]
+    assert data.get("login_step") == "verify_code"
+    # A fresh send went out and the newest code row is unused and ready.
+    assert len(roughly_sends) == 2
+    db = SessionLocal()
+    try:
+        rows = (
+            db.query(VerificationCode)
+            .filter_by(email=email)
+            .order_by(VerificationCode.id.desc())
+            .all()
+        )
+        assert len(rows) >= 2
+        assert rows[0].used is False
+    finally:
+        db.close()

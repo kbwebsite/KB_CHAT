@@ -141,11 +141,13 @@ def login(
         # the inbox verified, so first-time and returning users share it.
         code_sent = False
         try:
-            code_sent = bool(_issue_code(db, user))
+            code_sent = bool(_issue_code(db, user, allow_reuse_pending=True))
         except HTTPException as e:
             if e.status_code == 429:
-                # A code went out <60s ago (e.g. right after signup) —
-                # don't error, just point at the inbox.
+                # A code went out <60s ago and it was already redeemed but we
+                # still couldn't mint a fresh one — point at the inbox rather
+                # than surfacing a rate-limit error (the 429 branch is this
+                # endpoint's only remaining path to code_sent=True).
                 code_sent = True
             else:
                 raise
@@ -821,11 +823,15 @@ def _as_aware(dt: datetime) -> datetime:
     return dt
 
 
-def _issue_code(db: Session, user: User) -> bool:
+def _issue_code(db: Session, user: User, allow_reuse_pending: bool = False) -> bool:
     """Generate, store (hashed, in DB) and email a 6-digit code.
 
     DB-backed so codes survive sleeps, restarts and redeploys.
-    Returns the sent-flag."""
+    Returns the sent-flag. ``allow_reuse_pending`` (login path only): when a
+    fresh, unredeemed code is already waiting in the inbox, reuse it instead
+    of raising 429 — a fresh signup code would otherwise be swallowed by the
+    60s cooldown and leave the login step with nothing usable. A redeemed
+    recent code still yields a fresh send so login is never stranded."""
     from app.models.verification import VerificationCode
     from app.utils.email import send_verification_code
 
@@ -842,11 +848,20 @@ def _issue_code(db: Session, user: User) -> bool:
     )
     if last is not None and last.created_at is not None:
         created = _as_aware(last.created_at)
-        if created is not None and now - created < _CODE_COOLDOWN:
+        recent = created is not None and now - created < _CODE_COOLDOWN
+        if recent and not allow_reuse_pending:
+            # Resend endpoints keep the rate limit exactly as before.
             raise HTTPException(
                 status_code=429,
                 detail="Code sent recently — check your inbox before requesting another",
             )
+        if recent:
+            if not last.used:
+                # Fresh, still-valid code waiting in the inbox: point at it
+                # instead of burning a second email against the send limits.
+                return True
+            # The recent code was already redeemed — fall through and issue
+            # a fresh one so this login always gets a usable email.
     # Only the newest code per inbox stays valid: invalidate older unused
     # ones so a stale email's code can never shadow the fresh one.
     db.query(VerificationCode).filter(
