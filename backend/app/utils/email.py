@@ -19,14 +19,17 @@ from app.database.config import settings
 logger = logging.getLogger(__name__)
 
 RESEND_ENDPOINT = "https://api.resend.com/emails"
+BREVO_ENDPOINT = "https://api.brevo.com/v3/smtp/email"
 GMAIL_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token"
-GMAIL_SEND_ENDPOINT = (
-    "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
-)
+GMAIL_SEND_ENDPOINT = "https://gmail.googleapis.com/gmail/v1/users/me/messages/send"
 
 
 def resend_configured() -> bool:
     return bool((settings.RESEND_API_KEY or "").strip())
+
+
+def brevo_configured() -> bool:
+    return bool((settings.BREVO_API_KEY or "").strip())
 
 
 def smtp_configured() -> bool:
@@ -47,7 +50,12 @@ def gmail_configured() -> bool:
 
 def email_configured() -> bool:
     """True when at least one sender can actually deliver."""
-    return gmail_configured() or resend_configured() or smtp_configured()
+    return (
+        gmail_configured()
+        or resend_configured()
+        or brevo_configured()
+        or smtp_configured()
+    )
 
 
 def _resend_sender_is_sandbox() -> bool:
@@ -77,22 +85,16 @@ def _gmail_access_token() -> str | None:
         if 200 <= resp.status_code < 300:
             token = (resp.json() or {}).get("access_token")
             return token or None
-        logger.warning(
-            "[email] Gmail token refresh failed: %s", resp.status_code
-        )
+        logger.warning("[email] Gmail token refresh failed: %s", resp.status_code)
     except Exception as e:
         logger.warning("[email] Gmail token refresh failed: %s", e)
     return None
 
 
-def _send_via_gmail_api(
-    to: str, subject: str, html: str, text: str | None
-) -> bool:
+def _send_via_gmail_api(to: str, subject: str, html: str, text: str | None) -> bool:
     """Send via the Gmail API. Free, no domain needed; mail goes out from
     the authorized Gmail account."""
-    sender = (settings.GMAIL_FROM or "").strip() or (
-        settings.SMTP_USER or ""
-    ).strip()
+    sender = (settings.GMAIL_FROM or "").strip() or (settings.SMTP_USER or "").strip()
     if "@" not in sender:
         return False
     access = _gmail_access_token()
@@ -134,7 +136,7 @@ def _send_via_gmail_api(
 def send_email(to: str, subject: str, html: str, text: str | None = None) -> bool:
     """Send one transactional email. Gmail API first (works where SMTP is
     blocked), then SMTP-first with a sandbox Resend sender (it can't reach
-other inboxes anyway), Resend first otherwise."""
+    other inboxes anyway), Resend first otherwise, then Brevo, then SMTP."""
     if gmail_configured() and _send_via_gmail_api(to, subject, html, text):
         return True
     if not email_configured():
@@ -148,6 +150,8 @@ other inboxes anyway), Resend first otherwise."""
     if smtp_first and _send_via_smtp(to, subject, html, text):
         return True
     if resend_configured() and _send_via_resend(to, subject, html, text):
+        return True
+    if brevo_configured() and _send_via_brevo(to, subject, html, text):
         return True
     if not smtp_first and smtp_configured():
         return _send_via_smtp(to, subject, html, text)
@@ -185,6 +189,62 @@ def _send_via_resend(to: str, subject: str, html: str, text: str | None) -> bool
         return False
     except Exception as e:
         logger.warning("[email] Resend send to %s failed: %s", to, e)
+        return False
+
+
+def _split_sender(raw: str, default_name: str = "Kryzen") -> tuple:
+    """'Name <addr@x>' -> ('Name', 'addr@x'); bare addresses keep default."""
+    raw = (raw or "").strip()
+    name, addr = default_name, raw
+    if "<" in raw and ">" in raw:
+        name = raw.split("<", 1)[0].strip().strip('"') or default_name
+        addr = raw.split("<", 1)[1].rsplit(">", 1)[0].strip()
+    return name, addr
+
+
+def _send_via_brevo(to: str, subject: str, html: str, text: str | None) -> bool:
+    """Send via the Brevo transactional API (free tier). No domain needed:
+    the sender address is verified once in the Brevo dashboard. Returns
+    True on accept (2xx)."""
+    api_key = (settings.BREVO_API_KEY or "").strip()
+    if not api_key:
+        return False
+    raw_from = (
+        (settings.BREVO_FROM or "").strip()
+        or (settings.SMTP_FROM or "").strip()
+        or (settings.SMTP_USER or "").strip()
+    )
+    name, addr = _split_sender(raw_from)
+    if "@" not in addr:
+        logger.warning("[email] Brevo sender address missing — skipping send")
+        return False
+    payload: dict = {
+        "sender": {"name": name, "email": addr},
+        "to": [{"email": to}],
+        "subject": subject,
+        "htmlContent": html,
+    }
+    if text:
+        payload["textContent"] = text
+    try:
+        resp = httpx.post(
+            BREVO_ENDPOINT,
+            headers={"api-key": api_key, "Content-Type": "application/json"},
+            json=payload,
+            timeout=10,
+        )
+        if 200 <= resp.status_code < 300:
+            logger.info("[email] sent via Brevo to %s (%s)", to, subject)
+            return True
+        logger.warning(
+            "[email] Brevo rejected send to %s: %s %s",
+            to,
+            resp.status_code,
+            resp.text[:200],
+        )
+        return False
+    except Exception as e:
+        logger.warning("[email] Brevo send to %s failed: %s", to, e)
         return False
 
 

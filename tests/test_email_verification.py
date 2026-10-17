@@ -12,11 +12,15 @@ from app.main import app  # noqa: E402
 from app.database.connection import SessionLocal, create_tables  # noqa: E402
 from app.database.config import settings  # noqa: E402
 from app.models.user import User  # noqa: E402
+from app.utils.email import email_configured  # noqa: E402
 
 create_tables()
 client = TestClient(app)
 
-# Resend is unset in tests: sends are skipped (fail-soft), codes still stored.
+# conftest.py forces every sender off for the suite (env beats backend/.env,
+# which may carry real keys): sends are skipped (fail-soft), codes still
+# stored, verification_sent stays False.
+assert email_configured() is False
 assert not (settings.RESEND_API_KEY or "").strip()
 
 
@@ -169,9 +173,7 @@ def test_verify_login_rejects_bad_code():
     suffix = str(int(time.time() * 1000))[-6:]
     email = f"badlogin{suffix}@ex.com"
     _signup(f"badlogin{suffix}", email)
-    r = client.post(
-        "/api/auth/verify-login", json={"email": email, "code": "000000"}
-    )
+    r = client.post("/api/auth/verify-login", json={"email": email, "code": "000000"})
     assert r.status_code == 400
     r = client.post("/api/auth/verify-login", json={"email": email, "code": "abc"})
     assert r.status_code == 400
@@ -187,13 +189,9 @@ def test_verify_login_code_single_use():
     email = f"once{suffix}@ex.com"
     _signup(f"once{suffix}", email)
     _seed_code(email)
-    r = client.post(
-        "/api/auth/verify-login", json={"email": email, "code": "123456"}
-    )
+    r = client.post("/api/auth/verify-login", json={"email": email, "code": "123456"})
     assert r.status_code == 200, r.text
-    r = client.post(
-        "/api/auth/verify-login", json={"email": email, "code": "123456"}
-    )
+    r = client.post("/api/auth/verify-login", json={"email": email, "code": "123456"})
     assert r.status_code == 400
 
 
@@ -329,9 +327,7 @@ def test_gmail_failure_is_fail_soft(monkeypatch):
         def json(self):
             return {}
 
-    monkeypatch.setattr(
-        email_module.httpx, "post", lambda *a, **k: FakeResp()
-    )
+    monkeypatch.setattr(email_module.httpx, "post", lambda *a, **k: FakeResp())
     monkeypatch.setattr(settings, "GMAIL_CLIENT_ID", "cid", raising=False)
     monkeypatch.setattr(settings, "GMAIL_CLIENT_SECRET", "csec", raising=False)
     monkeypatch.setattr(settings, "GMAIL_REFRESH_TOKEN", "bad", raising=False)
@@ -347,3 +343,141 @@ def test_forgot_password_dev_token_preserved_without_resend():
     assert r.status_code == 200
     # No sender configured in tests: dev still returns the token.
     assert r.json()["data"]["token"]
+
+
+def test_brevo_sender_disabled_without_config():
+    from app.utils import email as email_module
+
+    assert email_module.brevo_configured() is False
+
+
+def test_brevo_api_send_success(monkeypatch):
+    """With only Brevo configured, send_email delivers via its API."""
+    from app.utils import email as email_module
+
+    calls = []
+
+    class FakeResp:
+        status_code = 201
+        text = ""
+
+        def json(self):
+            return {"messageId": "x"}
+
+    def fake_post(url, **kw):
+        calls.append((url, kw))
+        return FakeResp()
+
+    monkeypatch.setattr(email_module.httpx, "post", fake_post)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-test", raising=False)
+    monkeypatch.setattr(settings, "BREVO_FROM", "Kryzen <me@gmail.com>", raising=False)
+    # Keep the other senders off so Brevo is the path taken.
+    monkeypatch.setattr(settings, "GMAIL_CLIENT_ID", "", raising=False)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "", raising=False)
+    monkeypatch.setattr(settings, "SMTP_HOST", "", raising=False)
+
+    assert email_module.brevo_configured() is True
+    assert email_module.email_configured() is True
+    assert email_module.send_email("a@ex.com", "Hi", "<p>hi</p>", "hi") is True
+    url, kw = calls[0]
+    assert url == "https://api.brevo.com/v3/smtp/email"
+    assert kw["headers"]["api-key"] == "xkeysib-test"
+    assert kw["json"]["sender"] == {"name": "Kryzen", "email": "me@gmail.com"}
+    assert kw["json"]["to"] == [{"email": "a@ex.com"}]
+    assert kw["json"]["textContent"] == "hi"
+
+
+def test_brevo_failure_falls_through_to_smtp(monkeypatch):
+    """Brevo 4xx must not stop the SMTP fallback from delivering."""
+    from app.utils import email as email_module
+
+    sent = {}
+
+    class FakeResp:
+        status_code = 401
+        text = "unauthorized"
+
+        def json(self):
+            return {}
+
+    class FakeSMTP:
+        def __init__(self, *a, **k):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *a):
+            return False
+
+        def starttls(self):
+            pass
+
+        def login(self, user, password):
+            pass
+
+        def sendmail(self, sender, to, msg):
+            sent["to"] = to
+
+    monkeypatch.setattr(email_module.httpx, "post", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(email_module.smtplib, "SMTP", FakeSMTP)
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-bad", raising=False)
+    monkeypatch.setattr(settings, "BREVO_FROM", "me@gmail.com", raising=False)
+    monkeypatch.setattr(settings, "GMAIL_CLIENT_ID", "", raising=False)
+    monkeypatch.setattr(settings, "RESEND_API_KEY", "", raising=False)
+    monkeypatch.setattr(settings, "SMTP_HOST", "smtp.gmail.com", raising=False)
+    monkeypatch.setattr(settings, "SMTP_USER", "test@gmail.com", raising=False)
+    monkeypatch.setattr(settings, "SMTP_PASS", "app-pass", raising=False)
+
+    assert email_module.send_email("a@ex.com", "Hi", "<p>hi</p>", "hi") is True
+    assert sent["to"] == ["a@ex.com"]
+
+
+def test_otp_flow_with_working_sender(monkeypatch):
+    """With a working sender: signup reports sent=True and login asks for the
+    inbox code (verify_code step) instead of fail-opening."""
+    from app.models.verification import VerificationCode
+    from app.utils import email as email_module
+
+    class FakeResp:
+        status_code = 201
+        text = ""
+
+        def json(self):
+            return {"messageId": "x"}
+
+    monkeypatch.setattr(email_module.httpx, "post", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(settings, "BREVO_API_KEY", "xkeysib-test", raising=False)
+    monkeypatch.setattr(settings, "BREVO_FROM", "Kryzen <me@gmail.com>", raising=False)
+
+    suffix = str(int(time.time() * 1000))[-6:]
+    email = f"otp{suffix}@ex.com"
+    data = _signup(f"otp{suffix}", email)["data"]
+    assert data["verification_sent"] is True
+
+    # A code row exists for the fresh inbox...
+    db = SessionLocal()
+    try:
+        row = (
+            db.query(VerificationCode)
+            .filter_by(email=email)
+            .order_by(VerificationCode.id.desc())
+            .first()
+        )
+        assert row is not None and not row.used
+    finally:
+        db.close()
+
+    # ...and login now stops at the code step (fresh signup code is inside
+    # its 60s cooldown, so no second send is attempted).
+    r = client.post(
+        "/api/auth/login", json={"identifier": email, "password": "pass123"}
+    )
+    assert r.status_code == 200, r.text
+    assert r.json()["data"].get("login_step") == "verify_code"
+
+    # Redeeming the seeded code completes the sign-in.
+    _seed_code(email)
+    r2 = client.post("/api/auth/verify-login", json={"email": email, "code": "123456"})
+    assert r2.status_code == 200, r2.text
+    assert r2.json()["data"]["access_token"]

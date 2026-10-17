@@ -29,6 +29,38 @@ async def lifespan(app):
     except Exception as e:
         print(f"[db] pool warmup skipped: {e}")
 
+    # Outbound-email status at boot. Without this, a missing sender only shows
+    # up as verification_sent=false on signup (and login silently skipping the
+    # code step) — painful to diagnose from the client side.
+    try:
+        from app.utils.email import (
+            brevo_configured,
+            email_configured,
+            gmail_configured,
+            resend_configured,
+            smtp_configured,
+        )
+
+        active = [
+            label
+            for label, ok in (
+                ("gmail-api", gmail_configured()),
+                ("smtp", smtp_configured()),
+                ("resend", resend_configured()),
+                ("brevo", brevo_configured()),
+            )
+            if ok
+        ]
+        if email_configured():
+            print(f"[email] senders configured: {', '.join(active)}")
+        else:
+            print(
+                "[email] NO sender configured — verification/login codes "
+                "cannot be delivered"
+            )
+    except Exception as e:
+        print(f"[email] status check skipped: {e}")
+
     # Startup: background task to check scheduled messages every 30 seconds
     async def _check():
         while True:

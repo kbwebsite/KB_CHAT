@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     # Unset locally/tests: sends are skipped with a log line (fail-soft).
     RESEND_API_KEY: str = ""
     RESEND_FROM: str = "Kryzen <onboarding@resend.dev>"
+    # Brevo transactional API (free 300/day). No domain needed: verify any
+    # sender address once in the Brevo dashboard (Senders), then set the key.
+    BREVO_API_KEY: str = ""
+    BREVO_FROM: str = ""
     FRONTEND_URL: str = "https://kb-chat-1.onrender.com"
     # Domain-free fallback: Gmail SMTP with an App Password (Google account
     # -> Security -> 2-Step Verification -> App passwords). Sends to any

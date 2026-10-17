@@ -93,6 +93,12 @@ services:
         sync: false
       - key: RESEND_FROM
         value: Kryzen <onboarding@resend.dev>
+      # Brevo transactional API (free 300/day, no domain needed): verify any
+      # sender address once in the Brevo dashboard, then set the key here.
+      - key: BREVO_API_KEY
+        sync: false
+      - key: BREVO_FROM
+        sync: false
       - key: FRONTEND_URL
         value: https://kb-chat-1.onrender.com
       # Free plan has no persistent disk: uploads persist via Cloudinary

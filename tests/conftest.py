@@ -31,6 +31,22 @@ _TEST_DIR = tempfile.mkdtemp(prefix="kb_test_db_")
 _TEST_DB_PATH = os.path.join(_TEST_DIR, "test.db")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB_PATH}"
 
+# Outbound email: force every sender off for the suite BEFORE app settings
+# load (env beats the developer's backend/.env, which may carry real keys).
+# Tests then exercise the documented fail-soft paths — no real mail, no
+# Resend/Brevo quota burn, deterministic verification_sent=false.
+for _mail_var in (
+    "RESEND_API_KEY",
+    "BREVO_API_KEY",
+    "GMAIL_CLIENT_ID",
+    "GMAIL_CLIENT_SECRET",
+    "GMAIL_REFRESH_TOKEN",
+    "SMTP_HOST",
+    "SMTP_USER",
+    "SMTP_PASS",
+):
+    os.environ[_mail_var] = ""
+
 import pytest  # noqa: E402  (import after env setup is the whole point)
 
 
